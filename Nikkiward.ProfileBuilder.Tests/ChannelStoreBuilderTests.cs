@@ -238,7 +238,7 @@ internal static class ChannelStoreBuilderTests
 
         public StoreFixture()
         {
-            Root = Path.Combine("E:\\", $"Nikkiward-StoreTest-{Guid.NewGuid():N}");
+            Root = Path.Combine(Path.GetTempPath(), $"Nikkiward-StoreTest-{Guid.NewGuid():N}");
             OfficialRoot = Path.Combine(Root, "official-source");
             BilibiliRoot = Path.Combine(Root, "bilibili-source");
             SteamRoot = Path.Combine(Root, "steam-source");

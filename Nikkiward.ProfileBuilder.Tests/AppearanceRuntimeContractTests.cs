@@ -1699,8 +1699,11 @@ internal static class AppearanceRuntimeContractTests
              current is not null;
              current = current.Parent)
         {
-            if (File.Exists(Path.Combine(current.FullName, "NIKKIWARD_MASTER_PLAN_V2.md")) &&
-                Directory.Exists(Path.Combine(current.FullName, "Nikkiward")))
+            if (File.Exists(Path.Combine(current.FullName, "Nikkiward", "Nikkiward.csproj")) &&
+                File.Exists(Path.Combine(
+                    current.FullName,
+                    "Nikkiward.ProfileBuilder.Tests",
+                    "Nikkiward.ProfileBuilder.Tests.csproj")))
             {
                 return current.FullName;
             }
