@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Elevation tokens for Nikkiward.
+
+        Two layers of depth exist in this launcher:
+
+        1. WarmThemeShadow (real, system rendered). ThemeShadow colour and blur are
+           controlled by the system and cannot be tinted warm by us. It only draws
+           when BOTH conditions are met on the consuming element:
+             a. the element sets Shadow="{ThemeResource WarmThemeShadow}"
+             b. the element sets a non zero Translation Z, e.g.
+                Translation="0,0,16" (or animated via a Vector3 in code)
+           Without a Z offset the shadow is invisible, which is the usual cause of
+           "my ThemeShadow does nothing".
+
+        2. WarmShadow*Brush (fallback, hand painted). Use these where a real
+           ThemeShadow is unavailable or undesirable: inside a Border used as a
+           soft edge glow, on top of a paper island seam, or as a faint underline
+           strip beneath a raised card. They are warm ink derived in Light and
+           deepened neutrals in Dark so the paper never picks up a cool cast.
+
+        The five x:Double values below are the canonical Z depths for the whole
+        app. Do not invent intermediate depths in page level XAML; pick the
+        nearest token so the depth ladder stays legible.
+    -->
+
+    <ResourceDictionary.ThemeDictionaries>
+
+        <ResourceDictionary x:Key="Light">
+            <!-- Warm ink at low alpha, derived from InkPrimary #FF2A2320.
+                 Literal colours are repeated here on purpose: cross dictionary
+                 StaticResource lookups into another merged file's
+                 ThemeDictionaries fail at parse time in WinUI 3. -->
+            <SolidColorBrush x:Key="WarmShadowSoftBrush" Color="#14241E1B" />
+            <SolidColorBrush x:Key="WarmShadowStrongBrush" Color="#26241E1B" />
+        </ResourceDictionary>
+
+        <ResourceDictionary x:Key="Dark">
+            <!-- On warm charcoal paper the shadow reads as absence of light
+                 rather than as ink, so neutral black at higher alpha is used. -->
+            <SolidColorBrush x:Key="WarmShadowSoftBrush" Color="#33000000" />
+            <SolidColorBrush x:Key="WarmShadowStrongBrush" Color="#4D000000" />
+        </ResourceDictionary>
+
+        <ResourceDictionary x:Key="HighContrast">
+            <!-- High contrast themes render depth with borders, not shadows.
+                 These are kept fully transparent so nothing muddies the
+                 system supplied contrast pairs. -->
+            <SolidColorBrush x:Key="WarmShadowSoftBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="WarmShadowStrongBrush" Color="Transparent" />
+        </ResourceDictionary>
+
+    </ResourceDictionary.ThemeDictionaries>
+
+    <!-- Real shadow. Shared instance: a single ThemeShadow may be attached to
+         many elements, and the system groups their casters coherently. -->
+    <ThemeShadow x:Key="WarmThemeShadow" />
+
+    <x:Double x:Key="GlassShadowBlur">60</x:Double>
+    <x:Double x:Key="GlassShadowOffsetY">18</x:Double>
+    <x:Double x:Key="GlassShadowOpacity">0.44</x:Double>
+
+    <!-- Canonical Z depths, in effective pixels, for Translation Z.
+         Card      raised paper tile inside an island
+         Island    the paper island itself, floating over the art layer
+         Rail      navigation rail and other persistent chrome
+         Action    primary action pill, flyouts anchored to it
+         Dialog    modal surfaces sitting above the scrim -->
+    <x:Double x:Key="ElevationCard">8</x:Double>
+    <x:Double x:Key="ElevationIsland">16</x:Double>
+    <x:Double x:Key="ElevationRail">24</x:Double>
+    <x:Double x:Key="ElevationAction">32</x:Double>
+    <x:Double x:Key="ElevationDialog">48</x:Double>
+
+</ResourceDictionary>

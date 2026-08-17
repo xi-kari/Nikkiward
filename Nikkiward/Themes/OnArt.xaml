@@ -1,0 +1,108 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Artwork luminance selects the matching text and scrim polarity. -->
+
+    <ResourceDictionary.ThemeDictionaries>
+
+        <!-- ===================== LIGHT: bright artwork ===================== -->
+        <ResourceDictionary x:Key="Light">
+
+            <SolidColorBrush x:Key="OnArtPrimaryTextBrush" Color="#FF241E1B" />
+            <SolidColorBrush x:Key="OnArtSecondaryTextBrush" Color="#E62A2320" />
+            <SolidColorBrush x:Key="OnArtTertiaryTextBrush" Color="#BF3F3630" />
+
+            <!-- Warm near white wash. Element Opacity carries the strength. -->
+            <SolidColorBrush x:Key="OnArtScrimBrush" Color="#FFFDFAF5" />
+
+            <LinearGradientBrush x:Key="LocalScrimBottomBrush" StartPoint="0.5,0" EndPoint="0.5,1">
+                <GradientStop Offset="0" Color="#00FDFAF5" />
+                <GradientStop Offset="0.45" Color="#42FDFAF5" />
+                <GradientStop Offset="1" Color="#B8FDFAF5" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="LocalScrimTopBrush" StartPoint="0.5,0" EndPoint="0.5,1">
+                <GradientStop Offset="0" Color="#A8FDFAF5" />
+                <GradientStop Offset="0.55" Color="#38FDFAF5" />
+                <GradientStop Offset="1" Color="#00FDFAF5" />
+            </LinearGradientBrush>
+            <RadialGradientBrush x:Key="LocalScrimRadialBrush" Center="0.5,0.5" RadiusX="0.72" RadiusY="0.72">
+                <GradientStop Offset="0" Color="#00FDFAF5" />
+                <GradientStop Offset="1" Color="#9CFDFAF5" />
+            </RadialGradientBrush>
+
+            <!-- Gradient endpoints share RGB so interpolation changes alpha only. -->
+            <Color x:Key="OnArtScrimColor">#FFFDFAF5</Color>
+            <Color x:Key="OnArtScrimTransparentColor">#00FDFAF5</Color>
+
+            <!-- Backing plates for on art controls that have no fill of their own. -->
+            <SolidColorBrush x:Key="OnArtPlateBrush" Color="#99FDFAF5" />
+            <SolidColorBrush x:Key="OnArtPlateStrongBrush" Color="#E6FDFAF5" />
+
+            <SolidColorBrush x:Key="OnArtStrokeBrush" Color="#33241E1B" />
+
+        </ResourceDictionary>
+
+        <!-- ====================== DARK: dark artwork ====================== -->
+        <ResourceDictionary x:Key="Dark">
+
+            <SolidColorBrush x:Key="OnArtPrimaryTextBrush" Color="#FFF7F2EA" />
+            <SolidColorBrush x:Key="OnArtSecondaryTextBrush" Color="#E6EFE7DD" />
+            <SolidColorBrush x:Key="OnArtTertiaryTextBrush" Color="#BFDED3C7" />
+
+            <SolidColorBrush x:Key="OnArtScrimBrush" Color="#FF241E1B" />
+
+            <LinearGradientBrush x:Key="LocalScrimBottomBrush" StartPoint="0.5,0" EndPoint="0.5,1">
+                <GradientStop Offset="0" Color="#00241E1B" />
+                <GradientStop Offset="0.45" Color="#42241E1B" />
+                <GradientStop Offset="1" Color="#B8241E1B" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="LocalScrimTopBrush" StartPoint="0.5,0" EndPoint="0.5,1">
+                <GradientStop Offset="0" Color="#A8241E1B" />
+                <GradientStop Offset="0.55" Color="#38241E1B" />
+                <GradientStop Offset="1" Color="#00241E1B" />
+            </LinearGradientBrush>
+            <RadialGradientBrush x:Key="LocalScrimRadialBrush" Center="0.5,0.5" RadiusX="0.72" RadiusY="0.72">
+                <GradientStop Offset="0" Color="#00241E1B" />
+                <GradientStop Offset="1" Color="#9C241E1B" />
+            </RadialGradientBrush>
+
+            <Color x:Key="OnArtScrimColor">#FF241E1B</Color>
+            <Color x:Key="OnArtScrimTransparentColor">#00241E1B</Color>
+
+            <SolidColorBrush x:Key="OnArtPlateBrush" Color="#99241E1B" />
+            <SolidColorBrush x:Key="OnArtPlateStrongBrush" Color="#E6241E1B" />
+
+            <SolidColorBrush x:Key="OnArtStrokeBrush" Color="#33F7F2EA" />
+
+        </ResourceDictionary>
+
+        <!-- ========================= HIGH CONTRAST ========================= -->
+        <ResourceDictionary x:Key="HighContrast">
+
+            <SolidColorBrush x:Key="OnArtPrimaryTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="OnArtSecondaryTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="OnArtTertiaryTextBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
+
+            <SolidColorBrush x:Key="OnArtScrimBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="LocalScrimBottomBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="LocalScrimTopBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="LocalScrimRadialBrush" Color="Transparent" />
+
+            <!-- The edge scrim is redundant over opaque high-contrast plates. -->
+            <Color x:Key="OnArtScrimColor">#00000000</Color>
+            <Color x:Key="OnArtScrimTransparentColor">#00000000</Color>
+
+            <SolidColorBrush x:Key="OnArtPlateBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="OnArtPlateStrongBrush" Color="{ThemeResource SystemColorWindowColor}" />
+
+            <SolidColorBrush x:Key="OnArtStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+
+        </ResourceDictionary>
+
+    </ResourceDictionary.ThemeDictionaries>
+
+    <StaticResource x:Key="OnArtBadgeFillBrush" ResourceKey="DerivedAccentBrush" />
+    <StaticResource x:Key="OnArtStatusIndicatorBrush" ResourceKey="AccentMintBrush" />
+
+</ResourceDictionary>

@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Nikkiward.Features.Journal.JournalSummaryPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+    xmlns:controls="using:Nikkiward.Controls">
+    <Grid RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid x:Name="SummaryHeader" ColumnSpacing="12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center" Spacing="4">
+                <TextBlock
+                    OpticalMarginAlignment="None"
+                    Style="{StaticResource SectionTitleDisplay}"
+                    Text="手账概览"
+                    TextLineBounds="Full"
+                    TextWrapping="NoWrap" />
+                <TextBlock
+                    Style="{StaticResource CaptionUI}"
+                    Text="数据来自官方奇想手账，缺失项目保持为空。" />
+            </StackPanel>
+            <Button
+                x:Name="SyncButton"
+                Grid.Column="2"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Center"
+                automation:AutomationProperties.Name="登录并同步奇想手账"
+                Click="OnOpenClicked"
+                Style="{StaticResource OnArtGlassButtonStyle}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE774;" />
+                    <TextBlock VerticalAlignment="Center" Text="登录并同步" />
+                </StackPanel>
+            </Button>
+            <TextBlock
+                x:Name="LastSyncedText"
+                Grid.Column="1"
+                Margin="0,0,12,0"
+                VerticalAlignment="Center"
+                Style="{StaticResource CaptionUI}"
+                TextTrimming="CharacterEllipsis" />
+        </Grid>
+
+        <controls:GlassIsland
+            x:Name="StatisticsIsland"
+            Grid.Row="1"
+            MinHeight="120"
+            automation:AutomationProperties.Name="奇想手账统计板"
+            IslandPadding="0">
+            <Grid>
+                <Grid x:Name="StatisticsGrid" MinHeight="120">
+                    <controls:StatTile
+                        x:Name="LoginDaysTile"
+                        automation:AutomationProperties.Name="登录总天数"
+                        Label="登录总天数" />
+                    <controls:StatTile
+                        x:Name="DurationTile"
+                        automation:AutomationProperties.Name="游戏时长"
+                        Label="游戏时长" />
+                    <controls:StatTile
+                        x:Name="OutfitCountTile"
+                        automation:AutomationProperties.Name="服装数量"
+                        Label="服装数量" />
+                    <controls:StatTile
+                        x:Name="MomoCloakCountTile"
+                        automation:AutomationProperties.Name="大喵斗篷数量"
+                        Label="大喵斗篷" />
+                    <controls:StatTile
+                        x:Name="SketchCountTile"
+                        automation:AutomationProperties.Name="设计图数量"
+                        Label="设计图" />
+                </Grid>
+                <Grid
+                    x:Name="StatisticsSkeleton"
+                    MinHeight="120"
+                    Background="{ThemeResource PaperRaisedBrush}"
+                    ColumnSpacing="12"
+                    Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Height="32" Margin="12" Background="{ThemeResource PaperSunkenBrush}" CornerRadius="10" />
+                    <Border Grid.Column="1" Height="32" Margin="12" Background="{ThemeResource PaperSunkenBrush}" CornerRadius="10" />
+                    <Border Grid.Column="2" Height="32" Margin="12" Background="{ThemeResource PaperSunkenBrush}" CornerRadius="10" />
+                    <Border Grid.Column="3" Height="32" Margin="12" Background="{ThemeResource PaperSunkenBrush}" CornerRadius="10" />
+                    <Border Grid.Column="4" Height="32" Margin="12" Background="{ThemeResource PaperSunkenBrush}" CornerRadius="10" />
+                </Grid>
+            </Grid>
+        </controls:GlassIsland>
+
+        <TextBlock
+            x:Name="DurationSourceText"
+            Grid.Row="1"
+            IsHitTestVisible="False"
+            Text="来源：官方手账"
+            Visibility="Collapsed" />
+    </Grid>
+</UserControl>

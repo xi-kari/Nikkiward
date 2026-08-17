@@ -1,0 +1,358 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shell:PageBase
+    x:Class="Nikkiward.Pages.GalleryPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+    xmlns:controls="using:Nikkiward.Controls"
+    xmlns:local="using:Nikkiward.Pages"
+    xmlns:shell="using:Nikkiward.Features.Shell"
+    xmlns:viewModels="using:Nikkiward.ViewModels"
+    x:DefaultBindMode="OneWay"
+    Background="{ThemeResource PaperBaseBrush}"
+    NavigationCacheMode="Required">
+
+    <shell:PageBase.Resources>
+        <CollectionViewSource
+            x:Name="GroupedPhotosSource"
+            IsSourceGrouped="True"
+            ItemsPath="Items"
+            Source="{x:Bind ViewModel.DateGroups, Mode=OneWay}" />
+    </shell:PageBase.Resources>
+
+    <Grid x:Name="GalleryRoot">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" />
+            <RowDefinition Height="48" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="32" />
+        </Grid.RowDefinitions>
+
+        <CommandBar
+            x:Name="GalleryCommandBar"
+            Grid.Row="1"
+            Height="{StaticResource GalleryCommandBarHeight}"
+            Margin="24,0,24,0"
+            Background="Transparent"
+            DefaultLabelPosition="Collapsed"
+            IsDynamicOverflowEnabled="True">
+                <CommandBar.Content>
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            x:Name="GalleryTitleText"
+                            Margin="24,0,0,0"
+                            VerticalAlignment="Center"
+                            automation:AutomationProperties.HeadingLevel="Level1"
+                            OpticalMarginAlignment="None"
+                            Style="{StaticResource PageTitleDisplay}"
+                            Text="相册"
+                            TextLineBounds="Full"
+                            TextTrimming="None" />
+                        <AutoSuggestBox
+                            x:Name="GallerySearchBox"
+                            Grid.Column="1"
+                            Width="180"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            automation:AutomationProperties.Name="搜索相册"
+                            PlaceholderText="搜索照片"
+                            TextChanged="OnGallerySearchTextChanged">
+                            <AutoSuggestBox.QueryIcon>
+                                <SymbolIcon Symbol="Find" />
+                            </AutoSuggestBox.QueryIcon>
+                        </AutoSuggestBox>
+                    </Grid>
+                </CommandBar.Content>
+                <AppBarButton
+                    x:Name="GalleryFilterButton"
+                    automation:AutomationProperties.Name="筛选相册"
+                    Label="筛选"
+                    ToolTipService.ToolTip="按照片分类筛选">
+                    <AppBarButton.Icon>
+                        <FontIcon Glyph="&#xE71C;" />
+                    </AppBarButton.Icon>
+                    <AppBarButton.Flyout>
+                        <Flyout Placement="Bottom">
+                            <controls:GlassIsland
+                                Background="{ThemeResource PaperRaisedBrush}"
+                                Elevation="3"
+                                IslandPadding="12">
+                                <ListView
+                                    x:Name="GalleryCategoryListView"
+                                    MinWidth="220"
+                                    MaxHeight="420"
+                                    automation:AutomationProperties.Name="相册分类"
+                                    DisplayMemberPath="Label"
+                                    ItemsSource="{x:Bind ViewModel.Categories, Mode=OneWay}"
+                                    SelectionChanged="OnGalleryCategoryChanged"
+                                    SelectionMode="Single" />
+                            </controls:GlassIsland>
+                        </Flyout>
+                    </AppBarButton.Flyout>
+                </AppBarButton>
+                <AppBarButton
+                    x:Name="GallerySortButton"
+                    automation:AutomationProperties.Name="排序相册"
+                    Label="排序"
+                    ToolTipService.ToolTip="调整照片排序">
+                    <AppBarButton.Icon>
+                        <FontIcon Glyph="&#xE8CB;" />
+                    </AppBarButton.Icon>
+                    <AppBarButton.Flyout>
+                        <MenuFlyout>
+                            <MenuFlyoutItem automation:AutomationProperties.Name="按最近修改排序" Click="OnGallerySortClicked" Tag="NewestFirst" Text="最近修改" />
+                            <MenuFlyoutItem automation:AutomationProperties.Name="按最早修改排序" Click="OnGallerySortClicked" Tag="OldestFirst" Text="最早修改" />
+                            <MenuFlyoutItem automation:AutomationProperties.Name="按文件名排序" Click="OnGallerySortClicked" Tag="NameAscending" Text="文件名" />
+                            <MenuFlyoutItem automation:AutomationProperties.Name="按分类排序" Click="OnGallerySortClicked" Tag="CategoryAscending" Text="分类" />
+                        </MenuFlyout>
+                    </AppBarButton.Flyout>
+                </AppBarButton>
+                <AppBarButton
+                    AccessKey="R"
+                    automation:AutomationProperties.Name="刷新相册"
+                    Click="OnRefreshGalleryClicked"
+                    Label="刷新">
+                    <AppBarButton.Icon>
+                        <FontIcon Glyph="&#xE72C;" />
+                    </AppBarButton.Icon>
+                </AppBarButton>
+        </CommandBar>
+
+        <Grid Grid.Row="2">
+            <GridView
+                x:Name="GalleryGridView"
+                IsItemClickEnabled="True"
+                ItemClick="OnGalleryItemClick"
+                Padding="24,0,48,12"
+                ItemContainerStyle="{StaticResource GalleryGridViewItemStyle}"
+                ItemsSource="{x:Bind GroupedPhotosSource.View, Mode=OneWay}"
+                IsMultiSelectCheckBoxEnabled="False"
+                SelectionMode="Single"
+                ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                ScrollViewer.HorizontalScrollMode="Disabled"
+                ScrollViewer.VerticalScrollBarVisibility="Auto"
+                ScrollViewer.VerticalScrollMode="Enabled"
+                Visibility="{x:Bind ViewModel.GridVisibility, Mode=OneWay}">
+                <GridView.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <ItemsWrapGrid
+                            AreStickyGroupHeadersEnabled="True"
+                            GroupHeaderPlacement="Top"
+                            ItemHeight="127"
+                            ItemWidth="216"
+                            Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </GridView.ItemsPanel>
+                <GridView.GroupStyle>
+                    <GroupStyle>
+                        <GroupStyle.HeaderTemplate>
+                            <DataTemplate
+                                x:DataType="viewModels:GalleryDateGroupViewModel"
+                                x:DefaultBindMode="OneTime">
+                                <controls:GlassIsland
+                                    Margin="0,12,0,8"
+                                    Background="{ThemeResource PaperRaisedBrush}"
+                                    Elevation="1"
+                                    IslandCornerRadius="8"
+                                    IslandPadding="12,6">
+                                    <StackPanel Spacing="2">
+                                    <TextBlock
+                                        automation:AutomationProperties.HeadingLevel="Level2"
+                                        Style="{StaticResource SectionTitleDisplay}"
+                                        Text="{x:Bind HeaderText}" />
+                                    <TextBlock
+                                FontFamily="{ThemeResource DisplayFontFamily}"
+                                        FontSize="12"
+                                        Foreground="{ThemeResource InkTertiaryBrush}"
+                                        Text="{x:Bind PhotoCountText}"
+                                        Typography.NumeralAlignment="Tabular" />
+                                    </StackPanel>
+                                </controls:GlassIsland>
+                            </DataTemplate>
+                        </GroupStyle.HeaderTemplate>
+                    </GroupStyle>
+                </GridView.GroupStyle>
+                <GridView.ItemTemplate>
+                    <DataTemplate
+                        x:DataType="viewModels:GalleryPhotoItemViewModel"
+                        x:DefaultBindMode="OneTime">
+                        <Border
+                            Width="204"
+                            Height="115"
+                            automation:AutomationProperties.Name="{x:Bind AccessibleName}"
+                            Background="{ThemeResource PaperRaisedBrush}"
+                            BorderBrush="{ThemeResource HairlineSoftBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Loaded="OnGalleryItemVisualLoaded"
+                            PointerEntered="OnGalleryItemPointerEntered"
+                            PointerExited="OnGalleryItemPointerExited"
+                            Tag="{x:Bind}"
+                            ToolTipService.ToolTip="{x:Bind FileName}">
+                            <Border.ContextFlyout>
+                                <MenuFlyout>
+                                    <MenuFlyoutItem automation:AutomationProperties.Name="查看图片预览" Click="OnGalleryPreviewMenuClicked" Tag="{x:Bind}" Text="查看预览" />
+                                    <MenuFlyoutItem automation:AutomationProperties.Name="切换图片收藏状态" Click="OnGalleryStarMenuClicked" Tag="{x:Bind}" Text="{x:Bind StarCommandText, Mode=OneWay}">
+                                        <MenuFlyoutItem.Icon>
+                                            <FontIcon Glyph="{x:Bind StarGlyph, Mode=OneWay}" />
+                                        </MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem automation:AutomationProperties.Name="复制图片" Click="OnGalleryCopyMenuClicked" Tag="{x:Bind}" Text="复制图片" />
+                                    <MenuFlyoutItem automation:AutomationProperties.Name="在资源管理器中显示图片" Click="OnGalleryRevealMenuClicked" Tag="{x:Bind}" Text="在资源管理器中显示" />
+                                </MenuFlyout>
+                            </Border.ContextFlyout>
+                            <Grid>
+                                <Image
+                                    x:Name="GalleryThumbnail"
+                                    CenterPoint="102,57.5,0"
+                                    Source="{x:Bind ThumbnailSource}"
+                                    Stretch="UniformToFill" />
+                                <FontIcon
+                                    Margin="8"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Top"
+                                    FontSize="14"
+                                    Foreground="{ThemeResource OnArtPrimaryTextBrush}"
+                                    Glyph="&#xE735;"
+                                    IsHitTestVisible="False"
+                                    Visibility="{x:Bind StarredVisibility, Mode=OneWay}" />
+                                <FontIcon
+                                    Margin="8"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Bottom"
+                                    FontSize="13"
+                                    Foreground="{ThemeResource OnArtPrimaryTextBrush}"
+                                    Glyph="&#xE83D;"
+                                    IsHitTestVisible="False"
+                                    ToolTipService.ToolTip="{x:Bind ProtectionStatusText, Mode=OneWay}"
+                                    Visibility="{x:Bind ProtectedVisibility, Mode=OneWay}" />
+                                <Border
+                                    x:Name="GalleryImageInfo"
+                                    Background="{ThemeResource OnArtPlateBrush}"
+                                    Opacity="0"
+                                    RequestedTheme="Dark">
+                                    <Grid>
+                                        <Button
+                                            Width="32"
+                                            Height="28"
+                                            Padding="0"
+                                            HorizontalAlignment="Left"
+                                            VerticalAlignment="Top"
+                                            automation:AutomationProperties.Name="切换图片收藏状态"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            Foreground="{ThemeResource OnArtPrimaryTextBrush}"
+                                            Tag="{x:Bind}"
+                                            Tapped="OnGalleryStarTapped"
+                                            ToolTipService.ToolTip="{x:Bind StarCommandText, Mode=OneWay}">
+                                            <FontIcon FontSize="16" Glyph="{x:Bind StarGlyph, Mode=OneWay}" />
+                                        </Button>
+                                        <Button
+                                            Width="32"
+                                            Height="28"
+                                            Padding="0"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Top"
+                                            automation:AutomationProperties.Name="复制图片"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            Foreground="{ThemeResource OnArtPrimaryTextBrush}"
+                                            Tag="{x:Bind}"
+                                            Tapped="OnGalleryCopyTapped"
+                                            ToolTipService.ToolTip="复制图片">
+                                            <FontIcon FontSize="16" Glyph="&#xE8C8;" />
+                                        </Button>
+                                        <TextBlock
+                                            Margin="8,0,8,4"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Bottom"
+                                            FontSize="12"
+                                            Foreground="{ThemeResource OnArtPrimaryTextBrush}"
+                                            Text="{x:Bind HoverTimeText}"
+                                            TextTrimming="CharacterEllipsis" />
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </GridView.ItemTemplate>
+            </GridView>
+
+            <StackPanel
+                Width="420"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Spacing="12"
+                Visibility="{x:Bind ViewModel.EmptyStateVisibility, Mode=OneWay}">
+                <Border
+                    Width="160"
+                    Height="160"
+                    HorizontalAlignment="Center"
+                    Background="{ThemeResource PaperRaisedBrush}"
+                    CornerRadius="80">
+                    <FontIcon
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontSize="64"
+                        Foreground="{ThemeResource InkTertiaryBrush}"
+                        Glyph="&#xEB9F;" />
+                </Border>
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    FontSize="16"
+                    Foreground="{ThemeResource InkSecondaryBrush}"
+                    Text="{x:Bind ViewModel.EmptyStateTitle, Mode=OneWay}"
+                    TextAlignment="Center"
+                    TextWrapping="Wrap" />
+                <TextBlock
+                    MaxWidth="420"
+                    HorizontalAlignment="Center"
+                    Foreground="{ThemeResource InkTertiaryBrush}"
+                    Text="{x:Bind ViewModel.EmptyStateDetail, Mode=OneWay}"
+                    TextAlignment="Center"
+                    TextWrapping="Wrap" />
+            </StackPanel>
+        </Grid>
+
+        <Grid
+            Grid.Row="3"
+            Padding="24,0,20,0"
+            Background="{ThemeResource GlassIslandBrush}"
+            ColumnSpacing="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <ProgressRing
+                Width="14"
+                Height="14"
+                VerticalAlignment="Center"
+                IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}" />
+            <TextBlock
+                Grid.Column="1"
+                VerticalAlignment="Center"
+                automation:AutomationProperties.LiveSetting="Polite"
+                FontSize="11"
+                Foreground="{ThemeResource InkTertiaryBrush}"
+                Text="{x:Bind ViewModel.StatusText, Mode=OneWay}"
+                TextTrimming="CharacterEllipsis" />
+            <TextBlock
+                Grid.Column="2"
+                VerticalAlignment="Center"
+                FontSize="11"
+                Foreground="{ThemeResource InkSecondaryBrush}"
+                Text="{x:Bind ViewModel.PhotoCountText, Mode=OneWay}"
+                TextTrimming="CharacterEllipsis" />
+        </Grid>
+
+        <local:GalleryPreviewView
+            x:Name="GalleryPreview"
+            Grid.RowSpan="4" />
+
+    </Grid>
+</shell:PageBase>

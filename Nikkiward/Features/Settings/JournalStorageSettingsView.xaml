@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Nikkiward.Features.Settings.JournalStorageSettingsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation">
+    <StackPanel Spacing="12">
+        <StackPanel Spacing="3">
+            <TextBlock
+                automation:AutomationProperties.HeadingLevel="Level2"
+                Style="{StaticResource OnArtSectionTitleTextStyle}"
+                Text="奇想手账与本地缓存" />
+            <TextBlock
+                Style="{StaticResource OnArtBodyTextStyle}"
+                Text="网页登录会话、页面快照和公开图片缓存分别存放；这些应用数据不会写入 LaunchProfile 或 provider contract。"
+                TextWrapping="Wrap" />
+        </StackPanel>
+        <StackPanel Spacing="4">
+            <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="WEBVIEW2 SESSION DATA" />
+            <TextBox
+                x:Name="JournalWebViewDataPathTextBox"
+                automation:AutomationProperties.Name="WebView2 会话数据路径"
+                Style="{StaticResource ReadOnlyMonospaceTextBoxStyle}" />
+            <TextBlock
+                Style="{StaticResource OnArtBodyTextStyle}"
+                Text="由 WebView2 Runtime 保存会话；Nikkiward 不将 cookie、密码、token 或 localStorage 复制到自己的 JSON、日志或诊断报告。" />
+        </StackPanel>
+        <StackPanel Spacing="4">
+            <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="JOURNAL SNAPSHOT" />
+            <TextBox
+                x:Name="JournalSnapshotPathTextBox"
+                automation:AutomationProperties.Name="奇想手账快照路径"
+                Style="{StaticResource ReadOnlyMonospaceTextBoxStyle}" />
+        </StackPanel>
+        <StackPanel Spacing="4">
+            <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="PUBLIC IMAGE CACHE" />
+            <TextBox
+                x:Name="JournalAssetsPathTextBox"
+                automation:AutomationProperties.Name="公开图片缓存路径"
+                Style="{StaticResource ReadOnlyMonospaceTextBoxStyle}" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button automation:AutomationProperties.Name="打开奇想手账" Click="OnOpenClicked" Style="{StaticResource OnArtGlassButtonStyle}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE774;" />
+                    <TextBlock VerticalAlignment="Center" Text="打开内置手账" />
+                </StackPanel>
+            </Button>
+            <Button automation:AutomationProperties.Name="清除奇想手账缓存" Click="OnClearCacheClicked" Style="{StaticResource OnArtGlassButtonStyle}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE74D;" />
+                    <TextBlock VerticalAlignment="Center" Text="清除统计与图片缓存" />
+                </StackPanel>
+            </Button>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

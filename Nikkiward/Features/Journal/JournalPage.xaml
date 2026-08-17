@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shell:PageBase
+    x:Class="Nikkiward.Features.Journal.JournalPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+    xmlns:controls="using:Nikkiward.Controls"
+    xmlns:local="using:Nikkiward.Features.Journal"
+    xmlns:shell="using:Nikkiward.Features.Shell"
+    Background="{ThemeResource PaperBaseBrush}"
+    NavigationCacheMode="Required">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid
+            x:Name="JournalMasthead"
+            Margin="0,0,160,0"
+            Padding="24,10,20,8">
+            <TextBlock
+                VerticalAlignment="Center"
+                OpticalMarginAlignment="None"
+                Style="{StaticResource PageTitleDisplay}"
+                Text="奇想手账"
+                TextLineBounds="Full"
+                TextWrapping="NoWrap" />
+        </Grid>
+
+        <ScrollViewer
+            x:Name="ContentScrollViewer"
+            Grid.Row="1"
+            HorizontalScrollBarVisibility="Disabled"
+            Padding="24,0,20,24"
+            VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="26">
+                <controls:GlassIsland
+                    x:Name="EmptyStateIsland"
+                    automation:AutomationProperties.Name="奇想手账空状态">
+                    <StackPanel Spacing="16">
+                        <TextBlock
+                            Style="{StaticResource BodyUI}"
+                            Text="登录官方奇想手账后即可在这里查看旅程概览。" />
+                        <Button
+                            HorizontalAlignment="Left"
+                            automation:AutomationProperties.Name="登录并同步奇想手账"
+                            Click="OnEmptyOpenClicked"
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            Content="登录并同步" />
+                    </StackPanel>
+                </controls:GlassIsland>
+
+                <local:JournalSummaryPanel x:Name="SummaryPanel" Visibility="Collapsed" />
+
+                <InfoBar
+                    x:Name="SyncStatusBar"
+                    IsClosable="False"
+                    IsOpen="False"
+                    Severity="Informational" />
+
+                <controls:GlassIsland
+                    x:Name="SyncProgressIsland"
+                    automation:AutomationProperties.Name="奇想手账同步状态"
+                    Visibility="Collapsed">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <ProgressRing Width="24" Height="24" IsActive="True" />
+                        <TextBlock Style="{StaticResource BodyUI}" Text="正在读取手账…" />
+                    </StackPanel>
+                </controls:GlassIsland>
+
+                <controls:GlassIsland
+                    x:Name="BrowserPanel"
+                    Visibility="Collapsed">
+                    <Grid RowSpacing="8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource SectionTitleDisplay}" Text="官方手账网页登录" />
+                            <Button
+                                Grid.Column="1"
+                                automation:AutomationProperties.Name="关闭奇想手账登录面板"
+                                Click="OnBrowserCloseClicked"
+                                Style="{StaticResource OnArtIconButtonStyle}"
+                                ToolTipService.ToolTip="关闭内置手账">
+                                <FontIcon Glyph="&#xE711;" />
+                            </Button>
+                        </Grid>
+                        <TextBlock
+                            Grid.Row="1"
+                            Style="{StaticResource CaptionUI}"
+                            Text="登录窗口将以独立对话框打开；同步时网页会自动隐藏。" />
+                    </Grid>
+                </controls:GlassIsland>
+
+                <ContentDialog
+                    x:Name="BrowserDialog"
+                    CloseButtonText="关闭"
+                    Closing="OnBrowserDialogClosing"
+                    Title="登录官方奇想手账">
+                    <Grid Width="480" Height="640" RowSpacing="8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <CommandBar
+                            DefaultLabelPosition="Collapsed"
+                            IsDynamicOverflowEnabled="True">
+                            <AppBarButton x:Name="BackButton" automation:AutomationProperties.Name="返回上一页" Click="OnBackClicked" IsEnabled="False" Label="返回">
+                                <AppBarButton.Icon><FontIcon Glyph="&#xE72B;" /></AppBarButton.Icon>
+                            </AppBarButton>
+                            <AppBarButton x:Name="ForwardButton" automation:AutomationProperties.Name="前进下一页" Click="OnForwardClicked" IsEnabled="False" Label="前进">
+                                <AppBarButton.Icon><FontIcon Glyph="&#xE72A;" /></AppBarButton.Icon>
+                            </AppBarButton>
+                            <AppBarButton automation:AutomationProperties.Name="刷新奇想手账网页" Click="OnReloadClicked" Label="刷新">
+                                <AppBarButton.Icon><FontIcon Glyph="&#xE72C;" /></AppBarButton.Icon>
+                            </AppBarButton>
+                            <AppBarButton automation:AutomationProperties.Name="同步当前奇想手账页面" Click="OnSyncClicked" Label="同步当前页面">
+                                <AppBarButton.Icon><FontIcon Glyph="&#xE895;" /></AppBarButton.Icon>
+                            </AppBarButton>
+                            <AppBarButton automation:AutomationProperties.Name="在系统浏览器打开奇想手账" Click="OnExternalClicked" Label="系统浏览器打开">
+                                <AppBarButton.Icon><FontIcon Glyph="&#xE774;" /></AppBarButton.Icon>
+                            </AppBarButton>
+                            <AppBarButton automation:AutomationProperties.Name="清除奇想手账本地缓存" Click="OnClearCacheClicked" Label="清除本地缓存">
+                                <AppBarButton.Icon><FontIcon Glyph="&#xE74D;" /></AppBarButton.Icon>
+                            </AppBarButton>
+                        </CommandBar>
+                        <TextBlock
+                            x:Name="BrowserStatusText"
+                            Grid.Row="1"
+                            Style="{StaticResource CaptionUI}"
+                            Text="准备打开官方手账登录页。"
+                            TextTrimming="CharacterEllipsis" />
+                        <WebView2
+                            x:Name="JournalWebView"
+                            Grid.Row="2"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
+                            automation:AutomationProperties.Name="官方奇想手账登录网页"
+                            DefaultBackgroundColor="{ThemeResource PaperBaseColor}"
+                            NavigationStarting="OnNavigationStarting"
+                            NavigationCompleted="OnNavigationCompleted"
+                            Visibility="Collapsed" />
+                        <StackPanel
+                            x:Name="BrowserDialogProgress"
+                            Grid.Row="2"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal"
+                            Spacing="12"
+                            Visibility="Collapsed">
+                            <ProgressRing Width="28" Height="28" IsActive="True" />
+                            <TextBlock Style="{StaticResource BodyUI}" Text="正在读取手账…" />
+                        </StackPanel>
+                    </Grid>
+                </ContentDialog>
+
+                <local:JournalSnapshotPanel x:Name="SnapshotPanel" />
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</shell:PageBase>

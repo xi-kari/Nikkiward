@@ -1,0 +1,364 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shell:PageBase
+    x:Class="Nikkiward.Features.Launcher.LauncherPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+    xmlns:controls="using:Nikkiward.Controls"
+    xmlns:launcher="using:Nikkiward.Features.Launcher"
+    xmlns:shell="using:Nikkiward.Features.Shell"
+    x:DefaultBindMode="OneWay"
+    Background="Transparent"
+    NavigationCacheMode="Required">
+    <Grid
+        x:Name="LauncherRoot"
+        Padding="{StaticResource ContentSafeArea}"
+        Background="Transparent"
+        ColumnSpacing="{StaticResource SpaceSection}"
+        RowSpacing="{StaticResource SpaceSection}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <launcher:LauncherMasthead
+            x:Name="MastheadHost"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top" />
+
+        <StackPanel
+            Grid.Column="1"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            Spacing="{StaticResource SpaceHair}">
+            <Button
+                Width="44"
+                Height="44"
+                Padding="0"
+                automation:AutomationProperties.HelpText="打开官方奇想手账登录页；Nikkiward 不读取或保存网页凭据。"
+                automation:AutomationProperties.Name="打开奇想手账"
+                Background="{ThemeResource GlassPillBrush}"
+                BorderThickness="0"
+                Click="OnJournalClicked"
+                CornerRadius="{StaticResource RadiusPill}"
+                Shadow="{ThemeResource WarmThemeShadow}"
+                ToolTipService.ToolTip="奇想手账"
+                Translation="0,0,8">
+                <FontIcon
+                    FontSize="21"
+                    Foreground="{ThemeResource OnArtPrimaryTextBrush}"
+                    Glyph="&#xE8F1;" />
+            </Button>
+        </StackPanel>
+
+        <launcher:LauncherNoticeIsland
+            x:Name="NoticeHost"
+            Grid.Row="2"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Bottom"
+            DownloadRequested="OnNoticeDownloadRequested"
+            PlayTimeRequested="OnNoticePlayTimeRequested"
+            ProfileRequested="OnNoticeProfileRequested"
+            Visibility="Collapsed" />
+
+        <StackPanel
+            x:Name="ActionCluster"
+            Grid.Row="2"
+            Grid.Column="1"
+            Width="300"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Bottom"
+            Spacing="{StaticResource SpaceTight}">
+            <Grid
+                Height="12"
+                Margin="18,0">
+                <StackPanel
+                    HorizontalAlignment="Left"
+                    Orientation="Horizontal"
+                    Spacing="4">
+                    <TextBlock
+                        x:Name="LauncherCapsuleCode"
+                        FontFamily="{StaticResource MonoFontFamily}"
+                        FontSize="8"
+                        Foreground="{ThemeResource OnArtTertiaryTextBrush}"
+                        Text="NC-01 /" />
+                    <TextBlock
+                        x:Name="LauncherCapsuleName"
+                        FontFamily="{StaticResource MonoFontFamily}"
+                        FontSize="8"
+                        FontWeight="SemiBold"
+                        Foreground="{ThemeResource OnArtPrimaryTextBrush}"
+                        Text="ORIGINAL" />
+                </StackPanel>
+                <TextBlock
+                    HorizontalAlignment="Right"
+                    FontFamily="{StaticResource MonoFontFamily}"
+                    FontSize="8"
+                    Foreground="{ThemeResource OnArtTertiaryTextBrush}"
+                    Text="LIVE" />
+            </Grid>
+            <Grid
+                x:Name="PrimaryActionSurface"
+                Height="56"
+                Background="{ThemeResource PrimaryActionFillBrush}"
+                CornerRadius="{StaticResource RadiusAction}"
+                PointerEntered="OnPrimaryActionPointerEntered"
+                PointerExited="OnPrimaryActionPointerExited"
+                PointerPressed="OnPrimaryActionPointerPressed"
+                PointerReleased="OnPrimaryActionPointerReleased"
+                Translation="0,0,32">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="1" />
+                    <ColumnDefinition Width="44" />
+                    <ColumnDefinition Width="1" />
+                    <ColumnDefinition Width="44" />
+                </Grid.ColumnDefinitions>
+                <controls:LauncherCapsuleVisual
+                    x:Name="PrimaryCapsuleVisual"
+                    Grid.ColumnSpan="5" />
+                <Border
+                    x:Name="PrimaryActionDisabledPlate"
+                    Grid.ColumnSpan="5"
+                    Background="{ThemeResource PaperRaisedBrush}"
+                    CornerRadius="{StaticResource RadiusAction}"
+                    IsHitTestVisible="False"
+                    Visibility="Collapsed" />
+                <Button
+                    x:Name="PrimaryActionButton"
+                    Grid.Column="0"
+                    Padding="0"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    HorizontalContentAlignment="Left"
+                    VerticalContentAlignment="Stretch"
+                    automation:AutomationProperties.HelpText="{x:Bind ViewModel.LaunchButtonDetail}"
+                    automation:AutomationProperties.Name="{x:Bind ViewModel.LaunchButtonLabel}"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Click="OnOfficialFlowClicked"
+                    CornerRadius="{StaticResource RadiusActionLeading}"
+                    IsEnabled="{x:Bind ViewModel.CanAttemptSelectedChannelLaunch}"
+                    IsEnabledChanged="OnPrimaryActionIsEnabledChanged">
+                    <Grid
+                        Width="122"
+                        Margin="18,4,0,4"
+                        HorizontalAlignment="Left">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="9" />
+                        </Grid.RowDefinitions>
+                        <TextBlock
+                            x:Name="PrimaryActionCodeText"
+                            FontFamily="{StaticResource MonoFontFamily}"
+                            FontSize="7"
+                            Foreground="{ThemeResource InkOnAccentBrush}"
+                            Opacity="0.62"
+                            Text="NC-01" />
+                        <StackPanel
+                            Grid.Row="1"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal"
+                            Spacing="6">
+                            <ProgressRing
+                                x:Name="PrimaryActionProgressRing"
+                                Width="14"
+                                Height="14"
+                                IsActive="{x:Bind ViewModel.IsLaunchButtonBusy}" />
+                            <TextBlock
+                                x:Name="PrimaryActionLabel"
+                                MaxWidth="100"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource UIFontFamily}"
+                                FontSize="14"
+                                FontWeight="SemiBold"
+                                Foreground="{ThemeResource InkOnAccentBrush}"
+                                Text="{x:Bind ViewModel.LaunchButtonLabel}"
+                                TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <TextBlock
+                            x:Name="LauncherCapsuleStudy"
+                            Grid.Row="2"
+                            FontFamily="{StaticResource MonoFontFamily}"
+                            FontSize="6.5"
+                            Foreground="{ThemeResource InkOnAccentBrush}"
+                            Opacity="0.62"
+                            Text="LIVE COSMIC STUDY" />
+                    </Grid>
+                </Button>
+                <Rectangle
+                    Grid.Column="1"
+                    Margin="{StaticResource SpaceTightVerticalMarginThickness}"
+                    Fill="{ThemeResource HairlineSoftBrush}" />
+                <Button
+                    x:Name="CloseGameButton"
+                    Grid.Column="2"
+                    Width="44"
+                    Height="56"
+                    Padding="0"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    automation:AutomationProperties.HelpText="{x:Bind ViewModel.CloseGameButtonLabel}"
+                    automation:AutomationProperties.Name="关闭游戏"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Click="OnCloseGameClicked"
+                    CornerRadius="0"
+                    IsEnabled="{x:Bind ViewModel.CanCloseGame}"
+                    IsTabStop="{x:Bind ViewModel.CanCloseGame}"
+                    ToolTipService.ToolTip="关闭游戏"
+                    Visibility="{x:Bind ViewModel.CloseGameButtonVisibility}">
+                    <Border
+                        Width="30"
+                        Height="30"
+                        Background="{ThemeResource GlassPillBrush}"
+                        CornerRadius="15">
+                        <FontIcon FontSize="15" Glyph="&#xE71A;" />
+                    </Border>
+                </Button>
+                <Rectangle
+                    Grid.Column="3"
+                    Margin="{StaticResource SpaceTightVerticalMarginThickness}"
+                    Fill="{ThemeResource HairlineSoftBrush}" />
+                <Button
+                    x:Name="PrimarySettingsButton"
+                    Grid.Column="4"
+                    Width="44"
+                    Height="56"
+                    Padding="0"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    automation:AutomationProperties.Name="打开启动设置"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Click="OnLaunchSettingsClicked"
+                    CornerRadius="{StaticResource RadiusActionTrailing}"
+                    Foreground="{ThemeResource InkPrimaryBrush}">
+                    <Border
+                        Width="30"
+                        Height="30"
+                        Background="{ThemeResource GlassPillBrush}"
+                        CornerRadius="15">
+                        <FontIcon FontSize="16" Glyph="&#xE713;" />
+                    </Border>
+                </Button>
+            </Grid>
+
+            <Grid
+                x:Name="ActionUtilityPill"
+                Width="252"
+                Height="44"
+                Margin="0,4,0,0"
+                HorizontalAlignment="Right"
+                Background="{ThemeResource GlassPillBrush}"
+                CornerRadius="{StaticResource RadiusPill}"
+                Translation="0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="40" />
+                    <ColumnDefinition Width="40" />
+                </Grid.ColumnDefinitions>
+                <controls:LauncherCapsuleVisual
+                    x:Name="UtilityCapsuleVisual"
+                    Grid.ColumnSpan="3" />
+                <Button
+                    x:Name="ProfileActionButton"
+                    Grid.Column="0"
+                    Padding="0"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    HorizontalContentAlignment="Left"
+                    automation:AutomationProperties.Name="切换当前档案"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Click="OnProfileClicked"
+                    CornerRadius="22,0,0,22"
+                    ToolTipService.ToolTip="{x:Bind ViewModel.CurrentProfileSummary}">
+                    <Grid
+                        Width="118"
+                        Margin="16,3,0,3"
+                        HorizontalAlignment="Left">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="9" />
+                        </Grid.RowDefinitions>
+                        <StackPanel
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal"
+                            Spacing="6">
+                            <FontIcon
+                                FontSize="12"
+                                Foreground="{ThemeResource InkOnAccentBrush}"
+                                Glyph="&#xE77B;" />
+                            <TextBlock
+                                x:Name="ProfileActionLabel"
+                                MaxWidth="94"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource UIFontFamily}"
+                                FontSize="11"
+                                FontWeight="SemiBold"
+                                Foreground="{ThemeResource InkOnAccentBrush}"
+                                Text="{x:Bind ViewModel.ProfileDisplayName}"
+                                TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <TextBlock
+                            Grid.Row="1"
+                            FontFamily="{StaticResource MonoFontFamily}"
+                            FontSize="6.5"
+                            Foreground="{ThemeResource InkOnAccentBrush}"
+                            Opacity="0.62"
+                            Text="HUA JING GUAN YU" />
+                    </Grid>
+                </Button>
+                <Button
+                    Grid.Column="1"
+                    Width="40"
+                    Height="44"
+                    Padding="0"
+                    automation:AutomationProperties.Name="打开相册"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Click="OnGalleryClicked"
+                    ToolTipService.ToolTip="打开相册">
+                    <Border
+                        Width="24"
+                        Height="24"
+                        Background="{ThemeResource GlassPillBrush}"
+                        CornerRadius="12">
+                        <FontIcon
+                            FontSize="13"
+                            Foreground="{ThemeResource InkPrimaryBrush}"
+                            Glyph="&#xE91B;" />
+                    </Border>
+                </Button>
+                <Button
+                    Grid.Column="2"
+                    Width="40"
+                    Height="44"
+                    Padding="0"
+                    automation:AutomationProperties.Name="恢复默认背景"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Click="OnBackgroundResetClicked"
+                    CornerRadius="0,22,22,0"
+                    ToolTipService.ToolTip="恢复默认背景">
+                    <Border
+                        Width="24"
+                        Height="24"
+                        Background="{ThemeResource GlassPillBrush}"
+                        CornerRadius="12">
+                        <FontIcon
+                            FontSize="13"
+                            Foreground="{ThemeResource InkPrimaryBrush}"
+                            Glyph="&#xE777;" />
+                    </Border>
+                </Button>
+            </Grid>
+        </StackPanel>
+    </Grid>
+</shell:PageBase>

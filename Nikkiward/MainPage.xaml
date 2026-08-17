@@ -1,0 +1,377 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="Nikkiward.MainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+    xmlns:background="using:Nikkiward.Features.Background"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:viewModels="using:Nikkiward.ViewModels"
+    x:DefaultBindMode="OneWay"
+    Background="Transparent"
+    KeyDown="OnPageKeyDown"
+    Loaded="OnPageLoaded"
+    mc:Ignorable="d">
+
+    <Grid x:Name="RootGrid" Background="Transparent">
+        <background:ArtBackdropView
+            x:Name="LauncherBackground"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch" />
+
+        <Grid
+            x:Name="OnArtScrim"
+            IsHitTestVisible="False"
+            Opacity="0.22"
+            RequestedTheme="Dark">
+
+            <Rectangle
+                Fill="{ThemeResource OnArtScrimBrush}"
+                IsHitTestVisible="False"
+                Opacity="0.34" />
+
+            <Rectangle
+                Width="220"
+                HorizontalAlignment="Right"
+                IsHitTestVisible="False">
+                <Rectangle.Fill>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Offset="0" Color="{ThemeResource OnArtScrimTransparentColor}" />
+                        <GradientStop Offset="0.7" Color="{ThemeResource OnArtScrimColor}" />
+                        <GradientStop Offset="1" Color="{ThemeResource OnArtScrimColor}" />
+                    </LinearGradientBrush>
+                </Rectangle.Fill>
+            </Rectangle>
+
+            <Rectangle
+                Height="200"
+                Margin="56,0,0,0"
+                VerticalAlignment="Bottom"
+                IsHitTestVisible="False">
+                <Rectangle.Fill>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                        <GradientStop Offset="0" Color="{ThemeResource OnArtScrimTransparentColor}" />
+                        <GradientStop Offset="0.62" Color="{ThemeResource OnArtScrimColor}" />
+                        <GradientStop Offset="1" Color="{ThemeResource OnArtScrimColor}" />
+                    </LinearGradientBrush>
+                </Rectangle.Fill>
+            </Rectangle>
+        </Grid>
+
+        <Border
+            Width="56"
+            HorizontalAlignment="Left"
+            Background="{ThemeResource LauncherPaneAcrylicBrush}"
+            IsHitTestVisible="False" />
+
+        <NavigationView
+            x:Name="ShellNavigation"
+            AlwaysShowHeader="False"
+            Background="Transparent"
+            CompactPaneLength="56"
+            IsBackButtonVisible="Collapsed"
+            IsPaneOpen="False"
+            IsPaneToggleButtonVisible="False"
+            IsSettingsVisible="True"
+            IsTitleBarAutoPaddingEnabled="False"
+            ItemInvoked="OnNavigationItemInvoked"
+            OpenPaneLength="280"
+            PaneDisplayMode="LeftCompact">
+            <NavigationView.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.MergedDictionaries>
+                        <ResourceDictionary Source="Styles/ShellNavigationResources.xaml" />
+                    </ResourceDictionary.MergedDictionaries>
+                </ResourceDictionary>
+            </NavigationView.Resources>
+
+            <NavigationView.PaneCustomContent>
+                <Border Height="52" />
+            </NavigationView.PaneCustomContent>
+
+            <NavigationView.MenuItems>
+                <NavigationViewItemSeparator />
+
+                <NavigationViewItem
+                    x:Name="LauncherNavigationItem"
+                    automation:AutomationProperties.Name="启动管理"
+                    Tag="launcher"
+                    ToolTipService.ToolTip="启动管理">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE80F;" />
+                    </NavigationViewItem.Icon>
+                    <NavigationViewItem.Content>
+                        <Border Height="40">
+                            <TextBlock VerticalAlignment="Center" Text="启动管理" />
+                        </Border>
+                    </NavigationViewItem.Content>
+                </NavigationViewItem>
+
+                <NavigationViewItem
+                    x:Name="LibraryNavigationItem"
+                    automation:AutomationProperties.Name="奇想手账"
+                    Tag="library"
+                    ToolTipService.ToolTip="奇想手账">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE8F1;" />
+                    </NavigationViewItem.Icon>
+                    <NavigationViewItem.Content>
+                        <Border Height="40">
+                            <TextBlock VerticalAlignment="Center" Text="奇想手账" />
+                        </Border>
+                    </NavigationViewItem.Content>
+                </NavigationViewItem>
+
+                <NavigationViewItem
+                    x:Name="GalleryNavigationItem"
+                    automation:AutomationProperties.Name="相册"
+                    Tag="gallery"
+                    ToolTipService.ToolTip="相册">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xEB9F;" />
+                    </NavigationViewItem.Icon>
+                    <NavigationViewItem.Content>
+                        <Border Height="40">
+                            <TextBlock VerticalAlignment="Center" Text="相册" />
+                        </Border>
+                    </NavigationViewItem.Content>
+                </NavigationViewItem>
+
+                <NavigationViewItem
+                    x:Name="FavoritesNavigationItem"
+                    automation:AutomationProperties.AutomationId="GalleryFavoritesNavigationItem"
+                    automation:AutomationProperties.Name="收藏"
+                    Tag="gallery-favorites"
+                    ToolTipService.ToolTip="收藏">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE734;" />
+                    </NavigationViewItem.Icon>
+                    <NavigationViewItem.Content>
+                        <Border Height="40">
+                            <TextBlock VerticalAlignment="Center" Text="收藏" />
+                        </Border>
+                    </NavigationViewItem.Content>
+                </NavigationViewItem>
+
+                <NavigationViewItem
+                    x:Name="ProfilesNavigationItem"
+                    automation:AutomationProperties.Name="Profile 与渠道"
+                    Tag="profiles"
+                    ToolTipService.ToolTip="Profile 与渠道">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE7FC;" />
+                    </NavigationViewItem.Icon>
+                    <NavigationViewItem.Content>
+                        <Border Height="40">
+                            <TextBlock VerticalAlignment="Center" Text="Profile 与渠道" />
+                        </Border>
+                    </NavigationViewItem.Content>
+                </NavigationViewItem>
+
+                <NavigationViewItem
+                    x:Name="PhotoPluginNavigationItem"
+                    automation:AutomationProperties.Name="相册插件"
+                    Tag="photo-plugin"
+                    ToolTipService.ToolTip="相册插件"
+                    Visibility="Collapsed">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE8B9;" />
+                    </NavigationViewItem.Icon>
+                    <NavigationViewItem.Content>
+                        <Border Height="40">
+                            <TextBlock VerticalAlignment="Center" Text="相册插件" />
+                        </Border>
+                    </NavigationViewItem.Content>
+                </NavigationViewItem>
+
+                <NavigationViewItem
+                    x:Name="ResonanceNavigationItem"
+                    automation:AutomationProperties.Name="心愿共鸣记录"
+                    Tag="resonance"
+                    ToolTipService.ToolTip="心愿共鸣记录">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xF4A5;" />
+                    </NavigationViewItem.Icon>
+                    <NavigationViewItem.Content>
+                        <Border Height="40">
+                            <TextBlock VerticalAlignment="Center" Text="心愿共鸣记录" />
+                        </Border>
+                    </NavigationViewItem.Content>
+                </NavigationViewItem>
+
+            </NavigationView.MenuItems>
+
+        </NavigationView>
+
+        <Grid
+            x:Name="ProfileQuickSwitchHost"
+            Height="48"
+            Margin="8,10,0,0"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Canvas.ZIndex="10"
+            ColumnSpacing="4"
+            PointerEntered="OnProfileQuickSwitchHostPointerEntered"
+            PointerExited="OnProfileQuickSwitchHostPointerExited"
+            SizeChanged="OnProfileQuickSwitchHostSizeChanged">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="40" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Button
+                x:Name="ProfileButton"
+                Width="40"
+                Height="40"
+                Padding="0"
+                automation:AutomationProperties.HelpText="打开无限暖暖服务器选择层。"
+                automation:AutomationProperties.Name="选择或切换服务器"
+                BorderThickness="0"
+                Click="OnProfileButtonClicked"
+                CornerRadius="8"
+                Shadow="{ThemeResource LauncherThemeShadow}"
+                ToolTipService.ToolTip="{x:Bind ViewModel.CurrentProfileSummary}"
+                Translation="0,0,16">
+                <Image Source="Assets/NikkiGameIcon.png" Stretch="UniformToFill" />
+            </Button>
+
+            <Border
+                x:Name="ProfileQuickSwitchRail"
+                Grid.Column="1"
+                Height="48"
+                MaxWidth="320"
+                Padding="4"
+                Background="{ThemeResource GlassPillBrush}"
+                CornerRadius="8"
+                IsHitTestVisible="False"
+                Opacity="0"
+                Shadow="{ThemeResource LauncherThemeShadow}"
+                Translation="0,0,16"
+                Visibility="Collapsed">
+                <ScrollViewer
+                    HorizontalScrollBarVisibility="Hidden"
+                    HorizontalScrollMode="Auto"
+                    VerticalScrollBarVisibility="Disabled"
+                    VerticalScrollMode="Disabled">
+                    <ItemsControl ItemsSource="{x:Bind ViewModel.Profiles}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="4" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate
+                                x:DataType="viewModels:LaunchProfileItemViewModel"
+                                x:DefaultBindMode="OneTime">
+                                <Button
+                                    Width="40"
+                                    Height="40"
+                                    Padding="0"
+                                    automation:AutomationProperties.Name="{x:Bind DisplayName}"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Click="OnProfileCandidateClicked"
+                                    CornerRadius="6"
+                                    Tag="{x:Bind ProfileId}"
+                                    ToolTipService.ToolTip="{x:Bind DisplayName}">
+                                    <Grid>
+                                        <Image Source="Assets/NikkiGameIcon.png" Stretch="UniformToFill" />
+                                        <Border
+                                            Padding="3,1"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Bottom"
+                                            Background="{ThemeResource OnArtBadgeFillBrush}"
+                                            CornerRadius="3">
+                                            <TextBlock
+                                                FontSize="8"
+                                                Foreground="{ThemeResource InkOnAccentBrush}"
+                                                Text="{x:Bind SelectionText}" />
+                                        </Border>
+                                    </Grid>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <Border
+            x:Name="ProfileOverlayScrim"
+            Background="#30000000"
+            IsHitTestVisible="False"
+            Visibility="Collapsed" />
+
+        <Border
+            x:Name="ProfileOverlayMask"
+            Margin="56,48,0,0"
+            Background="Transparent"
+            IsHitTestVisible="True"
+            RequestedTheme="Dark"
+            Tapped="OnProfileOverlayMaskTapped"
+            Visibility="Collapsed" />
+
+        <Border
+            x:Name="PageHostBackdrop"
+            Margin="56,0,0,0"
+            Background="{ThemeResource PaperBaseBrush}"
+            IsHitTestVisible="False"
+            Visibility="Collapsed" />
+
+        <Frame
+            x:Name="ContentFrame"
+            Margin="56,0,0,0"
+            Background="Transparent"
+            IsNavigationStackEnabled="False"
+            Visibility="Collapsed" />
+        <Border
+            x:Name="DrawerMask"
+            Margin="56,0,0,0"
+            Background="{ThemeResource DrawerMaskBrush}"
+            IsHitTestVisible="True"
+            Tapped="OnDrawerMaskTapped"
+            Visibility="Collapsed">
+        </Border>
+
+        <Border
+            x:Name="StatusDrawer"
+            Width="560"
+            Margin="0,58,24,24"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Stretch"
+            Background="{ThemeResource GlassOverlayBrush}"
+            BorderBrush="{ThemeResource HairlineSoftBrush}"
+            BorderThickness="1"
+            CornerRadius="{StaticResource RadiusIsland}"
+            Shadow="{ThemeResource WarmThemeShadow}"
+            Translation="0,0,32"
+            Visibility="Collapsed">
+            <Frame
+                x:Name="StatusFrame"
+                Background="Transparent"
+                IsNavigationStackEnabled="False" />
+        </Border>
+
+        <Border
+            x:Name="LaunchSettingsMask"
+            Margin="56,0,0,0"
+            Background="{ThemeResource LaunchSettingsMaskBrush}"
+            IsHitTestVisible="True"
+            Tapped="OnLaunchSettingsMaskTapped"
+            Visibility="Collapsed" />
+
+        <Frame
+            x:Name="LaunchSettingsFrame"
+            Width="1120"
+            Height="690"
+            MaxWidth="1120"
+            MaxHeight="690"
+            Margin="56,60,24,24"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Background="Transparent"
+            IsNavigationStackEnabled="False"
+            Visibility="Collapsed" />
+    </Grid>
+</Page>

@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Nikkiward.Features.Launcher.LauncherNoticeIsland"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+    xmlns:controls="using:Nikkiward.Controls"
+    xmlns:viewModels="using:Nikkiward.ViewModels"
+    x:DefaultBindMode="OneWay">
+    <Grid>
+        <controls:GlassIsland
+            x:Name="Island"
+            Width="520"
+            Height="180"
+            Elevation="2"
+            IslandPadding="{StaticResource NoticeIslandPaddingThickness}"
+            LocalScrim="Bottom"
+            LocalScrimBrush="{ThemeResource LocalScrimBottomBrush}"
+            ReadabilityRegion="Notice"
+            Surface="Island">
+            <Grid ColumnSpacing="{StaticResource SpaceLoose}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition x:Name="BannerColumn" Width="160" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border
+                    x:Name="Banner"
+                    Width="160"
+                    CornerRadius="{StaticResource RadiusCard}">
+                    <Grid>
+                        <Image
+                            Source="Assets/NikkiDefaultBackground.jpg"
+                            Stretch="UniformToFill" />
+                        <Rectangle Fill="{ThemeResource ArtVignetteBrush}" />
+                        <StackPanel
+                            Margin="{StaticResource SpaceBaseThickness}"
+                            VerticalAlignment="Bottom"
+                            Spacing="{StaticResource SpaceHair}">
+                            <TextBlock
+                                Foreground="{ThemeResource OnArtPrimaryTextBrush}"
+                                Style="{StaticResource FieldLabelUI}"
+                                Text="NIKKIWARD" />
+                            <TextBlock
+                                Foreground="{ThemeResource OnArtSecondaryTextBrush}"
+                                Style="{StaticResource CaptionUI}"
+                                Text="本机启动状态" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                <Grid Grid.Column="1" RowSpacing="{StaticResource SpaceTight}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="28" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceLoose}">
+                        <Grid Height="28">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                Style="{StaticResource BodyStrongUI}"
+                                Text="状态" />
+                            <Rectangle
+                                Height="2"
+                                VerticalAlignment="Bottom"
+                                Fill="{ThemeResource DerivedAccentBrush}" />
+                        </Grid>
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            Foreground="{ThemeResource InkSecondaryBrush}"
+                            Style="{StaticResource BodyUI}"
+                            Text="本机" />
+                    </StackPanel>
+                    <StackPanel
+                        x:Name="DetailRows"
+                        Grid.Row="1"
+                        Spacing="0">
+                        <Button
+                            x:Name="PlayTimeButton"
+                            Height="28"
+                            Padding="{StaticResource SpaceTightHorizontalPaddingThickness}"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            automation:AutomationProperties.HelpText="只显示奇想手账的只读时长快照；不会启动目标进程。"
+                            automation:AutomationProperties.Name="本地时长"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Click="OnPlayTimeClicked"
+                            CornerRadius="{StaticResource RadiusCard}">
+                            <Grid ColumnSpacing="{StaticResource SpaceBase}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="本地时长" />
+                                <TextBlock
+                                    x:Name="PlayTimeTextBlock"
+                                    Grid.Column="1"
+                                    FontFamily="{ThemeResource DisplayFontFamily}"
+                                    Foreground="{ThemeResource InkSecondaryBrush}"
+                                    Text="奇想手账未同步"
+                                    TextTrimming="CharacterEllipsis" />
+                            </Grid>
+                        </Button>
+                        <Button
+                            x:Name="StatusButton"
+                            Height="28"
+                            Padding="{StaticResource SpaceTightHorizontalPaddingThickness}"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            automation:AutomationProperties.Name="查看启动状态"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Click="OnStatusClicked"
+                            CornerRadius="{StaticResource RadiusCard}">
+                            <Grid ColumnSpacing="{StaticResource SpaceBase}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Text="{x:Bind ViewModel.LaunchButtonLabel}"
+                                    TextTrimming="CharacterEllipsis"
+                                    TextWrapping="NoWrap" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Foreground="{ThemeResource InkTertiaryBrush}"
+                                    Style="{StaticResource CaptionUI}"
+                                    Text="{x:Bind ViewModel.LastUpdatedText}"
+                                    TextTrimming="CharacterEllipsis"
+                                    TextWrapping="NoWrap" />
+                            </Grid>
+                        </Button>
+                        <Button
+                            x:Name="DownloadButton"
+                            Height="28"
+                            Padding="{StaticResource SpaceTightHorizontalPaddingThickness}"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            automation:AutomationProperties.Name="查看下载状态"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Click="OnDownloadClicked"
+                            CornerRadius="{StaticResource RadiusCard}">
+                            <Grid ColumnSpacing="{StaticResource SpaceBase}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Text="{x:Bind ViewModel.DownloadStatusText}"
+                                    TextTrimming="CharacterEllipsis"
+                                    TextWrapping="NoWrap" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Foreground="{ThemeResource InkTertiaryBrush}"
+                                    Style="{StaticResource CaptionUI}"
+                                    Text="本机" />
+                            </Grid>
+                        </Button>
+                        <Button
+                            x:Name="ProfileButton"
+                            Height="28"
+                            Padding="{StaticResource SpaceTightHorizontalPaddingThickness}"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            automation:AutomationProperties.Name="查看当前 Profile"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Click="OnProfileClicked"
+                            CornerRadius="{StaticResource RadiusCard}">
+                            <Grid ColumnSpacing="{StaticResource SpaceBase}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Text="{x:Bind ViewModel.ProfileDisplayName}"
+                                    TextTrimming="CharacterEllipsis"
+                                    TextWrapping="NoWrap" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Foreground="{ThemeResource InkTertiaryBrush}"
+                                    Style="{StaticResource CaptionUI}"
+                                    Text="{x:Bind ViewModel.ChannelText}" />
+                            </Grid>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </controls:GlassIsland>
+
+        <controls:GlassIsland
+            x:Name="CompactIsland"
+            Width="180"
+            Height="52"
+            Background="{ThemeResource GlassPillBrush}"
+            Elevation="1"
+            IslandCornerRadius="{StaticResource RadiusPill}"
+            IslandPadding="{StaticResource SpaceHairThickness}"
+            LocalScrim="Radial"
+            LocalScrimBrush="{ThemeResource LocalScrimRadialBrush}"
+            ReadabilityRegion="Pill"
+            Surface="Pill"
+            Visibility="Collapsed">
+            <Button
+                Height="44"
+                Padding="{StaticResource SpaceBaseHorizontalPaddingThickness}"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Stretch"
+                automation:AutomationProperties.HelpText="打开奇想手账时长详情。"
+                automation:AutomationProperties.Name="本地时长"
+                Background="Transparent"
+                BorderThickness="0"
+                Click="OnPlayTimeClicked"
+                CornerRadius="{StaticResource RadiusPill}">
+                <Grid ColumnSpacing="{StaticResource SpaceTight}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon FontSize="17" Glyph="&#xE823;" />
+                    <TextBlock
+                        x:Name="CompactPlayTimeTextBlock"
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        FontFamily="{ThemeResource DisplayFontFamily}"
+                        Text="奇想手账未同步"
+                        TextAlignment="Right"
+                        TextTrimming="CharacterEllipsis" />
+                </Grid>
+            </Button>
+        </controls:GlassIsland>
+    </Grid>
+</UserControl>

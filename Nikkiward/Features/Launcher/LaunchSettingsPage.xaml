@@ -1,0 +1,350 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shell:PageBase
+    x:Class="Nikkiward.Features.Launcher.LaunchSettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+    xmlns:shell="using:Nikkiward.Features.Shell"
+    xmlns:viewModels="using:Nikkiward.ViewModels"
+    x:DefaultBindMode="OneWay"
+    Background="{x:Null}">
+    <Border
+        x:Name="SurfaceRoot"
+        HorizontalAlignment="Stretch"
+        VerticalAlignment="Stretch"
+        Background="{ThemeResource GlassOverlayBrush}"
+        BorderBrush="{ThemeResource HairlineSoftBrush}"
+        BorderThickness="1"
+        CornerRadius="16"
+        Shadow="{ThemeResource WarmThemeShadow}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Padding="28,22,18,14" ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Spacing="3">
+                    <TextBlock
+                        automation:AutomationProperties.HeadingLevel="Level1"
+                        FontSize="25"
+                        FontWeight="SemiBold"
+                        Foreground="{ThemeResource OnArtPrimaryTextBrush}"
+                        Text="游戏设置" />
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="{ThemeResource OnArtTertiaryTextBrush}"
+                        Text="{x:Bind ViewModel.ProfileDisplayName}" />
+                </StackPanel>
+                <Button
+                    x:Name="CloseButton"
+                    Grid.Column="1"
+                    Width="40"
+                    Height="40"
+                    Padding="0"
+                    automation:AutomationProperties.Name="关闭游戏设置"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Click="OnCloseClicked"
+                    CornerRadius="20"
+                    Foreground="{ThemeResource OnArtSecondaryTextBrush}"
+                    ToolTipService.ToolTip="关闭">
+                    <FontIcon FontSize="16" Glyph="&#xE711;" />
+                </Button>
+            </Grid>
+
+            <NavigationView
+                x:Name="LaunchSettingsNavigationView"
+                Grid.Row="1"
+                AlwaysShowHeader="False"
+                Background="Transparent"
+                IsBackButtonVisible="Collapsed"
+                IsPaneOpen="True"
+                IsPaneToggleButtonVisible="False"
+                IsSettingsVisible="False"
+                IsTitleBarAutoPaddingEnabled="False"
+                ItemInvoked="OnNavigationItemInvoked"
+                OpenPaneLength="220"
+                PaneDisplayMode="Left">
+                <NavigationView.Resources>
+                    <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
+                    <Thickness x:Key="NavigationViewContentGridBorderThickness">0</Thickness>
+                    <Thickness x:Key="NavigationViewContentMargin">0</Thickness>
+                    <Thickness x:Key="NavigationViewHeaderMargin">0</Thickness>
+                    <x:Double x:Key="PaneToggleButtonHeight">0</x:Double>
+                </NavigationView.Resources>
+
+                <NavigationView.MenuItems>
+                    <NavigationViewItem
+                        x:Name="BasicNavigationItem"
+                        Content="基本信息"
+                        IsSelected="True"
+                        Tag="basic" />
+                    <NavigationViewItem
+                        x:Name="ArgumentsNavigationItem"
+                        Content="启动参数"
+                        Tag="arguments" />
+                    <NavigationViewItem
+                        x:Name="BackgroundNavigationItem"
+                        Content="自定义背景"
+                        Tag="background" />
+                    <NavigationViewItem
+                        x:Name="PackageNavigationItem"
+                        Content="游戏包体"
+                        Tag="package" />
+                </NavigationView.MenuItems>
+
+                <ScrollViewer
+                    x:Name="ContentScrollViewer"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="28,8,28,28" Spacing="22">
+                        <StackPanel x:Name="BasicSection" Spacing="16">
+                            <Grid ColumnSpacing="14">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border
+                                    Width="52"
+                                    Height="52"
+                                    CornerRadius="11">
+                                    <Image Source="Assets/NikkiGameIcon.png" Stretch="UniformToFill" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock
+                                        FontSize="18"
+                                        FontWeight="SemiBold"
+                                        Foreground="{ThemeResource OnArtPrimaryTextBrush}"
+                                        Text="{x:Bind ViewModel.ProfileDisplayName}" />
+                                    <TextBlock
+                                        Foreground="{ThemeResource OnArtTertiaryTextBrush}"
+                                        Text="{x:Bind ViewModel.ChannelText}" />
+                                </StackPanel>
+                                <Button
+                                    Grid.Column="2"
+                                    Height="38"
+                                    Padding="12,0"
+                                    Click="OnChooseGameRootClicked"
+                                    Style="{StaticResource OnArtGlassButtonStyle}">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE838;" />
+                                        <TextBlock Text="定位游戏" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+
+                            <Border Style="{StaticResource ComponentCardBorderStyle}">
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox
+                                        automation:AutomationProperties.Name="游戏根路径"
+                                        Style="{StaticResource ReadOnlyOnArtTextBoxStyle}"
+                                        Text="{x:Bind ViewModel.GameRootPath}" />
+                                    <FontIcon
+                                        Grid.Column="1"
+                                        Margin="8,0,2,0"
+                                        VerticalAlignment="Center"
+                                        Foreground="{ThemeResource OnArtTertiaryTextBrush}"
+                                        Glyph="&#xE8A7;" />
+                                </Grid>
+                            </Border>
+
+                            <Grid ColumnSpacing="16" RowSpacing="14">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <StackPanel Spacing="4">
+                                    <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="渠道 / 平台" />
+                                    <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.ChannelText}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="4">
+                                    <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="启动能力" />
+                                    <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.LaunchCapabilityText}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Spacing="4">
+                                    <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="静态身份" />
+                                    <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.StaticIdentityText}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="4">
+                                    <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="执行门" />
+                                    <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.ProviderExecutionEnabledText}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Border Background="{ThemeResource PaperRaisedBrush}" CornerRadius="10" Padding="14">
+                                <StackPanel Spacing="5">
+                                    <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource OnArtPrimaryTextBrush}" Text="只读身份已核对" />
+                                    <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="当前面板只展示安装与官方组件状态；不会修改游戏文件，也不会调用 launcher、xstarter、游戏或 ACE。" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <StackPanel x:Name="ArgumentsSection" Spacing="14" Visibility="Collapsed">
+                            <TextBlock Style="{StaticResource OnArtSectionTitleTextStyle}" Text="启动参数" />
+                            <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="参数来自冻结 provider contract；当前执行门关闭，仅做可复核展示。" TextWrapping="Wrap" />
+                            <StackPanel Spacing="5">
+                                <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="PROVIDER CONTRACT" />
+                                <TextBox Style="{StaticResource ReadOnlyMonospaceTextBoxStyle}" Text="{x:Bind ViewModel.ProviderContractId}" />
+                            </StackPanel>
+                            <StackPanel Spacing="5">
+                                <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="BACKEND" />
+                                <TextBox Style="{StaticResource ReadOnlyMonospaceTextBoxStyle}" Text="{x:Bind ViewModel.ProviderExecutablePath}" />
+                            </StackPanel>
+                            <StackPanel Spacing="5">
+                                <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="WORKING DIRECTORY" />
+                                <TextBox Style="{StaticResource ReadOnlyMonospaceTextBoxStyle}" Text="{x:Bind ViewModel.ProviderWorkingDirectory}" />
+                            </StackPanel>
+                            <StackPanel Spacing="5">
+                                <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="ARGUMENT PRESET" />
+                                <TextBox Style="{StaticResource ReadOnlyMonospaceTextBoxStyle}" Text="{x:Bind ViewModel.ProviderArgumentVector}" />
+                            </StackPanel>
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Spacing="4">
+                                    <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="EVIDENCE" />
+                                    <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.ProviderEvidenceState}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="4">
+                                    <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="CAPABILITY" />
+                                    <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.LaunchCapabilityText}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+
+                        <StackPanel x:Name="BackgroundSection" Spacing="14" Visibility="Collapsed">
+                            <TextBlock Style="{StaticResource OnArtSectionTitleTextStyle}" Text="自定义背景" />
+                            <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="背景仅影响 Nikkiward 当前会话；不会写入官方启动器或游戏目录。" TextWrapping="Wrap" />
+                            <Grid Height="156" ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border CornerRadius="10">
+                                    <Image Source="Assets/NikkiDefaultBackground.jpg" Stretch="UniformToFill" />
+                                </Border>
+                                <Border Grid.Column="1" CornerRadius="10">
+                                    <Image x:Name="BackgroundPreviewImage" Stretch="UniformToFill" />
+                                </Border>
+                            </Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button automation:AutomationProperties.Name="选择背景图片" Click="OnChooseBackgroundClicked" Style="{StaticResource OnArtGlassButtonStyle}">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE91B;" />
+                                        <TextBlock Text="选择图片" />
+                                    </StackPanel>
+                                </Button>
+                                <Button automation:AutomationProperties.Name="导入动态壁纸" Click="OnChooseMotionBackgroundClicked" Style="{StaticResource OnArtGlassButtonStyle}">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE8B2;" />
+                                        <TextBlock Text="导入动态壁纸" />
+                                    </StackPanel>
+                                </Button>
+                                <Button automation:AutomationProperties.Name="恢复默认背景" Click="OnResetBackgroundClicked" Style="{StaticResource OnArtGlassButtonStyle}">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE777;" />
+                                        <TextBlock Text="恢复默认" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox
+                                    x:Name="MastheadSubtitleBox"
+                                    Height="Auto"
+                                    MaxLength="120"
+                                    automation:AutomationProperties.Name="主页副标题文案"
+                                    Header="主页副标题"
+                                    PlaceholderText="从一张美术出发，把今天的旅程稳稳接住。"
+                                    TextWrapping="Wrap" />
+                                <Button
+                                    Grid.Column="1"
+                                    VerticalAlignment="Bottom"
+                                    automation:AutomationProperties.Name="保存主页副标题"
+                                    Click="OnSaveMastheadSubtitleClicked"
+                                    Style="{StaticResource OnArtIconButtonStyle}"
+                                    ToolTipService.ToolTip="保存主页副标题">
+                                    <FontIcon Glyph="&#xE74E;" />
+                                </Button>
+                                <Button
+                                    Grid.Column="2"
+                                    VerticalAlignment="Bottom"
+                                    automation:AutomationProperties.Name="恢复默认主页副标题"
+                                    Click="OnResetMastheadSubtitleClicked"
+                                    Style="{StaticResource OnArtIconButtonStyle}"
+                                    ToolTipService.ToolTip="恢复默认主页副标题">
+                                    <FontIcon Glyph="&#xE777;" />
+                                </Button>
+                            </Grid>
+                        </StackPanel>
+
+                        <StackPanel x:Name="PackageSection" Spacing="14" Visibility="Collapsed">
+                            <TextBlock Style="{StaticResource OnArtSectionTitleTextStyle}" Text="游戏包体" />
+                            <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="只读列出当前 profile 的组件身份；不执行修复、搬运或 manifest 修改。" TextWrapping="Wrap" />
+                            <StackPanel Spacing="5">
+                                <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="游戏根目录" />
+                                <TextBox Style="{StaticResource ReadOnlyMonospaceTextBoxStyle}" Text="{x:Bind ViewModel.GameRootPath}" />
+                            </StackPanel>
+                            <ItemsControl ItemsSource="{x:Bind ViewModel.Components}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate
+                                        x:DataType="viewModels:ComponentItemViewModel"
+                                        x:DefaultBindMode="OneTime">
+                                        <Border Margin="0,0,0,8" Style="{StaticResource ComponentCardBorderStyle}">
+                                            <Grid ColumnSpacing="12" RowSpacing="6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+                                                <StackPanel Spacing="3">
+                                                    <TextBlock FontWeight="SemiBold" Text="{x:Bind DisplayName}" TextWrapping="Wrap" />
+                                                    <TextBlock FontSize="11" Foreground="{ThemeResource OnArtTertiaryTextBrush}" Text="{x:Bind ComponentId}" />
+                                                    <TextBlock FontSize="11" Foreground="{ThemeResource OnArtTertiaryTextBrush}" Text="{x:Bind FileVersionText}" />
+                                                </StackPanel>
+                                                <TextBlock
+                                                    Grid.Column="1"
+                                                    VerticalAlignment="Center"
+                                                    FontWeight="SemiBold"
+                                                    Foreground="{ThemeResource OnArtSecondaryTextBrush}"
+                                                    Text="{x:Bind StatusText}" />
+                                                <TextBox
+                                                    Grid.Row="1"
+                                                    Grid.ColumnSpan="2"
+                                                    Style="{StaticResource ReadOnlyMonospaceTextBoxStyle}"
+                                                    Text="{x:Bind FilePath}" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </NavigationView>
+        </Grid>
+    </Border>
+</shell:PageBase>

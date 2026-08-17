@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Nikkiward.Features.Profile.ProfileDetailsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+    xmlns:viewModels="using:Nikkiward.ViewModels"
+    x:DefaultBindMode="OneWay">
+    <StackPanel Spacing="12">
+        <StackPanel Spacing="3">
+            <TextBlock automation:AutomationProperties.HeadingLevel="Level2" Style="{StaticResource OnArtSectionTitleTextStyle}" Text="活动 LaunchProfile" />
+            <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="候选来自当前 IInstallationDiscoveryService；设置只提供 SelectedProfileId seed，能力、provider 与 preflight 每次重新派生。" />
+        </StackPanel>
+        <CommandBar Background="Transparent" DefaultLabelPosition="Right" IsDynamicOverflowEnabled="True">
+            <AppBarButton Click="OnDiscoverClicked" IsEnabled="{x:Bind ViewModel.CanDiscover}" Label="自动发现">
+                <AppBarButton.Icon><FontIcon Glyph="&#xE721;" /></AppBarButton.Icon>
+            </AppBarButton>
+            <AppBarButton Click="OnChooseGameRootClicked" IsEnabled="{x:Bind ViewModel.CanDiscover}" Label="游戏根">
+                <AppBarButton.Icon><FontIcon Glyph="&#xE8B7;" /></AppBarButton.Icon>
+            </AppBarButton>
+            <AppBarButton Click="OnChooseLauncherRootClicked" IsEnabled="{x:Bind ViewModel.CanDiscover}" Label="launcher 根">
+                <AppBarButton.Icon><FontIcon Glyph="&#xE838;" /></AppBarButton.Icon>
+            </AppBarButton>
+        </CommandBar>
+        <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.ManualSelectionHint}" />
+        <Rectangle Height="1" Fill="{ThemeResource HairlineSoftBrush}" />
+        <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Spacing="3">
+                <TextBlock automation:AutomationProperties.HeadingLevel="Level2" Style="{StaticResource OnArtSectionTitleTextStyle}" Text="三渠道单本体" />
+                <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.ChannelStoreCapacityText}" TextWrapping="Wrap" />
+            </StackPanel>
+            <TextBlock Grid.Column="1" VerticalAlignment="Center" Foreground="{ThemeResource OnArtSecondaryTextBrush}" Text="{x:Bind ViewModel.SelectedChannelLaunchRoute}" />
+        </Grid>
+        <CommandBar Background="Transparent" DefaultLabelPosition="Right" IsDynamicOverflowEnabled="True">
+            <AppBarButton Click="OnChooseChannelStoreRootClicked" IsEnabled="{x:Bind ViewModel.CanPlanChannelStore}" Label="存储位置">
+                <AppBarButton.Icon><FontIcon Glyph="&#xE838;" /></AppBarButton.Icon>
+            </AppBarButton>
+            <AppBarButton Click="OnPlanChannelStoreClicked" IsEnabled="{x:Bind ViewModel.CanPlanChannelStore}" Label="Dry-run">
+                <AppBarButton.Icon><FontIcon Glyph="&#xE9D2;" /></AppBarButton.Icon>
+            </AppBarButton>
+            <AppBarButton Click="OnBuildChannelStoreClicked" IsEnabled="{x:Bind ViewModel.CanBuildChannelStore}" Label="创建单本体">
+                <AppBarButton.Icon><FontIcon Glyph="&#xE8F4;" /></AppBarButton.Icon>
+            </AppBarButton>
+            <AppBarButton Click="OnActivateChannelClicked" IsEnabled="{x:Bind ViewModel.CanActivateSelectedChannel}" Label="激活渠道">
+                <AppBarButton.Icon><FontIcon Glyph="&#xE73E;" /></AppBarButton.Icon>
+            </AppBarButton>
+            <AppBarButton Click="OnRollbackActivationClicked" IsEnabled="{x:Bind ViewModel.CanRollbackChannelActivation}" Label="撤销激活">
+                <AppBarButton.Icon><FontIcon Glyph="&#xE7A7;" /></AppBarButton.Icon>
+            </AppBarButton>
+        </CommandBar>
+        <StackPanel Spacing="5">
+            <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="STORE ROOT" />
+            <TextBox automation:AutomationProperties.Name="三渠道单本体存储根" Style="{StaticResource ReadOnlyOnArtTextBoxStyle}" Text="{x:Bind ViewModel.ChannelStoreRootPath}" />
+        </StackPanel>
+        <ProgressBar
+            Maximum="100"
+            Value="{x:Bind ViewModel.ChannelStoreProgressPercent}"
+            Visibility="{x:Bind ViewModel.ChannelStoreProgressVisibility}" />
+        <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.ChannelStoreStatusText}" TextWrapping="Wrap" />
+        <StackPanel Spacing="4">
+            <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="PROFILE IDENTITY / PROVENANCE" />
+            <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{ThemeResource OnArtTertiaryTextBrush}" Text="{x:Bind ViewModel.ProfileIdentityText}" TextWrapping="Wrap" />
+        </StackPanel>
+        <Grid ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Spacing="3">
+                <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="CURRENT PROFILE" />
+                <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{ThemeResource OnArtPrimaryTextBrush}" Text="{x:Bind ViewModel.ProfileDisplayName}" TextWrapping="Wrap" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" HorizontalAlignment="Right" Spacing="3">
+                <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="CHANNEL / PROVIDER" />
+                <TextBlock HorizontalAlignment="Right" Foreground="{ThemeResource OnArtSecondaryTextBrush}" Text="{x:Bind ViewModel.ChannelText}" />
+                <TextBlock HorizontalAlignment="Right" Foreground="{ThemeResource OnArtTertiaryTextBrush}" Text="{x:Bind ViewModel.PlatformText}" />
+            </StackPanel>
+        </Grid>
+        <StackPanel Spacing="5">
+            <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="安装根" />
+            <TextBox automation:AutomationProperties.Name="活动 Profile 安装根" Style="{StaticResource ReadOnlyOnArtTextBoxStyle}" Text="{x:Bind ViewModel.GameRootPath}" />
+        </StackPanel>
+        <StackPanel Spacing="5">
+            <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="官方后端 / XSTARTER" />
+            <TextBox automation:AutomationProperties.Name="活动 Profile xstarter 路径" Style="{StaticResource ReadOnlyOnArtTextBoxStyle}" Text="{x:Bind ViewModel.XStarterPath}" />
+        </StackPanel>
+        <ItemsControl ItemsSource="{x:Bind ViewModel.Profiles}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="viewModels:LaunchProfileItemViewModel" x:DefaultBindMode="OneTime">
+                    <Button Margin="0,0,0,8" Padding="0" HorizontalContentAlignment="Stretch" automation:AutomationProperties.Name="{x:Bind DisplayName}" Background="Transparent" BorderThickness="0" Click="OnProfileCandidateClicked" Tag="{x:Bind ProfileId}">
+                        <Border Style="{StaticResource ComponentCardBorderStyle}">
+                            <StackPanel Spacing="8">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource OnArtPrimaryTextBrush}" Text="{x:Bind DisplayName}" TextWrapping="Wrap" />
+                                        <TextBlock FontSize="11" Foreground="{ThemeResource OnArtTertiaryTextBrush}" Text="{x:Bind ProfileId}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" VerticalAlignment="Center" Foreground="{ThemeResource OnArtSecondaryTextBrush}" Text="{x:Bind SelectionText}" />
+                                </Grid>
+                                <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind Channel}" />
+                                <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind CapabilitySummary}" />
+                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{ThemeResource OnArtTertiaryTextBrush}" Text="{x:Bind GameRootPath}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+                    </Button>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.SettingsStatusText}" />
+        <Rectangle Height="1" Fill="{ThemeResource HairlineSoftBrush}" />
+        <StackPanel Spacing="3">
+            <TextBlock automation:AutomationProperties.HeadingLevel="Level2" Style="{StaticResource OnArtSectionTitleTextStyle}" Text="渠道证据" />
+            <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="以下为只读研究状态；未安装渠道不会成为活动 profile。" />
+        </StackPanel>
+        <ItemsControl ItemsSource="{x:Bind ViewModel.PlatformEvidence}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="viewModels:PlatformEvidenceItemViewModel" x:DefaultBindMode="OneTime">
+                    <Border Margin="0,0,0,8" Style="{StaticResource ComponentCardBorderStyle}">
+                        <StackPanel Spacing="8">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource OnArtPrimaryTextBrush}" Text="{x:Bind Title}" />
+                                <TextBlock Grid.Column="1" Foreground="{ThemeResource OnArtTertiaryTextBrush}" Text="{x:Bind Source}" />
+                            </Grid>
+                            <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource OnArtSecondaryTextBrush}" Text="{x:Bind State}" TextWrapping="Wrap" />
+                            <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind Detail}" />
+                            <TextBlock FontSize="11" Foreground="{ThemeResource OnArtTertiaryTextBrush}" Text="{x:Bind Capability}" />
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</UserControl>

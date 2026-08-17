@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Nikkiward.Features.Settings.DiagnosticsSettingsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+    xmlns:viewModels="using:Nikkiward.ViewModels"
+    x:DefaultBindMode="OneWay">
+    <StackPanel Spacing="24">
+        <StackPanel Spacing="12">
+            <StackPanel Spacing="3">
+                <TextBlock
+                    automation:AutomationProperties.HeadingLevel="Level2"
+                    Style="{StaticResource OnArtSectionTitleTextStyle}"
+                    Text="组件验证" />
+                <TextBlock
+                    Style="{StaticResource OnArtBodyTextStyle}"
+                    Text="版本、Authenticode 签名与 SHA-256 均来自当前 profile 的只读文件检查。" />
+            </StackPanel>
+
+            <ItemsControl ItemsSource="{x:Bind ViewModel.Components}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="viewModels:ComponentItemViewModel" x:DefaultBindMode="OneTime">
+                        <Border Margin="0,0,0,8" Style="{StaticResource ComponentCardBorderStyle}">
+                            <StackPanel Spacing="10">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock
+                                            FontWeight="SemiBold"
+                                            Foreground="{ThemeResource OnArtPrimaryTextBrush}"
+                                            Text="{x:Bind DisplayName}"
+                                            TextWrapping="Wrap" />
+                                        <TextBlock
+                                            FontSize="11"
+                                            Foreground="{ThemeResource OnArtTertiaryTextBrush}"
+                                            Text="{x:Bind ComponentId}" />
+                                    </StackPanel>
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        FontWeight="SemiBold"
+                                        Foreground="{ThemeResource OnArtSecondaryTextBrush}"
+                                        Text="{x:Bind StatusText}" />
+                                </Grid>
+
+                                <TextBox
+                                    automation:AutomationProperties.Name="组件文件路径"
+                                    Style="{StaticResource ReadOnlyOnArtTextBoxStyle}"
+                                    Text="{x:Bind FilePath}" />
+
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="3">
+                                        <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="FILE / PRODUCT VERSION" />
+                                        <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind FileVersionText}" />
+                                        <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ProductVersionText}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Spacing="3">
+                                        <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="AUTHENTICODE" />
+                                        <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind SignatureText}" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <StackPanel Spacing="4">
+                                    <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="SHA-256" />
+                                    <TextBox
+                                        automation:AutomationProperties.Name="SHA-256"
+                                        Style="{StaticResource ReadOnlyMonospaceTextBoxStyle}"
+                                        Text="{x:Bind Sha256Text}" />
+                                </StackPanel>
+
+                                <TextBlock
+                                    FontSize="11"
+                                    Foreground="{ThemeResource OnArtTertiaryTextBrush}"
+                                    Text="{x:Bind FileMetadataText}"
+                                    TextWrapping="Wrap" />
+                                <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ErrorText}" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
+        <StackPanel Spacing="12">
+            <TextBlock
+                automation:AutomationProperties.HeadingLevel="Level2"
+                Style="{StaticResource OnArtSectionTitleTextStyle}"
+                Text="脱敏诊断" />
+            <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.ExportStatusText}" />
+            <StackPanel Spacing="6">
+                <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="PROVIDER VALIDATION TRANSACTION" />
+                <TextBox
+                    automation:AutomationProperties.Name="Provider validation VERIFICATION.txt 路径"
+                    Style="{StaticResource ReadOnlyMonospaceTextBoxStyle}"
+                    Text="{x:Bind ViewModel.ProviderValidationArtifactPath}" />
+                <TextBlock
+                    Style="{StaticResource OnArtBodyTextStyle}"
+                    Text="{x:Bind ViewModel.ProviderValidationStatusText}"
+                    TextWrapping="Wrap" />
+            <Button automation:AutomationProperties.Name="查看 provider 验证详情" Click="OnProviderDetailsClicked" Style="{StaticResource OnArtGlassButtonStyle}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE8A5;" />
+                        <TextBlock VerticalAlignment="Center" Text="查看验证事务详情" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+            <TextBlock
+                FontSize="11"
+                Foreground="{ThemeResource OnArtTertiaryTextBrush}"
+                Text="不采集命令行、token、进程内存或网络载荷；导出由现有 IDiagnosticReportExporter 完成。"
+                TextWrapping="Wrap" />
+            <Button
+                automation:AutomationProperties.Name="导出脱敏诊断"
+                Click="OnExportClicked"
+                IsEnabled="{x:Bind ViewModel.CanExport}"
+                Style="{StaticResource OnArtGlassButtonStyle}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE74E;" />
+                    <TextBlock VerticalAlignment="Center" Text="导出诊断" />
+                </StackPanel>
+            </Button>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

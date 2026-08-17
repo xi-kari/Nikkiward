@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shell:PageBase
+    x:Class="Nikkiward.Features.Diagnostics.StatusPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+    xmlns:shell="using:Nikkiward.Features.Shell">
+    <Grid Background="Transparent">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid x:Name="StatusMasthead" Padding="24,0,174,0" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center" Spacing="1">
+                <TextBlock
+                    automation:AutomationProperties.HeadingLevel="Level1"
+                    FontSize="22"
+                    FontWeight="SemiBold"
+                    Foreground="{ThemeResource OnArtPrimaryTextBrush}"
+                    Text="能力与生命周期" />
+                <TextBlock
+                    FontSize="11"
+                    Foreground="{ThemeResource OnArtTertiaryTextBrush}"
+                    Text="当前应用执行门关闭，状态不会伪装成 Ready to Launch" />
+            </StackPanel>
+            <Button
+                x:Name="CloseButton"
+                Grid.Column="1"
+                Width="36"
+                Height="36"
+                Padding="0"
+                automation:AutomationProperties.Name="关闭状态详情"
+                Background="Transparent"
+                BorderThickness="0"
+                Click="OnCloseClicked"
+                CornerRadius="18">
+                <FontIcon FontSize="14" Glyph="&#xE711;" />
+            </Button>
+        </Grid>
+        <ScrollViewer
+            x:Name="StatusScrollViewer"
+            Grid.Row="1"
+            HorizontalScrollBarVisibility="Disabled"
+            VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="24,12,24,28" Spacing="16">
+                <StackPanel Spacing="4">
+                    <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="启动能力" />
+                    <TextBlock
+                        FontWeight="SemiBold"
+                        Foreground="{ThemeResource OnArtPrimaryTextBrush}"
+                        Text="{x:Bind ViewModel.LaunchCapabilityText}"
+                        TextWrapping="Wrap" />
+                    <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.CapabilityDetailText}" />
+                </StackPanel>
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Spacing="4">
+                        <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="最近刷新" />
+                        <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.LastUpdatedText}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="4">
+                        <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="当前活动" />
+                        <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.ActivityText}" />
+                    </StackPanel>
+                </Grid>
+                <StackPanel Spacing="4">
+                    <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="最近错误" />
+                    <TextBlock automation:AutomationProperties.LiveSetting="Polite" Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.LastErrorText}" />
+                </StackPanel>
+                <Expander
+                    x:Name="TechnicalDetailsExpander"
+                    automation:AutomationProperties.Name="查看技术详情"
+                    Header="技术详情"
+                    IsExpanded="False">
+                    <StackPanel Margin="0,12,0,0" Spacing="12">
+                        <StackPanel Spacing="4">
+                            <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="INSTALLATION CANDIDATE" />
+                            <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.InstallationCandidateText}" />
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="FROZEN CONTRACT" />
+                            <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource OnArtPrimaryTextBrush}" Text="{x:Bind ViewModel.ProviderContractId}" TextWrapping="Wrap" />
+                            <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.ProviderExecutionEnabledText}" />
+                            <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.ManualAttemptAuthorizationText}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Spacing="5">
+                            <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="PROVIDER EXECUTABLE" />
+                            <TextBox automation:AutomationProperties.Name="CN provider 可执行文件" Style="{StaticResource ReadOnlyOnArtTextBoxStyle}" Text="{x:Bind ViewModel.ProviderExecutablePath}" />
+                        </StackPanel>
+                        <StackPanel Spacing="5">
+                            <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="WORKING DIRECTORY" />
+                            <TextBox automation:AutomationProperties.Name="CN provider 工作目录" Style="{StaticResource ReadOnlyOnArtTextBoxStyle}" Text="{x:Bind ViewModel.ProviderWorkingDirectory}" />
+                        </StackPanel>
+                        <StackPanel Spacing="5">
+                            <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="ARGUMENT VECTOR" />
+                            <TextBox automation:AutomationProperties.Name="CN provider 参数向量" Style="{StaticResource ReadOnlyMonospaceTextBoxStyle}" Text="{x:Bind ViewModel.ProviderArgumentVector}" />
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="EVIDENCE STATE" />
+                            <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource OnArtPrimaryTextBrush}" Text="{x:Bind ViewModel.ProviderEvidenceState}" TextWrapping="Wrap" />
+                            <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.ProviderObservationText}" />
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="EXTERNAL EVIDENCE" />
+                            <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.ExternalEvidenceText}" />
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="LATEST CONTROLLED RECEIPT" />
+                            <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.LatestControlledReceiptText}" />
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="APPLICATION EXECUTION" />
+                            <TextBlock automation:AutomationProperties.LiveSetting="Polite" Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.ApplicationExecutionText}" />
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="STATIC IDENTITY" />
+                            <TextBlock automation:AutomationProperties.LiveSetting="Polite" FontWeight="SemiBold" Foreground="{ThemeResource OnArtPrimaryTextBrush}" Text="{x:Bind ViewModel.StaticIdentityText}" TextWrapping="Wrap" />
+                            <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.StaticReadinessText}" />
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="LIFECYCLE" />
+                            <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.LifecycleText}" />
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="PREFLIGHT GATE" />
+                            <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.ProviderPreflightText}" />
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="OBSERVATION BOUNDARY" />
+                            <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.ProviderObservationPolicyText}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Expander>
+            </StackPanel>
+        </ScrollViewer>
+        <CommandBar
+            Grid.Row="2"
+            Background="{ThemeResource GlassPillBrush}"
+            DefaultLabelPosition="Right"
+            IsDynamicOverflowEnabled="True">
+            <AppBarButton Click="OnRefreshClicked" IsEnabled="{x:Bind ViewModel.CanRefresh}" Label="刷新">
+                <AppBarButton.Icon><FontIcon Glyph="&#xE72C;" /></AppBarButton.Icon>
+            </AppBarButton>
+            <AppBarButton Click="OnOfficialFlowClicked" IsEnabled="{x:Bind ViewModel.CanAttemptOfficialAssistedLaunch}" Label="启动游戏">
+                <AppBarButton.Icon><FontIcon Glyph="&#xE8A7;" /></AppBarButton.Icon>
+            </AppBarButton>
+            <AppBarButton Click="OnExportClicked" IsEnabled="{x:Bind ViewModel.CanExport}" Label="导出诊断">
+                <AppBarButton.Icon><FontIcon Glyph="&#xE74E;" /></AppBarButton.Icon>
+            </AppBarButton>
+        </CommandBar>
+    </Grid>
+</shell:PageBase>

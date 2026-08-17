@@ -1,0 +1,52 @@
+# This workspace also contains installed games, local evidence, caches, and
+# upstream references. Keep the repository as an explicit source allowlist.
+/*
+!/.github/
+!/.github/**
+!/build/
+!/build/**
+!/docs/
+!/docs/**
+!/Nikkiward/
+!/Nikkiward/**
+!/Nikkiward.ProfileBuilder.Tests/
+!/Nikkiward.ProfileBuilder.Tests/**
+!/.gitattributes
+!/.gitignore
+!/LICENSE
+!/LAUNCH_CONTRACT.md
+!/PRIVACY.md
+!/README.md
+!/SECURITY.md
+!/THIRD-PARTY-NOTICES.md
+
+# Generated build and test output.
+**/[Bb]in/
+**/[Oo]bj/
+**/[Dd]ebug/
+**/[Rr]elease/
+**/artifacts/
+**/AppPackages/
+**/BundleArtifacts/
+**/[Tt]est[Rr]esult*/
+**/.vs/
+**/.idea/
+**/.vscode/
+**/*.user
+**/*.suo
+**/*.log
+**/*.binlog
+**/*.trx
+**/*.coverage
+**/*.coveragexml
+**/*.nupkg
+**/*.snupkg
+**/*.pdb
+
+# Local-only native dependency. CI retrieves and verifies the fixed upstream
+# binary before building release artifacts.
+/Nikkiward/runtimes/win-x64/native/nuan5_decryption.dll
+
+# Unused source artwork is intentionally excluded from repository history.
+/Nikkiward/Assets/NikkiBackground.png
+/Nikkiward/Assets/NikkiDefaultBackground.png

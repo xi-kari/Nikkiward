@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Nikkiward.Features.Settings.GallerySettingsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation">
+    <UserControl.Resources>
+        <Style x:Key="GallerySettingsSectionStyle" TargetType="Border">
+            <Setter Property="Padding" Value="0,0,0,18" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{ThemeResource HairlineSoftBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel Spacing="18">
+        <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Spacing="3">
+                <TextBlock
+                    automation:AutomationProperties.HeadingLevel="Level2"
+                    Style="{StaticResource OnArtSectionTitleTextStyle}"
+                    Text="相册" />
+                <TextBlock
+                    x:Name="ProfileText"
+                    Style="{StaticResource OnArtBodyTextStyle}"
+                    Text="未选择 Profile" />
+            </StackPanel>
+            <ProgressRing
+                x:Name="BusyRing"
+                Grid.Column="1"
+                Width="18"
+                Height="18"
+                VerticalAlignment="Center"
+                IsActive="False"
+                Visibility="Collapsed" />
+        </Grid>
+
+        <Border Style="{StaticResource GallerySettingsSectionStyle}">
+            <StackPanel Spacing="10">
+                <StackPanel Spacing="3">
+                    <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="图库位置" />
+                    <TextBlock x:Name="RootModeText" Style="{StaticResource OnArtBodyTextStyle}" Text="尚未配置" />
+                </StackPanel>
+                <TextBox
+                    x:Name="GalleryRootTextBox"
+                    automation:AutomationProperties.Name="当前图库目录"
+                    IsReadOnly="True"
+                    Style="{StaticResource EditableMonospaceTextBoxStyle}"
+                    Text="尚未配置" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="ChooseRootButton" automation:AutomationProperties.Name="选择图库目录" Click="OnChooseRootClicked" Style="{StaticResource OnArtGlassButtonStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE8B7;" /><TextBlock Text="选择目录" /></StackPanel>
+                    </Button>
+                    <Button x:Name="ResetRootButton" automation:AutomationProperties.Name="恢复默认图库目录" Click="OnResetRootClicked" IsEnabled="False" Style="{StaticResource OnArtGlassButtonStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE777;" /><TextBlock Text="恢复默认" /></StackPanel>
+                    </Button>
+                    <Button x:Name="OpenGalleryButton" automation:AutomationProperties.Name="打开相册" Click="OnOpenGalleryClicked" Style="{StaticResource OnArtGlassButtonStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xEB9F;" /><TextBlock Text="打开相册" /></StackPanel>
+                    </Button>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource GallerySettingsSectionStyle}">
+            <StackPanel Spacing="10">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Spacing="3">
+                        <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="收藏保护" />
+                        <TextBlock
+                            x:Name="ProtectionStatusText"
+                            automation:AutomationProperties.LiveSetting="Polite"
+                            Style="{StaticResource OnArtBodyTextStyle}"
+                            Text="正在读取" />
+                    </StackPanel>
+                    <ToggleSwitch
+                        x:Name="ProtectionEnabledToggle"
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        automation:AutomationProperties.Name="收藏时创建本地保护副本"
+                        OffContent="关闭"
+                        OnContent="开启"
+                        Toggled="OnProtectionEnabledToggled" />
+                </Grid>
+                <TextBox
+                    x:Name="ProtectionPathTextBox"
+                    automation:AutomationProperties.Name="收藏保护目录"
+                    IsReadOnly="True"
+                    Style="{StaticResource EditableMonospaceTextBoxStyle}"
+                    Text="尚未配置" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="ChooseProtectionRootButton" automation:AutomationProperties.Name="选择收藏保护目录" Click="OnChooseProtectionRootClicked" Style="{StaticResource OnArtGlassButtonStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE8B7;" /><TextBlock Text="选择保护目录" /></StackPanel>
+                    </Button>
+                    <Button x:Name="OpenProtectionRootButton" automation:AutomationProperties.Name="打开收藏保护目录" Click="OnOpenProtectionRootClicked" Style="{StaticResource OnArtGlassButtonStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE838;" /><TextBlock Text="打开目录" /></StackPanel>
+                    </Button>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="VerifyProtectionButton" automation:AutomationProperties.Name="校验收藏保护副本" Click="OnVerifyProtectionClicked" Style="{StaticResource OnArtGlassButtonStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE9D9;" /><TextBlock Text="校验副本" /></StackPanel>
+                    </Button>
+                    <Button x:Name="CleanProtectionButton" automation:AutomationProperties.Name="清理未收藏保护副本" Click="OnCleanProtectionClicked" IsEnabled="False" Style="{StaticResource OnArtGlassButtonStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE74D;" /><TextBlock Text="清理未收藏副本" /></StackPanel>
+                    </Button>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource GallerySettingsSectionStyle}">
+            <StackPanel Spacing="10">
+                <StackPanel Spacing="3">
+                    <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="缩略图缓存" />
+                    <TextBlock x:Name="CacheStatusText" automation:AutomationProperties.LiveSetting="Polite" Style="{StaticResource OnArtBodyTextStyle}" Text="正在读取" />
+                </StackPanel>
+                <TextBox
+                    x:Name="CachePathTextBox"
+                    automation:AutomationProperties.Name="缩略图缓存目录"
+                    IsReadOnly="True"
+                    Style="{StaticResource EditableMonospaceTextBoxStyle}"
+                    Text="尚未生成" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="RefreshCacheButton" automation:AutomationProperties.Name="刷新缓存统计" Click="OnRefreshCacheClicked" Style="{StaticResource OnArtGlassButtonStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE72C;" /><TextBlock Text="刷新" /></StackPanel>
+                    </Button>
+                    <Button x:Name="ClearCacheButton" automation:AutomationProperties.Name="清理缩略图缓存" Click="OnClearCacheClicked" IsEnabled="False" Style="{StaticResource OnArtGlassButtonStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE74D;" /><TextBlock Text="清理缓存" /></StackPanel>
+                    </Button>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource GallerySettingsSectionStyle}">
+            <StackPanel Spacing="10">
+                <StackPanel Spacing="3">
+                    <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="NikkiGallery 高级工具" />
+                    <TextBlock x:Name="NikkiGalleryStatusText" automation:AutomationProperties.LiveSetting="Polite" Style="{StaticResource OnArtBodyTextStyle}" Text="尚未关联" />
+                </StackPanel>
+                <TextBox
+                    x:Name="NikkiGalleryPathTextBox"
+                    automation:AutomationProperties.Name="NikkiGallery 程序路径"
+                    IsReadOnly="True"
+                    Style="{StaticResource EditableMonospaceTextBoxStyle}"
+                    Text="尚未关联" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="RegisterNikkiGalleryButton" automation:AutomationProperties.Name="关联 NikkiGallery 程序" Click="OnRegisterNikkiGalleryClicked" Style="{StaticResource OnArtGlassButtonStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE8B5;" /><TextBlock Text="关联程序" /></StackPanel>
+                    </Button>
+                    <Button x:Name="OpenNikkiGalleryButton" automation:AutomationProperties.Name="打开 NikkiGallery" Click="OnOpenNikkiGalleryClicked" IsEnabled="False" Style="{StaticResource OnArtGlassButtonStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE8A7;" /><TextBlock Text="打开" /></StackPanel>
+                    </Button>
+                    <Button x:Name="DisconnectNikkiGalleryButton" automation:AutomationProperties.Name="解除 NikkiGallery 关联" Click="OnDisconnectNikkiGalleryClicked" IsEnabled="False" Style="{StaticResource OnArtGlassButtonStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE711;" /><TextBlock Text="解除关联" /></StackPanel>
+                    </Button>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

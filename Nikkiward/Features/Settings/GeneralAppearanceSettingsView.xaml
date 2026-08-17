@@ -1,0 +1,619 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Nikkiward.Features.Settings.GeneralAppearanceSettingsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+    SizeChanged="OnViewSizeChanged">
+    <UserControl.Resources>
+        <Style x:Key="AppearanceSectionStyle" TargetType="Border">
+            <Setter Property="Padding" Value="0,0,0,20" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{ThemeResource HairlineSoftBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style x:Key="AppearanceChoiceButtonStyle" TargetType="RadioButton">
+            <Setter Property="MinHeight" Value="44" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel Spacing="20">
+        <StackPanel Spacing="3">
+            <TextBlock
+                automation:AutomationProperties.HeadingLevel="Level2"
+                Style="{StaticResource OnArtSectionTitleTextStyle}"
+                Text="外观" />
+            <TextBlock
+                Style="{StaticResource OnArtBodyTextStyle}"
+                Text="主题、背景美术、强调色、字体、动效和界面密度都会即时应用并保存在本机。" />
+        </StackPanel>
+
+        <Border Style="{StaticResource AppearanceSectionStyle}">
+            <StackPanel Spacing="12">
+                <StackPanel Spacing="3">
+                    <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="主题" />
+                    <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="纸面跟随所选主题；图上文字仍根据背景美术明暗独立调整。" />
+                </StackPanel>
+                <Grid x:Name="ThemeChoiceGrid" ColumnSpacing="8" RowSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <RadioButton
+                        x:Name="FollowArtworkThemeButton"
+                        Grid.Column="0"
+                        GroupName="ThemeMode"
+                        Tag="followArtwork"
+                        automation:AutomationProperties.Name="主题 跟随美术"
+                        Checked="OnThemeModeChecked"
+                        Style="{StaticResource AppearanceChoiceButtonStyle}">
+                        <StackPanel Spacing="8">
+                            <Border Height="58" Background="{ThemeResource PaperRaisedBrush}" CornerRadius="{ThemeResource RadiusCard}">
+                                <Grid Margin="10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Margin="0,0,3,0" Background="{ThemeResource PaperBaseBrush}" CornerRadius="{ThemeResource RadiusChip}" />
+                                    <Border Grid.Column="1" Margin="3,0,0,0" Background="{ThemeResource PaperSunkenBrush}" CornerRadius="{ThemeResource RadiusChip}" />
+                                </Grid>
+                            </Border>
+                            <TextBlock FontWeight="SemiBold" Text="跟随美术" />
+                            <TextBlock Style="{StaticResource CaptionUI}" Text="按背景明暗切换" />
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton
+                        x:Name="WarmLightThemeButton"
+                        Grid.Column="1"
+                        GroupName="ThemeMode"
+                        Tag="warmLight"
+                        automation:AutomationProperties.Name="主题 暖亮"
+                        Checked="OnThemeModeChecked"
+                        Style="{StaticResource AppearanceChoiceButtonStyle}">
+                        <StackPanel Spacing="8" RequestedTheme="Light">
+                            <Border Height="58" Background="{ThemeResource PaperBaseBrush}" CornerRadius="{ThemeResource RadiusCard}">
+                                <StackPanel Margin="10" Spacing="6">
+                                    <Border Height="8" Background="{ThemeResource InkPrimaryBrush}" CornerRadius="{ThemeResource RadiusChip}" />
+                                    <Border Width="54" Height="8" HorizontalAlignment="Left" Background="{ThemeResource DerivedAccentBrush}" CornerRadius="{ThemeResource RadiusChip}" />
+                                </StackPanel>
+                            </Border>
+                            <TextBlock FontWeight="SemiBold" Text="暖亮" />
+                            <TextBlock Style="{StaticResource CaptionUI}" Text="纸张与暖墨" />
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton
+                        x:Name="WarmDarkThemeButton"
+                        Grid.Column="2"
+                        GroupName="ThemeMode"
+                        Tag="warmDark"
+                        automation:AutomationProperties.Name="主题 暖暗"
+                        Checked="OnThemeModeChecked"
+                        Style="{StaticResource AppearanceChoiceButtonStyle}">
+                        <StackPanel Spacing="8" RequestedTheme="Dark">
+                            <Border Height="58" Background="{ThemeResource PaperBaseBrush}" CornerRadius="{ThemeResource RadiusCard}">
+                                <StackPanel Margin="10" Spacing="6">
+                                    <Border Height="8" Background="{ThemeResource InkPrimaryBrush}" CornerRadius="{ThemeResource RadiusChip}" />
+                                    <Border Width="54" Height="8" HorizontalAlignment="Left" Background="{ThemeResource DerivedAccentBrush}" CornerRadius="{ThemeResource RadiusChip}" />
+                                </StackPanel>
+                            </Border>
+                            <TextBlock FontWeight="SemiBold" Text="暖暗" />
+                            <TextBlock Style="{StaticResource CaptionUI}" Text="暖炭与米白墨" />
+                        </StackPanel>
+                    </RadioButton>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource AppearanceSectionStyle}">
+            <StackPanel Spacing="12">
+                <StackPanel Spacing="3">
+                    <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="背景美术" />
+                    <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="本地图片与视频背景；源不可用时自动恢复内置美术。" />
+                </StackPanel>
+                <Grid x:Name="BackgroundPreviewGrid" ColumnSpacing="12" RowSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Button
+                        x:Name="DefaultBackgroundButton"
+                        Grid.Column="0"
+                        Height="132"
+                        Padding="0"
+                        HorizontalContentAlignment="Stretch"
+                        automation:AutomationProperties.Name="使用内置背景"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Click="OnResetClicked"
+                        CornerRadius="{ThemeResource RadiusCard}">
+                        <Border CornerRadius="{ThemeResource RadiusCard}">
+                            <Grid>
+                                <Image x:Name="DefaultBackgroundPreview" Source="Assets/NikkiDefaultBackground.jpg" Stretch="UniformToFill" />
+                                <Rectangle Opacity="0.82">
+                                    <Rectangle.Fill>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Offset="0.45" Color="{ThemeResource OnArtScrimTransparentColor}" />
+                                            <GradientStop Offset="1" Color="{ThemeResource OnArtScrimColor}" />
+                                        </LinearGradientBrush>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+                                <StackPanel Margin="12,0,12,10" VerticalAlignment="Bottom" Spacing="1">
+                                    <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource OnArtPrimaryTextBrush}" Text="Nikkiward 内置背景" />
+                                    <TextBlock FontSize="10" Foreground="{ThemeResource OnArtTertiaryTextBrush}" Text="可随时恢复" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </Button>
+                    <Button
+                        x:Name="CurrentBackgroundButton"
+                        Grid.Column="1"
+                        Height="132"
+                        Padding="0"
+                        HorizontalContentAlignment="Stretch"
+                        automation:AutomationProperties.Name="选择背景图片或视频"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Click="OnChooseClicked"
+                        CornerRadius="{ThemeResource RadiusCard}">
+                        <Border CornerRadius="{ThemeResource RadiusCard}">
+                            <Grid>
+                                <Image x:Name="CurrentBackgroundPreview" Source="Assets/NikkiDefaultBackground.jpg" Stretch="UniformToFill" />
+                                <Rectangle Opacity="0.82">
+                                    <Rectangle.Fill>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Offset="0.45" Color="{ThemeResource OnArtScrimTransparentColor}" />
+                                            <GradientStop Offset="1" Color="{ThemeResource OnArtScrimColor}" />
+                                        </LinearGradientBrush>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+                                <StackPanel Margin="12,0,12,10" VerticalAlignment="Bottom" Spacing="1">
+                                    <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource OnArtPrimaryTextBrush}" Text="当前背景" />
+                                    <TextBlock FontSize="10" Foreground="{ThemeResource OnArtTertiaryTextBrush}" Text="点击选择图片或视频" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </Button>
+                </Grid>
+                <Grid ColumnSpacing="12" RowSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <ToggleSwitch
+                        x:Name="CarouselToggle"
+                        Grid.Row="0"
+                        automation:AutomationProperties.Name="背景轮播"
+                        Header="背景轮播"
+                        OffContent="关闭"
+                        OnContent="开启"
+                        Toggled="OnBackgroundOptionChanged" />
+                    <NumberBox
+                        x:Name="CarouselIntervalNumberBox"
+                        Grid.Row="0"
+                        Grid.Column="1"
+                        Width="140"
+                        automation:AutomationProperties.Name="背景轮播间隔 分钟"
+                        Header="间隔（分钟）"
+                        LargeChange="5"
+                        Maximum="1440"
+                        Minimum="1"
+                        SmallChange="1"
+                        SpinButtonPlacementMode="Compact"
+                        ValueChanged="OnCarouselIntervalChanged" />
+                    <ToggleSwitch
+                        x:Name="ParallaxToggle"
+                        Grid.Row="1"
+                        automation:AutomationProperties.Name="背景视差"
+                        Header="背景视差"
+                        OffContent="关闭"
+                        OnContent="开启"
+                        Toggled="OnBackgroundOptionChanged" />
+                    <ToggleSwitch
+                        x:Name="MotionToggle"
+                        Grid.Row="2"
+                        automation:AutomationProperties.Name="视频背景"
+                        Header="视频背景"
+                        OffContent="关闭"
+                        OnContent="播放"
+                        Toggled="OnBackgroundOptionChanged" />
+                    <ToggleSwitch
+                        x:Name="LiveBlurToggle"
+                        Grid.Row="3"
+                        automation:AutomationProperties.Name="静态背景实时模糊"
+                        Header="静态背景实时模糊"
+                        OffContent="关闭"
+                        OnContent="开启"
+                        Toggled="OnBackgroundOptionChanged" />
+                    <StackPanel Grid.Row="4" Grid.ColumnSpan="2" Spacing="{StaticResource SpaceHair}">
+                        <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="玻璃强度" />
+                        <Slider
+                            x:Name="GlassIntensitySlider"
+                            automation:AutomationProperties.Name="玻璃强度"
+                            Maximum="1"
+                            Minimum="0"
+                            SmallChange="0.05"
+                            StepFrequency="0.05"
+                            ValueChanged="OnGlassIntensityChanged" />
+                    </StackPanel>
+                    <ToggleSwitch
+                        x:Name="MotionPanToggle"
+                        Grid.Row="5"
+                        automation:AutomationProperties.Name="视频视差"
+                        Header="视频视差"
+                        OffContent="关闭"
+                        OnContent="开启"
+                        Toggled="OnBackgroundOptionChanged" />
+                    <StackPanel Grid.Row="6" Grid.ColumnSpan="2" Spacing="{StaticResource SpaceHair}">
+                        <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="视频缩放" />
+                        <Slider
+                            x:Name="MotionZoomSlider"
+                            automation:AutomationProperties.Name="视频缩放"
+                            Maximum="2.8"
+                            Minimum="1"
+                            SmallChange="0.05"
+                            StepFrequency="0.05"
+                            ValueChanged="OnMotionZoomChanged" />
+                    </StackPanel>
+                    <TextBlock
+                        Grid.Row="7"
+                        Grid.ColumnSpan="2"
+                        Style="{StaticResource CaptionUI}"
+                        Text="轮播会在已选择的背景列表中切换；当前只有一张可用图片时保持该图片。" />
+                </Grid>
+                <TextBlock
+                    x:Name="BackgroundStatusText"
+                    automation:AutomationProperties.LiveSetting="Polite"
+                    Style="{StaticResource OnArtBodyTextStyle}"
+                    Text="使用 Nikkiward 内置背景。" />
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource AppearanceSectionStyle}">
+            <StackPanel Spacing="12">
+                <StackPanel Spacing="3">
+                    <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="强调色" />
+                    <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="自适应会从当前背景提取可读颜色；固定模式可选择品牌色或自定义颜色。" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="16">
+                    <RadioButton
+                        x:Name="AdaptiveAccentButton"
+                        GroupName="AccentMode"
+                        Tag="adaptive"
+                        automation:AutomationProperties.Name="强调色 自适应"
+                        Checked="OnAccentModeChecked"
+                        Content="自适应" />
+                    <RadioButton
+                        x:Name="FixedAccentButton"
+                        GroupName="AccentMode"
+                        Tag="fixed"
+                        automation:AutomationProperties.Name="强调色 固定"
+                        Checked="OnAccentModeChecked"
+                        Content="固定" />
+                </StackPanel>
+                <Grid x:Name="FixedAccentOptions" ColumnSpacing="8" RowSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <RadioButton x:Name="BlushAccentButton" Grid.Column="0" GroupName="FixedAccent" Tag="blush" automation:AutomationProperties.Name="固定强调色 腮红" Checked="OnFixedAccentChecked">
+                        <StackPanel Spacing="4"><Border Width="32" Height="32" Background="{ThemeResource AccentBlushBrush}" CornerRadius="16" /><TextBlock HorizontalAlignment="Center" Style="{StaticResource CaptionUI}" Text="腮红" /></StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="GoldAccentButton" Grid.Column="1" GroupName="FixedAccent" Tag="gold" automation:AutomationProperties.Name="固定强调色 金色" Checked="OnFixedAccentChecked">
+                        <StackPanel Spacing="4"><Border Width="32" Height="32" Background="{ThemeResource AccentGoldBrush}" CornerRadius="16" /><TextBlock HorizontalAlignment="Center" Style="{StaticResource CaptionUI}" Text="金色" /></StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="MintAccentButton" Grid.Column="2" GroupName="FixedAccent" Tag="mint" automation:AutomationProperties.Name="固定强调色 薄荷" Checked="OnFixedAccentChecked">
+                        <StackPanel Spacing="4"><Border Width="32" Height="32" Background="{ThemeResource AccentMintBrush}" CornerRadius="16" /><TextBlock HorizontalAlignment="Center" Style="{StaticResource CaptionUI}" Text="薄荷" /></StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="LilacAccentButton" Grid.Column="3" GroupName="FixedAccent" Tag="lilac" automation:AutomationProperties.Name="固定强调色 丁香" Checked="OnFixedAccentChecked">
+                        <StackPanel Spacing="4"><Border Width="32" Height="32" Background="{ThemeResource AccentLilacBrush}" CornerRadius="16" /><TextBlock HorizontalAlignment="Center" Style="{StaticResource CaptionUI}" Text="丁香" /></StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="ClayAccentButton" Grid.Column="4" GroupName="FixedAccent" Tag="clay" automation:AutomationProperties.Name="固定强调色 陶土" Checked="OnFixedAccentChecked">
+                        <StackPanel Spacing="4"><Border Width="32" Height="32" Background="{ThemeResource AccentClayBrush}" CornerRadius="16" /><TextBlock HorizontalAlignment="Center" Style="{StaticResource CaptionUI}" Text="陶土" /></StackPanel>
+                    </RadioButton>
+                    <Button
+                        x:Name="CustomAccentButton"
+                        Grid.Column="5"
+                        Width="84"
+                        Height="56"
+                        automation:AutomationProperties.Name="选择自定义强调色"
+                        Click="OnCustomAccentClicked"
+                        Style="{StaticResource OnArtGlassButtonStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Border x:Name="CustomAccentPreview" Width="20" Height="20" Background="{ThemeResource DerivedAccentBrush}" CornerRadius="10" />
+                            <TextBlock VerticalAlignment="Center" Text="取色" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+                <FlyoutBase.AttachedFlyout>
+                    <Flyout x:Name="CustomAccentFlyout" Closed="OnCustomAccentFlyoutClosed">
+                        <StackPanel Spacing="12">
+                            <TextBlock FontWeight="SemiBold" Text="自定义强调色" />
+                            <ColorPicker
+                                x:Name="CustomAccentPicker"
+                                MinWidth="280"
+                                automation:AutomationProperties.Name="自定义强调色取色器"
+                                ColorChanged="OnCustomAccentColorChanged"
+                                IsAlphaEnabled="False"
+                                IsColorChannelTextInputVisible="True"
+                                IsColorPreviewVisible="True"
+                                IsHexInputVisible="True" />
+                            <Button
+                                HorizontalAlignment="Right"
+                                automation:AutomationProperties.Name="应用自定义强调色"
+                                Click="OnApplyCustomAccentClicked"
+                                Content="应用"
+                                Style="{StaticResource PrimaryActionButtonStyle}" />
+                        </StackPanel>
+                    </Flyout>
+                </FlyoutBase.AttachedFlyout>
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource AppearanceSectionStyle}">
+            <StackPanel Spacing="12">
+                <StackPanel Spacing="3">
+                    <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="启动页文案" />
+                    <TextBlock
+                        Style="{StaticResource OnArtBodyTextStyle}"
+                        Text="自定义左上信息卡的文字；副标题留空时会自动隐藏。" />
+                </StackPanel>
+                <TextBox
+                    x:Name="LauncherMastheadLabelBox"
+                    MaxLength="120"
+                    automation:AutomationProperties.Name="左上文案 小标题"
+                    Header="小标题"
+                    LostFocus="OnMastheadCopyLostFocus"
+                    PlaceholderText="启动契约 1.3.1"
+                    Tag="label" />
+                <TextBox
+                    x:Name="LauncherMastheadTitleBox"
+                    MaxLength="120"
+                    automation:AutomationProperties.Name="左上文案 主标题"
+                    Header="主标题"
+                    LostFocus="OnMastheadCopyLostFocus"
+                    PlaceholderText="无限暖暖"
+                    Tag="title" />
+                <TextBox
+                    x:Name="LauncherMastheadSubtitleBox"
+                    MaxLength="120"
+                    automation:AutomationProperties.Name="左上文案 副标题"
+                    Header="副标题（可留空）"
+                    LostFocus="OnMastheadCopyLostFocus"
+                    PlaceholderText="从一张美术出发，把今天的旅程稳稳接住。"
+                    Tag="subtitle" />
+                <StackPanel Spacing="8">
+                    <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="启动胶囊主题" />
+                    <TextBlock Style="{StaticResource CaptionUI}" Text="同时应用于启动游戏按钮和下方工具条。" />
+                    <Grid x:Name="LauncherCapsuleStyleGrid" ColumnSpacing="8" RowSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <RadioButton
+                            x:Name="OriginalCapsuleStyleButton"
+                            Grid.Column="0"
+                            Grid.Row="0"
+                            GroupName="LauncherCapsuleStyle"
+                            Tag="original"
+                            automation:AutomationProperties.Name="启动胶囊 ORIGINAL"
+                            Checked="OnLauncherCapsuleStyleChecked"
+                            Style="{StaticResource AppearanceChoiceButtonStyle}">
+                            <StackPanel Spacing="6">
+                                <Border Height="34" CornerRadius="17">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Offset="0" Color="#FFFFF3EA" />
+                                            <GradientStop Offset="0.5" Color="#FFF5B27A" />
+                                            <GradientStop Offset="1" Color="#FFA978E8" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
+                                <TextBlock FontWeight="SemiBold" Text="ORIGINAL" />
+                                <TextBlock Style="{StaticResource CaptionUI}" Text="NC-01" />
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton
+                            x:Name="OceanCapsuleStyleButton"
+                            Grid.Column="1"
+                            Grid.Row="0"
+                            GroupName="LauncherCapsuleStyle"
+                            Tag="ocean"
+                            automation:AutomationProperties.Name="启动胶囊 OCEAN"
+                            Checked="OnLauncherCapsuleStyleChecked"
+                            Style="{StaticResource AppearanceChoiceButtonStyle}">
+                            <StackPanel Spacing="6">
+                                <Border Height="34" CornerRadius="17">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Offset="0" Color="#FFEAF6FF" />
+                                            <GradientStop Offset="0.5" Color="#FF8FD0FF" />
+                                            <GradientStop Offset="1" Color="#FF3B87F6" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
+                                <TextBlock FontWeight="SemiBold" Text="OCEAN" />
+                                <TextBlock Style="{StaticResource CaptionUI}" Text="NC-02" />
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton
+                            x:Name="KleinCapsuleStyleButton"
+                            Grid.Column="2"
+                            Grid.Row="0"
+                            GroupName="LauncherCapsuleStyle"
+                            Tag="klein"
+                            automation:AutomationProperties.Name="启动胶囊 KLEIN"
+                            Checked="OnLauncherCapsuleStyleChecked"
+                            Style="{StaticResource AppearanceChoiceButtonStyle}">
+                            <StackPanel Spacing="6">
+                                <Border Height="34" CornerRadius="17">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Offset="0" Color="#FFEDF2FF" />
+                                            <GradientStop Offset="0.5" Color="#FF2F58D5" />
+                                            <GradientStop Offset="1" Color="#FF1B2040" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
+                                <TextBlock FontWeight="SemiBold" Text="KLEIN" />
+                                <TextBlock Style="{StaticResource CaptionUI}" Text="NC-03" />
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton
+                            x:Name="UltravioletCapsuleStyleButton"
+                            Grid.Column="0"
+                            Grid.Row="1"
+                            GroupName="LauncherCapsuleStyle"
+                            Tag="ultraviolet"
+                            automation:AutomationProperties.Name="启动胶囊 ULTRAVIOLET"
+                            Checked="OnLauncherCapsuleStyleChecked"
+                            Style="{StaticResource AppearanceChoiceButtonStyle}">
+                            <StackPanel Spacing="6">
+                                <Border Height="34" CornerRadius="17">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Offset="0" Color="#FFF2EEFF" />
+                                            <GradientStop Offset="0.5" Color="#FFB99AF1" />
+                                            <GradientStop Offset="1" Color="#FF8F74DB" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
+                                <TextBlock FontWeight="SemiBold" Text="ULTRAVIOLET" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Style="{StaticResource CaptionUI}" Text="NC-04" />
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton
+                            x:Name="ChromeCapsuleStyleButton"
+                            Grid.Column="1"
+                            Grid.Row="1"
+                            GroupName="LauncherCapsuleStyle"
+                            Tag="chrome"
+                            automation:AutomationProperties.Name="启动胶囊 CHROME"
+                            Checked="OnLauncherCapsuleStyleChecked"
+                            Style="{StaticResource AppearanceChoiceButtonStyle}">
+                            <StackPanel Spacing="6">
+                                <Border Height="34" CornerRadius="17">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Offset="0" Color="#FFF5F6F8" />
+                                            <GradientStop Offset="0.5" Color="#FFB9C0CC" />
+                                            <GradientStop Offset="1" Color="#FF4A4F59" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
+                                <TextBlock FontWeight="SemiBold" Text="CHROME" />
+                                <TextBlock Style="{StaticResource CaptionUI}" Text="NC-05" />
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton
+                            x:Name="PlusCapsuleStyleButton"
+                            Grid.Column="2"
+                            Grid.Row="1"
+                            GroupName="LauncherCapsuleStyle"
+                            Tag="plus"
+                            automation:AutomationProperties.Name="启动胶囊 PLUS"
+                            Checked="OnLauncherCapsuleStyleChecked"
+                            Style="{StaticResource AppearanceChoiceButtonStyle}">
+                            <StackPanel Spacing="6">
+                                <Border Height="34" CornerRadius="17">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Offset="0" Color="#FFFFF0E6" />
+                                            <GradientStop Offset="0.5" Color="#FFF6C26B" />
+                                            <GradientStop Offset="1" Color="#FFE86D74" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
+                                <TextBlock FontWeight="SemiBold" Text="PLUS" />
+                                <TextBlock Style="{StaticResource CaptionUI}" Text="NC-06" />
+                            </StackPanel>
+                        </RadioButton>
+                    </Grid>
+                </StackPanel>
+                <ToggleSwitch
+                    x:Name="LauncherUtilityPanelsToggle"
+                    automation:AutomationProperties.HelpText="只控制左下状态卡；右下时长、启动与设置始终显示。"
+                    automation:AutomationProperties.Name="显示左下状态卡"
+                    Header="左下状态卡"
+                    OffContent="隐藏"
+                    OnContent="显示"
+                    Toggled="OnLauncherUtilityPanelsToggled"
+                    Visibility="Collapsed" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button
+                        automation:AutomationProperties.Name="恢复默认启动页文案"
+                        Click="OnResetLauncherMastheadClicked"
+                        Content="恢复默认文案"
+                        Style="{StaticResource OnArtGlassButtonStyle}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource AppearanceSectionStyle}">
+            <StackPanel Spacing="12">
+                <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="阅读与动效" />
+                <ToggleSwitch
+                    x:Name="SerifTitlesToggle"
+                    automation:AutomationProperties.Name="标题使用衬线字体"
+                    Header="标题衬线"
+                    OffContent="无衬线"
+                    OnContent="衬线"
+                    Toggled="OnSerifTitlesToggled" />
+                <StackPanel Spacing="6">
+                    <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="动效" />
+                    <ComboBox x:Name="MotionModeComboBox" automation:AutomationProperties.Name="动效等级" SelectionChanged="OnMotionModeSelectionChanged">
+                        <ComboBoxItem Content="完整" Tag="full" />
+                        <ComboBoxItem Content="减少" Tag="reduced" />
+                        <ComboBoxItem Content="关闭" Tag="off" />
+                    </ComboBox>
+                    <TextBlock Style="{StaticResource CaptionUI}" Text="Windows 系统关闭动画时，应用内全部动效始终归零。" />
+                </StackPanel>
+                <StackPanel Spacing="6">
+                    <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="界面密度" />
+                    <ComboBox x:Name="DensityComboBox" automation:AutomationProperties.Name="界面密度" SelectionChanged="OnDensitySelectionChanged">
+                        <ComboBoxItem Content="紧凑" Tag="compact" />
+                        <ComboBoxItem Content="标准" Tag="standard" />
+                        <ComboBoxItem Content="舒适" Tag="comfortable" />
+                    </ComboBox>
+                    <TextBlock Style="{StaticResource CaptionUI}" Text="调整页面留白、卡片内边距和控件高度，不改变系统文字缩放。" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <TextBlock
+            x:Name="AppearanceStatusText"
+            automation:AutomationProperties.LiveSetting="Polite"
+            Style="{StaticResource OnArtBodyTextStyle}"
+            Text="外观设置已就绪。" />
+    </StackPanel>
+</UserControl>

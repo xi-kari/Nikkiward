@@ -1,0 +1,55 @@
+<UserControl
+    x:Class="Nikkiward.Features.Background.ArtBackdropView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    IsHitTestVisible="False">
+
+    <!-- Layered art inside the opaque app window. -->
+    <Grid x:Name="BackdropRoot">
+        <Border
+            x:Name="MediaFloor"
+            Background="{ThemeResource PaperBaseBrush}"
+            IsHitTestVisible="False" />
+
+        <MediaPlayerElement
+            x:Name="MotionHost"
+            Margin="-1"
+            AreTransportControlsEnabled="False"
+            HorizontalAlignment="Stretch"
+            IsFullWindow="False"
+            Stretch="UniformToFill"
+            VerticalAlignment="Stretch"
+            Visibility="Collapsed" />
+
+        <Grid x:Name="StaticBackdrop">
+            <!-- Pre-baked full-bleed depth plates. -->
+            <Image
+                x:Name="ArtBlurredSettled"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                Source="ms-appx:///Assets/NikkiDefaultBackground.jpg"
+                Stretch="UniformToFill" />
+            <Image
+                x:Name="ArtBlurredIncoming"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                Opacity="0"
+                Stretch="UniformToFill" />
+
+            <Grid x:Name="ArtVignette" Background="{ThemeResource ArtVignetteBrush}" />
+
+            <!-- Sharp inset art. -->
+            <Border
+                x:Name="ArtSharpHost"
+                Margin="{ThemeResource IslandInsetThickness}"
+                CornerRadius="{ThemeResource RadiusArtInset}">
+                <Image
+                    x:Name="ArtSharp"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    Source="ms-appx:///Assets/NikkiDefaultBackground.jpg"
+                    Stretch="UniformToFill" />
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

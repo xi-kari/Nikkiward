@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/xi-kari/Nikkiward/blob/main/docs/Nikkiward-update.schema.json",
+  "title": "Nikkiward update manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "product",
+    "channel",
+    "version",
+    "tag",
+    "commitSha",
+    "minimumSupportedVersion",
+    "publishedAtUtc",
+    "package",
+    "signature"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "product": { "const": "Nikkiward" },
+    "channel": { "enum": ["stable", "preview"] },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+    },
+    "tag": { "type": "string", "pattern": "^v[^/]+$" },
+    "commitSha": { "type": "string", "pattern": "^[0-9A-Fa-f]{40}$" },
+    "minimumSupportedVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+    },
+    "publishedAtUtc": { "type": "string", "format": "date-time" },
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fileName",
+        "sha256",
+        "size",
+        "runtimeIdentifier",
+        "format"
+      ],
+      "properties": {
+        "fileName": { "const": "Nikkiward-win-x64.zip" },
+        "sha256": { "type": "string", "pattern": "^[0-9A-Fa-f]{64}$" },
+        "size": { "type": "integer", "minimum": 1 },
+        "runtimeIdentifier": { "const": "win-x64" },
+        "format": { "const": "zip" }
+      }
+    },
+    "signature": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["algorithm", "keyId", "value"],
+          "properties": {
+            "algorithm": { "enum": ["ed25519"] },
+            "keyId": { "type": "string", "minLength": 1 },
+            "value": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    }
+  }
+}

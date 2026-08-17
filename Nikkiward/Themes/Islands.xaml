@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Nikkiward.Controls">
+
+    <!-- Default templates for shared surface controls. -->
+
+    <Style TargetType="controls:GlassIsland">
+
+        <Setter Property="IsTabStop" Value="False" />
+
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        <Setter Property="IslandCornerRadius" Value="{StaticResource RadiusIsland}" />
+        <Setter Property="IslandPadding" Value="{ThemeResource IslandPaddingThickness}" />
+        <Setter Property="LocalScrimOpacity" Value="1" />
+        <Setter Property="Background" Value="{ThemeResource GlassIslandBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource IslandEdgeHighlightBrush}" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="controls:GlassIsland">
+
+                    <Border
+                        x:Name="IslandRoot"
+                        Background="Transparent"
+                        CornerRadius="{TemplateBinding IslandCornerRadius}">
+
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="EdgeHighlightStates">
+                                <VisualState x:Name="EdgeHighlightVisible" />
+                                <VisualState x:Name="EdgeHighlightCollapsed">
+                                    <VisualState.Setters>
+                                        <Setter Target="IslandEdge.Visibility" Value="Collapsed" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                            <VisualStateGroup x:Name="SurfaceStates">
+                                <VisualState x:Name="SurfaceFlat">
+                                    <VisualState.Setters>
+                                        <Setter Target="IslandBackdrop.Visibility" Value="Collapsed" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="SurfaceBlurred" />
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+
+                        <Grid>
+                            <Border
+                                x:Name="IslandBackdrop"
+                                CornerRadius="{TemplateBinding IslandCornerRadius}"
+                                IsHitTestVisible="False" />
+
+                            <Border
+                                x:Name="IslandTint"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="{TemplateBinding IslandCornerRadius}"
+                                IsHitTestVisible="False" />
+
+                            <Border
+                                x:Name="IslandLocalScrim"
+                                Background="{TemplateBinding LocalScrimBrush}"
+                                CornerRadius="{TemplateBinding IslandCornerRadius}"
+                                IsHitTestVisible="False" />
+
+                            <Border
+                                Margin="1"
+                                BorderBrush="{ThemeResource IslandInnerRingBrush}"
+                                BorderThickness="1"
+                                CornerRadius="{TemplateBinding IslandCornerRadius}"
+                                IsHitTestVisible="False" />
+
+                            <Border
+                                x:Name="IslandEdge"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="{TemplateBinding IslandCornerRadius}"
+                                IsHitTestVisible="False" />
+
+                            <ContentPresenter
+                                x:Name="IslandContent"
+                                Padding="{TemplateBinding IslandPadding}"
+                                HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                Content="{TemplateBinding Content}"
+                                ContentTemplate="{TemplateBinding ContentTemplate}"
+                                ContentTransitions="{TemplateBinding ContentTransitions}" />
+
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="controls:StatTile">
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="BorderBrush" Value="{ThemeResource HairlineSoftBrush}" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="controls:StatTile">
+                    <Border
+                        MinWidth="0"
+                        Padding="8,12"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}">
+                        <StackPanel
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Spacing="4">
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                Style="{StaticResource StatNumberDisplay}"
+                                Text="{TemplateBinding Value}"
+                                TextAlignment="Center"
+                                TextTrimming="CharacterEllipsis" />
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                Style="{StaticResource CaptionUI}"
+                                Text="{TemplateBinding Label}"
+                                TextAlignment="Center"
+                                TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

@@ -1,0 +1,147 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing v-prefixed tag to publish
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-2025
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Resolve release metadata
+        id: release_meta
+        shell: pwsh
+        run: |
+          $tag = if ('${{ github.event_name }}' -eq 'workflow_dispatch') { '${{ inputs.tag }}' } else { '${{ github.ref_name }}' }
+          if ($tag -notmatch '^v(?<version>[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)$') {
+            throw "Release tag must be v-prefixed semantic version text: $tag"
+          }
+          $version = $Matches.version
+          $versionPrefix = ($version -split '-', 2)[0]
+          $channel = if ($version.Contains('-')) { 'preview' } else { 'stable' }
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "version_prefix=$versionPrefix" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "channel=$channel" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Fetch verified native dependency
+        shell: pwsh
+        run: .\build\Fetch-Nuan5Dependency.ps1
+
+      - name: Restore and run tests
+        shell: pwsh
+        run: |
+          dotnet restore .\Nikkiward.ProfileBuilder.Tests\Nikkiward.ProfileBuilder.Tests.csproj
+          dotnet run --project .\Nikkiward.ProfileBuilder.Tests\Nikkiward.ProfileBuilder.Tests.csproj -c Release --no-restore
+
+      - name: Publish portable x64 app
+        shell: pwsh
+        run: |
+          $publishDir = Join-Path $env:RUNNER_TEMP 'nikkiward-publish'
+          dotnet restore .\Nikkiward\Nikkiward.csproj -r win-x64
+          dotnet publish .\Nikkiward\Nikkiward.csproj -c Release -p:Platform=x64 -r win-x64 --self-contained true --no-restore -o $publishDir -p:PublishTrimmed=false -p:ContinuousIntegrationBuild=true -p:Version='${{ steps.release_meta.outputs.version }}' -p:AssemblyVersion='${{ steps.release_meta.outputs.version_prefix }}.0' -p:FileVersion='${{ steps.release_meta.outputs.version_prefix }}.0' -p:InformationalVersion='${{ steps.release_meta.outputs.version }}+${{ github.sha }}'
+          Get-ChildItem -LiteralPath $publishDir -Filter *.pdb -Recurse | Remove-Item -Force
+          $required = @(
+            (Join-Path $publishDir 'Nikkiward.exe'),
+            (Join-Path $publishDir 'Assets\NikkiwardIcon.ico'),
+            (Join-Path $publishDir 'Assets\NikkiDefaultBackground.jpg'),
+            (Join-Path $publishDir 'runtimes\win-x64\native\nuan5_decryption.dll'),
+            (Join-Path $publishDir 'LICENSE'),
+            (Join-Path $publishDir 'THIRD-PARTY-NOTICES.md')
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path -LiteralPath $path)) {
+              throw "Required release file is missing: $path"
+            }
+          }
+
+      - name: Package and generate manifest
+        shell: pwsh
+        run: |
+          $releaseDir = Join-Path $env:RUNNER_TEMP 'nikkiward-release'
+          $publishDir = Join-Path $env:RUNNER_TEMP 'nikkiward-publish'
+          New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
+          $zipPath = Join-Path $releaseDir 'Nikkiward-win-x64.zip'
+          Compress-Archive -Path (Join-Path $publishDir '*') -DestinationPath $zipPath -CompressionLevel Optimal
+          $manifestPath = Join-Path $releaseDir 'Nikkiward-update.json'
+          .\build\New-UpdateManifest.ps1 -Version '${{ steps.release_meta.outputs.version }}' -Channel '${{ steps.release_meta.outputs.channel }}' -PackagePath $zipPath -Repository '${{ github.repository }}' -Tag '${{ steps.release_meta.outputs.tag }}' -CommitSha '${{ github.sha }}' -OutputPath $manifestPath
+          $checksumPath = Join-Path $releaseDir 'SHA256SUMS.txt'
+          $checksumLines = Get-ChildItem -LiteralPath $releaseDir -File | Where-Object Name -ne 'SHA256SUMS.txt' | Sort-Object Name | ForEach-Object {
+            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash
+            "$hash  $($_.Name)"
+          }
+          [System.IO.File]::WriteAllLines($checksumPath, $checksumLines, [System.Text.UTF8Encoding]::new($false))
+          $verifyDir = Join-Path $env:RUNNER_TEMP 'nikkiward-release-verify'
+          Expand-Archive -LiteralPath $zipPath -DestinationPath $verifyDir
+          $requiredInZip = @(
+            (Join-Path $verifyDir 'Nikkiward.exe'),
+            (Join-Path $verifyDir 'Assets\NikkiwardIcon.ico'),
+            (Join-Path $verifyDir 'Assets\NikkiDefaultBackground.jpg'),
+            (Join-Path $verifyDir 'runtimes\win-x64\native\nuan5_decryption.dll'),
+            (Join-Path $verifyDir 'LICENSE'),
+            (Join-Path $verifyDir 'THIRD-PARTY-NOTICES.md')
+          )
+          foreach ($path in $requiredInZip) {
+            if (-not (Test-Path -LiteralPath $path)) {
+              throw "Required file is missing from ZIP: $path"
+            }
+          }
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nikkiward-${{ steps.release_meta.outputs.version }}-win-x64
+          path: ${{ runner.temp }}/nikkiward-release/*
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = '${{ steps.release_meta.outputs.tag }}'
+          $version = '${{ steps.release_meta.outputs.version }}'
+          $assets = Get-ChildItem -LiteralPath (Join-Path $env:RUNNER_TEMP 'nikkiward-release') -File | ForEach-Object FullName
+          gh release view $tag --repo '${{ github.repository }}' 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag @assets --clobber --repo '${{ github.repository }}'
+          }
+          else {
+            $arguments = @('release', 'create', $tag) + $assets + @('--repo', '${{ github.repository }}', '--title', "Nikkiward $version", '--generate-notes', '--draft')
+            if ('${{ steps.release_meta.outputs.channel }}' -eq 'preview') {
+              $arguments += '--prerelease'
+            }
+            else {
+              $arguments += '--latest'
+            }
+            & gh @arguments
+          }
+          if ($LASTEXITCODE -ne 0) {
+            throw "GitHub Release command failed with exit code $LASTEXITCODE."
+          }
+          gh release edit $tag --repo '${{ github.repository }}' --draft=false
+          if ($LASTEXITCODE -ne 0) {
+            throw "GitHub Release publish failed with exit code $LASTEXITCODE."
+          }

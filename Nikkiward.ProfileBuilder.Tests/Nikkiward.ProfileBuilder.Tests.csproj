@@ -1,0 +1,99 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NuGet.Versioning" Version="7.6.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="..\Nikkiward\Models\LaunchCapability.cs" Link="Models\LaunchCapability.cs" />
+    <Compile Include="..\Nikkiward\Models\LaunchProfile.cs" Link="Models\LaunchProfile.cs" />
+    <Compile Include="..\Nikkiward\Models\ComponentVerification.cs" Link="Models\ComponentVerification.cs" />
+    <Compile Include="..\Nikkiward\Models\InstallationProfileModels.cs" Link="Models\InstallationProfileModels.cs" />
+    <Compile Include="..\Nikkiward\Models\VariantDefinitions.cs" Link="Models\VariantDefinitions.cs" />
+    <Compile Include="..\Nikkiward\Models\VariantMaterializationModels.cs" Link="Models\VariantMaterializationModels.cs" />
+    <Compile Include="..\Nikkiward\Models\ChannelActivationModels.cs" Link="Models\ChannelActivationModels.cs" />
+    <Compile Include="..\Nikkiward\Models\ChannelLaunchModels.cs" Link="Models\ChannelLaunchModels.cs" />
+    <Compile Include="..\Nikkiward\Models\ChannelStoreModels.cs" Link="Models\ChannelStoreModels.cs" />
+    <Compile Include="..\Nikkiward\Models\LaunchProviderContract.cs" Link="Models\LaunchProviderContract.cs" />
+    <Compile Include="..\Nikkiward\Models\LaunchPreflightModels.cs" Link="Models\LaunchPreflightModels.cs" />
+    <Compile Include="..\Nikkiward\Models\LaunchSnapshot.cs" Link="Models\LaunchSnapshot.cs" />
+    <Compile Include="..\Nikkiward\Models\LaunchState.cs" Link="Models\LaunchState.cs" />
+    <Compile Include="..\Nikkiward\Models\UserSettings.cs" Link="Models\UserSettings.cs" />
+    <Compile Include="..\Nikkiward\Models\AppearanceSettings.cs" Link="Models\AppearanceSettings.cs" />
+    <Compile Include="..\Nikkiward\Serialization\NikkiwardJsonContext.cs" Link="Serialization\NikkiwardJsonContext.cs" />
+    <Compile Include="..\Nikkiward\Services\IUserSettingsStore.cs" Link="Services\IUserSettingsStore.cs" />
+    <Compile Include="..\Nikkiward\Services\IDiagnosticReportExporter.cs" Link="Services\IDiagnosticReportExporter.cs" />
+    <Compile Include="..\Nikkiward\Services\JsonUserSettingsStore.cs" Link="Services\JsonUserSettingsStore.cs" />
+    <Compile Include="..\Nikkiward\Services\InstallationMetadataReaders.cs" Link="Services\InstallationMetadataReaders.cs" />
+    <Compile Include="..\Nikkiward\Services\VariantManifestServices.cs" Link="Services\VariantManifestServices.cs" />
+    <Compile Include="..\Nikkiward\Services\VariantMaterializationPlanner.cs" Link="Services\VariantMaterializationPlanner.cs" />
+    <Compile Include="..\Nikkiward\Services\VariantMaterializer.cs" Link="Services\VariantMaterializer.cs" />
+    <Compile Include="..\Nikkiward\Services\ChannelActivationService.cs" Link="Services\ChannelActivationService.cs" />
+    <Compile Include="..\Nikkiward\Services\ChannelEntryLauncher.cs" Link="Services\ChannelEntryLauncher.cs" />
+    <Compile Include="..\Nikkiward\Services\ChannelStoreBuilder.cs" Link="Services\ChannelStoreBuilder.cs" />
+    <Compile Include="..\Nikkiward\Services\ChannelStoreReceiptVerifier.cs" Link="Services\ChannelStoreReceiptVerifier.cs" />
+    <Compile Include="..\Nikkiward\Services\WindowsInstallationPathSource.cs" Link="Services\WindowsInstallationPathSource.cs" />
+    <Compile Include="..\Nikkiward\Services\WindowsInstallationProfileBuilder.cs" Link="Services\WindowsInstallationProfileBuilder.cs" />
+    <Compile Include="..\Nikkiward\Services\IInstallationInspector.cs" Link="Services\IInstallationInspector.cs" />
+    <Compile Include="..\Nikkiward\Services\WindowsInstallationInspector.cs" Link="Services\WindowsInstallationInspector.cs" />
+    <Compile Include="..\Nikkiward\Services\WindowsLaunchPreflightVerifier.cs" Link="Services\WindowsLaunchPreflightVerifier.cs" />
+    <Compile Include="..\Nikkiward\ViewModels\OfficialAssistedLaunchCoordinator.cs" Link="ViewModels\OfficialAssistedLaunchCoordinator.cs" />
+    <Compile Include="..\Nikkiward\ViewModels\ExternalChannelProcessBindingFactory.cs" Link="ViewModels\ExternalChannelProcessBindingFactory.cs" />
+    <!-- The backdrop analysis path is deliberately free of WinUI and WinRT types
+         so its numeric behaviour can be tested in a plain console host. -->
+    <Compile Include="..\Nikkiward\Features\Background\BackgroundSourceContracts.cs" Link="Features\Background\BackgroundSourceContracts.cs" />
+    <Compile Include="..\Nikkiward\Features\Background\ArtBackdropContracts.cs" Link="Features\Background\ArtBackdropContracts.cs" />
+    <Compile Include="..\Nikkiward\Features\Background\ArtPaletteAnalyzer.cs" Link="Features\Background\ArtPaletteAnalyzer.cs" />
+    <Compile Include="..\Nikkiward\Features\Background\ArtBlurBaker.cs" Link="Features\Background\ArtBlurBaker.cs" />
+    <Compile Include="..\Nikkiward\Features\Background\ArtAnalysisCache.cs" Link="Features\Background\ArtAnalysisCache.cs" />
+    <Compile Include="..\Nikkiward\Features\Background\MotionSourceRules.cs" Link="Features\Background\MotionSourceRules.cs" />
+    <Compile Include="..\Nikkiward\Features\Background\MotionImportFileCopier.cs" Link="Features\Background\MotionImportFileCopier.cs" />
+    <Compile Include="..\Nikkiward\Features\Shell\GlassTierResolver.cs" Link="Features\Shell\GlassTierResolver.cs" />
+    <Compile Include="..\Nikkiward\Features\Updates\UpdateModels.cs" Link="Features\Updates\UpdateModels.cs" />
+    <Compile Include="..\Nikkiward\Features\Updates\AppVersionProvider.cs" Link="Features\Updates\AppVersionProvider.cs" />
+    <Compile Include="..\Nikkiward\Features\Updates\ReleaseSelector.cs" Link="Features\Updates\ReleaseSelector.cs" />
+    <Compile Include="..\Nikkiward\Features\Updates\UpdateManifestValidator.cs" Link="Features\Updates\UpdateManifestValidator.cs" />
+    <Compile Include="..\Nikkiward\Features\Updates\UpdateJsonContext.cs" Link="Features\Updates\UpdateJsonContext.cs" />
+    <Compile Include="..\Nikkiward\Features\Updates\GitHubReleaseUpdateService.cs" Link="Features\Updates\GitHubReleaseUpdateService.cs" />
+    <Compile Include="..\Nikkiward\Features\Gallery\GalleryPhotoMetadata.cs" Link="Features\Gallery\GalleryPhotoMetadata.cs" />
+    <Compile Include="..\Nikkiward\Features\Gallery\GalleryAnnotationStore.cs" Link="Features\Gallery\GalleryAnnotationStore.cs" />
+    <Compile Include="..\Nikkiward\Features\Gallery\GalleryFavoriteProtectionStore.cs" Link="Features\Gallery\GalleryFavoriteProtectionStore.cs" />
+    <Compile Include="..\Nikkiward\Features\Gallery\GalleryFavoriteProtectionService.cs" Link="Features\Gallery\GalleryFavoriteProtectionService.cs" />
+    <Compile Include="..\Nikkiward\Features\Gallery\NikkiGalleryToolRegistry.cs" Link="Features\Gallery\NikkiGalleryToolRegistry.cs" />
+    <Compile Include="..\Nikkiward\Features\Gallery\Nuan5GalleryMetadataService.cs" Link="Features\Gallery\Nuan5GalleryMetadataService.cs" />
+    <Compile Include="..\Nikkiward\ViewModels\JournalDomainModels.cs" Link="ViewModels\JournalDomainModels.cs" />
+    <Compile Include="..\Nikkiward\ViewModels\JournalSnapshot.cs" Link="ViewModels\JournalSnapshot.cs" />
+    <Compile Include="..\Nikkiward\ViewModels\WishHistoryDomain.cs" Link="ViewModels\WishHistoryDomain.cs" />
+    <Compile Include="..\Nikkiward\ViewModels\ResonanceHistorySnapshot.cs" Link="ViewModels\ResonanceHistorySnapshot.cs" />
+    <Compile Include="..\Nikkiward\ViewModels\LocalPluginCatalog.cs" Link="ViewModels\LocalPluginCatalog.cs" />
+    <Compile Include="..\Nikkiward\Services\RedactedDiagnosticReportExporter.cs" Link="Services\RedactedDiagnosticReportExporter.cs" />
+    <Compile Include="LaunchContractTests.cs" />
+    <Compile Include="VariantMaterializerTests.cs" />
+    <Compile Include="ChannelSwitchTests.cs" />
+    <Compile Include="ChannelStoreBuilderTests.cs" />
+    <Compile Include="BackdropTests.cs" />
+    <Compile Include="MotionBackgroundTests.cs" />
+    <Compile Include="MotionRuntimeHardeningContractTests.cs" />
+    <Compile Include="DiagnosticTests.cs" />
+    <Compile Include="UserSettingsTests.cs" />
+    <Compile Include="AppearanceSettingsTests.cs" />
+    <Compile Include="AppearanceRuntimeContractTests.cs" />
+    <Compile Include="GalleryIntegrationTests.cs" />
+    <Compile Include="GalleryMetadataTests.cs" />
+    <Compile Include="JournalDomainTests.cs" />
+    <Compile Include="JournalSnapshotTests.cs" />
+    <Compile Include="WishHistoryDomainTests.cs" />
+    <Compile Include="UpdateReleaseTests.cs" />
+    <Compile Include="AboutSettingsContractTests.cs" />
+    <Compile Include="ContractRefreshTool.cs" />
+    <Compile Include="FakeInstall.cs" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Nikkiward.Features.Profile.ProfilePickerView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+    xmlns:local="using:Nikkiward.Features.Profile"
+    x:DefaultBindMode="OneWay"
+    HorizontalContentAlignment="Stretch"
+    Loaded="OnLoaded"
+    Unloaded="OnUnloaded"
+    VerticalContentAlignment="Stretch">
+    <Grid Background="Transparent">
+        <Border
+            Background="Transparent"
+            Tapped="OnBackdropTapped" />
+
+        <Border
+            x:Name="ServerSelectorSurface"
+            Width="280"
+            Margin="12,8,12,12"
+            Padding="10"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Background="{ThemeResource GlassIslandBrush}"
+            BorderBrush="{ThemeResource IslandEdgeHighlightBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Shadow="{ThemeResource LauncherThemeShadow}"
+            Tapped="OnPanelTapped"
+            Translation="0,0,16">
+            <StackPanel>
+                <Grid Height="44" ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="36" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="32" />
+                        <ColumnDefinition Width="32" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border
+                        Width="36"
+                        Height="36"
+                        VerticalAlignment="Center"
+                        CornerRadius="8">
+                        <Image
+                            Source="Assets/NikkiGameIcon.png"
+                            Stretch="UniformToFill" />
+                    </Border>
+
+                    <StackPanel
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Spacing="1">
+                        <TextBlock
+                            FontSize="14"
+                            FontWeight="SemiBold"
+                            Text="无限暖暖" />
+                        <TextBlock
+                            x:Name="ServerCountText"
+                            FontSize="12"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="0 个服务器" />
+                    </StackPanel>
+
+                    <Button
+                        x:Name="ProfileDetailsButton"
+                        Grid.Column="2"
+                        Width="32"
+                        Height="32"
+                        Padding="0"
+                        VerticalAlignment="Center"
+                        automation:AutomationProperties.Name="打开渠道完整详情"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Click="OnDetailsClicked"
+                        CornerRadius="6"
+                        ToolTipService.ToolTip="完整详情"
+                        Visibility="Collapsed">
+                        <FontIcon FontSize="14" Glyph="&#xE946;" />
+                    </Button>
+
+                    <Button
+                        x:Name="ProfileDiscoverButton"
+                        Grid.Column="3"
+                        Width="32"
+                        Height="32"
+                        Padding="0"
+                        VerticalAlignment="Center"
+                        automation:AutomationProperties.Name="刷新服务器列表"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Click="OnDiscoverClicked"
+                        CornerRadius="6"
+                        IsEnabled="{x:Bind ViewModel.CanDiscover}"
+                        ToolTipService.ToolTip="刷新服务器列表">
+                        <FontIcon FontSize="14" Glyph="&#xE72C;" />
+                    </Button>
+                </Grid>
+
+                <Rectangle
+                    Height="1"
+                    Margin="0,8,0,6"
+                    Fill="{ThemeResource HairlineSoftBrush}" />
+
+                <ItemsControl
+                    x:Name="ServerOptionsList"
+                    HorizontalContentAlignment="Stretch"
+                    ItemsSource="{x:Bind ServerOptions}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <ItemsStackPanel HorizontalAlignment="Stretch" Orientation="Vertical" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemContainerStyle>
+                        <Style TargetType="ContentPresenter">
+                            <Setter Property="HorizontalAlignment" Value="Stretch" />
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        </Style>
+                    </ItemsControl.ItemContainerStyle>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate
+                            x:DataType="local:ProfileServerOption"
+                            x:DefaultBindMode="OneTime">
+                            <Button
+                                x:Name="ServerOptionButton"
+                                Height="48"
+                                Padding="0"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Stretch"
+                                automation:AutomationProperties.Name="{x:Bind AutomationName}"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Click="OnProfileClicked"
+                                CornerRadius="6"
+                                Tag="{x:Bind ProfileId}"
+                                ToolTipService.ToolTip="{x:Bind AutomationName}">
+                                <Grid HorizontalAlignment="Stretch">
+                                    <Border
+                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                        CornerRadius="6"
+                                        Visibility="{x:Bind SelectionVisibility}" />
+                                    <Rectangle
+                                        Width="3"
+                                        Height="24"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Center"
+                                        Fill="{ThemeResource DerivedAccentBrush}"
+                                        RadiusX="1.5"
+                                        RadiusY="1.5"
+                                        Visibility="{x:Bind SelectionVisibility}" />
+                                    <Grid Padding="8,0" ColumnSpacing="10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="28" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="24" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border
+                                            Width="28"
+                                            Height="28"
+                                            VerticalAlignment="Center"
+                                            CornerRadius="6">
+                                            <Image
+                                                Source="Assets/NikkiGameIcon.png"
+                                                Stretch="UniformToFill" />
+                                        </Border>
+                                        <TextBlock
+                                            Grid.Column="1"
+                                            HorizontalAlignment="Left"
+                                            VerticalAlignment="Center"
+                                            FontSize="14"
+                                            Text="{x:Bind ServerName}"
+                                            TextTrimming="CharacterEllipsis" />
+                                        <FontIcon
+                                            Grid.Column="2"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            FontSize="14"
+                                            Foreground="{ThemeResource DerivedAccentBrush}"
+                                            Glyph="&#xE73E;"
+                                            Visibility="{x:Bind SelectionVisibility}" />
+                                    </Grid>
+                                </Grid>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <StackPanel
+                    x:Name="EmptyStatePanel"
+                    MinHeight="112"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Center"
+                    Spacing="10"
+                    Visibility="Collapsed">
+                    <TextBlock
+                        Margin="0,18,0,0"
+                        HorizontalAlignment="Center"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text="未发现可用服务器" />
+                    <Button
+                        HorizontalAlignment="Center"
+                        automation:AutomationProperties.Name="自动发现服务器"
+                        Click="OnDiscoverClicked"
+                        IsEnabled="{x:Bind ViewModel.CanDiscover}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon FontSize="14" Glyph="&#xE72C;" />
+                            <TextBlock Text="重新发现" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

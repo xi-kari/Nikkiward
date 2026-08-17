@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Application
+    x:Class="Nikkiward.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+                <!-- Resource dictionaries are ordered by dependency. -->
+                <ResourceDictionary Source="Themes/Palette.xaml" />
+                <ResourceDictionary Source="Themes/Materials.xaml" />
+                <ResourceDictionary Source="Themes/OnArt.xaml" />
+                <ResourceDictionary Source="Themes/Typography.xaml" />
+                <ResourceDictionary Source="Themes/Geometry.xaml" />
+                <ResourceDictionary Source="Themes/Elevation.xaml" />
+                <ResourceDictionary Source="Themes/Motion.xaml" />
+                <ResourceDictionary Source="Themes/Shell.xaml" />
+                <ResourceDictionary Source="Themes/Controls.xaml" />
+                <ResourceDictionary Source="Themes/Islands.xaml" />
+                <ResourceDictionary Source="Styles/GalleryResources.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Shell rail and primary action theme resources. -->
+            <ResourceDictionary.ThemeDictionaries>
+
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="LauncherPaneAcrylicBrush" Color="#B8F6F1EA" />
+                    <StaticResource x:Key="PrimaryActionFillBrush" ResourceKey="PrimaryActionSolidBrush" />
+
+                    <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="#B8F6F1EA" />
+                </ResourceDictionary>
+
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="LauncherPaneAcrylicBrush" Color="#B8241E1B" />
+                    <StaticResource x:Key="PrimaryActionFillBrush" ResourceKey="PrimaryActionSolidBrush" />
+
+                    <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="#B8241E1B" />
+                </ResourceDictionary>
+
+                <ResourceDictionary x:Key="HighContrast">
+                    <SolidColorBrush x:Key="LauncherPaneAcrylicBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="PrimaryActionFillBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+
+                    <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="{ThemeResource SystemColorWindowColor}" />
+                </ResourceDictionary>
+
+            </ResourceDictionary.ThemeDictionaries>
+
+            <ThemeShadow x:Key="LauncherThemeShadow" />
+
+            <Thickness x:Key="NavigationViewBorderThickness">0</Thickness>
+            <StaticResource
+                x:Key="ContentDialogTopOverlay"
+                ResourceKey="ControlFillColorTransparentBrush" />
+
+            <Style
+                BasedOn="{StaticResource DefaultContentDialogStyle}"
+                TargetType="ContentDialog">
+                <Setter Property="Background" Value="{ThemeResource GlassOverlayBrush}" />
+            </Style>
+
+            <Style
+                BasedOn="{StaticResource DefaultFlyoutPresenterStyle}"
+                TargetType="FlyoutPresenter">
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Background" Value="{ThemeResource GlassOverlayBrush}" />
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Nikkiward.Features.Settings.AboutSettingsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+    Unloaded="OnUnloaded">
+    <StackPanel Spacing="24">
+        <Grid ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Border
+                Width="72"
+                Height="72"
+                VerticalAlignment="Top"
+                Background="{ThemeResource GlassIslandBrush}"
+                CornerRadius="8">
+                <Image
+                    automation:AutomationProperties.Name="Nikkiward 图标"
+                    Source="ms-appx:///Assets/NikkiGameIcon.png"
+                    Stretch="UniformToFill" />
+            </Border>
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                <TextBlock
+                    automation:AutomationProperties.HeadingLevel="Level2"
+                    FontSize="28"
+                    FontWeight="SemiBold"
+                    Foreground="{ThemeResource OnArtPrimaryTextBrush}"
+                    Text="Nikkiward" />
+                <TextBlock
+                    Foreground="{ThemeResource OnArtSecondaryTextBrush}"
+                    Text="无限暖暖 PC 版的非官方社区启动与本地管理工具"
+                    TextWrapping="Wrap" />
+                <TextBlock
+                    FontSize="12"
+                    Foreground="{ThemeResource OnArtTertiaryTextBrush}"
+                    Text="由 xi-kari 维护" />
+            </StackPanel>
+        </Grid>
+
+        <StackPanel Spacing="10">
+            <TextBlock Style="{StaticResource OnArtSectionTitleTextStyle}" Text="版本" />
+            <Border Style="{StaticResource ComponentCardBorderStyle}">
+                <StackPanel Spacing="10">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Foreground="{ThemeResource OnArtSecondaryTextBrush}" Text="当前版本" />
+                        <TextBlock
+                            x:Name="VersionText"
+                            Grid.Column="1"
+                            automation:AutomationProperties.Name="当前版本"
+                            FontWeight="SemiBold"
+                            Foreground="{ThemeResource OnArtPrimaryTextBrush}"
+                            Text="正在读取" />
+                    </Grid>
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Foreground="{ThemeResource OnArtSecondaryTextBrush}" Text="运行环境" />
+                        <TextBlock
+                            x:Name="RuntimeText"
+                            Grid.Column="1"
+                            automation:AutomationProperties.Name="运行环境"
+                            Foreground="{ThemeResource OnArtPrimaryTextBrush}"
+                            Text="win-x64 · 便携版" />
+                    </Grid>
+                    <Grid x:Name="CommitRow" ColumnSpacing="16" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Foreground="{ThemeResource OnArtSecondaryTextBrush}" Text="构建提交" />
+                        <TextBlock
+                            x:Name="CommitText"
+                            Grid.Column="1"
+                            automation:AutomationProperties.Name="构建提交"
+                            FontFamily="Consolas"
+                            Foreground="{ThemeResource OnArtPrimaryTextBrush}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <StackPanel Spacing="10">
+            <TextBlock Style="{StaticResource OnArtSectionTitleTextStyle}" Text="更新" />
+            <Border Style="{StaticResource ComponentCardBorderStyle}">
+                <StackPanel Spacing="12">
+                    <StackPanel Spacing="5">
+                        <TextBlock
+                            FontWeight="SemiBold"
+                            Foreground="{ThemeResource OnArtPrimaryTextBrush}"
+                            Text="更新通道" />
+                        <ComboBox
+                            x:Name="UpdateChannelSelector"
+                            Width="160"
+                            HorizontalAlignment="Left"
+                            automation:AutomationProperties.Name="更新通道"
+                            SelectedIndex="0"
+                            SelectionChanged="OnUpdateChannelChanged">
+                            <ComboBoxItem Content="稳定版" Tag="stable" />
+                            <ComboBoxItem Content="预览版" Tag="preview" />
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button
+                            x:Name="CheckUpdateButton"
+                            automation:AutomationProperties.Name="检查更新"
+                            Click="OnCheckUpdateClicked"
+                            Style="{StaticResource OnArtGlassButtonStyle}">
+                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                <FontIcon Glyph="&#xE895;" />
+                                <TextBlock VerticalAlignment="Center" Text="检查更新" />
+                            </StackPanel>
+                        </Button>
+                        <Button
+                            x:Name="ReleaseButton"
+                            automation:AutomationProperties.Name="查看发布版本"
+                            Click="OnReleaseClicked"
+                            Style="{StaticResource OnArtGlassButtonStyle}"
+                            Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                <FontIcon Glyph="&#xE8A7;" />
+                                <TextBlock x:Name="ReleaseButtonText" VerticalAlignment="Center" Text="查看发布版本" />
+                            </StackPanel>
+                        </Button>
+                        <ProgressRing
+                            x:Name="UpdateProgressRing"
+                            Width="20"
+                            Height="20"
+                            VerticalAlignment="Center"
+                            automation:AutomationProperties.Name="正在检查更新"
+                            IsActive="False"
+                            Visibility="Collapsed" />
+                    </StackPanel>
+                    <InfoBar
+                        x:Name="UpdateStatusBar"
+                        automation:AutomationProperties.LiveSetting="Polite"
+                        IsClosable="True"
+                        IsOpen="False"
+                        Severity="Informational" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <StackPanel Spacing="8">
+            <TextBlock Style="{StaticResource OnArtSectionTitleTextStyle}" Text="项目" />
+            <HyperlinkButton automation:AutomationProperties.Name="打开 GitHub 项目主页" Click="OnProjectLinkClicked" Tag="https://github.com/xi-kari/Nikkiward">
+                <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE774;" /><TextBlock Text="项目主页" /></StackPanel>
+            </HyperlinkButton>
+            <HyperlinkButton automation:AutomationProperties.Name="打开问题反馈" Click="OnProjectLinkClicked" Tag="https://github.com/xi-kari/Nikkiward/issues">
+                <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE90F;" /><TextBlock Text="问题反馈" /></StackPanel>
+            </HyperlinkButton>
+            <HyperlinkButton automation:AutomationProperties.Name="打开发行记录" Click="OnProjectLinkClicked" Tag="https://github.com/xi-kari/Nikkiward/releases">
+                <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE896;" /><TextBlock Text="发行记录" /></StackPanel>
+            </HyperlinkButton>
+            <HyperlinkButton automation:AutomationProperties.Name="打开隐私说明" Click="OnProjectLinkClicked" Tag="https://github.com/xi-kari/Nikkiward/blob/main/PRIVACY.md">
+                <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE72E;" /><TextBlock Text="隐私说明" /></StackPanel>
+            </HyperlinkButton>
+            <HyperlinkButton automation:AutomationProperties.Name="打开源代码许可" Click="OnProjectLinkClicked" Tag="https://github.com/xi-kari/Nikkiward/blob/main/LICENSE">
+                <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE8D7;" /><TextBlock Text="源代码许可" /></StackPanel>
+            </HyperlinkButton>
+            <HyperlinkButton automation:AutomationProperties.Name="打开第三方声明" Click="OnProjectLinkClicked" Tag="https://github.com/xi-kari/Nikkiward/blob/main/THIRD-PARTY-NOTICES.md">
+                <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE946;" /><TextBlock Text="第三方声明" /></StackPanel>
+            </HyperlinkButton>
+        </StackPanel>
+
+        <InfoBar
+            IsClosable="False"
+            IsOpen="True"
+            Message="Nikkiward 是独立的非官方社区项目，与叠纸网络、Infold Games、哔哩哔哩、Valve 或 Steam 不存在隶属、授权或背书关系。"
+            Severity="Informational"
+            Title="非官方项目" />
+    </StackPanel>
+</UserControl>

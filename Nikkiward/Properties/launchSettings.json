@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Nikkiward (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "Nikkiward (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
