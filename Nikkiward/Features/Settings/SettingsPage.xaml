@@ -102,7 +102,7 @@
                             x:Name="SubtitleText"
                             FontSize="11"
                             Foreground="{ThemeResource InkTertiaryBrush}"
-                            Text="外观、插件与输入设置"
+                            Text="外观、相册与输入设置"
                             Visibility="Collapsed" />
                     </StackPanel>
                     <StackPanel
@@ -142,7 +142,7 @@
                 <NavigationViewItem x:Name="OverviewItem" Content="设置概览" IsSelected="True" Tag="overview" automation:AutomationProperties.Name="设置概览"><NavigationViewItem.Icon><FontIcon Glyph="&#xE946;" /></NavigationViewItem.Icon></NavigationViewItem>
                 <NavigationViewItem x:Name="GeneralItem" Content="外观" Tag="general" automation:AutomationProperties.Name="外观设置"><NavigationViewItem.Icon><FontIcon Glyph="&#xE790;" /></NavigationViewItem.Icon></NavigationViewItem>
                 <NavigationViewItem x:Name="GalleryItem" Content="相册" Tag="gallery" automation:AutomationProperties.Name="相册设置"><NavigationViewItem.Icon><FontIcon Glyph="&#xEB9F;" /></NavigationViewItem.Icon></NavigationViewItem>
-                <NavigationViewItem x:Name="PluginsItem" Content="插件" Tag="plugins" automation:AutomationProperties.Name="插件设置"><NavigationViewItem.Icon><FontIcon Glyph="&#xE8B5;" /></NavigationViewItem.Icon></NavigationViewItem>
+                <NavigationViewItem x:Name="PluginsItem" Content="插件" Tag="plugins" Visibility="Collapsed" automation:AutomationProperties.Name="插件设置"><NavigationViewItem.Icon><FontIcon Glyph="&#xE8B5;" /></NavigationViewItem.Icon></NavigationViewItem>
                 <NavigationViewItem Content="键盘快捷键" Tag="hotkeys" automation:AutomationProperties.Name="键盘快捷键设置"><NavigationViewItem.Icon><FontIcon Glyph="&#xEDA7;" /></NavigationViewItem.Icon></NavigationViewItem>
                 <NavigationViewItem x:Name="GamepadItem" Content="手柄增强" Tag="gamepad" automation:AutomationProperties.Name="手柄增强设置"><NavigationViewItem.Icon><FontIcon Glyph="&#xE7FC;" /></NavigationViewItem.Icon></NavigationViewItem>
                 <NavigationViewItemSeparator x:Name="DeveloperSeparator" Visibility="Collapsed" />

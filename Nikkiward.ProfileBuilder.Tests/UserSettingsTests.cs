@@ -27,7 +27,7 @@ internal static class UserSettingsTests
         AssertEqual(6, settings.SchemaVersion, "schema version");
         AssertEqual(ThemeMode.FollowArtwork, settings.Appearance.ThemeMode, "theme mode");
         AssertEqual(
-            LauncherCapsuleStyle.Original,
+            LauncherCapsuleStyle.Ocean,
             settings.Appearance.LauncherCapsuleStyle,
             "launcher capsule style");
         AssertEqual(0, settings.GalleryProfiles.Count, "gallery profile count");
@@ -377,7 +377,7 @@ internal static class UserSettingsTests
             Assert(!loaded.Appearance.Background.MotionEnabled, "migrated motion default");
             AssertEqual(30, loaded.Appearance.Background.MotionFpsCap, "migrated motion FPS");
             AssertEqual(
-                LauncherCapsuleStyle.Original,
+                LauncherCapsuleStyle.Ocean,
                 loaded.Appearance.LauncherCapsuleStyle,
                 "migrated launcher capsule style");
         }
@@ -413,7 +413,7 @@ internal static class UserSettingsTests
             Assert(json.Contains("\"schemaVersion\": 6", StringComparison.Ordinal), "schema 6 output");
             Assert(json.Contains("\"appearance\"", StringComparison.Ordinal), "appearance output");
             Assert(
-                json.Contains("\"launcherCapsuleStyle\": \"original\"", StringComparison.Ordinal),
+                json.Contains("\"launcherCapsuleStyle\": \"ocean\"", StringComparison.Ordinal),
                 "launcher capsule default output");
             Assert(!json.Contains("\n  \"themeMode\"", StringComparison.Ordinal), "legacy theme removed");
             AssertEqual(ThemeMode.WarmLight, (await store.LoadAsync()).Appearance.ThemeMode, "saved theme");

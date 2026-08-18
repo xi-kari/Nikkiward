@@ -12,6 +12,7 @@
     Background="Transparent"
     KeyDown="OnPageKeyDown"
     Loaded="OnPageLoaded"
+    RequestedTheme="Dark"
     mc:Ignorable="d">
 
     <Grid

@@ -42,14 +42,14 @@ internal static class AppearanceSettingsTests
         AssertEqual(AppearanceMotionMode.Full, settings.Motion, "motion mode");
         AssertEqual(InterfaceDensity.Standard, settings.Density, "density");
         AssertEqual(
-            LauncherCapsuleStyle.Original,
+            LauncherCapsuleStyle.Ocean,
             settings.LauncherCapsuleStyle,
             "launcher capsule style");
         Assert(settings.Background.SelectedSource is null, "selected background");
         AssertEqual(0, settings.Background.CarouselSources.Count, "carousel sources");
         Assert(!settings.Background.CarouselEnabled, "carousel should be disabled");
         AssertEqual(15, settings.Background.CarouselIntervalMinutes, "carousel interval");
-        Assert(settings.Background.ParallaxEnabled, "parallax should be enabled");
+        Assert(!settings.Background.ParallaxEnabled, "parallax should be disabled");
         Assert(settings.Background.HolographicCardEnabled, "holographic card should be enabled");
         Assert(!settings.Background.MotionEnabled, "motion should be disabled by default");
         Assert(settings.Background.MotionSource is null, "motion source should be absent");
@@ -77,6 +77,7 @@ internal static class AppearanceSettingsTests
             AppearanceSettings.DefaultLauncherMastheadSubtitle,
             settings.LauncherMastheadSubtitle,
             "masthead subtitle default");
+        AssertEqual("无限暖暖启动！", settings.LauncherMastheadSubtitle, "stable launcher subtitle");
         Assert(!settings.ShowLauncherUtilityPanels, "launcher notice panel should be hidden by default");
         return Task.CompletedTask;
     }
@@ -502,7 +503,7 @@ internal static class AppearanceSettingsTests
         Assert(projection.UsesFallback, "fallback marker");
         Assert(!projection.CarouselEnabled, "missing carousel");
         AssertEqual(15, projection.CarouselIntervalMinutes, "safe interval");
-        Assert(projection.ParallaxEnabled, "fallback parallax preference");
+        Assert(!projection.ParallaxEnabled, "fallback parallax preference");
         return Task.CompletedTask;
     }
 

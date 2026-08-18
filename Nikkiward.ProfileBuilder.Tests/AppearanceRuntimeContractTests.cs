@@ -9,6 +9,8 @@ internal static class AppearanceRuntimeContractTests
         ("the adaptive backdrop has one live visual-tree owner", AdaptiveBackdropHasOneOwner),
         ("the adaptive backdrop consumes the appearance motion projection", AdaptiveBackdropConsumesAppearanceMotion),
         ("the active backdrop pipeline bakes and reuses its depth plate", ActiveBackdropBakesDepthPlate),
+        ("the built-in blurred plate covers every cold-start fallback", BuiltInBlurredPlateCoversColdStart),
+        ("the built-in artwork seeds the dark cold-start theme", BuiltInArtworkSeedsDarkColdStart),
         ("the backdrop crossfade can be cancelled and promoted", BackdropCrossFadeCanBeCancelled),
         ("every density spacing token has a live visual consumer", DensitySpacingTokensHaveConsumers),
         ("static visual tokens have one live runtime authority", StaticVisualTokensHaveOneAuthority),
@@ -125,6 +127,99 @@ internal static class AppearanceRuntimeContractTests
             !service.Contains("cached.BlurredArtPath = null", StringComparison.Ordinal) &&
             !service.Contains("result.BlurredArtPath = null;\r\n                return result;", StringComparison.Ordinal),
             "the live service must not erase its depth plate unconditionally");
+        return Task.CompletedTask;
+    }
+
+    private static Task BuiltInBlurredPlateCoversColdStart()
+    {
+        var viewXaml = ReadSource(
+            "Nikkiward",
+            "Features",
+            "Background",
+            "ArtBackdropView.xaml");
+        var viewCode = ReadSource(
+            "Nikkiward",
+            "Features",
+            "Background",
+            "ArtBackdropView.xaml.cs");
+        var settings = ReadSource("Nikkiward", "Models", "AppearanceSettings.cs");
+        var blurPath = Path.Combine(
+            FindRoot(),
+            "Nikkiward",
+            "Assets",
+            "NikkiDefaultBackgroundBlur.jpg");
+        var blurHash = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(blurPath)));
+
+        Assert(
+            viewXaml.Contains(
+                "Source=\"ms-appx:///Assets/NikkiDefaultBackgroundBlur.jpg\"",
+                StringComparison.Ordinal),
+            "the initial settled plate must use the shipped blurred artwork");
+        Assert(
+            settings.Contains(
+                "BuiltInBlurredBackgroundSource",
+                StringComparison.Ordinal) &&
+            settings.Contains(
+                "ms-appx:///Assets/NikkiDefaultBackgroundBlur.jpg",
+                StringComparison.Ordinal),
+            "the blurred fallback must have one app-resource authority");
+        Assert(
+            Count(viewCode, "ArtBlurredSettled.Source = CreateBuiltInBlurPlate();") == 2 &&
+            viewCode.Contains(
+                "new(new Uri(AppearanceProjector.BuiltInBlurredBackgroundSource))",
+                StringComparison.Ordinal) &&
+            viewCode.Contains(
+                "ApplyBlurPlate(_service?.BlurredArtPath);",
+                StringComparison.Ordinal),
+            "source changes and missing cache plates must use the shipped blur while still restoration reuses a valid cache plate");
+        Assert(
+            string.Equals(
+                blurHash,
+                "E4279123900181ED11C0C4249EFA1A881E20D4AF6FEF29D283D314281DBD9108",
+                StringComparison.Ordinal),
+            "the built-in blur must retain its verified content hash");
+        return Task.CompletedTask;
+    }
+
+    private static Task BuiltInArtworkSeedsDarkColdStart()
+    {
+        var mainDocument = XDocument.Parse(ReadSource("Nikkiward", "MainPage.xaml"));
+        var mainCode = ReadSource("Nikkiward", "MainPage.xaml.cs");
+        var appearanceCode = ReadSource("Nikkiward", "MainPage.Appearance.cs");
+        var backgroundPath = Path.Combine(
+            FindRoot(),
+            "Nikkiward",
+            "Assets",
+            "NikkiDefaultBackground.jpg");
+        var backgroundHash = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(backgroundPath)));
+
+        Assert(
+            mainDocument.Root?.Attribute("RequestedTheme")?.Value == "Dark",
+            "the first XAML frame must match the dark built-in artwork");
+        Assert(
+            mainCode.Contains(
+                "DefaultBackgroundPreferredTheme =\r\n        ArtPreferredTheme.Dark",
+                StringComparison.Ordinal) ||
+            mainCode.Contains(
+                "DefaultBackgroundPreferredTheme =\n        ArtPreferredTheme.Dark",
+                StringComparison.Ordinal),
+            "the built-in artwork must own the pre-analysis dark theme seed");
+        Assert(
+            Regex.IsMatch(
+                appearanceCode,
+                @"artworkTheme\s*=\s*_backdrop\.IsReady\s*\?\s*_backdrop\.PreferredTheme\s*:\s*DefaultBackgroundPreferredTheme") &&
+            appearanceCode.Contains("ThemeMode.WarmLight => ElementTheme.Light", StringComparison.Ordinal) &&
+            appearanceCode.Contains("ThemeMode.WarmDark => ElementTheme.Dark", StringComparison.Ordinal) &&
+            appearanceCode.Contains("_ => artworkTheme == ArtPreferredTheme.Dark", StringComparison.Ordinal),
+            "follow-artwork must use the built-in seed only until analysis while explicit themes stay authoritative");
+        Assert(
+            string.Equals(
+                backgroundHash,
+                "79E98642EC260C9CA8F4A89A12D8294B0474B78658DAB6DE330BFCB192514880",
+                StringComparison.Ordinal),
+            "the cold-start theme seed must stay bound to the verified built-in artwork");
         return Task.CompletedTask;
     }
 
@@ -610,6 +705,10 @@ internal static class AppearanceRuntimeContractTests
             mastheadCode.Contains("ApplySettings(AppearanceSettings", StringComparison.Ordinal),
             "masthead must expose typed customizable copy");
         Assert(
+            masthead.Contains("Text=\"无限暖暖启动！\"", StringComparison.Ordinal) &&
+            settings.Contains("DefaultLauncherMastheadSubtitle = \"无限暖暖启动！\"", StringComparison.Ordinal),
+            "the launcher first frame and clean-settings subtitle must stay synchronized");
+        Assert(
             launcher.Contains("NoticeHost.Visibility = Visibility.Collapsed", StringComparison.Ordinal) &&
             launcher.Contains(
                 "ActionCluster.Visibility = Visibility.Visible",
@@ -838,6 +937,7 @@ internal static class AppearanceRuntimeContractTests
         {
             "JournalItem",
             "FilesItem",
+            "PluginsItem",
             "StatusItem",
             "ComponentsItem",
             "DiagnosticsItem",
@@ -860,12 +960,15 @@ internal static class AppearanceRuntimeContractTests
             developerPanel >= 0 &&
             homeXaml.IndexOf("Tag=\"journal\"", StringComparison.Ordinal) > developerPanel &&
             homeXaml.IndexOf("Tag=\"files\"", StringComparison.Ordinal) > developerPanel &&
+            homeXaml.IndexOf("Tag=\"plugins\"", StringComparison.Ordinal) > developerPanel &&
+            !settingsXaml.Contains("外观、插件与输入设置", StringComparison.Ordinal) &&
             settingsCode.Contains("IsDeveloperDestination(destination) && !_developerModeEnabled", StringComparison.Ordinal) &&
             settingsCode.Contains("JournalItem.Visibility = visibility", StringComparison.Ordinal) &&
             settingsCode.Contains("FilesItem.Visibility = visibility", StringComparison.Ordinal) &&
+            settingsCode.Contains("PluginsItem.Visibility = visibility", StringComparison.Ordinal) &&
             Regex.IsMatch(
                 settingsCode,
-                @"IsDeveloperDestination\s*\([^)]*\)\s*=>\s*destination\s+is\s+SettingsDestination\.Journal\s+or\s+SettingsDestination\.Files\s+or",
+                @"IsDeveloperDestination\s*\([^)]*\)\s*=>\s*destination\s+is\s+SettingsDestination\.Journal\s+or\s+SettingsDestination\.Files\s+or\s+SettingsDestination\.Plugins\s+or",
                 RegexOptions.CultureInvariant) &&
             settingsCode.Contains("ApplyDeveloperMode(bool enabled)", StringComparison.Ordinal),
             "developer-only settings need an explicit toggle, collapsed navigation, and a guarded path");

@@ -41,6 +41,8 @@ public sealed partial class MainPage : Page
     };
     private const string DefaultBackgroundSource =
         "ms-appx:///Assets/NikkiDefaultBackground.jpg";
+    private const ArtPreferredTheme DefaultBackgroundPreferredTheme =
+        ArtPreferredTheme.Dark;
     private readonly SemaphoreSlim _dialogGate = new(1, 1);
     private readonly SemaphoreSlim _manualLaunchGate = new(1, 1);
     private readonly SemaphoreSlim _journalCaptureGate = new(1, 1);

@@ -63,6 +63,42 @@ function Assert-Equal {
     }
 }
 
+function Assert-InstalledPayload {
+    param(
+        [string]$PublishRoot,
+        [string]$InstallRoot,
+        [string]$ValidatorPath
+    )
+
+    $sourceFiles = @(Get-ChildItem -LiteralPath $PublishRoot -Recurse -File | Sort-Object FullName)
+    $sourcePaths = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($source in $sourceFiles) {
+        $relative = $source.FullName.Substring($PublishRoot.Length).TrimStart('\')
+        $sourcePaths.Add($relative) | Out-Null
+        $installed = Join-Path $InstallRoot $relative
+        if (-not (Test-Path -LiteralPath $installed -PathType Leaf)) {
+            throw "Installed file is missing: $relative"
+        }
+        Assert-Equal (Get-FileHash -Algorithm SHA256 -LiteralPath $source.FullName).Hash (Get-FileHash -Algorithm SHA256 -LiteralPath $installed).Hash "Installed file hash: $relative"
+    }
+
+    $unexpected = @(
+        Get-ChildItem -LiteralPath $InstallRoot -Recurse -File -Force |
+            ForEach-Object { $_.FullName.Substring($InstallRoot.Length).TrimStart('\') } |
+            Where-Object {
+                -not $sourcePaths.Contains($_) -and
+                $_ -notmatch '(?i)^unins\d{3}\.(exe|dat)$'
+            } |
+            Sort-Object
+    )
+    if ($unexpected.Count -gt 0) {
+        throw "Installed payload contains unexpected files: $($unexpected -join ', ')"
+    }
+
+    $null = & $ValidatorPath -Root $InstallRoot -AllowInstallerArtifacts -Label 'installed application payload'
+    return $sourceFiles.Count
+}
+
 function Get-InstallRegistration {
     param([string]$InstallPath)
 
@@ -116,6 +152,10 @@ function Wait-ForWindow {
 $resolvedSetupPath = (Resolve-Path -LiteralPath $SetupPath -ErrorAction Stop).Path
 $resolvedPublishDir = (Resolve-Path -LiteralPath $PublishDir -ErrorAction Stop).Path
 $resolvedTestRoot = [System.IO.Path]::GetFullPath($TestRoot)
+$payloadValidatorPath = Join-Path $PSScriptRoot 'Test-ReleasePayload.ps1'
+if (-not (Test-Path -LiteralPath $payloadValidatorPath -PathType Leaf)) {
+    throw "Release payload validator is missing: $payloadValidatorPath"
+}
 $installDir = if ($UseDefaultInstallPath) {
     Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) 'Programs\Nikkiward'
 } else {
@@ -140,15 +180,7 @@ $dataBeforeInstall = Get-TreeDigest $localDataDir
 Invoke-Installer $resolvedSetupPath $installArguments
 Write-Output 'INSTALL_EXIT=0'
 
-$publishFiles = Get-ChildItem -LiteralPath $resolvedPublishDir -Recurse -File | Sort-Object FullName
-foreach ($source in $publishFiles) {
-    $relative = $source.FullName.Substring($resolvedPublishDir.Length).TrimStart('\')
-    $installed = Join-Path $installDir $relative
-    if (-not (Test-Path -LiteralPath $installed -PathType Leaf)) {
-        throw "Installed file is missing: $relative"
-    }
-    Assert-Equal (Get-FileHash -Algorithm SHA256 -LiteralPath $source.FullName).Hash (Get-FileHash -Algorithm SHA256 -LiteralPath $installed).Hash "Installed file hash: $relative"
-}
+$publishFileCount = Assert-InstalledPayload $resolvedPublishDir $installDir $payloadValidatorPath
 if (-not (Test-Path -LiteralPath (Join-Path $installDir 'unins000.exe') -PathType Leaf)) {
     throw 'Uninstaller is missing.'
 }
@@ -157,7 +189,7 @@ if (-not (Test-Path -LiteralPath $shortcut -PathType Leaf)) {
 }
 Assert-Equal 1 @(Get-InstallRegistration $installDir).Count 'Installer registration count'
 Assert-Equal $dataBeforeInstall (Get-TreeDigest $localDataDir) 'Installer user-data preservation'
-Write-Output "INSTALL_VERIFY=PASS files=$($publishFiles.Count)"
+Write-Output "INSTALL_VERIFY=PASS files=$publishFileCount"
 
 $executable = Join-Path $installDir 'Nikkiward.exe'
 $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
@@ -183,10 +215,20 @@ finally {
 }
 
 $dataBeforeRepair = Get-TreeDigest $localDataDir
+$repairMissingPath = Join-Path $installDir 'Assets\NikkiGameIcon.png'
+$repairChangedPath = Join-Path $installDir 'Nikkiward.dll'
+Remove-Item -LiteralPath $repairMissingPath -Force
+$repairStream = [IO.File]::Open($repairChangedPath, [IO.FileMode]::Append, [IO.FileAccess]::Write, [IO.FileShare]::None)
+try {
+    $repairStream.WriteByte(0xA5)
+}
+finally {
+    $repairStream.Dispose()
+}
 Invoke-Installer $resolvedSetupPath $installArguments
-Assert-Equal (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $resolvedPublishDir 'Nikkiward.exe')).Hash (Get-FileHash -Algorithm SHA256 -LiteralPath $executable).Hash 'Repair install executable hash'
+$repairFileCount = Assert-InstalledPayload $resolvedPublishDir $installDir $payloadValidatorPath
 Assert-Equal $dataBeforeRepair (Get-TreeDigest $localDataDir) 'Repair installer user-data preservation'
-Write-Output 'REPAIR_VERIFY=PASS'
+Write-Output "REPAIR_VERIFY=PASS files=$repairFileCount missing_resource_restored=True changed_dll_restored=True"
 
 $dataBeforeUninstall = Get-TreeDigest $localDataDir
 $uninstaller = Join-Path $installDir 'unins000.exe'

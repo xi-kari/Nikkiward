@@ -368,6 +368,35 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
         ApplyFilterAndSort();
     }
 
+    public void ApplyDefaultFavorites(
+        IReadOnlyList<GalleryDefaultFavorite> defaultFavorites)
+    {
+        ArgumentNullException.ThrowIfNull(defaultFavorites);
+        _allPhotos.RemoveAll(photo => string.Equals(
+            photo.AnnotationScopeId,
+            GalleryDefaultFavoriteSeedService.ScopeId,
+            StringComparison.Ordinal));
+
+        foreach (var favorite in defaultFavorites)
+        {
+            var fileName = Path.GetFileName(favorite.FilePath);
+            var photo = new GalleryPhotoItemViewModel(
+                favorite.FilePath,
+                favorite.RelativePath,
+                fileName,
+                "DefaultFavorites",
+                "默认收藏",
+                favorite.FileSizeBytes,
+                favorite.LastWriteTimeUtc,
+                favorite.ScopeId);
+            photo.SetStarred(true);
+            _allPhotos.Add(photo);
+        }
+
+        RebuildCategories();
+        ApplyFilterAndSort();
+    }
+
     public void SetStarred(GalleryPhotoItemViewModel photo, bool isStarred)
     {
         ArgumentNullException.ThrowIfNull(photo);
@@ -613,7 +642,8 @@ public sealed class GalleryPhotoItemViewModel : INotifyPropertyChanged
         string categoryId,
         string categoryName,
         long fileSizeBytes,
-        DateTime lastWriteTimeUtc)
+        DateTime lastWriteTimeUtc,
+        string? annotationScopeId = null)
     {
         FilePath = filePath;
         RelativePath = relativePath;
@@ -623,6 +653,7 @@ public sealed class GalleryPhotoItemViewModel : INotifyPropertyChanged
         CategoryName = categoryName;
         FileSizeBytes = fileSizeBytes;
         LastWriteTimeUtc = DateTime.SpecifyKind(lastWriteTimeUtc, DateTimeKind.Utc);
+        AnnotationScopeId = annotationScopeId;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -632,6 +663,8 @@ public sealed class GalleryPhotoItemViewModel : INotifyPropertyChanged
     public string RelativePath { get; }
 
     public string StarKey { get; }
+
+    public string? AnnotationScopeId { get; }
 
     public string FileName { get; }
 

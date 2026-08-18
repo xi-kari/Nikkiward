@@ -370,7 +370,10 @@ public sealed partial class GalleryPage
 
     private async Task ToggleGalleryStarAsync(GalleryPhotoItemViewModel photo)
     {
-        var operationKey = $"{_annotationScopeId}\0{photo.StarKey}";
+        var scopeId = string.IsNullOrWhiteSpace(photo.AnnotationScopeId)
+            ? _annotationScopeId
+            : photo.AnnotationScopeId;
+        var operationKey = $"{scopeId}\0{photo.StarKey}";
         var isStarred = _favoriteDesiredStates.AddOrUpdate(
             operationKey,
             _ => !photo.IsStarred,
@@ -388,7 +391,7 @@ public sealed partial class GalleryPage
         var operationGate = _favoriteOperationGates.GetOrAdd(
             operationKey,
             static _ => new SemaphoreSlim(1, 1));
-        var scopeId = _annotationScopeId;
+        var pageScopeId = _annotationScopeId;
         var generation = Interlocked.Read(ref _galleryGeneration);
         var gateEntered = false;
         try
@@ -398,7 +401,7 @@ public sealed partial class GalleryPage
             EnsureCurrentFavoriteOperation(
                 operationKey,
                 operationCancellation,
-                scopeId,
+                pageScopeId,
                 generation);
             await _annotationStore.SetStarredAsync(
                 scopeId,
@@ -408,55 +411,71 @@ public sealed partial class GalleryPage
             EnsureCurrentFavoriteOperation(
                 operationKey,
                 operationCancellation,
-                scopeId,
+                pageScopeId,
                 generation);
             ViewModel.SetStarred(photo, isStarred);
             GalleryPreview.UpdateStarState(isStarred);
 
             if (isStarred)
             {
-                GalleryPreview.SetStatus("正在创建本地保护副本…");
-                var protection = await _favoriteProtectionService.ProtectAsync(
-                    scopeId,
-                    photo.RelativePath,
-                    photo.FilePath,
-                    operationCancellation.Token);
-                EnsureCurrentFavoriteOperation(
-                    operationKey,
-                    operationCancellation,
-                    scopeId,
-                    generation);
-                if (!photo.IsStarred)
+                if (string.Equals(
+                        photo.AnnotationScopeId,
+                        GalleryDefaultFavoriteSeedService.ScopeId,
+                        StringComparison.Ordinal))
                 {
-                    return;
-                }
-
-                if (protection.Entry is not null && protection.ProtectedPath is not null)
-                {
-                    photo.SetProtectedCopy(
-                        protection.ProtectedPath,
-                        isUsingProtectedCopy: false);
-                    GalleryPreview.SetStatus("已收藏 · 本地保护副本已就绪");
+                    GalleryPreview.SetStatus("已收藏");
                 }
                 else
                 {
-                    GalleryPreview.SetStatus("已收藏 · 本地保护已关闭");
+                    GalleryPreview.SetStatus("正在创建本地保护副本…");
+                    var protection = await _favoriteProtectionService.ProtectAsync(
+                        scopeId,
+                        photo.RelativePath,
+                        photo.FilePath,
+                        operationCancellation.Token);
+                    EnsureCurrentFavoriteOperation(
+                        operationKey,
+                        operationCancellation,
+                        pageScopeId,
+                        generation);
+                    if (!photo.IsStarred)
+                    {
+                        return;
+                    }
+
+                    if (protection.Entry is not null && protection.ProtectedPath is not null)
+                    {
+                        photo.SetProtectedCopy(
+                            protection.ProtectedPath,
+                            isUsingProtectedCopy: false);
+                        GalleryPreview.SetStatus("已收藏 · 本地保护副本已就绪");
+                    }
+                    else
+                    {
+                        GalleryPreview.SetStatus("已收藏 · 本地保护已关闭");
+                    }
                 }
             }
             else
             {
-                var remainingStarredPaths = ViewModel.Photos
-                    .Where(item => item.IsStarred)
-                    .Select(item => item.RelativePath)
-                    .ToArray();
-                await _favoriteProtectionService.CleanUnstarredAsync(
-                    scopeId,
-                    remainingStarredPaths,
-                    operationCancellation.Token);
+                if (string.IsNullOrWhiteSpace(photo.AnnotationScopeId))
+                {
+                    var remainingStarredPaths = ViewModel.Photos
+                        .Where(item =>
+                            item.IsStarred &&
+                            string.IsNullOrWhiteSpace(item.AnnotationScopeId))
+                        .Select(item => item.RelativePath)
+                        .ToArray();
+                    await _favoriteProtectionService.CleanUnstarredAsync(
+                        scopeId,
+                        remainingStarredPaths,
+                        operationCancellation.Token);
+                }
+
                 EnsureCurrentFavoriteOperation(
                     operationKey,
                     operationCancellation,
-                    scopeId,
+                    pageScopeId,
                     generation);
                 photo.SetProtectedCopy(null, isUsingProtectedCopy: false);
                 if (_viewMode == GalleryViewMode.Favorites)
@@ -503,12 +522,12 @@ public sealed partial class GalleryPage
     private void EnsureCurrentFavoriteOperation(
         string operationKey,
         CancellationTokenSource operationCancellation,
-        string scopeId,
+        string pageScopeId,
         long generation)
     {
         operationCancellation.Token.ThrowIfCancellationRequested();
         if (generation != Interlocked.Read(ref _galleryGeneration) ||
-            !string.Equals(scopeId, _annotationScopeId, StringComparison.Ordinal) ||
+            !string.Equals(pageScopeId, _annotationScopeId, StringComparison.Ordinal) ||
             !_favoriteOperationCancellations.TryGetValue(operationKey, out var current) ||
             !ReferenceEquals(current, operationCancellation))
         {

@@ -28,7 +28,7 @@
                 x:Name="ArtBlurredSettled"
                 HorizontalAlignment="Stretch"
                 VerticalAlignment="Stretch"
-                Source="ms-appx:///Assets/NikkiDefaultBackground.jpg"
+                Source="ms-appx:///Assets/NikkiDefaultBackgroundBlur.jpg"
                 Stretch="UniformToFill" />
             <Image
                 x:Name="ArtBlurredIncoming"

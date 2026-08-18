@@ -427,11 +427,14 @@ public sealed partial class MainPage
 
     private void ApplyThemeMode(ThemeMode themeMode)
     {
+        var artworkTheme = _backdrop.IsReady
+            ? _backdrop.PreferredTheme
+            : DefaultBackgroundPreferredTheme;
         RequestedTheme = themeMode switch
         {
             ThemeMode.WarmLight => ElementTheme.Light,
             ThemeMode.WarmDark => ElementTheme.Dark,
-            _ => _backdrop.IsReady && _backdrop.PreferredTheme == ArtPreferredTheme.Dark
+            _ => artworkTheme == ArtPreferredTheme.Dark
                 ? ElementTheme.Dark
                 : ElementTheme.Light,
         };

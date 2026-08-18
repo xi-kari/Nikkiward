@@ -414,7 +414,7 @@
                     automation:AutomationProperties.Name="左上文案 副标题"
                     Header="副标题（可留空）"
                     LostFocus="OnMastheadCopyLostFocus"
-                    PlaceholderText="从一张美术出发，把今天的旅程稳稳接住。"
+                    PlaceholderText="无限暖暖启动！"
                     Tag="subtitle" />
                 <StackPanel Spacing="8">
                     <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="启动胶囊主题" />

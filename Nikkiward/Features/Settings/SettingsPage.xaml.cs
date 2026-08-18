@@ -180,6 +180,7 @@ public sealed partial class SettingsPage : PageBase
         DeveloperSeparator.Visibility = visibility;
         JournalItem.Visibility = visibility;
         FilesItem.Visibility = visibility;
+        PluginsItem.Visibility = visibility;
         StatusItem.Visibility = visibility;
         ComponentsItem.Visibility = visibility;
         DiagnosticsItem.Visibility = visibility;
@@ -240,6 +241,7 @@ public sealed partial class SettingsPage : PageBase
     private static bool IsDeveloperDestination(SettingsDestination destination) =>
         destination is SettingsDestination.Journal or
             SettingsDestination.Files or
+            SettingsDestination.Plugins or
             SettingsDestination.Status or
             SettingsDestination.Components or
             SettingsDestination.Diagnostics or

@@ -43,21 +43,11 @@ $resolvedOutputDir = [System.IO.Path]::GetFullPath($OutputDir)
 $resolvedIsccPath = Resolve-IsccPath $IsccPath
 $versionInfo = if ($VersionInfoVersion) { $VersionInfoVersion } else { ($Version -split '-', 2)[0] + '.0' }
 
-$required = @(
-    'Nikkiward.exe',
-    'Assets\NikkiwardIcon.ico',
-    'Assets\NikkiDefaultBackground.jpg',
-    'Assets\XikariAvatar.jpg',
-    'runtimes\win-x64\native\nuan5_decryption.dll',
-    'LICENSE',
-    'THIRD-PARTY-NOTICES.md'
-)
-foreach ($relativePath in $required) {
-    $path = Join-Path $resolvedPublishDir $relativePath
-    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-        throw "Required publish file is missing: $path"
-    }
+$payloadValidatorPath = Join-Path $PSScriptRoot 'Test-ReleasePayload.ps1'
+if (-not (Test-Path -LiteralPath $payloadValidatorPath -PathType Leaf)) {
+    throw "Release payload validator is missing: $payloadValidatorPath"
 }
+& $payloadValidatorPath -Root $resolvedPublishDir -Label 'installer publish input'
 
 New-Item -ItemType Directory -Force -Path $resolvedOutputDir | Out-Null
 $issPath = Join-Path $PSScriptRoot 'Nikkiward.iss'

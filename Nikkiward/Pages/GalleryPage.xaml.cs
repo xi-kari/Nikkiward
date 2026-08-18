@@ -23,6 +23,7 @@ public sealed partial class GalleryPage : PageBase
     private readonly SemaphoreSlim _dialogGate = new(1, 1);
     private readonly GalleryAnnotationStore _annotationStore = new();
     private readonly GalleryFavoriteProtectionService _favoriteProtectionService = new();
+    private readonly GalleryDefaultFavoriteSeedService _defaultFavoriteSeedService = new();
     private readonly GalleryFolderWatcher _folderWatcher;
     private readonly Nuan5GalleryMetadataService _metadataService = new();
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _favoriteOperationGates =
@@ -285,6 +286,22 @@ public sealed partial class GalleryPage : PageBase
             or JsonException)
         {
             ViewModel.ApplyProtectedFavorites([]);
+        }
+
+        try
+        {
+            var defaultFavorites = await _defaultFavoriteSeedService.EnsureSeededAsync(
+                _annotationStore,
+                cancellationToken);
+            ViewModel.ApplyDefaultFavorites(defaultFavorites);
+        }
+        catch (Exception ex) when (ex is IOException
+            or UnauthorizedAccessException
+            or ArgumentException
+            or NotSupportedException
+            or InvalidDataException)
+        {
+            ViewModel.ApplyDefaultFavorites([]);
         }
     }
 

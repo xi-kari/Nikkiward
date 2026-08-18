@@ -50,7 +50,7 @@
                 <TextBlock
                     x:Name="SubtitleText"
                     Style="{StaticResource BodyUI}"
-                    Text="从一张美术出发，把今天的旅程稳稳接住。"
+                    Text="无限暖暖启动！"
                     TextTrimming="CharacterEllipsis" />
                 <TextBlock
                     Style="{StaticResource CaptionUI}"

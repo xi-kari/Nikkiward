@@ -172,7 +172,7 @@ public sealed partial class ArtBackdropView : UserControl
             HolographicOverlay.Visibility = value is null || !_holographicCardEnabled
                 ? Visibility.Collapsed
                 : Visibility.Visible;
-            ArtBlurredSettled.Source = value;
+            ArtBlurredSettled.Source = CreateBuiltInBlurPlate();
             ArtBlurredIncoming.Source = null;
             ArtBlurredIncoming.Opacity = 0.0;
             UpdateStillArtworkLayout();
@@ -539,7 +539,7 @@ public sealed partial class ArtBackdropView : UserControl
         StopCrossFade(promoteIncoming: true);
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
         {
-            ArtBlurredSettled.Source = ArtSharp.Source;
+            ArtBlurredSettled.Source = CreateBuiltInBlurPlate();
             ArtBlurredIncoming.Source = null;
             ArtBlurredIncoming.Opacity = 0.0;
             return;
@@ -1228,11 +1228,11 @@ public sealed partial class ArtBackdropView : UserControl
             return;
         }
 
-        StopCrossFade(promoteIncoming: false);
-        ArtBlurredSettled.Source = _stillArtSource;
-        ArtBlurredIncoming.Source = null;
-        ArtBlurredIncoming.Opacity = 0;
+        ApplyBlurPlate(_service?.BlurredArtPath);
     }
+
+    private static BitmapImage CreateBuiltInBlurPlate() =>
+        new(new Uri(AppearanceProjector.BuiltInBlurredBackgroundSource));
 
     private void ApplyMotionTransform()
     {

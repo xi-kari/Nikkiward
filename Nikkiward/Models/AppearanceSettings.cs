@@ -53,7 +53,7 @@ public sealed record AppearanceSettings
 
     public const string DefaultLauncherMastheadTitle = "无限暖暖";
 
-    public const string DefaultLauncherMastheadSubtitle = "从一张美术出发，把今天的旅程稳稳接住。";
+    public const string DefaultLauncherMastheadSubtitle = "无限暖暖启动！";
 
     public ThemeMode ThemeMode { get; init; } = ThemeMode.FollowArtwork;
 
@@ -67,7 +67,7 @@ public sealed record AppearanceSettings
 
     public bool ShowLauncherUtilityPanels { get; init; }
 
-    public LauncherCapsuleStyle LauncherCapsuleStyle { get; init; } = LauncherCapsuleStyle.Original;
+    public LauncherCapsuleStyle LauncherCapsuleStyle { get; init; } = LauncherCapsuleStyle.Ocean;
 
     public AccentColorMode AccentMode { get; init; } = AccentColorMode.Adaptive;
 
@@ -98,7 +98,7 @@ public sealed record BackgroundArtSettings
 
     public int CarouselIntervalMinutes { get; init; } = DefaultCarouselIntervalMinutes;
 
-    public bool ParallaxEnabled { get; init; } = true;
+    public bool ParallaxEnabled { get; init; }
 
     public bool HolographicCardEnabled { get; init; } = true;
 
@@ -214,6 +214,9 @@ public static class AppearanceProjector
     public const string BuiltInBackgroundSource =
         "ms-appx:///Assets/NikkiDefaultBackground.jpg";
 
+    public const string BuiltInBlurredBackgroundSource =
+        "ms-appx:///Assets/NikkiDefaultBackgroundBlur.jpg";
+
     public static MotionProjection ProjectMotion(
         AppearanceMotionMode requestedMode,
         bool systemAnimationsEnabled)
@@ -304,7 +307,7 @@ public static class AppearanceProjector
             CarouselEnabled =
                 settings?.CarouselEnabled == true && availableCarouselCount > 1,
             CarouselIntervalMinutes = interval,
-            ParallaxEnabled = settings?.ParallaxEnabled ?? true,
+            ParallaxEnabled = settings?.ParallaxEnabled ?? false,
         };
     }
 

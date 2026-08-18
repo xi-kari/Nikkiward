@@ -387,7 +387,7 @@
                                     MaxLength="120"
                                     automation:AutomationProperties.Name="主页副标题文案"
                                     Header="主页副标题"
-                                    PlaceholderText="从一张美术出发，把今天的旅程稳稳接住。"
+                                    PlaceholderText="无限暖暖启动！"
                                     TextWrapping="Wrap" />
                                 <Button
                                     Grid.Column="1"

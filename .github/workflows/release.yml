@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing v-prefixed tag to publish
+        description: Existing v-prefixed tag to build as a draft release
         required: true
         type: string
 
@@ -41,6 +41,11 @@ jobs:
           $version = $Matches.version
           $versionPrefix = ($version -split '-', 2)[0]
           $channel = if ($version.Contains('-')) { 'preview' } else { 'stable' }
+          [xml]$project = Get-Content -LiteralPath '.\Nikkiward\Nikkiward.csproj' -Raw
+          $projectVersion = [string]($project.Project.PropertyGroup.Version | Select-Object -First 1)
+          if ($projectVersion -ne $version) {
+            throw "Release tag version '$version' does not match project version '$projectVersion'."
+          }
           "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "version_prefix=$versionPrefix" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
@@ -63,20 +68,7 @@ jobs:
           dotnet restore .\Nikkiward\Nikkiward.csproj -r win-x64 -p:Platform=x64 -p:Configuration=Release -p:PublishReadyToRun=true
           dotnet publish .\Nikkiward\Nikkiward.csproj -c Release -p:Platform=x64 -r win-x64 --self-contained true --no-restore -o $publishDir -p:PublishTrimmed=false -p:ContinuousIntegrationBuild=true -p:IncludeSourceRevisionInInformationalVersion=false -p:Version='${{ steps.release_meta.outputs.version }}' -p:AssemblyVersion='${{ steps.release_meta.outputs.version_prefix }}.0' -p:FileVersion='${{ steps.release_meta.outputs.version_prefix }}.0' -p:InformationalVersion='${{ steps.release_meta.outputs.version }}+${{ github.sha }}'
           Get-ChildItem -LiteralPath $publishDir -Filter *.pdb -Recurse | Remove-Item -Force
-          $required = @(
-            (Join-Path $publishDir 'Nikkiward.exe'),
-            (Join-Path $publishDir 'Assets\NikkiwardIcon.ico'),
-            (Join-Path $publishDir 'Assets\NikkiDefaultBackground.jpg'),
-            (Join-Path $publishDir 'Assets\XikariAvatar.jpg'),
-            (Join-Path $publishDir 'runtimes\win-x64\native\nuan5_decryption.dll'),
-            (Join-Path $publishDir 'LICENSE'),
-            (Join-Path $publishDir 'THIRD-PARTY-NOTICES.md')
-          )
-          foreach ($path in $required) {
-            if (-not (Test-Path -LiteralPath $path)) {
-              throw "Required release file is missing: $path"
-            }
-          }
+          .\build\Test-ReleasePayload.ps1 -Root $publishDir -Label 'workflow publish' -ManifestPath (Join-Path $env:RUNNER_TEMP 'nikkiward-publish.manifest.txt')
 
       - name: Set up Inno Setup
         shell: pwsh
@@ -126,19 +118,12 @@ jobs:
           [System.IO.File]::WriteAllLines($checksumPath, $checksumLines, [System.Text.UTF8Encoding]::new($false))
           $verifyDir = Join-Path $env:RUNNER_TEMP 'nikkiward-release-verify'
           Expand-Archive -LiteralPath $zipPath -DestinationPath $verifyDir
-          $requiredInZip = @(
-            (Join-Path $verifyDir 'Nikkiward.exe'),
-            (Join-Path $verifyDir 'Assets\NikkiwardIcon.ico'),
-            (Join-Path $verifyDir 'Assets\NikkiDefaultBackground.jpg'),
-            (Join-Path $verifyDir 'Assets\XikariAvatar.jpg'),
-            (Join-Path $verifyDir 'runtimes\win-x64\native\nuan5_decryption.dll'),
-            (Join-Path $verifyDir 'LICENSE'),
-            (Join-Path $verifyDir 'THIRD-PARTY-NOTICES.md')
-          )
-          foreach ($path in $requiredInZip) {
-            if (-not (Test-Path -LiteralPath $path)) {
-              throw "Required file is missing from ZIP: $path"
-            }
+          $zipManifestPath = Join-Path $env:RUNNER_TEMP 'nikkiward-zip.manifest.txt'
+          .\build\Test-ReleasePayload.ps1 -Root $verifyDir -Label 'workflow ZIP' -ManifestPath $zipManifestPath
+          $publishManifestPath = Join-Path $env:RUNNER_TEMP 'nikkiward-publish.manifest.txt'
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath $publishManifestPath).Hash -ne
+              (Get-FileHash -Algorithm SHA256 -LiteralPath $zipManifestPath).Hash) {
+            throw 'ZIP payload differs from the verified publish payload.'
           }
 
       - name: Test Windows installer
@@ -157,7 +142,7 @@ jobs:
           path: ${{ runner.temp }}/nikkiward-release/*
           if-no-files-found: error
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release draft
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -165,24 +150,20 @@ jobs:
           $tag = '${{ steps.release_meta.outputs.tag }}'
           $version = '${{ steps.release_meta.outputs.version }}'
           $assets = Get-ChildItem -LiteralPath (Join-Path $env:RUNNER_TEMP 'nikkiward-release') -File | ForEach-Object FullName
-          gh release view $tag --repo '${{ github.repository }}' 2>$null
-          if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag @assets --clobber --repo '${{ github.repository }}'
+          $existingReleaseOutput = gh release view $tag --repo '${{ github.repository }}' 2>&1
+          $existingReleaseExitCode = $LASTEXITCODE
+          if ($existingReleaseExitCode -eq 0) {
+            throw "Release already exists and is immutable: $tag"
           }
-          else {
-            $arguments = @('release', 'create', $tag) + $assets + @('--repo', '${{ github.repository }}', '--title', "Nikkiward $version", '--generate-notes', '--draft')
-            if ('${{ steps.release_meta.outputs.channel }}' -eq 'preview') {
-              $arguments += '--prerelease'
-            }
-            else {
-              $arguments += '--latest'
-            }
-            & gh @arguments
+          if ($existingReleaseOutput -notmatch '(?i)release not found') {
+            throw "Unable to prove that the release does not exist: $existingReleaseOutput"
           }
+          $arguments = @('release', 'create', $tag) + $assets + @('--repo', '${{ github.repository }}', '--title', "Nikkiward $version", '--generate-notes', '--draft')
+          if ('${{ steps.release_meta.outputs.channel }}' -eq 'preview') {
+            $arguments += '--prerelease'
+          }
+          & gh @arguments
           if ($LASTEXITCODE -ne 0) {
-            throw "GitHub Release command failed with exit code $LASTEXITCODE."
+            throw "GitHub Release draft creation failed with exit code $LASTEXITCODE."
           }
-          gh release edit $tag --repo '${{ github.repository }}' --draft=false
-          if ($LASTEXITCODE -ne 0) {
-            throw "GitHub Release publish failed with exit code $LASTEXITCODE."
-          }
+          Write-Output "RELEASE_DRAFT_CREATED tag=$tag version=$version"
