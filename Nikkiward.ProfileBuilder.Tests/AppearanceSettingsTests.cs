@@ -6,7 +6,7 @@ internal static class AppearanceSettingsTests
 {
     public static (string Name, Func<Task> Run)[] All =>
     [
-        ("appearance defaults target schema 5", DefaultsTargetSchema5),
+        ("appearance defaults target schema 6", DefaultsTargetSchema6),
         ("launcher masthead defaults are customizable", LauncherMastheadDefaultsAreCustomizable),
         ("launcher masthead text normalization restores safe defaults", LauncherMastheadTextNormalizationRestoresDefaults),
         ("appearance choices expose the planned mode counts", ChoicesExposePlannedModeCounts),
@@ -17,6 +17,7 @@ internal static class AppearanceSettingsTests
         ("schema 3 migration preserves appearance extension values", MigrationPreservesExtensionValues),
         ("schema 4 migration adds motion background defaults", Schema4MigrationAddsMotionDefaults),
         ("schema 4 migration preserves existing motion values", Schema4MigrationPreservesMotionValues),
+        ("schema 5 migration adds holographic card defaults", Schema5MigrationAddsHolographicCardDefaults),
         ("appearance migration rejects unsupported schemas", MigrationRejectsUnsupportedSchemas),
         ("appearance normalization trims and deduplicates sources", NormalizationTrimsAndDeduplicatesSources),
         ("appearance validation rejects undefined choices", ValidationRejectsUndefinedChoices),
@@ -27,12 +28,12 @@ internal static class AppearanceSettingsTests
         ("available background remains selected", AvailableBackgroundRemainsSelected),
     ];
 
-    private static Task DefaultsTargetSchema5()
+    private static Task DefaultsTargetSchema6()
     {
         var userSettings = new UserSettings();
         var settings = userSettings.Appearance;
 
-        AssertEqual(5, UserSettings.CurrentSchemaVersion, "schema version");
+        AssertEqual(6, UserSettings.CurrentSchemaVersion, "schema version");
         AssertEqual(ThemeMode.FollowArtwork, settings.ThemeMode, "theme mode");
         AssertEqual(AccentColorMode.Adaptive, settings.AccentMode, "accent mode");
         AssertEqual(FixedAccentColor.Blush, settings.FixedAccent, "fixed accent");
@@ -49,6 +50,7 @@ internal static class AppearanceSettingsTests
         Assert(!settings.Background.CarouselEnabled, "carousel should be disabled");
         AssertEqual(15, settings.Background.CarouselIntervalMinutes, "carousel interval");
         Assert(settings.Background.ParallaxEnabled, "parallax should be enabled");
+        Assert(settings.Background.HolographicCardEnabled, "holographic card should be enabled");
         Assert(!settings.Background.MotionEnabled, "motion should be disabled by default");
         Assert(settings.Background.MotionSource is null, "motion source should be absent");
         AssertEqual(30, settings.Background.MotionFpsCap, "motion FPS cap");
@@ -290,6 +292,42 @@ internal static class AppearanceSettingsTests
         return Task.CompletedTask;
     }
 
+    private static Task Schema5MigrationAddsHolographicCardDefaults()
+    {
+        var source = ParseObject("""
+            {
+              "schemaVersion": 5,
+              "appearance": {
+                "background": {
+                  "motionEnabled": false
+                }
+              }
+            }
+            """);
+        var sourceBefore = source.ToJsonString();
+        var migrated = AppearanceSettingsMigration.MigrateSchema5To6(source);
+        var background = migrated["appearance"]!["background"]!.AsObject();
+
+        AssertEqual(sourceBefore, source.ToJsonString(), "schema 5 migration input");
+        AssertEqual(6, migrated["schemaVersion"]!.GetValue<int>(), "migrated schema");
+        Assert(background["holographicCardEnabled"]!.GetValue<bool>(), "holographic default");
+
+        var explicitOff = AppearanceSettingsMigration.MigrateSchema5To6(ParseObject("""
+            {
+              "schemaVersion": 5,
+              "appearance": {
+                "background": {
+                  "holographicCardEnabled": false
+                }
+              }
+            }
+            """));
+        Assert(
+            !explicitOff["appearance"]!["background"]!["holographicCardEnabled"]!.GetValue<bool>(),
+            "existing holographic choice");
+        return Task.CompletedTask;
+    }
+
     private static Task MigrationRejectsUnsupportedSchemas()
     {
         AssertThrows<JsonException>(() =>
@@ -310,6 +348,12 @@ internal static class AppearanceSettingsTests
         AssertThrows<JsonException>(() =>
             AppearanceSettingsMigration.MigrateSchema4To5(
                 ParseObject("""{ "schemaVersion": 4, "appearance": {} }""")));
+        AssertThrows<JsonException>(() =>
+            AppearanceSettingsMigration.MigrateSchema5To6(
+                ParseObject("""{ "schemaVersion": 4 }""")));
+        AssertThrows<JsonException>(() =>
+            AppearanceSettingsMigration.MigrateSchema5To6(
+                ParseObject("""{ "schemaVersion": 5, "appearance": {} }""")));
         return Task.CompletedTask;
     }
 

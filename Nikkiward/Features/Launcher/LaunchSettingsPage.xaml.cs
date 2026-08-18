@@ -10,6 +10,8 @@ namespace Nikkiward.Features.Launcher;
 
 public sealed partial class LaunchSettingsPage : PageBase
 {
+    private const double CompactLayoutWidth = 720;
+
     public MainPageViewModel ViewModel { get; private set; } = null!;
 
     public override string PageTitle => "游戏设置";
@@ -89,6 +91,73 @@ public sealed partial class LaunchSettingsPage : PageBase
 
     private void OnMastheadSizeChanged(object sender, SizeChangedEventArgs e) =>
         NotifyMastheadInteractionRegionChanged();
+
+    private void OnLayoutRootLoaded(object sender, RoutedEventArgs e) =>
+        ApplyLayoutState(LayoutRoot.ActualWidth);
+
+    private void OnLayoutRootSizeChanged(object sender, SizeChangedEventArgs e) =>
+        ApplyLayoutState(e.NewSize.Width);
+
+    private void ApplyLayoutState(double width)
+    {
+        var useCompactLayout = width < CompactLayoutWidth;
+        VisualStateManager.GoToState(
+            this,
+            useCompactLayout
+                ? "NarrowLaunchSettings"
+                : "WideLaunchSettings",
+            false);
+
+        SurfaceRoot.CornerRadius = new CornerRadius(useCompactLayout ? 8 : 16);
+        LaunchSettingsHeader.Padding = useCompactLayout
+            ? new Thickness(14, 12, 10, 8)
+            : new Thickness(28, 22, 18, 14);
+        LaunchSettingsTitle.FontSize = useCompactLayout ? 20 : 25;
+        LaunchSettingsNavigationView.PaneDisplayMode = useCompactLayout
+            ? NavigationViewPaneDisplayMode.LeftCompact
+            : NavigationViewPaneDisplayMode.Left;
+        LaunchSettingsNavigationView.IsPaneOpen = !useCompactLayout;
+        LaunchSettingsNavigationView.IsPaneToggleButtonVisible = useCompactLayout;
+        LaunchSettingsContent.Margin = useCompactLayout
+            ? new Thickness(14, 8, 14, 20)
+            : new Thickness(28, 8, 28, 28);
+
+        Grid.SetRow(LocateGameButton, useCompactLayout ? 1 : 0);
+        Grid.SetColumn(LocateGameButton, useCompactLayout ? 0 : 2);
+        Grid.SetColumnSpan(LocateGameButton, useCompactLayout ? 3 : 1);
+        LocateGameButton.HorizontalAlignment = useCompactLayout
+            ? HorizontalAlignment.Stretch
+            : HorizontalAlignment.Right;
+        LocateGameButton.Margin = useCompactLayout
+            ? new Thickness(0, 10, 0, 0)
+            : new Thickness(0);
+
+        BasicDetailsSecondColumn.Width = useCompactLayout
+            ? new GridLength(0)
+            : new GridLength(1, GridUnitType.Star);
+        Grid.SetRow(LaunchCapabilityPanel, useCompactLayout ? 1 : 0);
+        Grid.SetColumn(LaunchCapabilityPanel, useCompactLayout ? 0 : 1);
+        Grid.SetRow(StaticIdentityPanel, useCompactLayout ? 2 : 1);
+        Grid.SetColumn(StaticIdentityPanel, 0);
+        Grid.SetRow(ExecutionGatePanel, useCompactLayout ? 3 : 1);
+        Grid.SetColumn(ExecutionGatePanel, useCompactLayout ? 0 : 1);
+
+        ArgumentsSecondColumn.Width = useCompactLayout
+            ? new GridLength(0)
+            : new GridLength(1, GridUnitType.Star);
+        Grid.SetRow(ArgumentsCapabilityPanel, useCompactLayout ? 1 : 0);
+        Grid.SetColumn(ArgumentsCapabilityPanel, useCompactLayout ? 0 : 1);
+
+        BackgroundPreviewSecondColumn.Width = useCompactLayout
+            ? new GridLength(0)
+            : new GridLength(1, GridUnitType.Star);
+        BackgroundPreviewGrid.Height = useCompactLayout ? 324 : 156;
+        Grid.SetRow(CurrentBackgroundPreview, useCompactLayout ? 1 : 0);
+        Grid.SetColumn(CurrentBackgroundPreview, useCompactLayout ? 0 : 1);
+        BackgroundActions.Orientation = useCompactLayout
+            ? Orientation.Vertical
+            : Orientation.Horizontal;
+    }
 
     private void OnNavigationItemInvoked(
         NavigationView sender,

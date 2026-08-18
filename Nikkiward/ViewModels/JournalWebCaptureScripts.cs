@@ -632,21 +632,34 @@ public static class JournalWebCaptureScripts
     public const string PrepareOverview = """
         (() => {
           const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
-          const expectedTitles = [
-            '日程便利贴', '探索总览', '奇想札记', '祝福闪光',
-            '心愿共鸣', '共鸣衣橱', '奇迹之冠'
-          ];
           const bodyText = document.body?.innerText || '';
-          const titleCount = expectedTitles.reduce((count, title) =>
-            count + (bodyText.includes(title) ? 1 : 0), 0);
           const visibleLineCount = bodyText
             .split(/\r?\n/)
             .map(normalize)
             .filter(Boolean)
             .length;
+          const stableNodeKeys = new Set(
+            Array.from(document.querySelectorAll('[data-key], [data-testid], [data-section], [id], main section, main article, main h1, main h2'))
+              .map((element, index) =>
+                element.getAttribute('data-key') ||
+                element.getAttribute('data-testid') ||
+                element.getAttribute('data-section') ||
+                element.id ||
+                `${element.tagName.toLowerCase()}:${index}`)
+              .filter(Boolean));
+          const pendingImageCount = Array.from(document.images || [])
+            .filter(image => {
+              const bounds = image.getBoundingClientRect();
+              const visible = bounds.bottom >= 0 && bounds.top <= window.innerHeight;
+              return visible && Boolean(image.currentSrc || image.src) && !image.complete;
+            })
+            .length;
           return JSON.stringify({
-            titleCount,
+            documentReady: document.readyState === 'complete',
             imageCount: document.images?.length || 0,
+            pendingImageCount,
+            stableNodeKeyCount: stableNodeKeys.size,
+            textLength: bodyText.length,
             visibleLineCount
           });
         })()

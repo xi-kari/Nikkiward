@@ -29,6 +29,7 @@ internal static class AppearanceRuntimeContractTests
         ("the primary action resource chain stays live and high contrast aware", PrimaryActionResourceChainStaysIntact),
         ("focused feedback surfaces stay compact and reachable", FocusedFeedbackSurfacesStayCompact),
         ("gallery protection management stays scoped to settings", GalleryProtectionManagementStaysScopedToSettings),
+        ("gallery and settings surfaces reflow at narrow widths", GalleryAndSettingsSurfacesReflowAtNarrowWidths),
         ("launcher close action stays separate from the launch action", LauncherCloseActionStaysSeparate),
         ("launcher runtime polling returns to the launch state", LauncherRuntimePollingReturnsToLaunchState),
         ("busy completion republishes the launcher state projection", BusyCompletionRepublishesLauncherStateProjection),
@@ -883,12 +884,77 @@ internal static class AppearanceRuntimeContractTests
             "Features",
             "Journal",
             "JournalSnapshotPanel.xaml");
+        var journalCode = ReadSource(
+            "Nikkiward",
+            "Features",
+            "Journal",
+            "JournalSnapshotPanel.xaml.cs");
+        var journalPageCode = ReadSource(
+            "Nikkiward",
+            "Features",
+            "Journal",
+            "JournalPage.xaml.cs");
+        var journalCaptureScripts = ReadSource(
+            "Nikkiward",
+            "ViewModels",
+            "JournalWebCaptureScripts.cs");
+        var journalBrowserCode = ReadSource(
+            "Nikkiward",
+            "MainPage.JournalBrowser.cs");
+        var resonanceBrowserCode = ReadSource(
+            "Nikkiward",
+            "MainPage.ResonanceBrowser.cs");
+        var applySnapshot = FindMethod(journalPageCode, "ApplySnapshot");
         Assert(
             Regex.IsMatch(
                 journal,
                 "x:Name=\"ResourceSection\"[\\s\\S]*?Visibility=\"Collapsed\"",
-                RegexOptions.CultureInvariant),
-            "cached web artwork may remain available to sync but must stay out of the reader UI");
+                RegexOptions.CultureInvariant) &&
+            journalCode.Contains("ResourceSection.Visibility = Visibility.Collapsed", StringComparison.Ordinal) &&
+            !journalCode.Contains("PopulateResourceGroups(snapshot, resources)", StringComparison.Ordinal),
+            "cached web artwork may remain available to sync but must never be populated or shown in the reader UI");
+        Assert(
+            journalPageCode.Contains("JournalWebView.Opacity = isInProgress ? 0 : 1", StringComparison.Ordinal) &&
+            journalPageCode.Contains("JournalWebView.IsHitTestVisible = !isInProgress", StringComparison.Ordinal) &&
+            journalPageCode.Contains(
+                "JournalWebView.CoreWebView2.SourceChanged += OnCoreSourceChanged",
+                StringComparison.Ordinal) &&
+            journalPageCode.Contains(
+                "public Uri? CurrentUri => _currentNavigationUri ?? JournalWebView.Source",
+                StringComparison.Ordinal) &&
+            journalPageCode.Contains("if (args.IsNewDocument ||", StringComparison.Ordinal) &&
+            journalPageCode.Contains("new JournalNavigationEventArgs(", StringComparison.Ordinal) &&
+            !journalPageCode.Contains(
+                "JournalWebView.Visibility = isInProgress ? Visibility.Collapsed : Visibility.Visible",
+                StringComparison.Ordinal) &&
+            !applySnapshot.Contains("HideBrowser", StringComparison.Ordinal),
+            "sync must visually hide the WebView while keeping its document active for readiness checks");
+        Assert(
+            journalCaptureScripts.Contains(
+                "documentReady: document.readyState === 'complete'",
+                StringComparison.Ordinal) &&
+            journalCaptureScripts.Contains("stableNodeKeyCount", StringComparison.Ordinal) &&
+            journalCaptureScripts.Contains("pendingImageCount", StringComparison.Ordinal) &&
+            !journalCaptureScripts.Contains("const expectedTitles =", StringComparison.Ordinal) &&
+            journalBrowserCode.Contains(
+                "JournalDocumentReadinessProjector.IsOverviewReady(",
+                StringComparison.Ordinal) &&
+            journalBrowserCode.Contains("IsCurrentOverviewRoute", StringComparison.Ordinal) &&
+            journalBrowserCode.Contains("_journalCaptureGate.WaitAsync(0)", StringComparison.Ordinal) &&
+            journalBrowserCode.Contains("string.Equals(", StringComparison.Ordinal) &&
+            resonanceBrowserCode.Contains("IsCurrentResonanceRoute", StringComparison.Ordinal) &&
+            resonanceBrowserCode.Contains("_journalCaptureGate.WaitAsync(0)", StringComparison.Ordinal) &&
+            journalBrowserCode.Contains("captureValidated", StringComparison.Ordinal) &&
+            journalBrowserCode.Contains(
+                "JournalCaptureFailureKind.LocalProcessingFailure",
+                StringComparison.Ordinal) &&
+            !journalBrowserCode.Contains(
+                "attempt < 80 && stableSamples < 3",
+                StringComparison.Ordinal) &&
+            !resonanceBrowserCode.Contains(
+                "attempt < 80 && stableSamples < 3",
+                StringComparison.Ordinal),
+            "journal readiness must wait for a complete stable document without requiring a fixed official title list");
         return Task.CompletedTask;
     }
 
@@ -1090,6 +1156,11 @@ internal static class AppearanceRuntimeContractTests
         var main = ReadSource("Nikkiward", "MainPage.xaml");
         var navigation = ReadSource("Nikkiward", "MainPage.ShellNavigation.cs");
         var chrome = ReadSource("Nikkiward", "MainPage.ContentNavigation.cs");
+        var backdrop = ReadSource(
+            "Nikkiward",
+            "Features",
+            "Background",
+            "ArtBackdropView.xaml.cs");
         var status = ReadSource("Nikkiward", "Features", "Diagnostics", "StatusPage.xaml");
         var statusCode = ReadSource("Nikkiward", "Features", "Diagnostics", "StatusPage.xaml.cs");
         var settings = ReadSource("Nikkiward", "Features", "Settings", "SettingsPage.xaml");
@@ -1121,26 +1192,34 @@ internal static class AppearanceRuntimeContractTests
         Assert(
             !main.Contains("IsSelected=\"True\"", StringComparison.Ordinal) &&
             navigation.Contains("SetShellNavigationSelection", StringComparison.Ordinal) &&
-            chrome.Contains("ProfileQuickSwitchHost.Visibility = Visibility.Visible", StringComparison.Ordinal),
-            "shell selection must have one programmatic authority and keep the profile icon visible");
+            main.Contains("x:Name=\"ProfileQuickSwitchHost\"", StringComparison.Ordinal) &&
+            main.Contains("x:Name=\"ProfileButton\"", StringComparison.Ordinal) &&
+            main.Contains("Click=\"OnProfileButtonClicked\"", StringComparison.Ordinal) &&
+            chrome.Contains(
+                "ProfileQuickSwitchHost.Visibility = Visible(launcherSurfaceVisible)",
+                StringComparison.Ordinal) &&
+            chrome.Contains("SetLauncherSurfaceState(", StringComparison.Ordinal) &&
+            backdrop.Contains(
+                "SetLauncherSurfaceState(bool visible, bool interactionEnabled)",
+                StringComparison.Ordinal),
+            "shell selection must have one programmatic authority and keep the profile switch launcher-scoped");
         var galleryNavigationIndex = main.IndexOf(
             "x:Name=\"GalleryNavigationItem\"",
             StringComparison.Ordinal);
         var favoritesNavigationIndex = main.IndexOf(
             "x:Name=\"FavoritesNavigationItem\"",
             StringComparison.Ordinal);
-        var profilesNavigationIndex = main.IndexOf(
-            "x:Name=\"ProfilesNavigationItem\"",
-            StringComparison.Ordinal);
         Assert(
             galleryNavigationIndex >= 0 &&
             favoritesNavigationIndex > galleryNavigationIndex &&
-            favoritesNavigationIndex < profilesNavigationIndex &&
             main.Contains(
                 "automation:AutomationProperties.AutomationId=\"GalleryFavoritesNavigationItem\"",
                 StringComparison.Ordinal) &&
-            main.Contains("Tag=\"gallery-favorites\"", StringComparison.Ordinal),
-            "the favorites navigation item must follow gallery with a stable automation contract");
+            main.Contains("Tag=\"gallery-favorites\"", StringComparison.Ordinal) &&
+            !main.Contains("x:Name=\"ProfilesNavigationItem\"", StringComparison.Ordinal) &&
+            !main.Contains("Tag=\"profiles\"", StringComparison.Ordinal) &&
+            !navigation.Contains("case \"profiles\":", StringComparison.Ordinal),
+            "the favorites navigation item must follow gallery and the profile picker must stay out of the shell rail");
         Assert(
             navigation.Contains("case \"gallery-favorites\":", StringComparison.Ordinal) &&
             navigation.Contains(
@@ -1335,11 +1414,245 @@ internal static class AppearanceRuntimeContractTests
             !galleryPageCode.Contains("OnGalleryAdvancedToolsClicked", StringComparison.Ordinal),
             "the retired advanced-tools command must not return to the gallery surface");
         Assert(
+            galleryPageCode.Contains("_favoriteOperationGates.GetOrAdd", StringComparison.Ordinal) &&
+            galleryPageCode.Contains("previous.Cancel()", StringComparison.Ordinal) &&
+            galleryPageCode.Contains("EnsureCurrentFavoriteOperation", StringComparison.Ordinal) &&
             Regex.IsMatch(
                 galleryPageCode,
-                @"_favoriteProtectionService\.ProtectAsync\(\s*_annotationScopeId,\s*photo\.RelativePath,\s*photo\.FilePath,\s*CancellationToken\.None\)",
+                @"_favoriteProtectionService\.ProtectAsync\(\s*scopeId,\s*photo\.RelativePath,\s*photo\.FilePath,\s*operationCancellation\.Token\)",
                 RegexOptions.CultureInvariant),
-            "a saved favorite must finish its protection copy independently of gallery reload cancellation");
+            "favorite protection must cancel stale work and commit only to its captured profile scope");
+        return Task.CompletedTask;
+    }
+
+    private static Task GalleryAndSettingsSurfacesReflowAtNarrowWidths()
+    {
+        var gallery = XDocument.Parse(ReadSource("Nikkiward", "Pages", "GalleryPage.xaml"));
+        var preview = XDocument.Parse(ReadSource("Nikkiward", "Pages", "GalleryPreviewView.xaml"));
+        var main = XDocument.Parse(ReadSource("Nikkiward", "MainPage.xaml"));
+        var mainCode = ReadSource("Nikkiward", "MainPage.xaml.cs");
+        var launchSettings = XDocument.Parse(ReadSource(
+            "Nikkiward",
+            "Features",
+            "Launcher",
+            "LaunchSettingsPage.xaml"));
+        var gallerySettings = ReadSource(
+            "Nikkiward",
+            "Features",
+            "Settings",
+            "GallerySettingsView.xaml");
+        var settingsHome = ReadSource(
+            "Nikkiward",
+            "Features",
+            "Settings",
+            "SettingsHomeView.xaml");
+        var settingsPage = ReadSource(
+            "Nikkiward",
+            "Features",
+            "Settings",
+            "SettingsPage.xaml");
+        var pluginSettings = ReadSource(
+            "Nikkiward",
+            "Features",
+            "Settings",
+            "PluginSettingsView.xaml");
+        var pluginSettingsCode = ReadSource(
+            "Nikkiward",
+            "Features",
+            "Settings",
+            "PluginSettingsView.xaml.cs");
+        var about = ReadSource(
+            "Nikkiward",
+            "Features",
+            "Settings",
+            "AboutSettingsView.xaml");
+        var aboutCode = ReadSource(
+            "Nikkiward",
+            "Features",
+            "Settings",
+            "AboutSettingsView.xaml.cs");
+        var previewCode = ReadSource(
+            "Nikkiward",
+            "Pages",
+            "GalleryPreviewView.xaml.cs");
+        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+
+        XElement FindNamed(XDocument document, string name) => document
+            .Descendants()
+            .SingleOrDefault(element => string.Equals(
+                (string?)element.Attribute(xaml + "Name"),
+                name,
+                StringComparison.Ordinal))
+            ?? throw new InvalidOperationException($"XAML element '{name}' was not found.");
+
+        var thumbnail = FindNamed(gallery, "GalleryThumbnail");
+        Assert(
+            string.Equals((string?)thumbnail.Attribute("Stretch"), "Uniform", StringComparison.Ordinal),
+            "gallery thumbnails must show the complete photo instead of cropping its edges");
+        var emptyState = FindNamed(gallery, "GalleryEmptyState");
+        Assert(
+            emptyState.Attribute("Width") is null &&
+            string.Equals((string?)emptyState.Attribute("MaxWidth"), "420", StringComparison.Ordinal),
+            "the gallery empty state must shrink below its preferred width");
+        Assert(
+            gallery.Descendants().Any(element =>
+                string.Equals((string?)element.Attribute(xaml + "Name"), "NarrowGallery", StringComparison.Ordinal)) &&
+            gallery.ToString().Contains(
+                "Target=\"GalleryGridView.Padding\" Value=\"12,0,12,12\"",
+                StringComparison.Ordinal),
+            "the gallery must reduce fixed desktop padding at its narrow breakpoint");
+
+        var infoPanel = FindNamed(preview, "GalleryInfoPanel");
+        Assert(
+            infoPanel.Attribute("Width") is null &&
+            infoPanel.Attribute("MaxWidth") is not null,
+            "the preview information pane must be allowed to shrink with the viewport");
+        Assert(
+            preview.Descendants().Any(element =>
+                string.Equals((string?)element.Attribute(xaml + "Name"), "NarrowPreview", StringComparison.Ordinal)) &&
+            preview.ToString().Contains(
+                "Target=\"GalleryPreviewFileNameText.Visibility\" Value=\"Collapsed\"",
+                StringComparison.Ordinal) &&
+            preview.ToString().Contains(
+                "SizeChanged=\"OnGalleryPreviewViewportSizeChanged\"",
+                StringComparison.Ordinal) &&
+            previewCode.Contains("OnGalleryPreviewViewportSizeChanged", StringComparison.Ordinal) &&
+            previewCode.Contains("ZoomFactor <= 1.001f", StringComparison.Ordinal),
+            "the preview must simplify its toolbar and keep fit-to-window images centered after resize");
+
+        Assert(
+            gallerySettings.Contains("x:Name=\"NarrowGallerySettings\"", StringComparison.Ordinal) &&
+            gallerySettings.Contains("x:Name=\"GalleryRootActions\"", StringComparison.Ordinal) &&
+            gallerySettings.Contains("x:Name=\"ProtectionPrimaryActions\"", StringComparison.Ordinal) &&
+            gallerySettings.Contains("x:Name=\"NikkiGalleryActions\"", StringComparison.Ordinal) &&
+            gallerySettings.Contains(
+                "Target=\"GalleryRootActions.Orientation\" Value=\"Vertical\"",
+                StringComparison.Ordinal),
+            "gallery settings commands must stack instead of clipping at narrow widths");
+        Assert(
+            settingsHome.Contains("x:Name=\"NarrowSettingsHome\"", StringComparison.Ordinal) &&
+            settingsHome.Contains("x:Name=\"PrimarySettingsGrid\"", StringComparison.Ordinal) &&
+            settingsHome.Contains("x:Name=\"PrimarySettingsSecondColumn\"", StringComparison.Ordinal) &&
+            settingsHome.Contains(
+                "Target=\"PrimarySettingsSecondColumn.Width\" Value=\"0\"",
+                StringComparison.Ordinal),
+            "the settings overview must collapse its two-column cards to one column");
+        Assert(
+            settingsPage.Contains("HorizontalContentAlignment=\"Stretch\"", StringComparison.Ordinal) &&
+            settingsPage.Contains("x:Name=\"SettingsContentViewport\"", StringComparison.Ordinal) &&
+            settingsPage.Contains("x:Name=\"SettingsContentWidthColumn\"", StringComparison.Ordinal) &&
+            settingsPage.Contains("x:Name=\"SettingsContentColumn\"", StringComparison.Ordinal) &&
+            settingsPage.Contains("MaxWidth=\"980\"", StringComparison.Ordinal) &&
+            settingsPage.Contains("x:Name=\"ContentHost\"", StringComparison.Ordinal) &&
+            settingsPage.Contains("HorizontalAlignment=\"Stretch\"", StringComparison.Ordinal),
+            "the settings viewport must constrain narrow content while its bounded desktop column stays aligned with the header");
+        Assert(
+            settingsHome.Contains("x:Key=\"SettingsHomeCardButtonStyle\"", StringComparison.Ordinal) &&
+            settingsHome.Contains("<Setter Property=\"Height\" Value=\"Auto\" />", StringComparison.Ordinal) &&
+            settingsHome.Contains("<Setter Property=\"MinHeight\" Value=\"72\" />", StringComparison.Ordinal) &&
+            settingsHome.Contains("<Setter Property=\"HorizontalAlignment\" Value=\"Stretch\" />", StringComparison.Ordinal) &&
+            Count(settingsHome, "Style=\"{StaticResource SettingsHomeCardButtonStyle}\"") == 10 &&
+            !settingsHome.Contains("MinHeight=\"52\"", StringComparison.Ordinal),
+            "settings overview cards must fill their columns and allow both title and supporting text to use their full line height");
+        Assert(
+            pluginSettings.Contains("x:Name=\"PluginActions\"", StringComparison.Ordinal) &&
+            pluginSettingsCode.Contains("CompactLayoutThreshold", StringComparison.Ordinal) &&
+            pluginSettingsCode.Contains("SizeChanged += OnSizeChanged", StringComparison.Ordinal) &&
+            pluginSettingsCode.Contains("ApplyLayout(e.NewSize.Width)", StringComparison.Ordinal) &&
+            pluginSettingsCode.Contains("Grid.SetRow(PluginActions, useCompactLayout ? 1 : 0)", StringComparison.Ordinal) &&
+            pluginSettingsCode.Contains("Grid.SetColumnSpan(PluginActions, useCompactLayout ? 3 : 1)", StringComparison.Ordinal) &&
+            pluginSettingsCode.Contains("PluginActions.Orientation = useCompactLayout", StringComparison.Ordinal) &&
+            pluginSettingsCode.Contains("PhotoPluginImportButton.HorizontalAlignment = buttonAlignment", StringComparison.Ordinal) &&
+            pluginSettingsCode.Contains("PhotoPluginOpenButton.HorizontalAlignment = buttonAlignment", StringComparison.Ordinal) &&
+            pluginSettingsCode.Contains("PhotoPluginUninstallButton.HorizontalAlignment = buttonAlignment", StringComparison.Ordinal),
+            "plugin commands must move below the card details and stretch vertically when the settings viewport is narrow");
+
+        Assert(
+            !about.Contains("SelectionChanged=\"OnUpdateChannelChanged\"", StringComparison.Ordinal) &&
+            Regex.IsMatch(
+                aboutCode,
+                @"InitializeComponent\(\);\s*UpdateChannelSelector\.SelectionChanged\s*\+=\s*OnUpdateChannelChanged;",
+                RegexOptions.CultureInvariant),
+            "the update selector must subscribe only after all named About controls exist");
+        Assert(
+            about.Contains("x:Name=\"NarrowAboutSettings\"", StringComparison.Ordinal) &&
+            about.Contains("x:Name=\"UpdateActions\"", StringComparison.Ordinal) &&
+            about.Contains(
+                "Target=\"UpdateActions.Orientation\" Value=\"Vertical\"",
+                StringComparison.Ordinal),
+            "About update actions must reflow at narrow widths");
+
+        var launchSettingsFrame = FindNamed(main, "LaunchSettingsFrame");
+        Assert(
+            launchSettingsFrame.Attribute("Width") is null &&
+            launchSettingsFrame.Attribute("Height") is null &&
+            string.Equals(
+                (string?)launchSettingsFrame.Attribute("MaxWidth"),
+                "1120",
+                StringComparison.Ordinal) &&
+            string.Equals(
+                (string?)launchSettingsFrame.Attribute("MaxHeight"),
+                "690",
+                StringComparison.Ordinal) &&
+            main.ToString().Contains("x:Name=\"NarrowLaunchSettingsHost\"", StringComparison.Ordinal) &&
+            main.ToString().Contains(
+                "Target=\"LaunchSettingsFrame.Margin\" Value=\"56,48,8,8\"",
+                StringComparison.Ordinal) &&
+            mainCode.Contains("ApplyLaunchSettingsHostLayout(e.NewSize.Width)", StringComparison.Ordinal) &&
+            mainCode.Contains("new Thickness(56, 48, 8, 8)", StringComparison.Ordinal),
+            "the launch-settings host must shrink with the shell instead of retaining a fixed desktop size");
+        Assert(
+            launchSettings.ToString().Contains(
+                "x:Name=\"NarrowLaunchSettings\"",
+                StringComparison.Ordinal) &&
+            launchSettings.ToString().Contains(
+                "Target=\"LaunchSettingsNavigationView.PaneDisplayMode\" Value=\"LeftCompact\"",
+                StringComparison.Ordinal) &&
+            launchSettings.ToString().Contains(
+                "Target=\"BasicDetailsSecondColumn.Width\" Value=\"0\"",
+                StringComparison.Ordinal) &&
+            launchSettings.ToString().Contains(
+                "Target=\"BackgroundActions.Orientation\" Value=\"Vertical\"",
+                StringComparison.Ordinal) &&
+            launchSettings.ToString().Contains(
+                "HorizontalContentAlignment=\"Stretch\"",
+                StringComparison.Ordinal),
+            "the independent launch-settings surface must switch to compact navigation and single-column content");
+        var launchSettingsCode = ReadSource(
+            "Nikkiward",
+            "Features",
+            "Launcher",
+            "LaunchSettingsPage.xaml.cs");
+        Assert(
+            launchSettingsCode.Contains("useCompactLayout = width < CompactLayoutWidth", StringComparison.Ordinal) &&
+            launchSettingsCode.Contains("NavigationViewPaneDisplayMode.LeftCompact", StringComparison.Ordinal) &&
+            launchSettingsCode.Contains("Grid.SetRow(LocateGameButton, useCompactLayout ? 1 : 0)", StringComparison.Ordinal) &&
+            launchSettingsCode.Contains("BackgroundActions.Orientation = useCompactLayout", StringComparison.Ordinal),
+            "the launch-settings runtime must project its own width when page-level visual states are unavailable");
+        foreach (var itemName in new[]
+                 {
+                     "BasicNavigationItem",
+                     "ArgumentsNavigationItem",
+                     "BackgroundNavigationItem",
+                     "PackageNavigationItem",
+                 })
+        {
+            var navigationItem = FindNamed(launchSettings, itemName);
+            Assert(
+                navigationItem.Elements().Any(element =>
+                    string.Equals(
+                        element.Name.LocalName,
+                        "NavigationViewItem.Icon",
+                        StringComparison.Ordinal)),
+                $"{itemName} must remain identifiable when the navigation pane is compact");
+        }
+        foreach (var imageName in new[] { "DefaultBackgroundPreviewImage", "BackgroundPreviewImage" })
+        {
+            var image = FindNamed(launchSettings, imageName);
+            Assert(
+                string.Equals((string?)image.Attribute("Stretch"), "Uniform", StringComparison.Ordinal),
+                $"{imageName} must show the complete background at narrow widths");
+        }
         return Task.CompletedTask;
     }
 
@@ -1447,6 +1760,7 @@ internal static class AppearanceRuntimeContractTests
         var main = ReadSource("Nikkiward", "MainPage.xaml");
         var profile = ReadSource("Nikkiward", "MainPage.Profile.cs");
         var showProfileOverlay = FindMethod(profile, "ShowProfileOverlay");
+        var profileButtonHandler = FindMethod(profile, "OnProfileButtonClicked");
         var quickSwitchVisibility = FindMethod(
             profile,
             "SetProfileQuickSwitchRailVisibility");
@@ -1512,7 +1826,10 @@ internal static class AppearanceRuntimeContractTests
             Count(main, "Source=\"Assets/NikkiGameIcon.png\"") == 2 &&
             main.Contains("Canvas.ZIndex=\"10\"", StringComparison.Ordinal) &&
             quickSwitchRailHeader.Contains("Visibility=\"Collapsed\"", StringComparison.Ordinal) &&
-            profile.Contains("ShowProfileOverlay(selectNavigationItem: false)", StringComparison.Ordinal) &&
+            profileButtonHandler.Contains("ShowProfileOverlay();", StringComparison.Ordinal) &&
+            profileButtonHandler.Contains("ShowLauncher();", StringComparison.Ordinal) &&
+            !profile.Contains("selectNavigationItem", StringComparison.Ordinal) &&
+            !profile.Contains("ProfilesNavigationItem", StringComparison.Ordinal) &&
             profile.Contains(
                 "if (ProfileOverlayScrim.Visibility == Visibility.Visible)",
                 StringComparison.Ordinal) &&
@@ -1525,6 +1842,9 @@ internal static class AppearanceRuntimeContractTests
             quickSwitchVisibility.Contains(
                 "ProfileQuickSwitchRail.Visibility = isVisible",
                 StringComparison.Ordinal) &&
+            profile.Contains("OnProfileOverlayMaskTapped", StringComparison.Ordinal) &&
+            profile.Contains("OnProfileCloseRequested", StringComparison.Ordinal) &&
+            Count(profile, "ShowLauncher();") >= 3 &&
             profile.Contains("ProfileOverlayScrim.Visibility = Visibility.Visible", StringComparison.Ordinal) &&
             profile.Contains("ProfileOverlayScrim.Visibility = Visibility.Collapsed", StringComparison.Ordinal),
             "the selector must preserve one top-left game icon, suppress the shortcut rail, and use a light scrim");

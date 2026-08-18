@@ -11,6 +11,7 @@ public sealed partial class LauncherMasthead : UserControl
     public LauncherMasthead()
     {
         InitializeComponent();
+        MastheadGlow.DepthTarget = Island;
     }
 
     public MainPageViewModel ViewModel { get; private set; } = null!;
@@ -30,6 +31,7 @@ public sealed partial class LauncherMasthead : UserControl
             ? AppearanceSettings.DefaultLauncherMastheadTitle
             : settings.LauncherMastheadTitle;
         SubtitleText.Text = settings.LauncherMastheadSubtitle?.Trim() ?? string.Empty;
+        MastheadGlow.ApplyMotion(settings.Motion);
         UpdateSubtitleVisibility();
     }
 
@@ -50,7 +52,7 @@ public sealed partial class LauncherMasthead : UserControl
 
     private void ApplyLayout(double maxWidth, double titleSize, bool showSubtitle)
     {
-        Island.MaxWidth = maxWidth;
+        MastheadGlow.MaxWidth = maxWidth;
         TitleText.FontSize = titleSize;
         _showSubtitleForLayout = showSubtitle;
         UpdateSubtitleVisibility();

@@ -14,7 +14,31 @@
     Loaded="OnPageLoaded"
     mc:Ignorable="d">
 
-    <Grid x:Name="RootGrid" Background="Transparent">
+    <Grid
+        x:Name="RootGrid"
+        Background="Transparent"
+        SizeChanged="OnRootGridSizeChanged">
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="ShellWidthStates">
+                <VisualState x:Name="NarrowLaunchSettingsHost">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="0" />
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="LaunchSettingsFrame.Margin" Value="56,48,8,8" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="WideLaunchSettingsHost">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="760" />
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="LaunchSettingsFrame.Margin" Value="56,60,24,24" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+
         <background:ArtBackdropView
             x:Name="LauncherBackground"
             HorizontalAlignment="Stretch"
@@ -150,21 +174,6 @@
                     <NavigationViewItem.Content>
                         <Border Height="40">
                             <TextBlock VerticalAlignment="Center" Text="收藏" />
-                        </Border>
-                    </NavigationViewItem.Content>
-                </NavigationViewItem>
-
-                <NavigationViewItem
-                    x:Name="ProfilesNavigationItem"
-                    automation:AutomationProperties.Name="Profile 与渠道"
-                    Tag="profiles"
-                    ToolTipService.ToolTip="Profile 与渠道">
-                    <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE7FC;" />
-                    </NavigationViewItem.Icon>
-                    <NavigationViewItem.Content>
-                        <Border Height="40">
-                            <TextBlock VerticalAlignment="Center" Text="Profile 与渠道" />
                         </Border>
                     </NavigationViewItem.Content>
                 </NavigationViewItem>
@@ -363,8 +372,6 @@
 
         <Frame
             x:Name="LaunchSettingsFrame"
-            Width="1120"
-            Height="690"
             MaxWidth="1120"
             MaxHeight="690"
             Margin="56,60,24,24"

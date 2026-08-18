@@ -15,6 +15,7 @@ internal static class JournalDomainTests
         ("journal navigation ignores canceled and stale completions", NavigationIgnoresCanceledAndStaleCompletions),
         ("journal capture assessment separates sign-in and selector drift", CaptureAssessmentSeparatesFailures),
         ("journal document readiness waits for complete content", DocumentReadinessWaitsForCompleteContent),
+        ("journal snapshot quality rejects obvious partial replacements", SnapshotQualityRejectsPartialReplacements),
         ("journal automatic sync never schedules below thirty minutes", AutomaticSyncHonorsMinimumInterval),
         ("journal automatic sync applies bounded exponential backoff", AutomaticSyncAppliesBackoff),
         ("journal URLs accept only normalized official HTTPS hosts", UrlPolicyAcceptsOnlyOfficialHttpsHosts),
@@ -78,11 +79,15 @@ internal static class JournalDomainTests
         var network = JournalCaptureFailureProjector.Project(JournalCaptureFailureKind.NetworkFailure);
         var signedOut = JournalCaptureFailureProjector.Project(JournalCaptureFailureKind.NotSignedIn);
         var structure = JournalCaptureFailureProjector.Project(JournalCaptureFailureKind.StructureChanged);
+        var local = JournalCaptureFailureProjector.Project(JournalCaptureFailureKind.LocalProcessingFailure);
 
         AssertEqual("网络连接失败，请稍后重试。", network.Message, "network message");
         AssertEqual("尚未登录奇想手账，请先登录后同步。", signedOut.Message, "signed-out message");
         AssertEqual("官方页面结构可能已更新，请稍后再试。", structure.Message, "structure message");
-        Assert(network.Kind != signedOut.Kind && signedOut.Kind != structure.Kind, "failure kinds must remain distinct");
+        AssertEqual("页面内容已读取，但本地快照更新失败，请重试。", local.Message, "local processing message");
+        Assert(
+            new[] { network.Kind, signedOut.Kind, structure.Kind, local.Kind }.Distinct().Count() == 4,
+            "failure kinds must remain distinct");
         return Task.CompletedTask;
     }
 
@@ -103,20 +108,54 @@ internal static class JournalDomainTests
     private static Task DocumentReadinessWaitsForCompleteContent()
     {
         Assert(
-            !JournalDocumentReadinessProjector.IsOverviewReady(6, 40),
-            "overview must keep waiting while expected sections are missing");
+            !JournalDocumentReadinessProjector.IsOverviewReady(false, 40, 4, 0),
+            "overview must keep waiting until the document is complete");
         Assert(
-            !JournalDocumentReadinessProjector.IsOverviewReady(7, 19),
+            !JournalDocumentReadinessProjector.IsOverviewReady(true, 19, 4, 0),
             "overview must keep waiting while visible content is incomplete");
         Assert(
-            JournalDocumentReadinessProjector.IsOverviewReady(7, 20),
-            "overview should be ready after the minimum content arrives");
+            !JournalDocumentReadinessProjector.IsOverviewReady(true, 20, 1, 0),
+            "overview must keep waiting before stable structural keys arrive");
+        Assert(
+            !JournalDocumentReadinessProjector.IsOverviewReady(true, 20, 4, 1),
+            "overview must keep waiting while visible images are loading");
+        Assert(
+            JournalDocumentReadinessProjector.IsOverviewReady(true, 20, 4, 0),
+            "overview should be ready after stable structure and resources arrive");
         Assert(
             !JournalDocumentReadinessProjector.IsResonanceReady(0, 20),
             "resonance must keep waiting before cards arrive");
         Assert(
             JournalDocumentReadinessProjector.IsResonanceReady(1, 1),
             "resonance should be ready after a card and image arrive");
+        return Task.CompletedTask;
+    }
+
+    private static Task SnapshotQualityRejectsPartialReplacements()
+    {
+        var complete = new JournalSnapshotQuality(4, 6, 8, 12);
+        var partial = new JournalSnapshotQuality(1, 1, 2, 2);
+        var updated = new JournalSnapshotQuality(5, 6, 8, 12);
+        Assert(
+            JournalSnapshotQualityProjector.IsObviousRegression(complete, partial),
+            "a small first SPA payload must not replace a complete journal snapshot");
+        Assert(
+            !JournalSnapshotQualityProjector.IsObviousRegression(complete, updated),
+            "a complete update must remain writable");
+
+        var resonanceComplete = new ResonanceSnapshotQuality(8, 120);
+        var resonancePartial = new ResonanceSnapshotQuality(1, 4);
+        var resonanceUpdated = new ResonanceSnapshotQuality(9, 132);
+        Assert(
+            JournalSnapshotQualityProjector.IsObviousRegression(
+                resonanceComplete,
+                resonancePartial),
+            "a partial resonance payload must not replace complete history");
+        Assert(
+            !JournalSnapshotQualityProjector.IsObviousRegression(
+                resonanceComplete,
+                resonanceUpdated),
+            "expanded resonance history must remain writable");
         return Task.CompletedTask;
     }
 

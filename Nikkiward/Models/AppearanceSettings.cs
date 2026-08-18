@@ -100,6 +100,8 @@ public sealed record BackgroundArtSettings
 
     public bool ParallaxEnabled { get; init; } = true;
 
+    public bool HolographicCardEnabled { get; init; } = true;
+
     public bool MotionEnabled { get; init; }
 
     public string? MotionSource { get; init; }
@@ -485,7 +487,7 @@ public static class AppearanceSettingsMigration
 
         migrated.Remove("themeMode");
         migrated["appearance"] = defaults;
-        migrated["schemaVersion"] = UserSettings.PreviousSchemaVersion;
+        migrated["schemaVersion"] = UserSettings.MotionBackgroundSchemaVersion;
         return migrated;
     }
 
@@ -496,11 +498,11 @@ public static class AppearanceSettingsMigration
         if (!schema4Settings.TryGetPropertyValue("schemaVersion", out var versionNode) ||
             versionNode is not JsonValue versionValue ||
             !versionValue.TryGetValue<int>(out var version) ||
-            version != UserSettings.PreviousSchemaVersion)
+            version != UserSettings.MotionBackgroundSchemaVersion)
         {
             throw new JsonException(
                 $"Motion background migration requires settings schema " +
-                $"{UserSettings.PreviousSchemaVersion}.");
+                $"{UserSettings.MotionBackgroundSchemaVersion}.");
         }
 
         var migrated = (JsonObject)schema4Settings.DeepClone();
@@ -517,6 +519,33 @@ public static class AppearanceSettingsMigration
         background.TryAdd("glassIntensity", 1.0);
         background.TryAdd("motionPanEnabled", false);
         background.TryAdd("motionZoom", 1.0);
+        migrated["schemaVersion"] = UserSettings.PreviousSchemaVersion;
+        return migrated;
+    }
+
+    public static JsonObject MigrateSchema5To6(JsonObject schema5Settings)
+    {
+        ArgumentNullException.ThrowIfNull(schema5Settings);
+
+        if (!schema5Settings.TryGetPropertyValue("schemaVersion", out var versionNode) ||
+            versionNode is not JsonValue versionValue ||
+            !versionValue.TryGetValue<int>(out var version) ||
+            version != UserSettings.PreviousSchemaVersion)
+        {
+            throw new JsonException(
+                $"Holographic card migration requires settings schema " +
+                $"{UserSettings.PreviousSchemaVersion}.");
+        }
+
+        var migrated = (JsonObject)schema5Settings.DeepClone();
+        if (migrated["appearance"] is not JsonObject appearance ||
+            appearance["background"] is not JsonObject background)
+        {
+            throw new JsonException(
+                "Schema 5 settings require appearance.background before migration.");
+        }
+
+        background.TryAdd("holographicCardEnabled", true);
         migrated["schemaVersion"] = UserSettings.CurrentSchemaVersion;
         return migrated;
     }

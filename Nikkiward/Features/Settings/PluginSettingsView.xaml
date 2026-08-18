@@ -16,6 +16,10 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
                 <Border
                     Width="52"
                     Height="52"
@@ -38,7 +42,14 @@
                         Foreground="{ThemeResource OnArtTertiaryTextBrush}"
                         Text="尚未安装" />
                 </StackPanel>
-                <StackPanel Grid.Column="2" VerticalAlignment="Center" Orientation="Horizontal" Spacing="8">
+                <StackPanel
+                    x:Name="PluginActions"
+                    Grid.Row="0"
+                    Grid.Column="2"
+                    Grid.ColumnSpan="1"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="8">
                     <Button
                         x:Name="PhotoPluginImportButton"
                         automation:AutomationProperties.Name="导入相册插件"

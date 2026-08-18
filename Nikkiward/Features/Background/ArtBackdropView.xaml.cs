@@ -36,14 +36,16 @@ public sealed class MotionPlaybackFailedEventArgs(
 public sealed partial class ArtBackdropView : UserControl
 {
     /// <summary>Damping applied to each pointer sample.</summary>
-    private const double ParallaxDamping = 0.06;
+    private const double ParallaxDamping = 0.16;
 
     private readonly UISettings _uiSettings = new();
     private readonly FrameIntervalMonitor _frameIntervalMonitor;
+    private readonly PlaneProjection _stillArtProjection;
 
     private ArtBackdropService? _service;
     private Window? _hostWindow;
     private AppWindow? _hostAppWindow;
+    private UIElement? _pointerRoot;
     private Vector3 _parallaxTarget;
     private Vector3 _parallaxCurrent;
     private bool _parallaxEnabled;
@@ -52,6 +54,9 @@ public sealed partial class ArtBackdropView : UserControl
     private bool _hostFocused = true;
     private AppearanceMotionMode _motionMode = AppearanceMotionMode.Full;
     private bool _parallaxPreferenceEnabled = true;
+    private bool _holographicCardEnabled = true;
+    private bool _launcherSurfaceVisible = true;
+    private bool _launcherSurfaceActive = true;
     private double _parallaxAmplitude;
     private double _crossFadeMilliseconds;
     private Storyboard? _crossFadeStoryboard;
@@ -75,14 +80,28 @@ public sealed partial class ArtBackdropView : UserControl
     private bool _hostMinimized;
     private int _motionFadeVersion;
     private int _motionRequestVersion;
+    private double _stillSourcePixelWidth;
+    private double _stillSourcePixelHeight;
+    private bool _pointerOverStillCard;
+    private double _stillCardTiltTargetX;
+    private double _stillCardTiltTargetY;
+    private double _stillCardTiltCurrentX;
+    private double _stillCardTiltCurrentY;
 
     public ArtBackdropView()
     {
         InitializeComponent();
+        _stillArtProjection = new PlaneProjection
+        {
+            CenterOfRotationX = 0.5d,
+            CenterOfRotationY = 0.5d,
+        };
+        ArtSharp.Projection = _stillArtProjection;
         _stillArtSource = ArtSharp.Source;
         _frameIntervalMonitor = new FrameIntervalMonitor(
             GlassCapabilities.Current.ReportLowFrameRate);
         _animationsEnabled = ReadAnimationsEnabled();
+        CaptureStillSourceDimensions(ArtSharp.Source);
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
         SizeChanged += OnBackdropSizeChanged;
@@ -144,12 +163,19 @@ public sealed partial class ArtBackdropView : UserControl
         set
         {
             _stillArtSource = value;
+            _stillSourcePixelWidth = 0d;
+            _stillSourcePixelHeight = 0d;
+            CaptureStillSourceDimensions(value);
             StopMotion(clearSource: true);
             StopCrossFade(promoteIncoming: false);
             ArtSharp.Source = value;
+            HolographicOverlay.Visibility = value is null || !_holographicCardEnabled
+                ? Visibility.Collapsed
+                : Visibility.Visible;
             ArtBlurredSettled.Source = value;
             ArtBlurredIncoming.Source = null;
             ArtBlurredIncoming.Opacity = 0.0;
+            UpdateStillArtworkLayout();
         }
     }
 
@@ -159,7 +185,18 @@ public sealed partial class ArtBackdropView : UserControl
         _appearanceSettings = settings;
         _motionMode = settings.Motion;
         _parallaxPreferenceEnabled = settings.Background.ParallaxEnabled;
+        _holographicCardEnabled = settings.Background.HolographicCardEnabled;
         GlassCapabilities.Current.Configure(settings);
+        HolographicOverlay.SetMaterialEnabled(_holographicCardEnabled);
+        HolographicOverlay.Visibility =
+            _holographicCardEnabled && _stillArtSource is not null
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        HolographicOverlay.ApplyMotion(_motionMode);
+        if (!_holographicCardEnabled)
+        {
+            ApplyStillCardTilt(0d, 0d, false);
+        }
         RefreshFrameIntervalMonitoring();
         ApplyMotionTransform();
         if (!settings.Background.MotionEnabled)
@@ -171,6 +208,29 @@ public sealed partial class ArtBackdropView : UserControl
         {
             StopCrossFade(promoteIncoming: true);
         }
+    }
+
+    public void SetLauncherSurfaceActive(bool active) =>
+        SetLauncherSurfaceState(active, active);
+
+    public void SetLauncherSurfaceState(bool visible, bool interactionEnabled)
+    {
+        _launcherSurfaceVisible = visible;
+        _launcherSurfaceActive = visible && interactionEnabled;
+        HolographicOverlay.SetInteractionEnabled(_launcherSurfaceActive);
+        if (!_launcherSurfaceActive)
+        {
+            ResetParallax();
+        }
+
+        ArtSharpHost.Visibility = visible && ArtSharp.Source is not null
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        HolographicOverlay.Visibility =
+            visible && _holographicCardEnabled && _stillArtSource is not null
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        RefreshMotionProjection();
     }
 
     public bool IsMotionActive => _motionRequested && _motionReady;
@@ -343,9 +403,16 @@ public sealed partial class ArtBackdropView : UserControl
         }
         if (XamlRoot?.Content is UIElement root)
         {
+            _pointerRoot = root;
             root.PointerMoved += OnRootPointerMoved;
+            root.PointerExited += OnRootPointerEnded;
+            root.PointerCanceled += OnRootPointerEnded;
+            root.PointerCaptureLost += OnRootPointerEnded;
         }
 
+        CaptureStillSourceDimensions(ArtSharp.Source);
+        UpdateStillArtworkLayout();
+        HolographicOverlay.ApplyMotion(_motionMode);
         RefreshFrameIntervalMonitoring();
     }
 
@@ -353,10 +420,19 @@ public sealed partial class ArtBackdropView : UserControl
     {
         _isLoaded = false;
         _frameIntervalMonitor.SetEnabled(false);
-        if (XamlRoot?.Content is UIElement root)
+        if (_pointerRoot is not null)
         {
-            root.PointerMoved -= OnRootPointerMoved;
+            var pointerRoot = _pointerRoot;
+            _pointerRoot = null;
+            pointerRoot.PointerMoved -= OnRootPointerMoved;
+            pointerRoot.PointerExited -= OnRootPointerEnded;
+            pointerRoot.PointerCanceled -= OnRootPointerEnded;
+            pointerRoot.PointerCaptureLost -= OnRootPointerEnded;
         }
+
+        _stillCardTiltCurrentX = 0d;
+        _stillCardTiltCurrentY = 0d;
+        ApplyStillCardProjection();
 
         if (_uiSettingsEventsAttached &&
             OperatingSystem.IsWindowsVersionAtLeast(10, 0, 19041))
@@ -581,14 +657,21 @@ public sealed partial class ArtBackdropView : UserControl
 
     private void OnRootPointerMoved(object sender, PointerRoutedEventArgs e)
     {
-        if (!_parallaxEnabled || ActualWidth <= 0 || ActualHeight <= 0)
+        if (ActualWidth <= 0 || ActualHeight <= 0)
         {
             return;
         }
 
+        UpdateHolographicPointer(e);
+
         var position = e.GetCurrentPoint(this).Position;
         var normalizedX = ((position.X / ActualWidth) * 2.0) - 1.0;
         var normalizedY = ((position.Y / ActualHeight) * 2.0) - 1.0;
+
+        if (!_parallaxEnabled)
+        {
+            return;
+        }
 
         _parallaxTarget = new Vector3(
             (float)(-normalizedX * _parallaxAmplitude),
@@ -609,12 +692,83 @@ public sealed partial class ArtBackdropView : UserControl
         }
     }
 
+    private void OnRootPointerEnded(object sender, PointerRoutedEventArgs e) =>
+        ResetParallax();
+
     private void ResetParallax()
     {
         _parallaxTarget = Vector3.Zero;
         _parallaxCurrent = Vector3.Zero;
         ArtSharpHost.Translation = Vector3.Zero;
         MotionHost.Translation = Vector3.Zero;
+        HolographicOverlay.ResetPointer();
+        ApplyStillCardTilt(0d, 0d, false);
+    }
+
+    private void UpdateHolographicPointer(PointerRoutedEventArgs args)
+    {
+        if (!_launcherSurfaceActive ||
+            !_holographicCardEnabled ||
+            _motionReady ||
+            ArtSharpHost.ActualWidth <= 0d ||
+            ArtSharpHost.ActualHeight <= 0d)
+        {
+            ApplyStillCardTilt(0d, 0d, false);
+            return;
+        }
+
+        var point = args.GetCurrentPoint(ArtSharpHost).Position;
+        var isInside =
+            point.X >= 0d &&
+            point.Y >= 0d &&
+            point.X <= ArtSharpHost.ActualWidth &&
+            point.Y <= ArtSharpHost.ActualHeight;
+        if (!isInside)
+        {
+            if (_pointerOverStillCard)
+            {
+                HolographicOverlay.ResetPointer();
+            }
+
+            ApplyStillCardTilt(0d, 0d, false);
+            return;
+        }
+
+        var normalizedX = ((point.X / ArtSharpHost.ActualWidth) * 2d) - 1d;
+        var normalizedY = ((point.Y / ArtSharpHost.ActualHeight) * 2d) - 1d;
+        HolographicOverlay.SetPointer(normalizedX, normalizedY);
+        ApplyStillCardTilt(normalizedX, normalizedY, true);
+    }
+
+    private void ApplyStillCardTilt(
+        double normalizedX,
+        double normalizedY,
+        bool pointerOverCard)
+    {
+        _pointerOverStillCard = pointerOverCard;
+        var tiltEnabled =
+            _launcherSurfaceActive &&
+            _holographicCardEnabled &&
+            pointerOverCard &&
+            !_motionReady &&
+            _motionMode == AppearanceMotionMode.Full &&
+            _animationsEnabled &&
+            _hostFocused;
+        _stillCardTiltTargetX = tiltEnabled
+            ? Math.Clamp(normalizedX, -1d, 1d)
+            : 0d;
+        _stillCardTiltTargetY = tiltEnabled
+            ? Math.Clamp(normalizedY, -1d, 1d)
+            : 0d;
+        _stillCardTiltCurrentX = _stillCardTiltTargetX;
+        _stillCardTiltCurrentY = _stillCardTiltTargetY;
+        ApplyStillCardProjection();
+    }
+
+    private void ApplyStillCardProjection()
+    {
+        _stillArtProjection.RotationY = _stillCardTiltCurrentX * 2.2d;
+        _stillArtProjection.RotationX = -_stillCardTiltCurrentY * 1.7d;
     }
 
     private bool ReadAnimationsEnabled()
@@ -639,7 +793,10 @@ public sealed partial class ArtBackdropView : UserControl
             ? projection.ParallaxAmplitude
             : 0;
         _crossFadeMilliseconds = projection.ArtDurationMilliseconds;
-        _parallaxEnabled = _hostFocused && _parallaxAmplitude > 0;
+        _parallaxEnabled =
+            _launcherSurfaceActive &&
+            _hostFocused &&
+            _parallaxAmplitude > 0;
         GlassCapabilities.Current.Configure(_appearanceSettings);
         if (!_parallaxEnabled)
         {
@@ -1048,6 +1205,8 @@ public sealed partial class ArtBackdropView : UserControl
 
     private void PrepareMotionStaticFallback()
     {
+        ApplyStillCardTilt(0d, 0d, false);
+        HolographicOverlay.ResetPointer();
         ArtSharpHost.Visibility = Visibility.Collapsed;
         ArtSharp.Source = null;
     }
@@ -1055,7 +1214,15 @@ public sealed partial class ArtBackdropView : UserControl
     private void RestoreStillVisualLayer(bool resetBlurPlate)
     {
         ArtSharp.Source = _stillArtSource;
-        ArtSharpHost.Visibility = Visibility.Visible;
+        ArtSharpHost.Visibility = _launcherSurfaceVisible && _stillArtSource is not null
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        HolographicOverlay.Visibility =
+            _launcherSurfaceVisible &&
+            _holographicCardEnabled &&
+            _stillArtSource is not null
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         if (!resetBlurPlate || _stillArtSource is null)
         {
             return;
@@ -1085,8 +1252,67 @@ public sealed partial class ArtBackdropView : UserControl
         }
     }
 
-    private void OnBackdropSizeChanged(object sender, SizeChangedEventArgs args) =>
+    private void OnBackdropSizeChanged(object sender, SizeChangedEventArgs args)
+    {
         ApplyMotionTransform();
+        UpdateStillArtworkLayout();
+    }
+
+    private void OnArtSharpImageOpened(object sender, RoutedEventArgs args)
+    {
+        CaptureStillSourceDimensions(ArtSharp.Source);
+        UpdateStillArtworkLayout();
+    }
+
+    private void OnArtSharpImageFailed(object sender, ExceptionRoutedEventArgs args)
+    {
+        _stillSourcePixelWidth = 0d;
+        _stillSourcePixelHeight = 0d;
+        UpdateStillArtworkLayout();
+    }
+
+    private void CaptureStillSourceDimensions(ImageSource? source)
+    {
+        if (source is not BitmapSource bitmap ||
+            bitmap.PixelWidth <= 0 ||
+            bitmap.PixelHeight <= 0)
+        {
+            return;
+        }
+
+        _stillSourcePixelWidth = bitmap.PixelWidth;
+        _stillSourcePixelHeight = bitmap.PixelHeight;
+    }
+
+    private void UpdateStillArtworkLayout()
+    {
+        var margin = ArtSharpHost.Margin;
+        var viewportWidth = Math.Max(0d, ActualWidth - margin.Left - margin.Right);
+        var viewportHeight = Math.Max(0d, ActualHeight - margin.Top - margin.Bottom);
+        var layout = HolographicBackdropProjection.ProjectLayout(
+            _stillSourcePixelWidth,
+            _stillSourcePixelHeight,
+            viewportWidth,
+            viewportHeight);
+        if (layout.UsesBoundedSurface)
+        {
+            ArtSharpHost.HorizontalAlignment = HorizontalAlignment.Center;
+            ArtSharpHost.VerticalAlignment = VerticalAlignment.Center;
+            ArtSharpHost.Width = layout.Width;
+            ArtSharpHost.Height = layout.Height;
+            HolographicOverlay.Width = double.NaN;
+            HolographicOverlay.Height = double.NaN;
+            return;
+        }
+
+        ArtSharpHost.HorizontalAlignment = HorizontalAlignment.Stretch;
+        ArtSharpHost.VerticalAlignment = VerticalAlignment.Stretch;
+        ArtSharpHost.Width = double.NaN;
+        ArtSharpHost.Height = double.NaN;
+        ArtSharp.Stretch = Stretch.Uniform;
+        HolographicOverlay.Width = layout.IsValid ? layout.Width : double.NaN;
+        HolographicOverlay.Height = layout.IsValid ? layout.Height : double.NaN;
+    }
 
     private static double ReadDoubleResource(string key, double fallback) =>
         Application.Current?.Resources.TryGetValue(key, out var value) == true &&

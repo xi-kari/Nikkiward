@@ -273,6 +273,7 @@ public enum JournalCaptureFailureKind
     NetworkFailure,
     NotSignedIn,
     StructureChanged,
+    LocalProcessingFailure,
 }
 
 public sealed record JournalCaptureFailureProjection(
@@ -299,6 +300,11 @@ public static class JournalCaptureFailureProjector
             JournalCaptureFailureKind.StructureChanged => new(
                 kind,
                 "官方页面结构可能已更新，请稍后再试。",
+                CanRetryAutomatically: true,
+                RequiresInteractiveLogin: false),
+            JournalCaptureFailureKind.LocalProcessingFailure => new(
+                kind,
+                "页面内容已读取，但本地快照更新失败，请重试。",
                 CanRetryAutomatically: true,
                 RequiresInteractiveLogin: false),
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown journal capture failure."),
@@ -337,15 +343,97 @@ public sealed record JournalCaptureAssessment(
 
 public static class JournalDocumentReadinessProjector
 {
-    public const int OverviewMinimumTitleCount = 7;
     public const int OverviewMinimumVisibleLineCount = 20;
+    public const int OverviewMinimumStableNodeKeyCount = 2;
+    public const int RequiredStableSamples = 6;
 
-    public static bool IsOverviewReady(int titleCount, int visibleLineCount) =>
-        titleCount >= OverviewMinimumTitleCount &&
-        visibleLineCount >= OverviewMinimumVisibleLineCount;
+    public static bool IsOverviewReady(
+        bool documentReady,
+        int visibleLineCount,
+        int stableNodeKeyCount,
+        int pendingImageCount) =>
+        documentReady &&
+        visibleLineCount >= OverviewMinimumVisibleLineCount &&
+        stableNodeKeyCount >= OverviewMinimumStableNodeKeyCount &&
+        pendingImageCount == 0;
 
     public static bool IsResonanceReady(int cardCount, int imageCount) =>
         cardCount > 0 && imageCount > 0;
+}
+
+public sealed record JournalSnapshotQuality(
+    int SourcedFieldCount,
+    int SourcedSectionCount,
+    int ContentBlockCount,
+    int ResourceCount)
+{
+    public int StableContentCount => SourcedFieldCount + SourcedSectionCount;
+}
+
+public sealed record ResonanceSnapshotQuality(int BannerCount, int ItemCount);
+
+public static class JournalSnapshotQualityProjector
+{
+    public static JournalSnapshotQuality Measure(JournalSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        var sourcedFieldCount = new[]
+        {
+            (snapshot.LoginDays, snapshot.LoginDaysSource),
+            (snapshot.GameHours, snapshot.GameHoursSource),
+            (snapshot.OutfitCount, snapshot.OutfitCountSource),
+            (snapshot.MomoCloakCount, snapshot.MomoCloakCountSource),
+            (snapshot.SketchCount, snapshot.SketchCountSource),
+        }.Count(field =>
+            !string.IsNullOrWhiteSpace(field.Item1) &&
+            !string.IsNullOrWhiteSpace(field.Item2));
+        var sourcedSectionCount = snapshot.Sections.Count(section =>
+            JournalSectionKey.IsStable(section.SectionKey) &&
+            !string.IsNullOrWhiteSpace(section.Source));
+        return new JournalSnapshotQuality(
+            sourcedFieldCount,
+            sourcedSectionCount,
+            snapshot.ContentBlocks.Count,
+            snapshot.Resources.Count);
+    }
+
+    public static ResonanceSnapshotQuality Measure(ResonanceHistorySnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        return new ResonanceSnapshotQuality(
+            snapshot.Banners.Count,
+            snapshot.Banners.Sum(banner => banner.Items.Count));
+    }
+
+    public static bool IsObviousRegression(
+        JournalSnapshotQuality previous,
+        JournalSnapshotQuality current)
+    {
+        if (previous.StableContentCount == 0)
+        {
+            return false;
+        }
+
+        return current.StableContentCount == 0 ||
+            previous.SourcedFieldCount >= 2 && current.SourcedFieldCount == 0 ||
+            previous.SourcedSectionCount >= 2 && current.SourcedSectionCount == 0 ||
+            current.StableContentCount * 2 <= previous.StableContentCount;
+    }
+
+    public static bool IsObviousRegression(
+        ResonanceSnapshotQuality previous,
+        ResonanceSnapshotQuality current)
+    {
+        if (previous.BannerCount == 0 && previous.ItemCount == 0)
+        {
+            return false;
+        }
+
+        return current.BannerCount == 0 ||
+            current.ItemCount == 0 ||
+            previous.BannerCount >= 4 && current.BannerCount * 2 <= previous.BannerCount ||
+            previous.ItemCount >= 8 && current.ItemCount * 2 <= previous.ItemCount;
+    }
 }
 
 public static class JournalCaptureAssessmentProjector

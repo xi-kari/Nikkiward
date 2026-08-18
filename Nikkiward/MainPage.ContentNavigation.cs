@@ -82,6 +82,8 @@ public sealed partial class MainPage
         var cancellationToken = _lifetimeCancellation?.Token ?? CancellationToken.None;
         if (ContentFrame.Content is GalleryPage galleryPage)
         {
+            galleryPage.ApplyAppearanceSettings(ViewModel.AppearanceSettings);
+            galleryPage.SetSurfaceActive(true);
             await galleryPage.LoadForProfileAsync(
                 ViewModel.SelectedProfileId,
                 ViewModel.GameRootPath,
@@ -99,7 +101,8 @@ public sealed partial class MainPage
                 ViewModel.GameRootPath,
                 ViewModel.GalleryRootPath,
                 cancellationToken,
-                viewMode),
+                viewMode,
+                ViewModel.AppearanceSettings),
             AppearanceRuntimeValues.CreateNavigationTransitionInfo());
     }
 
@@ -181,21 +184,31 @@ public sealed partial class MainPage
     private void SyncLauncherChrome()
     {
         EnsureSystemMotionSubscription();
-        bool launcherOpen =
-            ContentFrame.Visibility == Visibility.Visible &&
-            ContentFrame.Content is LauncherPage;
+        bool contentOpen = ContentFrame.Visibility == Visibility.Visible;
+        bool launcherOpen = contentOpen && ContentFrame.Content is LauncherPage;
+        var profilePage = contentOpen ? ContentFrame.Content as ProfilePage : null;
+        bool profileOpen = profilePage is not null;
+        bool profilePickerOpen = profilePage is { IsDetailsVisible: false };
         bool pageOpen =
-            ContentFrame.Visibility == Visibility.Visible &&
-            ContentFrame.Content is not ProfilePage and not LauncherPage;
+            contentOpen &&
+            (profilePage?.IsDetailsVisible == true ||
+             ContentFrame.Content is not ProfilePage and not LauncherPage);
 
-        bool overlayOpen =
+        bool blockingOverlayOpen =
             StatusDrawer.Visibility == Visibility.Visible ||
-            LaunchSettingsFrame.Visibility == Visibility.Visible ||
-            (ContentFrame.Visibility == Visibility.Visible &&
-             ContentFrame.Content is ProfilePage);
+            LaunchSettingsFrame.Visibility == Visibility.Visible;
+        bool overlayOpen = blockingOverlayOpen || profileOpen;
+        bool launcherSurfaceVisible =
+            profilePickerOpen ||
+            (launcherOpen && !blockingOverlayOpen);
+        bool launcherSurfaceInteractive = launcherOpen && !overlayOpen;
+
+        LauncherBackground.SetLauncherSurfaceState(
+            launcherSurfaceVisible,
+            launcherSurfaceInteractive);
 
         PageHostBackdrop.Visibility = Visible(pageOpen);
-        ProfileQuickSwitchHost.Visibility = Visibility.Visible;
+        ProfileQuickSwitchHost.Visibility = Visible(launcherSurfaceVisible);
         if (_hostedLauncherPage is { } launcherPage)
         {
             launcherPage.IsHitTestVisible = launcherOpen && !overlayOpen;
@@ -229,7 +242,9 @@ public sealed partial class MainPage
         }
 
         if (ContentFrame.Visibility == Visibility.Visible &&
-            ContentFrame.Content is ProfilePage { OnArtHost: { } profileOnArtHost })
+            ContentFrame.Content is ProfilePage profilePage &&
+            !profilePage.IsDetailsVisible &&
+            profilePage.OnArtHost is { } profileOnArtHost)
         {
             hosts.Add(profileOnArtHost);
         }
@@ -287,6 +302,7 @@ public sealed partial class MainPage
     {
         if (ContentFrame.Content is GalleryPage galleryPage)
         {
+            galleryPage.SetSurfaceActive(false);
             galleryPage.ClosePreview();
             ContentFrame.Visibility = Visibility.Collapsed;
             _returnToSettingsAfterGallery = false;

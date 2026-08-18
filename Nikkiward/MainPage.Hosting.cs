@@ -70,6 +70,7 @@ public sealed partial class MainPage
             previousJournalPage.ClearCacheRequested -= OnJournalClearCacheRequested;
             previousJournalPage.BrowserClosed -= OnJournalBrowserClosed;
             previousJournalPage.NavigationFinished -= OnJournalNavigationFinished;
+            previousJournalPage.RouteChanged -= OnJournalRouteChanged;
         }
 
         _hostedJournalPage = ContentFrame.Content as JournalPage;
@@ -81,6 +82,7 @@ public sealed partial class MainPage
             currentJournalPage.ClearCacheRequested += OnJournalClearCacheRequested;
             currentJournalPage.BrowserClosed += OnJournalBrowserClosed;
             currentJournalPage.NavigationFinished += OnJournalNavigationFinished;
+            currentJournalPage.RouteChanged += OnJournalRouteChanged;
             if (_journalSnapshot is { } journalSnapshot)
             {
                 currentJournalPage.ApplySnapshot(

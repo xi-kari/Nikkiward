@@ -27,7 +27,14 @@ public sealed partial class MainPage
             return false;
         }
 
+        if (!await _journalCaptureGate.WaitAsync(0))
+        {
+            return false;
+        }
+
         _resonanceSyncInProgress = true;
+        var routeGeneration = journalPage.RouteGeneration;
+        var capturedUrl = journalPage.CurrentUri?.AbsoluteUri;
         journalPage.ClearSyncFailure();
         try
         {
@@ -35,12 +42,22 @@ public sealed partial class MainPage
                 ? "正在自动整理全部共鸣历史……"
                 : "正在整理当前共鸣衣橱的全部历史……");
 
-            if (!await PrepareResonanceDocumentAsync())
+            if (!await PrepareResonanceDocumentAsync(journalPage, routeGeneration))
             {
+                if (!IsCurrentResonanceRoute(journalPage, routeGeneration))
+                {
+                    return false;
+                }
+
                 journalPage.SetBrowserStatus("共鸣衣橱仍在载入，正在重试同步……");
                 await Task.Delay(TimeSpan.FromMilliseconds(800), _lifetimeCancellation?.Token ?? CancellationToken.None);
-                if (!await PrepareResonanceDocumentAsync())
+                if (!await PrepareResonanceDocumentAsync(journalPage, routeGeneration))
                 {
+                    if (!IsCurrentResonanceRoute(journalPage, routeGeneration))
+                    {
+                        return false;
+                    }
+
                     journalPage.SetBrowserStatus(
                         "当前页面尚未返回共鸣活动记录；请确认已进入共鸣衣橱并等待页面载入完成。");
                     ScheduleResonanceRetry(attemptedAtUtc);
@@ -50,7 +67,8 @@ public sealed partial class MainPage
 
             var scriptResult = await ExecuteJournalScriptWithRetryAsync(
                 journalPage,
-                JournalWebCaptureScripts.ResonanceFull);
+                JournalWebCaptureScripts.ResonanceFull,
+                () => IsCurrentResonanceRoute(journalPage, routeGeneration));
             var json = UnwrapWebViewScriptResult(scriptResult);
             var snapshot = JsonSerializer.Deserialize<ResonanceHistorySnapshot>(
                 json,
@@ -68,14 +86,38 @@ public sealed partial class MainPage
                 return false;
             }
 
+            if (!IsCurrentResonanceRoute(journalPage, routeGeneration))
+            {
+                return false;
+            }
+
+            var existingSnapshot = await _resonanceCache.LoadAsync(
+                _lifetimeCancellation?.Token ?? CancellationToken.None);
+            if (existingSnapshot is not null &&
+                JournalSnapshotQualityProjector.IsObviousRegression(
+                    JournalSnapshotQualityProjector.Measure(existingSnapshot),
+                    JournalSnapshotQualityProjector.Measure(snapshot)))
+            {
+                journalPage.SetBrowserStatus(
+                    "当前页面记录尚未加载完整，已保留上一次完整的共鸣历史。");
+                ScheduleResonanceRetry(attemptedAtUtc);
+                return false;
+            }
+
             snapshot = await _resonanceCache.DownloadAndSaveAsync(
                 snapshot,
-                _lifetimeCancellation?.Token ?? CancellationToken.None);
+                _lifetimeCancellation?.Token ?? CancellationToken.None,
+                () => IsCurrentResonanceRoute(journalPage, routeGeneration));
+            if (!IsCurrentResonanceRoute(journalPage, routeGeneration))
+            {
+                return false;
+            }
+
             ApplyResonanceHistory(snapshot);
             await ApplyWishHistoryFromResonanceAsync(
                 snapshot,
                 _lifetimeCancellation?.Token ?? CancellationToken.None);
-            _resonanceLastAutoSyncedUrl = journalPage.CurrentUri?.AbsoluteUri;
+            _resonanceLastAutoSyncedUrl = capturedUrl;
             _journalRouteIntent = JournalRouteIntent.Unknown;
             _resonanceConsecutiveFailures = 0;
             _resonanceNextAutomaticSyncUtc = JournalSyncScheduleProjector.Project(
@@ -116,6 +158,7 @@ public sealed partial class MainPage
         finally
         {
             _resonanceSyncInProgress = false;
+            _journalCaptureGate.Release();
         }
     }
 
@@ -128,19 +171,25 @@ public sealed partial class MainPage
             _resonanceConsecutiveFailures).NextAttemptAtUtc;
     }
 
-    private async Task<bool> PrepareResonanceDocumentAsync()
+    private async Task<bool> PrepareResonanceDocumentAsync(
+        JournalPage journalPage,
+        long routeGeneration)
     {
-        var journalPage = _hostedJournalPage
-            ?? throw new InvalidOperationException("The journal page is not active.");
         var cancellationToken = _lifetimeCancellation?.Token ?? CancellationToken.None;
         string? previousSignature = null;
         var stableSamples = 0;
-        for (var attempt = 0; attempt < 80 && stableSamples < 3; attempt++)
+        for (var attempt = 0; attempt < 80; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (!IsCurrentResonanceRoute(journalPage, routeGeneration))
+            {
+                return false;
+            }
+
             var scriptResult = await ExecuteJournalScriptWithRetryAsync(
                 journalPage,
-                JournalWebCaptureScripts.PrepareResonance);
+                JournalWebCaptureScripts.PrepareResonance,
+                () => IsCurrentResonanceRoute(journalPage, routeGeneration));
             var signature = UnwrapWebViewScriptResult(scriptResult);
             if (string.Equals(signature, previousSignature, StringComparison.Ordinal))
             {
@@ -152,7 +201,7 @@ public sealed partial class MainPage
                 stableSamples = 0;
             }
 
-            if (stableSamples >= 2)
+            if (stableSamples >= JournalDocumentReadinessProjector.RequiredStableSamples)
             {
                 try
                 {
@@ -181,6 +230,10 @@ public sealed partial class MainPage
         await journalPage.ExecuteScriptAsync("window.scrollTo(0, 0)");
         return false;
     }
+
+    private static bool IsCurrentResonanceRoute(JournalPage journalPage, long routeGeneration) =>
+        journalPage.RouteGeneration == routeGeneration &&
+        IsResonanceHistoryUri(journalPage.CurrentUri);
 
     private static string UnwrapWebViewScriptResult(string scriptResult) =>
         JsonSerializer.Deserialize(

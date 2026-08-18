@@ -40,9 +40,14 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
         }
 
         SettingsFilePath = Path.Combine(Path.GetFullPath(localDataRoot), "Nikkiward", "settings.json");
+        MigrationRollbackFilePath = Path.Combine(
+            Path.GetDirectoryName(SettingsFilePath)!,
+            "settings.pre-schema6.rollback.json");
     }
 
     public string SettingsFilePath { get; }
+
+    public string MigrationRollbackFilePath { get; }
 
     public async Task<UserSettings> LoadAsync(CancellationToken cancellationToken = default)
     {
@@ -88,15 +93,25 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
             {
                 root = AppearanceSettingsMigration.MigrateSchema3To4(root);
                 migrated = true;
+                version = UserSettings.MotionBackgroundSchemaVersion;
+            }
+
+            if (version == UserSettings.MotionBackgroundSchemaVersion)
+            {
+                root = AppearanceSettingsMigration.MigrateSchema4To5(root);
+                migrated = true;
                 version = UserSettings.PreviousSchemaVersion;
             }
 
             if (version == UserSettings.PreviousSchemaVersion)
             {
-                root = AppearanceSettingsMigration.MigrateSchema4To5(root);
+                await PreserveMigrationRollbackAsync(cancellationToken).ConfigureAwait(false);
+                root = AppearanceSettingsMigration.MigrateSchema5To6(root);
                 migrated = true;
+                version = UserSettings.CurrentSchemaVersion;
             }
-            else if (version != UserSettings.CurrentSchemaVersion)
+
+            if (version != UserSettings.CurrentSchemaVersion)
             {
                 throw new JsonException(
                     $"Unsupported settings schema version {version}; " +
@@ -202,6 +217,46 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
         }
     }
 
+    private async Task PreserveMigrationRollbackAsync(CancellationToken cancellationToken)
+    {
+        if (File.Exists(MigrationRollbackFilePath))
+        {
+            return;
+        }
+
+        var temporaryPath = $"{MigrationRollbackFilePath}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            await using (var source = new FileStream(
+                SettingsFilePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                bufferSize: 16 * 1024,
+                FileOptions.Asynchronous | FileOptions.SequentialScan))
+            await using (var destination = new FileStream(
+                temporaryPath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None,
+                bufferSize: 16 * 1024,
+                FileOptions.Asynchronous | FileOptions.WriteThrough))
+            {
+                await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
+                await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            File.Move(temporaryPath, MigrationRollbackFilePath, overwrite: false);
+        }
+        catch (IOException) when (File.Exists(MigrationRollbackFilePath))
+        {
+        }
+        finally
+        {
+            TryDeleteTemporaryFile(temporaryPath);
+        }
+    }
+
     private static int ReadSchemaVersion(JsonObject root)
     {
         if (!root.TryGetPropertyValue("schemaVersion", out var versionNode) ||
@@ -249,6 +304,7 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
             ["profiles"] = new JsonArray(),
         };
     }
+
 }
 
 internal static class UserSettingsValidator

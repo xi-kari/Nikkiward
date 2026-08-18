@@ -7,23 +7,24 @@ internal static class UserSettingsTests
 {
     public static (string Name, Func<Task> Run)[] All =>
     [
-        ("new settings use the single appearance authority in schema 5", NewSettingsUseAppearanceSchema5),
+        ("new settings use the single appearance authority in schema 6", NewSettingsUseAppearanceSchema6),
         ("appearance settings round trip through settings json", AppearanceRoundTripsThroughSettingsJson),
+        ("schema 5 holographic migration preserves a rollback copy", Schema5HolographicMigrationPreservesRollback),
         ("gallery roots round trip per profile", GalleryRootsRoundTripPerProfile),
-        ("schema 5 without channel store loads empty defaults", Schema5WithoutChannelStoreLoadsDefaults),
+        ("schema 5 without channel store migrates to empty defaults", Schema5WithoutChannelStoreLoadsDefaults),
         ("channel store settings round trip through settings json", ChannelStoreSettingsRoundTrip),
         ("settings schema 3 migrates profiles gallery gamepad and theme", SettingsSchema3MigratesEverySection),
-        ("settings migration is persisted atomically as schema 5", MigratedSettingsPersistAsSchema5),
+        ("settings migration is persisted atomically as schema 6", MigratedSettingsPersistAsSchema6),
         ("unsupported settings schemas fail closed", UnsupportedSettingsSchemasFailClosed),
         ("damaged settings documents fail closed", DamagedSettingsDocumentsFailClosed),
         ("settings save rejects invalid schema and appearance", SaveRejectsInvalidSettings),
         ("settings atomic replacement leaves no temporary files", AtomicReplacementLeavesNoTemporaryFiles),
     ];
 
-    private static Task NewSettingsUseAppearanceSchema5()
+    private static Task NewSettingsUseAppearanceSchema6()
     {
         var settings = new UserSettings();
-        AssertEqual(5, settings.SchemaVersion, "schema version");
+        AssertEqual(6, settings.SchemaVersion, "schema version");
         AssertEqual(ThemeMode.FollowArtwork, settings.Appearance.ThemeMode, "theme mode");
         AssertEqual(
             LauncherCapsuleStyle.Original,
@@ -64,6 +65,7 @@ internal static class UserSettingsTests
                         CarouselEnabled = true,
                         CarouselIntervalMinutes = 30,
                         ParallaxEnabled = false,
+                        HolographicCardEnabled = false,
                         MotionEnabled = true,
                         MotionSource = " D:\\Art\\loop.mp4 ",
                         MotionFpsCap = 60,
@@ -90,6 +92,7 @@ internal static class UserSettingsTests
                 loaded.Appearance.LauncherCapsuleStyle,
                 "launcher capsule style");
             AssertEqual("D:\\Art\\one.png", loaded.Appearance.Background.SelectedSource, "source");
+            Assert(!loaded.Appearance.Background.HolographicCardEnabled, "holographic card");
             Assert(loaded.Appearance.Background.MotionEnabled, "motion enabled");
             AssertEqual("D:\\Art\\loop.mp4", loaded.Appearance.Background.MotionSource, "motion source");
             AssertEqual(60, loaded.Appearance.Background.MotionFpsCap, "motion FPS");
@@ -111,6 +114,43 @@ internal static class UserSettingsTests
             Assert(
                 json.Contains("\"launcherCapsuleStyle\": \"ultraviolet\"", StringComparison.Ordinal),
                 "launcher capsule style must serialize as camel-case enum text");
+            Assert(
+                json.Contains("\"holographicCardEnabled\": false", StringComparison.Ordinal),
+                "holographic card setting must serialize");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static async Task Schema5HolographicMigrationPreservesRollback()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var store = new JsonUserSettingsStore(root);
+            await store.SaveAsync(new UserSettings());
+            var document = JsonNode.Parse(
+                await File.ReadAllTextAsync(store.SettingsFilePath))!.AsObject();
+            var background = document["appearance"]?["background"]?.AsObject() ??
+                throw new InvalidOperationException("appearance background missing");
+            document["schemaVersion"] = 5;
+            background.Remove("holographicCardEnabled");
+            var schema5Json = document.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(store.SettingsFilePath, schema5Json);
+
+            var loaded = await store.LoadAsync();
+
+            AssertEqual(6, loaded.SchemaVersion, "migrated schema");
+            Assert(
+                loaded.Appearance.Background.HolographicCardEnabled,
+                "missing holographic card setting should default enabled");
+            Assert(File.Exists(store.MigrationRollbackFilePath), "migration rollback copy");
+            AssertEqual(
+                schema5Json,
+                await File.ReadAllTextAsync(store.MigrationRollbackFilePath),
+                "migration rollback bytes");
         }
         finally
         {
@@ -174,6 +214,7 @@ internal static class UserSettingsTests
                 await store.SaveAsync(new UserSettings());
                 var document = JsonNode.Parse(
                     await File.ReadAllTextAsync(store.SettingsFilePath))!.AsObject();
+                document["schemaVersion"] = 5;
                 if (useExplicitNull)
                 {
                     document["channelStore"] = null;
@@ -189,7 +230,7 @@ internal static class UserSettingsTests
 
                 var loaded = await store.LoadAsync();
 
-                AssertEqual(5, loaded.SchemaVersion, "schema version");
+                AssertEqual(6, loaded.SchemaVersion, "schema version");
                 AssertEqual<string?>(null, loaded.ChannelStore.StoreRootPath, "store root");
                 AssertEqual<string?>(null, loaded.ChannelStore.LastReceiptId, "receipt id");
                 AssertEqual<string?>(null, loaded.ChannelStore.LastPlanSha256, "plan hash");
@@ -321,7 +362,7 @@ internal static class UserSettingsTests
 
             var loaded = await store.LoadAsync();
 
-            AssertEqual(5, loaded.SchemaVersion, "schema version");
+            AssertEqual(6, loaded.SchemaVersion, "schema version");
             AssertEqual("profile-a", loaded.SelectedProfileId, "selected profile");
             AssertEqual(ThemeMode.WarmDark, loaded.Appearance.ThemeMode, "migrated theme");
             AssertEqual(1, loaded.Profiles.Count, "profile count");
@@ -346,7 +387,7 @@ internal static class UserSettingsTests
         }
     }
 
-    private static async Task MigratedSettingsPersistAsSchema5()
+    private static async Task MigratedSettingsPersistAsSchema6()
     {
         var root = CreateTemporaryRoot();
         try
@@ -369,7 +410,7 @@ internal static class UserSettingsTests
             var migrated = await store.LoadAsync();
             var json = await File.ReadAllTextAsync(store.SettingsFilePath);
 
-            Assert(json.Contains("\"schemaVersion\": 5", StringComparison.Ordinal), "schema 5 output");
+            Assert(json.Contains("\"schemaVersion\": 6", StringComparison.Ordinal), "schema 6 output");
             Assert(json.Contains("\"appearance\"", StringComparison.Ordinal), "appearance output");
             Assert(
                 json.Contains("\"launcherCapsuleStyle\": \"original\"", StringComparison.Ordinal),
@@ -385,7 +426,7 @@ internal static class UserSettingsTests
 
     private static async Task UnsupportedSettingsSchemasFailClosed()
     {
-        foreach (var version in new[] { 2, 6 })
+        foreach (var version in new[] { 2, 7 })
         {
             var root = CreateTemporaryRoot();
             try
@@ -400,7 +441,7 @@ internal static class UserSettingsTests
                     () => store.LoadAsync());
                 Assert(exception.InnerException is JsonException, "inner exception must be JSON failure");
                 Assert(
-                    exception.InnerException!.Message.Contains("expected 5", StringComparison.Ordinal),
+                    exception.InnerException!.Message.Contains("expected 6", StringComparison.Ordinal),
                     "schema mismatch must identify current version");
             }
             finally
@@ -417,10 +458,10 @@ internal static class UserSettingsTests
             "not-json",
             "{}",
             "[]",
-            "{\"schemaVersion\":5}",
-            "{\"schemaVersion\":5,\"appearance\":{\"motion\":99},\"profiles\":[],\"galleryProfiles\":[],\"gamepad\":{}}",
-            "{\"schemaVersion\":5,\"appearance\":{\"launcherCapsuleStyle\":\"unknown\"},\"profiles\":[],\"galleryProfiles\":[],\"gamepad\":{}}",
-            "{\"schemaVersion\":5,\"appearance\":{},\"profiles\":[],\"galleryProfiles\":[],\"gamepad\":{},\"unknownSection\":true}",
+            "{\"schemaVersion\":6}",
+            "{\"schemaVersion\":6,\"appearance\":{\"motion\":99},\"profiles\":[],\"galleryProfiles\":[],\"gamepad\":{}}",
+            "{\"schemaVersion\":6,\"appearance\":{\"launcherCapsuleStyle\":\"unknown\"},\"profiles\":[],\"galleryProfiles\":[],\"gamepad\":{}}",
+            "{\"schemaVersion\":6,\"appearance\":{},\"profiles\":[],\"galleryProfiles\":[],\"gamepad\":{},\"unknownSection\":true}",
         };
 
         foreach (var document in documents)

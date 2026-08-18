@@ -14,7 +14,37 @@
         </Style>
     </UserControl.Resources>
 
-    <StackPanel Spacing="18">
+    <Grid>
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="GallerySettingsWidthStates">
+                <VisualState x:Name="NarrowGallerySettings">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="0" />
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="GalleryRootActions.Orientation" Value="Vertical" />
+                        <Setter Target="ProtectionPrimaryActions.Orientation" Value="Vertical" />
+                        <Setter Target="ProtectionMaintenanceActions.Orientation" Value="Vertical" />
+                        <Setter Target="CacheActions.Orientation" Value="Vertical" />
+                        <Setter Target="NikkiGalleryActions.Orientation" Value="Vertical" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="WideGallerySettings">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="620" />
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="GalleryRootActions.Orientation" Value="Horizontal" />
+                        <Setter Target="ProtectionPrimaryActions.Orientation" Value="Horizontal" />
+                        <Setter Target="ProtectionMaintenanceActions.Orientation" Value="Horizontal" />
+                        <Setter Target="CacheActions.Orientation" Value="Horizontal" />
+                        <Setter Target="NikkiGalleryActions.Orientation" Value="Horizontal" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+
+        <StackPanel Spacing="18">
         <Grid ColumnSpacing="12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
@@ -52,7 +82,7 @@
                     IsReadOnly="True"
                     Style="{StaticResource EditableMonospaceTextBoxStyle}"
                     Text="尚未配置" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
+                <StackPanel x:Name="GalleryRootActions" Orientation="Horizontal" Spacing="8">
                     <Button x:Name="ChooseRootButton" automation:AutomationProperties.Name="选择图库目录" Click="OnChooseRootClicked" Style="{StaticResource OnArtGlassButtonStyle}">
                         <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE8B7;" /><TextBlock Text="选择目录" /></StackPanel>
                     </Button>
@@ -96,7 +126,7 @@
                     IsReadOnly="True"
                     Style="{StaticResource EditableMonospaceTextBoxStyle}"
                     Text="尚未配置" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
+                <StackPanel x:Name="ProtectionPrimaryActions" Orientation="Horizontal" Spacing="8">
                     <Button x:Name="ChooseProtectionRootButton" automation:AutomationProperties.Name="选择收藏保护目录" Click="OnChooseProtectionRootClicked" Style="{StaticResource OnArtGlassButtonStyle}">
                         <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE8B7;" /><TextBlock Text="选择保护目录" /></StackPanel>
                     </Button>
@@ -104,7 +134,7 @@
                         <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE838;" /><TextBlock Text="打开目录" /></StackPanel>
                     </Button>
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="8">
+                <StackPanel x:Name="ProtectionMaintenanceActions" Orientation="Horizontal" Spacing="8">
                     <Button x:Name="VerifyProtectionButton" automation:AutomationProperties.Name="校验收藏保护副本" Click="OnVerifyProtectionClicked" Style="{StaticResource OnArtGlassButtonStyle}">
                         <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE9D9;" /><TextBlock Text="校验副本" /></StackPanel>
                     </Button>
@@ -127,7 +157,7 @@
                     IsReadOnly="True"
                     Style="{StaticResource EditableMonospaceTextBoxStyle}"
                     Text="尚未生成" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
+                <StackPanel x:Name="CacheActions" Orientation="Horizontal" Spacing="8">
                     <Button x:Name="RefreshCacheButton" automation:AutomationProperties.Name="刷新缓存统计" Click="OnRefreshCacheClicked" Style="{StaticResource OnArtGlassButtonStyle}">
                         <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE72C;" /><TextBlock Text="刷新" /></StackPanel>
                     </Button>
@@ -150,7 +180,7 @@
                     IsReadOnly="True"
                     Style="{StaticResource EditableMonospaceTextBoxStyle}"
                     Text="尚未关联" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
+                <StackPanel x:Name="NikkiGalleryActions" Orientation="Horizontal" Spacing="8">
                     <Button x:Name="RegisterNikkiGalleryButton" automation:AutomationProperties.Name="关联 NikkiGallery 程序" Click="OnRegisterNikkiGalleryClicked" Style="{StaticResource OnArtGlassButtonStyle}">
                         <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE8B5;" /><TextBlock Text="关联程序" /></StackPanel>
                     </Button>
@@ -163,5 +193,6 @@
                 </StackPanel>
             </StackPanel>
         </Border>
-    </StackPanel>
+        </StackPanel>
+    </Grid>
 </UserControl>

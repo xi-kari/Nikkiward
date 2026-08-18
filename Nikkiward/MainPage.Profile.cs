@@ -168,11 +168,11 @@ public sealed partial class MainPage
         if (ContentFrame.Visibility == Visibility.Visible &&
             ContentFrame.Content is ProfilePage)
         {
-            CloseProfileOverlay();
+            ShowLauncher();
             return;
         }
 
-        ShowProfileOverlay(selectNavigationItem: false);
+        ShowProfileOverlay();
     }
 
     private void OnProfileQuickSwitchHostPointerEntered(
@@ -218,12 +218,12 @@ public sealed partial class MainPage
 
     private void OnProfileOverlayMaskTapped(object sender, TappedRoutedEventArgs e)
     {
-        CloseProfileOverlay();
+        ShowLauncher();
     }
 
     private void OnProfileDetailsRequested(object? sender, EventArgs e)
     {
-        SetShellNavigationSelection(ProfilesNavigationItem);
+        SetShellNavigationSelection(LauncherNavigationItem);
         _hostedProfilePage?.ShowDetails();
         SetProfileQuickSwitchRailVisibility(false);
         ProfileOverlayScrim.Visibility = Visibility.Collapsed;
@@ -354,9 +354,9 @@ public sealed partial class MainPage
     }
 
     private void OnProfileCloseRequested(object? sender, EventArgs e) =>
-        CloseProfileOverlay();
+        ShowLauncher();
 
-    private void ShowProfileOverlay(bool selectNavigationItem = true)
+    private void ShowProfileOverlay()
     {
         HideLibrary();
         HideGallery();
@@ -367,10 +367,6 @@ public sealed partial class MainPage
         ProfileOverlayScrim.Visibility = Visibility.Visible;
         ProfileOverlayMask.Visibility = Visibility.Visible;
         ContentFrame.Visibility = Visibility.Visible;
-        if (selectNavigationItem)
-        {
-            SetShellNavigationSelection(ProfilesNavigationItem);
-        }
         SyncLauncherChrome();
         if (ContentFrame.Content is ProfilePage)
         {

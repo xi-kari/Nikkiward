@@ -48,7 +48,11 @@ public sealed partial class MainPage
                 : FormatProtectionStatus(protection),
             ProtectionPathText: protection?.Preferences.ActiveRootPath ?? "正在读取",
             CanChangeProtection: !busy,
-            CanOpenProtectionRoot: !busy && protection is not null,
+            CanOpenProtectionRoot: !busy &&
+                protection is not null &&
+                !protection.UnavailableRootPaths.Contains(
+                    protection.Preferences.ActiveRootPath,
+                    StringComparer.OrdinalIgnoreCase),
             CanVerifyProtection: !busy && protection?.Statistics.EntryCount > 0,
             CanCleanProtection: !busy &&
                 !string.IsNullOrWhiteSpace(profileId) &&
@@ -402,6 +406,11 @@ public sealed partial class MainPage
         if (!overview.Preferences.IsEnabled)
         {
             return $"已关闭 · 已保留 {statistics.EntryCount:N0} 条保护记录";
+        }
+
+        if (overview.UnavailableRootPaths.Count > 0)
+        {
+            return $"{overview.UnavailableRootPaths.Count:N0} 个保护目录不可用 · 已读取 {statistics.EntryCount:N0} 条记录";
         }
 
         var problems = statistics.ObjectMissingCount + statistics.ObjectCorruptCount;

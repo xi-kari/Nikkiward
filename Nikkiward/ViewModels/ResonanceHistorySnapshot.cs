@@ -187,10 +187,12 @@ public sealed class ResonanceHistoryCache
 
     public async Task<ResonanceHistorySnapshot> DownloadAndSaveAsync(
         ResonanceHistorySnapshot snapshot,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<bool>? commitGuard = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         cancellationToken.ThrowIfCancellationRequested();
+        EnsureCommitAllowed(commitGuard, cancellationToken);
 
         var safeSnapshot = CreateSafeSnapshot(snapshot, preserveCachedPaths: false);
         Directory.CreateDirectory(RootPath);
@@ -227,7 +229,8 @@ public sealed class ResonanceHistoryCache
         var cacheResults = (await Task.WhenAll(cacheTasks))
             .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
         ApplyCacheResults(safeSnapshot, cacheResults);
-        await SaveSnapshotAsync(safeSnapshot, cancellationToken);
+        EnsureCommitAllowed(commitGuard, cancellationToken);
+        await SaveSnapshotAsync(safeSnapshot, cancellationToken, commitGuard);
         return safeSnapshot;
     }
 
@@ -414,8 +417,10 @@ public sealed class ResonanceHistoryCache
 
     private async Task SaveSnapshotAsync(
         ResonanceHistorySnapshot snapshot,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<bool>? commitGuard = null)
     {
+        EnsureCommitAllowed(commitGuard, cancellationToken);
         Directory.CreateDirectory(RootPath);
         EnsureSafeStoragePath(RootPath, expectDirectory: true);
         var temporaryPath = Path.Combine(
@@ -441,11 +446,23 @@ public sealed class ResonanceHistoryCache
                 await stream.FlushAsync(cancellationToken);
             }
 
+            EnsureCommitAllowed(commitGuard, cancellationToken);
             File.Move(temporaryPath, SnapshotPath, overwrite: true);
         }
         finally
         {
             TryDeleteTemporaryFile(temporaryPath);
+        }
+    }
+
+    private static void EnsureCommitAllowed(
+        Func<bool>? commitGuard,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (commitGuard?.Invoke() == false)
+        {
+            throw new OperationCanceledException(cancellationToken);
         }
     }
 

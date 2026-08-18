@@ -75,6 +75,7 @@ public sealed partial class GeneralAppearanceSettingsView : UserControl
                 settings.Background.CarouselIntervalMinutes;
             CarouselIntervalNumberBox.IsEnabled = settings.Background.CarouselEnabled;
             ParallaxToggle.IsOn = settings.Background.ParallaxEnabled;
+            HolographicCardToggle.IsOn = settings.Background.HolographicCardEnabled;
             MotionToggle.IsOn = settings.Background.MotionEnabled;
             LiveBlurToggle.IsOn = settings.Background.UseLiveBlur;
             GlassIntensitySlider.Value = settings.Background.GlassIntensity;
@@ -240,6 +241,7 @@ public sealed partial class GeneralAppearanceSettingsView : UserControl
             {
                 CarouselEnabled = CarouselToggle.IsOn,
                 ParallaxEnabled = ParallaxToggle.IsOn,
+                HolographicCardEnabled = HolographicCardToggle.IsOn,
                 MotionEnabled = MotionToggle.IsOn,
                 UseLiveBlur = LiveBlurToggle.IsOn,
                 MotionPanEnabled = MotionPanToggle.IsOn,

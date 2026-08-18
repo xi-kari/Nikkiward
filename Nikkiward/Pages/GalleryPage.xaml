@@ -5,6 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:automation="using:Microsoft.UI.Xaml.Automation"
     xmlns:controls="using:Nikkiward.Controls"
+    xmlns:gallery="using:Nikkiward.Features.Gallery"
     xmlns:local="using:Nikkiward.Pages"
     xmlns:shell="using:Nikkiward.Features.Shell"
     xmlns:viewModels="using:Nikkiward.ViewModels"
@@ -18,9 +19,63 @@
             IsSourceGrouped="True"
             ItemsPath="Items"
             Source="{x:Bind ViewModel.DateGroups, Mode=OneWay}" />
+        <ItemsPanelTemplate x:Key="GalleryStandardItemsPanelTemplate">
+            <ItemsWrapGrid
+                AreStickyGroupHeadersEnabled="True"
+                GroupHeaderPlacement="Top"
+                ItemHeight="127"
+                ItemWidth="216"
+                Orientation="Horizontal" />
+        </ItemsPanelTemplate>
+        <ItemsPanelTemplate x:Key="GalleryFavoriteItemsPanelTemplate">
+            <gallery:GalleryFavoriteJustifiedPanel />
+        </ItemsPanelTemplate>
+        <StaticResource x:Key="GridViewItemBackgroundPointerOver" ResourceKey="ControlFillColorTransparentBrush" />
+        <StaticResource x:Key="GridViewItemBackgroundPressed" ResourceKey="ControlFillColorTransparentBrush" />
+        <StaticResource x:Key="GridViewItemBackgroundSelected" ResourceKey="ControlFillColorTransparentBrush" />
+        <StaticResource x:Key="GridViewItemBackgroundSelectedPointerOver" ResourceKey="ControlFillColorTransparentBrush" />
+        <StaticResource x:Key="GridViewItemBackgroundSelectedPressed" ResourceKey="ControlFillColorTransparentBrush" />
+        <StaticResource x:Key="GridViewItemBackgroundSelectedDisabled" ResourceKey="ControlFillColorTransparentBrush" />
+        <StaticResource x:Key="GridViewItemPointerOverBorderBrush" ResourceKey="ControlFillColorTransparentBrush" />
+        <StaticResource x:Key="GridViewItemSelectedBorderBrush" ResourceKey="ControlFillColorTransparentBrush" />
+        <StaticResource x:Key="GridViewItemSelectedPointerOverBorderBrush" ResourceKey="ControlFillColorTransparentBrush" />
+        <StaticResource x:Key="GridViewItemSelectedPressedBorderBrush" ResourceKey="ControlFillColorTransparentBrush" />
+        <StaticResource x:Key="GridViewItemSelectedDisabledBorderBrush" ResourceKey="ControlFillColorTransparentBrush" />
+        <StaticResource x:Key="GridViewItemSelectedInnerBorderBrush" ResourceKey="ControlFillColorTransparentBrush" />
     </shell:PageBase.Resources>
 
     <Grid x:Name="GalleryRoot">
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="GalleryWidthStates">
+                <VisualState x:Name="NarrowGallery">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="0" />
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="GalleryCommandBar.Margin" Value="12,0,12,0" />
+                        <Setter Target="GalleryTitleText.Visibility" Value="Collapsed" />
+                        <Setter Target="GallerySearchBox.Width" Value="160" />
+                        <Setter Target="GalleryGridView.Padding" Value="12,0,12,12" />
+                        <Setter Target="GalleryFavoriteGridView.Padding" Value="12,0,12,12" />
+                        <Setter Target="GalleryStatusBar.Padding" Value="12,0,12,0" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="WideGallery">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="720" />
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="GalleryCommandBar.Margin" Value="24,0,24,0" />
+                        <Setter Target="GalleryTitleText.Visibility" Value="Visible" />
+                        <Setter Target="GallerySearchBox.Width" Value="180" />
+                        <Setter Target="GalleryGridView.Padding" Value="24,0,48,12" />
+                        <Setter Target="GalleryFavoriteGridView.Padding" Value="24,0,48,12" />
+                        <Setter Target="GalleryStatusBar.Padding" Value="24,0,20,0" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+
         <Grid.RowDefinitions>
             <RowDefinition Height="48" />
             <RowDefinition Height="48" />
@@ -123,30 +178,24 @@
         </CommandBar>
 
         <Grid Grid.Row="2">
-            <GridView
-                x:Name="GalleryGridView"
+            <Grid x:Name="GalleryStandardGridHost">
+                <GridView
+                    x:Name="GalleryGridView"
                 IsItemClickEnabled="True"
                 ItemClick="OnGalleryItemClick"
+                Loaded="OnGalleryGridLoaded"
                 Padding="24,0,48,12"
                 ItemContainerStyle="{StaticResource GalleryGridViewItemStyle}"
+                ItemsPanel="{StaticResource GalleryStandardItemsPanelTemplate}"
                 ItemsSource="{x:Bind GroupedPhotosSource.View, Mode=OneWay}"
                 IsMultiSelectCheckBoxEnabled="False"
-                SelectionMode="Single"
+                SelectionMode="None"
+                SizeChanged="OnGalleryGridSizeChanged"
                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                 ScrollViewer.HorizontalScrollMode="Disabled"
                 ScrollViewer.VerticalScrollBarVisibility="Auto"
                 ScrollViewer.VerticalScrollMode="Enabled"
-                Visibility="{x:Bind ViewModel.GridVisibility, Mode=OneWay}">
-                <GridView.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <ItemsWrapGrid
-                            AreStickyGroupHeadersEnabled="True"
-                            GroupHeaderPlacement="Top"
-                            ItemHeight="127"
-                            ItemWidth="216"
-                            Orientation="Horizontal" />
-                    </ItemsPanelTemplate>
-                </GridView.ItemsPanel>
+                    Visibility="{x:Bind ViewModel.GridVisibility, Mode=OneWay}">
                 <GridView.GroupStyle>
                     <GroupStyle>
                         <GroupStyle.HeaderTemplate>
@@ -181,8 +230,8 @@
                         x:DataType="viewModels:GalleryPhotoItemViewModel"
                         x:DefaultBindMode="OneTime">
                         <Border
-                            Width="204"
-                            Height="115"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
                             automation:AutomationProperties.Name="{x:Bind AccessibleName}"
                             Background="{ThemeResource PaperRaisedBrush}"
                             BorderBrush="{ThemeResource HairlineSoftBrush}"
@@ -205,12 +254,21 @@
                                     <MenuFlyoutItem automation:AutomationProperties.Name="在资源管理器中显示图片" Click="OnGalleryRevealMenuClicked" Tag="{x:Bind}" Text="在资源管理器中显示" />
                                 </MenuFlyout>
                             </Border.ContextFlyout>
-                            <Grid>
-                                <Image
-                                    x:Name="GalleryThumbnail"
-                                    CenterPoint="102,57.5,0"
-                                    Source="{x:Bind ThumbnailSource}"
-                                    Stretch="UniformToFill" />
+                            <controls:CardBorderGlow
+                                x:Name="GalleryBorderGlow"
+                                EdgeSensitivity="30"
+                                GlowCornerRadius="16"
+                                GlowIntensity="0.9"
+                                GlowRadius="34"
+                                IsDirectPointerTrackingEnabled="True"
+                                IsIntroAnimationEnabled="False"
+                                IsLiftEnabled="False">
+                                <Grid x:Name="GalleryThumbnailScaleHost">
+                                    <Image
+                                        x:Name="GalleryThumbnail"
+                                        Source="{x:Bind CardSource, Mode=OneWay}"
+                                        Stretch="Uniform" />
+                                </Grid>
                                 <FontIcon
                                     Margin="8"
                                     HorizontalAlignment="Left"
@@ -230,60 +288,99 @@
                                     IsHitTestVisible="False"
                                     ToolTipService.ToolTip="{x:Bind ProtectionStatusText, Mode=OneWay}"
                                     Visibility="{x:Bind ProtectedVisibility, Mode=OneWay}" />
-                                <Border
-                                    x:Name="GalleryImageInfo"
+                                <Button
+                                    x:Name="GalleryStarButton"
+                                    Width="32"
+                                    Height="28"
+                                    Padding="0"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Top"
+                                    automation:AutomationProperties.Name="切换图片收藏状态"
                                     Background="{ThemeResource OnArtPlateBrush}"
+                                    BorderThickness="0"
+                                    CornerRadius="14"
+                                    Foreground="{ThemeResource OnArtPrimaryTextBrush}"
+                                    IsHitTestVisible="False"
+                                    IsTabStop="False"
+                                    Opacity="0"
+                                    RequestedTheme="Dark"
+                                    Tag="{x:Bind}"
+                                    Tapped="OnGalleryStarTapped"
+                                    ToolTipService.ToolTip="{x:Bind StarCommandText, Mode=OneWay}">
+                                    <FontIcon FontSize="16" Glyph="{x:Bind StarGlyph, Mode=OneWay}" />
+                                </Button>
+                                <Button
+                                    x:Name="GalleryCopyButton"
+                                    Width="32"
+                                    Height="28"
+                                    Padding="0"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Top"
+                                    automation:AutomationProperties.Name="复制图片"
+                                    Background="{ThemeResource OnArtPlateBrush}"
+                                    BorderThickness="0"
+                                    CornerRadius="14"
+                                    Foreground="{ThemeResource OnArtPrimaryTextBrush}"
+                                    IsHitTestVisible="False"
+                                    IsTabStop="False"
+                                    Opacity="0"
+                                    RequestedTheme="Dark"
+                                    Tag="{x:Bind}"
+                                    Tapped="OnGalleryCopyTapped"
+                                    ToolTipService.ToolTip="复制图片">
+                                    <FontIcon FontSize="16" Glyph="&#xE8C8;" />
+                                </Button>
+                                <Border
+                                    x:Name="GalleryTimePlate"
+                                    Margin="8,0,8,4"
+                                    Padding="8,2"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Bottom"
+                                    Background="{ThemeResource OnArtPlateBrush}"
+                                    CornerRadius="10"
+                                    IsHitTestVisible="False"
                                     Opacity="0"
                                     RequestedTheme="Dark">
-                                    <Grid>
-                                        <Button
-                                            Width="32"
-                                            Height="28"
-                                            Padding="0"
-                                            HorizontalAlignment="Left"
-                                            VerticalAlignment="Top"
-                                            automation:AutomationProperties.Name="切换图片收藏状态"
-                                            Background="Transparent"
-                                            BorderThickness="0"
-                                            Foreground="{ThemeResource OnArtPrimaryTextBrush}"
-                                            Tag="{x:Bind}"
-                                            Tapped="OnGalleryStarTapped"
-                                            ToolTipService.ToolTip="{x:Bind StarCommandText, Mode=OneWay}">
-                                            <FontIcon FontSize="16" Glyph="{x:Bind StarGlyph, Mode=OneWay}" />
-                                        </Button>
-                                        <Button
-                                            Width="32"
-                                            Height="28"
-                                            Padding="0"
-                                            HorizontalAlignment="Right"
-                                            VerticalAlignment="Top"
-                                            automation:AutomationProperties.Name="复制图片"
-                                            Background="Transparent"
-                                            BorderThickness="0"
-                                            Foreground="{ThemeResource OnArtPrimaryTextBrush}"
-                                            Tag="{x:Bind}"
-                                            Tapped="OnGalleryCopyTapped"
-                                            ToolTipService.ToolTip="复制图片">
-                                            <FontIcon FontSize="16" Glyph="&#xE8C8;" />
-                                        </Button>
-                                        <TextBlock
-                                            Margin="8,0,8,4"
-                                            HorizontalAlignment="Center"
-                                            VerticalAlignment="Bottom"
-                                            FontSize="12"
-                                            Foreground="{ThemeResource OnArtPrimaryTextBrush}"
-                                            Text="{x:Bind HoverTimeText}"
-                                            TextTrimming="CharacterEllipsis" />
-                                    </Grid>
+                                    <TextBlock
+                                        FontSize="12"
+                                        Foreground="{ThemeResource OnArtPrimaryTextBrush}"
+                                        Text="{x:Bind HoverTimeText}"
+                                        TextTrimming="CharacterEllipsis" />
                                 </Border>
-                            </Grid>
+                            </controls:CardBorderGlow>
                         </Border>
                     </DataTemplate>
                 </GridView.ItemTemplate>
-            </GridView>
+                </GridView>
+            </Grid>
+
+            <Grid
+                x:Name="GalleryFavoriteGridHost"
+                Visibility="Collapsed">
+                <GridView
+                    x:Name="GalleryFavoriteGridView"
+                    IsItemClickEnabled="True"
+                    ItemClick="OnGalleryItemClick"
+                    ItemContainerStyle="{StaticResource GalleryGridViewItemStyle}"
+                    ItemTemplate="{Binding ItemTemplate, ElementName=GalleryGridView}"
+                    ItemsPanel="{StaticResource GalleryFavoriteItemsPanelTemplate}"
+                    ItemsSource="{x:Bind ViewModel.Photos, Mode=OneWay}"
+                    IsMultiSelectCheckBoxEnabled="False"
+                    Loaded="OnGalleryGridLoaded"
+                    Padding="24,0,48,12"
+                    SelectionMode="None"
+                    SizeChanged="OnGalleryGridSizeChanged"
+                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                    ScrollViewer.HorizontalScrollMode="Disabled"
+                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                    ScrollViewer.VerticalScrollMode="Enabled"
+                    Visibility="{x:Bind ViewModel.GridVisibility, Mode=OneWay}" />
+            </Grid>
 
             <StackPanel
-                Width="420"
+                x:Name="GalleryEmptyState"
+                MaxWidth="420"
+                Margin="24"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
                 Spacing="12"
@@ -319,6 +416,7 @@
         </Grid>
 
         <Grid
+            x:Name="GalleryStatusBar"
             Grid.Row="3"
             Padding="24,0,20,0"
             Background="{ThemeResource GlassIslandBrush}"

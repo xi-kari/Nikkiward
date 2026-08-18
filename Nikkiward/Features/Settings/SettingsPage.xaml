@@ -165,13 +165,30 @@
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.FooterMenuItems>
-            <ScrollViewer x:Name="ContentScrollViewer" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer
+                x:Name="ContentScrollViewer"
+                HorizontalContentAlignment="Stretch"
+                HorizontalScrollBarVisibility="Disabled"
+                VerticalScrollBarVisibility="Auto">
                 <Grid
-                    MaxWidth="980"
-                    Margin="0,0,8,12"
-                    Padding="{ThemeResource ContentPaddingThickness}"
-                    HorizontalAlignment="Left">
-                    <StackPanel x:Name="ContentHost" />
+                    x:Name="SettingsContentViewport"
+                    HorizontalAlignment="Stretch">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition
+                            x:Name="SettingsContentWidthColumn"
+                            Width="*"
+                            MaxWidth="980" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid
+                        x:Name="SettingsContentColumn"
+                        Margin="0,0,8,12"
+                        Padding="{ThemeResource ContentPaddingThickness}"
+                        HorizontalAlignment="Stretch">
+                        <Grid
+                            x:Name="ContentHost"
+                            HorizontalAlignment="Stretch" />
+                    </Grid>
                 </Grid>
             </ScrollViewer>
         </NavigationView>

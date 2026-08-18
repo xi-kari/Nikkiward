@@ -13,6 +13,14 @@ namespace Nikkiward.Pages;
 public sealed partial class GalleryPage
 {
     private const string GalleryPreviewAnimationKey = AppearanceRuntimeValues.GalleryPreviewAnimationKey;
+    private const double FavoriteCardCornerRadius = 16d;
+    private const double StandardCardCornerRadius = 4d;
+    private static readonly string[] GalleryHoverChromeNames =
+    [
+        "GalleryStarButton",
+        "GalleryCopyButton",
+        "GalleryTimePlate",
+    ];
     private GalleryPhotoItemViewModel? _returnFocusPhoto;
 
     private async void OnGalleryItemClick(object sender, ItemClickEventArgs e)
@@ -41,36 +49,90 @@ public sealed partial class GalleryPage
             return;
         }
 
-        if (root.FindName("GalleryThumbnail") is UIElement thumbnail)
+        if (root.FindName("GalleryThumbnailScaleHost") is UIElement thumbnailScaleHost)
         {
-            AppearanceRuntimeValues.ApplyScaleTransition(thumbnail);
+            AppearanceRuntimeValues.ApplyScaleTransition(thumbnailScaleHost);
         }
 
-        if (root.FindName("GalleryImageInfo") is UIElement overlay)
+        foreach (var name in GalleryHoverChromeNames)
         {
-            AppearanceRuntimeValues.ApplyOpacityTransition(overlay);
+            if (root.FindName(name) is UIElement chrome)
+            {
+                AppearanceRuntimeValues.ApplyOpacityTransition(chrome);
+            }
+        }
+
+        ApplyGalleryItemPresentation(root);
+        if (_viewMode == GalleryViewMode.Favorites)
+        {
+            ApplyGalleryGridLayout();
         }
     }
 
-    private static void SetGalleryItemHoverState(object sender, bool isPointerOver)
+    private void SetGalleryItemHoverState(object sender, bool isPointerOver)
     {
         if (sender is not FrameworkElement root)
         {
             return;
         }
 
-        if (root.FindName("GalleryImageInfo") is UIElement overlay)
+        foreach (var name in GalleryHoverChromeNames)
         {
-            overlay.Opacity = isPointerOver ? 1 : 0;
+            if (root.FindName(name) is UIElement chrome)
+            {
+                chrome.Opacity = isPointerOver ? 1 : 0;
+                if (name is "GalleryStarButton" or "GalleryCopyButton")
+                {
+                    chrome.IsHitTestVisible = isPointerOver;
+                }
+            }
         }
 
-        if (root.FindName("GalleryThumbnail") is UIElement thumbnail)
+        if (root.FindName("GalleryThumbnailScaleHost") is UIElement thumbnailScaleHost)
         {
-            var scale = isPointerOver
+            var scale = isPointerOver && _viewMode != GalleryViewMode.Favorites
                 ? AppearanceRuntimeValues.ReadScale("HoverScale")
                 : 1f;
-            thumbnail.Scale = new System.Numerics.Vector3(scale, scale, 1f);
+            thumbnailScaleHost.Scale = new System.Numerics.Vector3(scale, scale, 1f);
         }
+    }
+
+    private void RefreshGalleryCardPresentation()
+    {
+        foreach (var photo in ViewModel.Photos)
+        {
+            if (ActiveGalleryGridView.ContainerFromItem(photo) is GridViewItem container &&
+                container.ContentTemplateRoot is FrameworkElement root)
+            {
+                ApplyGalleryItemPresentation(root);
+            }
+        }
+    }
+
+    private void ApplyGalleryItemPresentation(FrameworkElement root)
+    {
+        var effectEnabled = IsFavoriteCardEffectEnabled;
+        var cornerRadius = _viewMode == GalleryViewMode.Favorites
+            ? FavoriteCardCornerRadius
+            : StandardCardCornerRadius;
+        if (root is Border card)
+        {
+            card.CornerRadius = new CornerRadius(cornerRadius);
+        }
+
+        if (root.FindName("GalleryBorderGlow") is Nikkiward.Controls.CardBorderGlow borderGlow)
+        {
+            borderGlow.GlowCornerRadius = cornerRadius;
+            borderGlow.ApplyMotion(_appearanceSettings.Motion);
+            borderGlow.SetGlowEnabled(effectEnabled);
+        }
+
+        if (_viewMode == GalleryViewMode.Favorites &&
+            root.FindName("GalleryThumbnailScaleHost") is UIElement thumbnailScaleHost)
+        {
+            thumbnailScaleHost.Scale = System.Numerics.Vector3.One;
+        }
+
     }
 
     private async void OnGalleryCopyTapped(object sender, TappedRoutedEventArgs e)
@@ -246,7 +308,7 @@ public sealed partial class GalleryPage
 
     private UIElement? FindGalleryThumbnail(GalleryPhotoItemViewModel photo)
     {
-        if (GalleryGridView.ContainerFromItem(photo) is not GridViewItem container ||
+        if (ActiveGalleryGridView.ContainerFromItem(photo) is not GridViewItem container ||
             container.ContentTemplateRoot is not FrameworkElement templateRoot)
         {
             return null;
@@ -257,9 +319,9 @@ public sealed partial class GalleryPage
 
     private void FocusGalleryPhoto(GalleryPhotoItemViewModel photo)
     {
-        if (GalleryGridView.ContainerFromItem(photo) is GridViewItem container)
+        if (ActiveGalleryGridView.ContainerFromItem(photo) is GridViewItem container)
         {
-            GalleryGridView.ScrollIntoView(photo, ScrollIntoViewAlignment.Leading);
+            ActiveGalleryGridView.ScrollIntoView(photo, ScrollIntoViewAlignment.Leading);
             _ = container.Focus(FocusState.Programmatic);
         }
     }
@@ -308,37 +370,67 @@ public sealed partial class GalleryPage
 
     private async Task ToggleGalleryStarAsync(GalleryPhotoItemViewModel photo)
     {
-        var isStarred = !photo.IsStarred;
+        var operationKey = $"{_annotationScopeId}\0{photo.StarKey}";
+        var isStarred = _favoriteDesiredStates.AddOrUpdate(
+            operationKey,
+            _ => !photo.IsStarred,
+            (_, current) => !current);
+        var operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            _loadCancellation?.Token ?? CancellationToken.None);
+        _favoriteOperationCancellations.AddOrUpdate(
+            operationKey,
+            operationCancellation,
+            (_, previous) =>
+            {
+                previous.Cancel();
+                return operationCancellation;
+            });
+        var operationGate = _favoriteOperationGates.GetOrAdd(
+            operationKey,
+            static _ => new SemaphoreSlim(1, 1));
+        var scopeId = _annotationScopeId;
+        var generation = Interlocked.Read(ref _galleryGeneration);
+        var gateEntered = false;
         try
         {
+            await operationGate.WaitAsync(operationCancellation.Token);
+            gateEntered = true;
+            EnsureCurrentFavoriteOperation(
+                operationKey,
+                operationCancellation,
+                scopeId,
+                generation);
             await _annotationStore.SetStarredAsync(
-                _annotationScopeId,
+                scopeId,
                 photo.RelativePath,
                 isStarred,
-                _loadCancellation?.Token ?? CancellationToken.None);
+                operationCancellation.Token);
+            EnsureCurrentFavoriteOperation(
+                operationKey,
+                operationCancellation,
+                scopeId,
+                generation);
             ViewModel.SetStarred(photo, isStarred);
             GalleryPreview.UpdateStarState(isStarred);
-        }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
-        catch (Exception ex)
-        {
-            await ShowDialogAsync("收藏更新失败", $"星标未保存：{ex.GetType().Name}");
-            return;
-        }
 
-        if (isStarred)
-        {
-            GalleryPreview.SetStatus("正在创建本地保护副本…");
-            try
+            if (isStarred)
             {
+                GalleryPreview.SetStatus("正在创建本地保护副本…");
                 var protection = await _favoriteProtectionService.ProtectAsync(
-                    _annotationScopeId,
+                    scopeId,
                     photo.RelativePath,
                     photo.FilePath,
-                    CancellationToken.None);
+                    operationCancellation.Token);
+                EnsureCurrentFavoriteOperation(
+                    operationKey,
+                    operationCancellation,
+                    scopeId,
+                    generation);
+                if (!photo.IsStarred)
+                {
+                    return;
+                }
+
                 if (protection.Entry is not null && protection.ProtectedPath is not null)
                 {
                     photo.SetProtectedCopy(
@@ -351,20 +443,84 @@ public sealed partial class GalleryPage
                     GalleryPreview.SetStatus("已收藏 · 本地保护已关闭");
                 }
             }
-            catch (OperationCanceledException)
+            else
             {
+                var remainingStarredPaths = ViewModel.Photos
+                    .Where(item => item.IsStarred)
+                    .Select(item => item.RelativePath)
+                    .ToArray();
+                await _favoriteProtectionService.CleanUnstarredAsync(
+                    scopeId,
+                    remainingStarredPaths,
+                    operationCancellation.Token);
+                EnsureCurrentFavoriteOperation(
+                    operationKey,
+                    operationCancellation,
+                    scopeId,
+                    generation);
+                photo.SetProtectedCopy(null, isUsingProtectedCopy: false);
+                if (_viewMode == GalleryViewMode.Favorites)
+                {
+                    CloseGalleryPreview();
+                }
             }
-            catch (Exception ex)
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            if (isStarred && photo.IsStarred)
             {
                 GalleryPreview.SetStatus("已收藏 · 本地保护副本创建失败");
                 await ShowDialogAsync(
                     "照片已收藏",
                     $"星标已保存，但本地保护副本未创建：{ex.GetType().Name}");
             }
+            else
+            {
+                await ShowDialogAsync("收藏更新失败", $"星标未保存：{ex.GetType().Name}");
+            }
         }
-        else if (_viewMode == GalleryViewMode.Favorites)
+        finally
         {
-            CloseGalleryPreview();
+            if (gateEntered)
+            {
+                operationGate.Release();
+            }
+
+            if (_favoriteOperationCancellations.TryGetValue(operationKey, out var current) &&
+                ReferenceEquals(current, operationCancellation))
+            {
+                _favoriteOperationCancellations.TryRemove(operationKey, out _);
+                _favoriteDesiredStates.TryRemove(operationKey, out _);
+            }
+
+            operationCancellation.Dispose();
+        }
+    }
+
+    private void EnsureCurrentFavoriteOperation(
+        string operationKey,
+        CancellationTokenSource operationCancellation,
+        string scopeId,
+        long generation)
+    {
+        operationCancellation.Token.ThrowIfCancellationRequested();
+        if (generation != Interlocked.Read(ref _galleryGeneration) ||
+            !string.Equals(scopeId, _annotationScopeId, StringComparison.Ordinal) ||
+            !_favoriteOperationCancellations.TryGetValue(operationKey, out var current) ||
+            !ReferenceEquals(current, operationCancellation))
+        {
+            throw new OperationCanceledException(operationCancellation.Token);
+        }
+    }
+
+    private void CancelFavoriteOperations()
+    {
+        foreach (var cancellation in _favoriteOperationCancellations.Values)
+        {
+            cancellation.Cancel();
         }
     }
 

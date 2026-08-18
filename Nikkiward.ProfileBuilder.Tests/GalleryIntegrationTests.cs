@@ -13,6 +13,8 @@ internal static class GalleryIntegrationTests
         ("favorite protection detects a changed original and corrupt object", TestFavoriteProtectionIntegrity),
         ("favorite protection cleanup removes only unstarred objects", TestFavoriteProtectionCleanup),
         ("favorite protection preferences preserve prior storage roots", TestFavoriteProtectionPreferences),
+        ("favorite protection reads leave an absent store untouched", TestFavoriteProtectionReadDoesNotCreateStore),
+        ("favorite protection reports an unavailable store instead of an empty store", TestFavoriteProtectionUnavailableStore),
         ("disabled favorite protection does not copy a new favorite", TestFavoriteProtectionDisabled),
         ("NikkiGallery registration detects executable changes", TestNikkiGalleryTamperDetection),
         ("NikkiGallery disconnect keeps the external executable", TestNikkiGalleryDisconnect),
@@ -219,6 +221,63 @@ internal static class GalleryIntegrationTests
         AssertEqual(1, recovered.Count, "protected favorite across prior root");
         Assert(recovered[0].IsUsingProtectedCopy, "protected fallback state");
         Assert(File.Exists(recovered[0].ProtectedPath), "protected fallback file");
+    }
+
+    private static async Task TestFavoriteProtectionReadDoesNotCreateStore()
+    {
+        using var fixture = new TempFixture();
+        var root = Path.Combine(fixture.Root, "absent-protected-store");
+        var store = new GalleryFavoriteProtectionStore(root);
+
+        AssertEqual(0, store.GetEntries().Count, "absent store entries");
+        AssertEqual(0, store.GetEntries("profile:main").Count, "absent profile entries");
+        Assert(store.GetEntry("profile:main", "missing.jpeg") is null, "absent store entry");
+        Assert(
+            await store.VerifyAsync("profile:main", "missing.jpeg") is null,
+            "absent store single verification");
+        AssertEqual(0, (await store.VerifyAsync()).Count, "absent store verification");
+        AssertEqual(0, (await store.GetStatisticsAsync()).EntryCount, "absent store statistics");
+
+        var cleanup = await store.CleanUnstarredAsync(
+            "profile:main",
+            Array.Empty<string>());
+        AssertEqual(0, cleanup.RemovedEntryCount, "absent store cleanup entries");
+        AssertEqual(0, cleanup.RemovedObjectCount, "absent store cleanup objects");
+        Assert(!Directory.Exists(root), "read-only operations must not create the store root");
+    }
+
+    private static async Task TestFavoriteProtectionUnavailableStore()
+    {
+        using var fixture = new TempFixture();
+        var picturesRoot = Path.Combine(fixture.Root, "pictures");
+        var parent = Path.Combine(picturesRoot, "Nikkiward");
+        Directory.CreateDirectory(parent);
+        var unavailableRoot = Path.Combine(parent, "ProtectedFavorites");
+        await File.WriteAllTextAsync(unavailableRoot, "not-a-directory");
+
+        var store = new GalleryFavoriteProtectionStore(unavailableRoot);
+        var rejected = false;
+        try
+        {
+            _ = store.GetEntries();
+        }
+        catch (IOException)
+        {
+            rejected = true;
+        }
+
+        Assert(rejected, "a file at the protection root must not be reported as an empty store");
+
+        var service = new GalleryFavoriteProtectionService(
+            Path.Combine(fixture.Root, "local"),
+            picturesRoot);
+        var overview = await service.GetOverviewAsync(verify: false);
+        AssertEqual(0, overview.Statistics.EntryCount, "unavailable root readable entries");
+        AssertEqual(1, overview.UnavailableRootPaths.Count, "unavailable root count");
+        AssertEqual(
+            unavailableRoot,
+            overview.UnavailableRootPaths[0],
+            "unavailable root identity");
     }
 
     private static async Task TestFavoriteProtectionDisabled()

@@ -278,9 +278,11 @@ public sealed class JournalSnapshotCache
 
     public async Task<JournalSnapshot> DownloadAndSaveAsync(
         JournalSnapshot snapshot,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<bool>? commitGuard = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        EnsureCommitAllowed(commitGuard, cancellationToken);
 
         Directory.CreateDirectory(AssetsPath);
         var resources = snapshot.Resources
@@ -386,15 +388,18 @@ public sealed class JournalSnapshotCache
                 .ToList(),
         };
 
-        await SaveAsync(safeSnapshot, cancellationToken);
+        EnsureCommitAllowed(commitGuard, cancellationToken);
+        await SaveAsync(safeSnapshot, cancellationToken, commitGuard);
         return safeSnapshot;
     }
 
     public async Task SaveAsync(
         JournalSnapshot snapshot,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<bool>? commitGuard = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        EnsureCommitAllowed(commitGuard, cancellationToken);
         Directory.CreateDirectory(RootPath);
         var temporaryPath = $"{SnapshotPath}.{Guid.NewGuid():N}.tmp";
         try
@@ -411,6 +416,7 @@ public sealed class JournalSnapshotCache
                 await stream.FlushAsync(cancellationToken);
             }
 
+            EnsureCommitAllowed(commitGuard, cancellationToken);
             File.Move(temporaryPath, SnapshotPath, overwrite: true);
         }
         finally
@@ -419,6 +425,17 @@ public sealed class JournalSnapshotCache
             {
                 File.Delete(temporaryPath);
             }
+        }
+    }
+
+    private static void EnsureCommitAllowed(
+        Func<bool>? commitGuard,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (commitGuard?.Invoke() == false)
+        {
+            throw new OperationCanceledException(cancellationToken);
         }
     }
 

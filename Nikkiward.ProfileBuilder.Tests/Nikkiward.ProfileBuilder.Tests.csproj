@@ -28,6 +28,7 @@
     <Compile Include="..\Nikkiward\Models\LaunchState.cs" Link="Models\LaunchState.cs" />
     <Compile Include="..\Nikkiward\Models\UserSettings.cs" Link="Models\UserSettings.cs" />
     <Compile Include="..\Nikkiward\Models\AppearanceSettings.cs" Link="Models\AppearanceSettings.cs" />
+    <Compile Include="..\Nikkiward\Controls\CardBorderGlowProjection.cs" Link="Controls\CardBorderGlowProjection.cs" />
     <Compile Include="..\Nikkiward\Serialization\NikkiwardJsonContext.cs" Link="Serialization\NikkiwardJsonContext.cs" />
     <Compile Include="..\Nikkiward\Services\IUserSettingsStore.cs" Link="Services\IUserSettingsStore.cs" />
     <Compile Include="..\Nikkiward\Services\IDiagnosticReportExporter.cs" Link="Services\IDiagnosticReportExporter.cs" />
@@ -56,6 +57,8 @@
     <Compile Include="..\Nikkiward\Features\Background\ArtAnalysisCache.cs" Link="Features\Background\ArtAnalysisCache.cs" />
     <Compile Include="..\Nikkiward\Features\Background\MotionSourceRules.cs" Link="Features\Background\MotionSourceRules.cs" />
     <Compile Include="..\Nikkiward\Features\Background\MotionImportFileCopier.cs" Link="Features\Background\MotionImportFileCopier.cs" />
+    <Compile Include="..\Nikkiward\Features\Background\HolographicBackdropProjection.cs" Link="Features\Background\HolographicBackdropProjection.cs" />
+    <Compile Include="..\Nikkiward\Features\Settings\AuthorProfileDepthProjection.cs" Link="Features\Settings\AuthorProfileDepthProjection.cs" />
     <Compile Include="..\Nikkiward\Features\Shell\GlassTierResolver.cs" Link="Features\Shell\GlassTierResolver.cs" />
     <Compile Include="..\Nikkiward\Features\Updates\UpdateModels.cs" Link="Features\Updates\UpdateModels.cs" />
     <Compile Include="..\Nikkiward\Features\Updates\AppVersionProvider.cs" Link="Features\Updates\AppVersionProvider.cs" />
@@ -64,6 +67,7 @@
     <Compile Include="..\Nikkiward\Features\Updates\UpdateJsonContext.cs" Link="Features\Updates\UpdateJsonContext.cs" />
     <Compile Include="..\Nikkiward\Features\Updates\GitHubReleaseUpdateService.cs" Link="Features\Updates\GitHubReleaseUpdateService.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryPhotoMetadata.cs" Link="Features\Gallery\GalleryPhotoMetadata.cs" />
+    <Compile Include="..\Nikkiward\Features\Gallery\GalleryFavoriteCardLayoutProjection.cs" Link="Features\Gallery\GalleryFavoriteCardLayoutProjection.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryAnnotationStore.cs" Link="Features\Gallery\GalleryAnnotationStore.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryFavoriteProtectionStore.cs" Link="Features\Gallery\GalleryFavoriteProtectionStore.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryFavoriteProtectionService.cs" Link="Features\Gallery\GalleryFavoriteProtectionService.cs" />
@@ -86,7 +90,11 @@
     <Compile Include="UserSettingsTests.cs" />
     <Compile Include="AppearanceSettingsTests.cs" />
     <Compile Include="AppearanceRuntimeContractTests.cs" />
+    <Compile Include="CardBorderGlowProjectionTests.cs" />
+    <Compile Include="HolographicBackdropProjectionTests.cs" />
+    <Compile Include="AuthorProfileDepthProjectionTests.cs" />
     <Compile Include="GalleryIntegrationTests.cs" />
+    <Compile Include="GalleryFavoriteCardLayoutTests.cs" />
     <Compile Include="GalleryMetadataTests.cs" />
     <Compile Include="JournalDomainTests.cs" />
     <Compile Include="JournalSnapshotTests.cs" />

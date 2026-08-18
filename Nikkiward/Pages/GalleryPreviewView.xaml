@@ -12,12 +12,46 @@
         x:Name="GalleryPreviewSurface"
         Background="{ThemeResource GlassIslandBrush}"
         RequestedTheme="Dark">
+            <VisualStateManager.VisualStateGroups>
+                <VisualStateGroup x:Name="PreviewWidthStates">
+                    <VisualState x:Name="NarrowPreview">
+                        <VisualState.StateTriggers>
+                            <AdaptiveTrigger MinWindowWidth="0" />
+                        </VisualState.StateTriggers>
+                        <VisualState.Setters>
+                            <Setter Target="GalleryPreviewFileNameText.Visibility" Value="Collapsed" />
+                            <Setter Target="GalleryPreviewIndexText.Visibility" Value="Collapsed" />
+                            <Setter Target="GalleryPreviewMetadataText.Visibility" Value="Collapsed" />
+                            <Setter Target="GalleryPreviewToolbar.Padding" Value="8,0,8,0" />
+                            <Setter Target="GalleryPreviewToolbar.ColumnSpacing" Value="4" />
+                            <Setter Target="GalleryPreviewFooter.Padding" Value="8,0,8,0" />
+                            <Setter Target="GalleryPreviewFooter.ColumnSpacing" Value="6" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="WidePreview">
+                        <VisualState.StateTriggers>
+                            <AdaptiveTrigger MinWindowWidth="700" />
+                        </VisualState.StateTriggers>
+                        <VisualState.Setters>
+                            <Setter Target="GalleryPreviewFileNameText.Visibility" Value="Visible" />
+                            <Setter Target="GalleryPreviewIndexText.Visibility" Value="Visible" />
+                            <Setter Target="GalleryPreviewMetadataText.Visibility" Value="Visible" />
+                            <Setter Target="GalleryPreviewToolbar.Padding" Value="12,0,12,0" />
+                            <Setter Target="GalleryPreviewToolbar.ColumnSpacing" Value="10" />
+                            <Setter Target="GalleryPreviewFooter.Padding" Value="16,0,12,0" />
+                            <Setter Target="GalleryPreviewFooter.ColumnSpacing" Value="12" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateManager.VisualStateGroups>
+
             <Grid.RowDefinitions>
                 <RowDefinition Height="48" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="44" />
             </Grid.RowDefinitions>
             <Grid
+                x:Name="GalleryPreviewToolbar"
                 Margin="0,0,160,0"
                 Padding="12,0,12,0"
                 Background="{ThemeResource GlassIslandBrush}"
@@ -84,7 +118,8 @@
             <Grid
                 x:Name="GalleryPreviewImageStage"
                 Grid.Row="1"
-                Background="{ThemeResource GlassIslandBrush}">
+                Background="{ThemeResource GlassIslandBrush}"
+                SizeChanged="OnGalleryPreviewViewportSizeChanged">
                 <ScrollViewer
                     x:Name="GalleryPreviewScrollViewer"
                     HorizontalScrollBarVisibility="Auto"
@@ -128,8 +163,8 @@
                 </Button>
                 <controls:GlassIsland
                     x:Name="GalleryInfoPanel"
-                    Width="{StaticResource GalleryDetailsPaneWidth}"
-                    Margin="0,0,16,0"
+                    MaxWidth="{StaticResource GalleryDetailsPaneWidth}"
+                    Margin="48,0,8,0"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Stretch"
                     Background="{ThemeResource PaperRaisedBrush}"
@@ -220,6 +255,7 @@
             </Grid>
 
             <Grid
+                x:Name="GalleryPreviewFooter"
                 Grid.Row="2"
                 Padding="16,0,12,0"
                 Background="{ThemeResource GlassIslandBrush}"

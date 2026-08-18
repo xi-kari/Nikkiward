@@ -29,6 +29,7 @@ namespace Nikkiward;
 
 public sealed partial class MainPage : Page
 {
+    private const double CompactLaunchSettingsHostWidth = 900d;
     private const string JournalPagePath = "/tools/journal";
     private const string ResonanceHistoryPagePath = "/tools/journal/clothesPress";
     private const string PhotoAlbumPluginId = "nikkiward.photo-album-importer";
@@ -42,6 +43,7 @@ public sealed partial class MainPage : Page
         "ms-appx:///Assets/NikkiDefaultBackground.jpg";
     private readonly SemaphoreSlim _dialogGate = new(1, 1);
     private readonly SemaphoreSlim _manualLaunchGate = new(1, 1);
+    private readonly SemaphoreSlim _journalCaptureGate = new(1, 1);
     private readonly JournalSnapshotCache _journalCache = new();
     private readonly ResonanceHistoryCache _resonanceCache = new();
     private readonly WishHistoryStore _wishHistoryStore = new();
@@ -156,6 +158,7 @@ public sealed partial class MainPage : Page
     public MainPage()
     {
         InitializeComponent();
+        ApplyLaunchSettingsHostLayout(RootGrid.ActualWidth);
         AppearanceRuntimeValues.ApplyOpacityTransition(ProfileQuickSwitchRail);
         _xamlInitialized = true;
         ContentFrame.Navigated += OnContentFrameNavigated;
@@ -171,4 +174,12 @@ public sealed partial class MainPage : Page
 
         RefreshOnArtSurfaceRegistration();
     }
+
+    private void OnRootGridSizeChanged(object sender, SizeChangedEventArgs e) =>
+        ApplyLaunchSettingsHostLayout(e.NewSize.Width);
+
+    private void ApplyLaunchSettingsHostLayout(double width) =>
+        LaunchSettingsFrame.Margin = width < CompactLaunchSettingsHostWidth
+            ? new Thickness(56, 48, 8, 8)
+            : new Thickness(56, 60, 24, 24);
 }

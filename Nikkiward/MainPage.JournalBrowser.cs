@@ -95,6 +95,24 @@ public sealed partial class MainPage
             return;
         }
 
+        await HandleJournalRouteAsync(journalPage, uri);
+    }
+
+    private async void OnJournalRouteChanged(
+        object? sender,
+        JournalRouteChangedEventArgs args)
+    {
+        if (_hostedJournalPage is not { } journalPage)
+        {
+            return;
+        }
+
+        await HandleJournalRouteAsync(journalPage, args.Uri);
+    }
+
+    private async Task HandleJournalRouteAsync(JournalPage journalPage, Uri? uri)
+    {
+
         if (!IsOfficialJournalUri(uri))
         {
             journalPage.SetBrowserStatus("当前页面不是官方奇想手账域名；同步按钮保持只读禁用。");
@@ -203,21 +221,39 @@ public sealed partial class MainPage
             return false;
         }
 
+        if (!await _journalCaptureGate.WaitAsync(0))
+        {
+            return false;
+        }
+
         _journalSyncInProgress = true;
         journalPage.ClearSyncFailure();
         journalPage.SetSyncInProgress(true);
         var attemptedAtUtc = DateTimeOffset.UtcNow;
+        var captureValidated = false;
+        var routeGeneration = journalPage.RouteGeneration;
+        var capturedUrl = journalPage.CurrentUri?.AbsoluteUri;
         try
         {
             journalPage.SetBrowserStatus(isAutomatic
                 ? "正在自动同步官方页面展示内容……"
                 : "正在同步当前官方页面展示内容……");
-            if (!await PrepareJournalDocumentAsync())
+            if (!await PrepareJournalDocumentAsync(journalPage, routeGeneration))
             {
+                if (!IsCurrentOverviewRoute(journalPage, routeGeneration))
+                {
+                    return false;
+                }
+
                 journalPage.SetBrowserStatus("官方页面仍在载入，正在重试同步……");
                 await Task.Delay(TimeSpan.FromMilliseconds(800), _lifetimeCancellation?.Token ?? CancellationToken.None);
-                if (!await PrepareJournalDocumentAsync())
+                if (!await PrepareJournalDocumentAsync(journalPage, routeGeneration))
                 {
+                    if (!IsCurrentOverviewRoute(journalPage, routeGeneration))
+                    {
+                        return false;
+                    }
+
                     ApplyJournalCaptureFailure(
                         JournalCaptureFailureKind.StructureChanged,
                         attemptedAtUtc,
@@ -227,7 +263,8 @@ public sealed partial class MainPage
             }
             var scriptResult = await ExecuteJournalScriptWithRetryAsync(
                 journalPage,
-                JournalWebCaptureScripts.Overview);
+                JournalWebCaptureScripts.Overview,
+                () => IsCurrentOverviewRoute(journalPage, routeGeneration));
             var json = scriptResult;
             if (JsonSerializer.Deserialize(
                     scriptResult,
@@ -254,9 +291,10 @@ public sealed partial class MainPage
                 !string.IsNullOrWhiteSpace(section.Source)) ?? 0;
             var assessment = JournalCaptureAssessmentProjector.Assess(
                 navigationSucceeded: true,
-                isOfficialJournalPage: snapshot?.SourcePagePath.StartsWith(
+                isOfficialJournalPage: string.Equals(
+                    snapshot?.SourcePagePath,
                     JournalPagePath,
-                    StringComparison.OrdinalIgnoreCase) == true,
+                    StringComparison.OrdinalIgnoreCase),
                 snapshot?.SourcePagePath,
                 sourcedFieldCount,
                 sourcedSectionCount);
@@ -271,11 +309,37 @@ public sealed partial class MainPage
                 return false;
             }
 
+            if (!IsCurrentOverviewRoute(journalPage, routeGeneration))
+            {
+                return false;
+            }
+
+            var existingSnapshot = await _journalCache.LoadAsync(
+                _lifetimeCancellation?.Token ?? CancellationToken.None);
+            if (existingSnapshot is not null &&
+                JournalSnapshotQualityProjector.IsObviousRegression(
+                    JournalSnapshotQualityProjector.Measure(existingSnapshot),
+                    JournalSnapshotQualityProjector.Measure(snapshot)))
+            {
+                ApplyJournalCaptureFailure(
+                    JournalCaptureFailureKind.StructureChanged,
+                    attemptedAtUtc,
+                    isAutomatic);
+                return false;
+            }
+
+            captureValidated = true;
             snapshot = await _journalCache.DownloadAndSaveAsync(
                 snapshot,
-                _lifetimeCancellation?.Token ?? CancellationToken.None);
+                _lifetimeCancellation?.Token ?? CancellationToken.None,
+                () => IsCurrentOverviewRoute(journalPage, routeGeneration));
+            if (!IsCurrentOverviewRoute(journalPage, routeGeneration))
+            {
+                return false;
+            }
+
             ApplyJournalSnapshot(snapshot);
-            _journalLastAutoSyncedUrl = journalPage.CurrentUri?.AbsoluteUri;
+            _journalLastAutoSyncedUrl = capturedUrl;
             _journalConsecutiveFailures = 0;
             _journalNextAutomaticSyncUtc = JournalSyncScheduleProjector.Project(
                 attemptedAtUtc,
@@ -308,7 +372,9 @@ public sealed partial class MainPage
         {
             ViewModel.ReportUiError($"手账同步失败：{ex.GetType().Name}: {ex.Message}");
             ApplyJournalCaptureFailure(
-                IsJournalContentUri(journalPage.CurrentUri)
+                captureValidated
+                    ? JournalCaptureFailureKind.LocalProcessingFailure
+                    : IsJournalContentUri(journalPage.CurrentUri)
                     ? JournalCaptureFailureKind.StructureChanged
                     : JournalCaptureFailureKind.NotSignedIn,
                 attemptedAtUtc,
@@ -319,22 +385,29 @@ public sealed partial class MainPage
         {
             journalPage.SetSyncInProgress(false);
             _journalSyncInProgress = false;
+            _journalCaptureGate.Release();
         }
     }
 
-    private async Task<bool> PrepareJournalDocumentAsync()
+    private async Task<bool> PrepareJournalDocumentAsync(
+        JournalPage journalPage,
+        long routeGeneration)
     {
-        var journalPage = _hostedJournalPage
-            ?? throw new InvalidOperationException("The journal page is not active.");
         var cancellationToken = _lifetimeCancellation?.Token ?? CancellationToken.None;
         string? previousSignature = null;
         var stableSamples = 0;
-        for (var attempt = 0; attempt < 80 && stableSamples < 3; attempt++)
+        for (var attempt = 0; attempt < 80; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (!IsCurrentOverviewRoute(journalPage, routeGeneration))
+            {
+                return false;
+            }
+
             var scriptResult = await ExecuteJournalScriptWithRetryAsync(
                 journalPage,
-                JournalWebCaptureScripts.PrepareOverview);
+                JournalWebCaptureScripts.PrepareOverview,
+                () => IsCurrentOverviewRoute(journalPage, routeGeneration));
             var signature = UnwrapWebViewScriptResult(scriptResult);
             if (string.Equals(signature, previousSignature, StringComparison.Ordinal))
             {
@@ -346,19 +419,28 @@ public sealed partial class MainPage
                 stableSamples = 0;
             }
 
-            if (stableSamples >= 2)
+            if (stableSamples >= JournalDocumentReadinessProjector.RequiredStableSamples)
             {
                 try
                 {
                     using var document = JsonDocument.Parse(signature);
                     var root = document.RootElement;
-                    var titleCount = root.TryGetProperty("titleCount", out var titleElement)
-                        ? titleElement.GetInt32()
-                        : 0;
+                    var documentReady = root.TryGetProperty("documentReady", out var readyElement) &&
+                        readyElement.GetBoolean();
                     var visibleLineCount = root.TryGetProperty("visibleLineCount", out var lineElement)
                         ? lineElement.GetInt32()
                         : 0;
-                    if (JournalDocumentReadinessProjector.IsOverviewReady(titleCount, visibleLineCount))
+                    var stableNodeKeyCount = root.TryGetProperty("stableNodeKeyCount", out var keyElement)
+                        ? keyElement.GetInt32()
+                        : 0;
+                    var pendingImageCount = root.TryGetProperty("pendingImageCount", out var pendingElement)
+                        ? pendingElement.GetInt32()
+                        : 0;
+                    if (JournalDocumentReadinessProjector.IsOverviewReady(
+                            documentReady,
+                            visibleLineCount,
+                            stableNodeKeyCount,
+                            pendingImageCount))
                     {
                         return true;
                     }
@@ -376,15 +458,27 @@ public sealed partial class MainPage
 
     private async Task<string> ExecuteJournalScriptWithRetryAsync(
         JournalPage journalPage,
-        string script)
+        string script,
+        Func<bool>? routeGuard = null)
     {
         var cancellationToken = _lifetimeCancellation?.Token ?? CancellationToken.None;
         for (var attempt = 0; ; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (routeGuard?.Invoke() == false)
+            {
+                throw new OperationCanceledException(cancellationToken);
+            }
+
             try
             {
-                return await journalPage.ExecuteScriptAsync(script);
+                var result = await journalPage.ExecuteScriptAsync(script);
+                if (routeGuard?.Invoke() == false)
+                {
+                    throw new OperationCanceledException(cancellationToken);
+                }
+
+                return result;
             }
             catch (OperationCanceledException)
             {
@@ -396,6 +490,10 @@ public sealed partial class MainPage
             }
         }
     }
+
+    private static bool IsCurrentOverviewRoute(JournalPage journalPage, long routeGeneration) =>
+        journalPage.RouteGeneration == routeGeneration &&
+        IsJournalContentUri(journalPage.CurrentUri);
 
     private void ApplyJournalCaptureFailure(
         JournalCaptureFailureKind kind,

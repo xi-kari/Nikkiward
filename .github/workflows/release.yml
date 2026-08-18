@@ -67,6 +67,7 @@ jobs:
             (Join-Path $publishDir 'Nikkiward.exe'),
             (Join-Path $publishDir 'Assets\NikkiwardIcon.ico'),
             (Join-Path $publishDir 'Assets\NikkiDefaultBackground.jpg'),
+            (Join-Path $publishDir 'Assets\XikariAvatar.jpg'),
             (Join-Path $publishDir 'runtimes\win-x64\native\nuan5_decryption.dll'),
             (Join-Path $publishDir 'LICENSE'),
             (Join-Path $publishDir 'THIRD-PARTY-NOTICES.md')
@@ -99,6 +100,7 @@ jobs:
             (Join-Path $verifyDir 'Nikkiward.exe'),
             (Join-Path $verifyDir 'Assets\NikkiwardIcon.ico'),
             (Join-Path $verifyDir 'Assets\NikkiDefaultBackground.jpg'),
+            (Join-Path $verifyDir 'Assets\XikariAvatar.jpg'),
             (Join-Path $verifyDir 'runtimes\win-x64\native\nuan5_decryption.dll'),
             (Join-Path $verifyDir 'LICENSE'),
             (Join-Path $verifyDir 'THIRD-PARTY-NOTICES.md')

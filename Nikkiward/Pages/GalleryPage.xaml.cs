@@ -1,8 +1,10 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Nikkiward.Features.Gallery;
 using Nikkiward.Features.Shell;
+using Nikkiward.Models;
 using Nikkiward.ViewModels;
 
 namespace Nikkiward.Pages;
@@ -12,7 +14,8 @@ public sealed record GalleryNavigationContext(
     string? GameRootPath,
     string? PersistedGalleryRootPath,
     CancellationToken HostCancellationToken,
-    GalleryViewMode ViewMode = GalleryViewMode.All);
+    GalleryViewMode ViewMode = GalleryViewMode.All,
+    AppearanceSettings? AppearanceSettings = null);
 
 public sealed partial class GalleryPage : PageBase
 {
@@ -22,7 +25,14 @@ public sealed partial class GalleryPage : PageBase
     private readonly GalleryFavoriteProtectionService _favoriteProtectionService = new();
     private readonly GalleryFolderWatcher _folderWatcher;
     private readonly Nuan5GalleryMetadataService _metadataService = new();
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _favoriteOperationGates =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _favoriteOperationCancellations =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, bool> _favoriteDesiredStates =
+        new(StringComparer.OrdinalIgnoreCase);
     private CancellationTokenSource? _loadCancellation;
+    private long _galleryGeneration;
     private string? _profileGameRootPath;
     private string? _profileId;
     private string? _manualGalleryRootPath;
@@ -30,9 +40,16 @@ public sealed partial class GalleryPage : PageBase
     private string _annotationScopeId = GalleryAnnotationStore.CreateScopeId(null, null);
     private GalleryViewMode _viewMode;
     private int _galleryPreviewIndex = -1;
+    private AppearanceSettings _appearanceSettings = new();
+    private bool _surfaceActive = true;
+    private bool _galleryGridLayoutRefreshQueued;
     private bool _xamlInitialized;
 
     public GalleryViewModel ViewModel { get; } = new();
+
+    private GridView ActiveGalleryGridView => _viewMode == GalleryViewMode.Favorites
+        ? GalleryFavoriteGridView
+        : GalleryGridView;
 
     public override string PageTitle => _viewMode == GalleryViewMode.Favorites
         ? "收藏"
@@ -60,6 +77,8 @@ public sealed partial class GalleryPage : PageBase
         base.OnNavigatedTo(e);
         if (e.Parameter is GalleryNavigationContext context)
         {
+            ApplyAppearanceSettings(context.AppearanceSettings ?? new AppearanceSettings());
+            SetSurfaceActive(true);
             _ = LoadForProfileAsync(
                 context.ProfileId,
                 context.GameRootPath,
@@ -117,6 +136,8 @@ public sealed partial class GalleryPage : PageBase
 
             _loadCancellation?.Cancel();
             _loadCancellation?.Dispose();
+            CancelFavoriteOperations();
+            Interlocked.Increment(ref _galleryGeneration);
             _loadCancellation = CancellationTokenSource.CreateLinkedTokenSource(
                 hostCancellationToken);
             var cancellationToken = _loadCancellation.Token;
@@ -164,14 +185,79 @@ public sealed partial class GalleryPage : PageBase
         CloseGalleryPreview();
     }
 
+    public void ApplyAppearanceSettings(AppearanceSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        _appearanceSettings = settings;
+        RefreshGalleryCardPresentation();
+    }
+
+    public void SetSurfaceActive(bool active)
+    {
+        if (_surfaceActive == active)
+        {
+            return;
+        }
+
+        _surfaceActive = active;
+        RefreshGalleryCardPresentation();
+    }
+
+    private bool IsFavoriteCardEffectEnabled =>
+        _surfaceActive &&
+        _viewMode == GalleryViewMode.Favorites &&
+        _appearanceSettings.Background.HolographicCardEnabled;
+
     private void SetViewMode(GalleryViewMode viewMode)
     {
         _viewMode = viewMode;
         ViewModel.SetViewMode(viewMode);
+        GalleryStandardGridHost.Visibility = viewMode == GalleryViewMode.All
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        GalleryFavoriteGridHost.Visibility = viewMode == GalleryViewMode.Favorites
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         GalleryTitleText.Text = viewMode == GalleryViewMode.Favorites ? "收藏" : "相册";
         GallerySearchBox.PlaceholderText = viewMode == GalleryViewMode.Favorites
             ? "搜索收藏"
             : "搜索照片";
+        QueueGalleryGridLayoutRefresh();
+        RefreshGalleryCardPresentation();
+    }
+
+    private void OnGalleryGridLoaded(object sender, RoutedEventArgs e) =>
+        QueueGalleryGridLayoutRefresh();
+
+    private void OnGalleryGridSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_viewMode == GalleryViewMode.Favorites)
+        {
+            ApplyGalleryGridLayout();
+        }
+    }
+
+    private void QueueGalleryGridLayoutRefresh()
+    {
+        if (_galleryGridLayoutRefreshQueued || DispatcherQueue is null)
+        {
+            return;
+        }
+
+        _galleryGridLayoutRefreshQueued = DispatcherQueue.TryEnqueue(() =>
+        {
+            _galleryGridLayoutRefreshQueued = false;
+            ApplyGalleryGridLayout();
+        });
+    }
+
+    private void ApplyGalleryGridLayout()
+    {
+        if (_viewMode == GalleryViewMode.Favorites &&
+            GalleryFavoriteGridView.ItemsPanelRoot is GalleryFavoriteJustifiedPanel favoritePanel)
+        {
+            favoritePanel.InvalidateMeasure();
+        }
     }
 
     private async Task LoadStarredStateAsync(CancellationToken cancellationToken)

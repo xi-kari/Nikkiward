@@ -9,7 +9,9 @@ public sealed partial class GalleryPage
 
     private void OnPageUnloaded(object sender, RoutedEventArgs e)
     {
+        SetSurfaceActive(false);
         _folderWatcher.Stop();
+        CancelFavoriteOperations();
     }
 
     private void OnGalleryFolderChanged()

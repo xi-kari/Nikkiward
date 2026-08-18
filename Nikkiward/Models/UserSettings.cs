@@ -4,9 +4,11 @@ public sealed record UserSettings
 {
     public const int LegacySchemaVersion = 3;
 
-    public const int PreviousSchemaVersion = 4;
+    public const int MotionBackgroundSchemaVersion = 4;
 
-    public const int CurrentSchemaVersion = 5;
+    public const int PreviousSchemaVersion = 5;
+
+    public const int CurrentSchemaVersion = 6;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 

@@ -16,6 +16,7 @@ public sealed partial class JournalPage : PageBase
     private Task? _ensureBrowserTask;
     private ulong _currentNavigationId;
     private Uri? _currentNavigationUri;
+    private long _routeGeneration;
 
     public static Uri LoginUri { get; } = new("https://myl.nuanpaper.com/tools/journal/login");
 
@@ -30,7 +31,9 @@ public sealed partial class JournalPage : PageBase
 
     public bool IsBrowserInitialized => _browserInitialized;
 
-    public Uri? CurrentUri => JournalWebView.Source;
+    public Uri? CurrentUri => _currentNavigationUri ?? JournalWebView.Source;
+
+    public long RouteGeneration => Interlocked.Read(ref _routeGeneration);
 
     public Uri? LastContentUri => _lastContentUri;
 
@@ -45,6 +48,8 @@ public sealed partial class JournalPage : PageBase
     public event EventHandler? BrowserClosed;
 
     public event EventHandler<JournalNavigationEventArgs>? NavigationFinished;
+
+    public event EventHandler<JournalRouteChangedEventArgs>? RouteChanged;
 
     public JournalPage()
     {
@@ -110,7 +115,8 @@ public sealed partial class JournalPage : PageBase
     public void SetSyncInProgress(bool isInProgress)
     {
         SyncProgressIsland.Visibility = isInProgress ? Visibility.Visible : Visibility.Collapsed;
-        JournalWebView.Visibility = isInProgress ? Visibility.Collapsed : Visibility.Visible;
+        JournalWebView.Opacity = isInProgress ? 0 : 1;
+        JournalWebView.IsHitTestVisible = !isInProgress;
         BrowserDialogProgress.Visibility = isInProgress ? Visibility.Visible : Visibility.Collapsed;
         SummaryPanel.SetSyncInProgress(isInProgress);
     }
@@ -142,7 +148,6 @@ public sealed partial class JournalPage : PageBase
         SummaryPanel.Visibility = Visibility.Visible;
         if (SnapshotPanel.ApplySnapshot(snapshot))
         {
-            HideBrowser();
             ResetScroll();
         }
     }
@@ -184,6 +189,7 @@ public sealed partial class JournalPage : PageBase
                 WebViewDataPath,
                 null);
             await JournalWebView.EnsureCoreWebView2Async(environment);
+            JournalWebView.CoreWebView2.SourceChanged += OnCoreSourceChanged;
             _browserInitialized = true;
             JournalWebView.Source = LoginUri;
         }
@@ -254,6 +260,27 @@ public sealed partial class JournalPage : PageBase
         _currentNavigationUri = Uri.TryCreate(args.Uri, UriKind.Absolute, out var uri)
             ? uri
             : null;
+        Interlocked.Increment(ref _routeGeneration);
+    }
+
+    private void OnCoreSourceChanged(
+        CoreWebView2 sender,
+        CoreWebView2SourceChangedEventArgs args)
+    {
+        if (args.IsNewDocument ||
+            !Uri.TryCreate(sender.Source, UriKind.Absolute, out var uri))
+        {
+            return;
+        }
+
+        _currentNavigationUri = uri;
+        Interlocked.Increment(ref _routeGeneration);
+        if (!uri.AbsoluteUri.Equals("about:blank", StringComparison.OrdinalIgnoreCase))
+        {
+            _lastContentUri = uri;
+        }
+
+        RouteChanged?.Invoke(this, new JournalRouteChangedEventArgs(uri));
     }
 
     private void OnNavigationCompleted(
@@ -283,6 +310,16 @@ public sealed partial class JournalPage : PageBase
                 isCurrentNavigation));
     }
 
+}
+
+public sealed class JournalRouteChangedEventArgs : EventArgs
+{
+    public JournalRouteChangedEventArgs(Uri uri)
+    {
+        Uri = uri;
+    }
+
+    public Uri Uri { get; }
 }
 
 public sealed class JournalNavigationEventArgs : EventArgs

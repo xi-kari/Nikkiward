@@ -50,7 +50,6 @@ public sealed partial class JournalSnapshotPanel : UserControl
         PopulateCrown(snapshot, resources);
         PopulateWish(snapshot);
         PopulateWardrobe(snapshot, resources);
-        PopulateResourceGroups(snapshot, resources);
 
         LastSyncedText.Text = snapshot.CapturedAtUtc.ToLocalTime()
             .ToString("yyyy-MM-dd HH:mm:ss");
@@ -63,7 +62,7 @@ public sealed partial class JournalSnapshotPanel : UserControl
         CrownSection.Visibility = CrownRecords.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         WishPanel.Visibility = WishStats.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         WardrobeSection.Visibility = WardrobePreviews.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        ResourceSection.Visibility = ResourceGroups.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ResourceSection.Visibility = Visibility.Collapsed;
         return hasContent;
     }
 

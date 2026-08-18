@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using Nikkiward.Features.Background;
 using Nikkiward.Features.Shell;
 using Nikkiward.Models;
+using Nikkiward.Pages;
 
 namespace Nikkiward;
 
@@ -31,6 +32,10 @@ public sealed partial class MainPage
         ConfigureBackgroundCarousel(settings.Background);
         _hostedLauncherPage?.ApplyAppearanceSettings(settings);
         _hostedLaunchSettingsPage?.ApplyAppearanceSettings(settings);
+        if (ContentFrame.Content is GalleryPage galleryPage)
+        {
+            galleryPage.ApplyAppearanceSettings(settings);
+        }
     }
 
     private void ApplyFixedAccent(AppearanceSettings settings)

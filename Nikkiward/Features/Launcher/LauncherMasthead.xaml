@@ -7,47 +7,57 @@
     xmlns:controls="using:Nikkiward.Controls"
     xmlns:viewModels="using:Nikkiward.ViewModels"
     x:DefaultBindMode="OneWay">
-    <controls:GlassIsland
-        x:Name="Island"
+    <controls:CardBorderGlow
+        x:Name="MastheadGlow"
         MaxWidth="520"
         HorizontalAlignment="Left"
         VerticalAlignment="Top"
-        Elevation="2"
-        IslandPadding="{StaticResource MastheadPaddingThickness}"
-        LocalScrim="Bottom"
-        LocalScrimBrush="{ThemeResource LocalScrimBottomBrush}"
-        ReadabilityRegion="Masthead"
-        Surface="Island">
-        <StackPanel Spacing="{StaticResource SpaceBase}">
-            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceBase}">
-                <Rectangle
-                    Width="48"
-                    Height="2"
-                    VerticalAlignment="Center"
-                    Fill="{ThemeResource AccentGoldBrush}" />
+        EdgeSensitivity="28"
+        GlowCornerRadius="16"
+        GlowIntensity="0.9"
+        GlowRadius="34"
+        IsIntroAnimationEnabled="True">
+        <controls:GlassIsland
+            x:Name="Island"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch"
+            Elevation="2"
+            IslandPadding="{StaticResource MastheadPaddingThickness}"
+            LocalScrim="Bottom"
+            LocalScrimBrush="{ThemeResource LocalScrimBottomBrush}"
+            ReadabilityRegion="Masthead"
+            Surface="Island">
+            <StackPanel Spacing="{StaticResource SpaceBase}">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceBase}">
+                    <Rectangle
+                        Width="48"
+                        Height="2"
+                        VerticalAlignment="Center"
+                        Fill="{ThemeResource AccentGoldBrush}" />
+                    <TextBlock
+                        x:Name="EyebrowText"
+                        automation:AutomationProperties.Name="启动器名称"
+                        Style="{StaticResource FieldLabelUI}"
+                        Text="NIKKIWARD"
+                        TextTrimming="CharacterEllipsis" />
+                </StackPanel>
                 <TextBlock
-                    x:Name="EyebrowText"
-                    automation:AutomationProperties.Name="启动器名称"
-                    Style="{StaticResource FieldLabelUI}"
-                    Text="NIKKIWARD"
+                    x:Name="TitleText"
+                    automation:AutomationProperties.HeadingLevel="Level1"
+                    Style="{StaticResource MastheadDisplay}"
+                    Text="无限暖暖"
                     TextTrimming="CharacterEllipsis" />
+                <TextBlock
+                    x:Name="SubtitleText"
+                    Style="{StaticResource BodyUI}"
+                    Text="从一张美术出发，把今天的旅程稳稳接住。"
+                    TextTrimming="CharacterEllipsis" />
+                <TextBlock
+                    Style="{StaticResource CaptionUI}"
+                    Text="{x:Bind ViewModel.CurrentProfileSummary}"
+                    TextTrimming="CharacterEllipsis"
+                    TextWrapping="NoWrap" />
             </StackPanel>
-            <TextBlock
-                x:Name="TitleText"
-                automation:AutomationProperties.HeadingLevel="Level1"
-                Style="{StaticResource MastheadDisplay}"
-                Text="无限暖暖"
-                TextTrimming="CharacterEllipsis" />
-            <TextBlock
-                x:Name="SubtitleText"
-                Style="{StaticResource BodyUI}"
-                Text="从一张美术出发，把今天的旅程稳稳接住。"
-                TextTrimming="CharacterEllipsis" />
-            <TextBlock
-                Style="{StaticResource CaptionUI}"
-                Text="{x:Bind ViewModel.CurrentProfileSummary}"
-                TextTrimming="CharacterEllipsis"
-                TextWrapping="NoWrap" />
-        </StackPanel>
-    </controls:GlassIsland>
+        </controls:GlassIsland>
+    </controls:CardBorderGlow>
 </UserControl>

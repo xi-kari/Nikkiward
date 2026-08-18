@@ -77,7 +77,7 @@ public sealed partial class GalleryPreviewView : UserControl
 
         GalleryInfoPanel.Visibility = Visibility.Collapsed;
         Visibility = Visibility.Visible;
-        GalleryPreviewScrollViewer.ChangeView(null, null, 1f, true);
+        GalleryPreviewScrollViewer.ChangeView(0, 0, 1f, true);
         GalleryInfoPanel.RequestedTheme = ActualTheme;
         StartMetadataLoad(photo.FilePath);
         StartPhotoThemeAnalysis(photo.FilePath);
@@ -255,7 +255,17 @@ public sealed partial class GalleryPreviewView : UserControl
     }
 
     private void OnGalleryPreviewFitClicked(object sender, RoutedEventArgs e) =>
-        GalleryPreviewScrollViewer.ChangeView(null, null, 1f);
+        GalleryPreviewScrollViewer.ChangeView(0, 0, 1f);
+
+    private void OnGalleryPreviewViewportSizeChanged(
+        object sender,
+        SizeChangedEventArgs e)
+    {
+        if (IsOpen && GalleryPreviewScrollViewer.ZoomFactor <= 1.001f)
+        {
+            GalleryPreviewScrollViewer.ChangeView(0, 0, 1f, true);
+        }
+    }
 
     private void OnGalleryPreviewZoomOutClicked(object sender, RoutedEventArgs e)
     {
@@ -329,7 +339,7 @@ public sealed partial class GalleryPreviewView : UserControl
             case VirtualKey.Number0 when InputKeyboardSource
                 .GetKeyStateForCurrentThread(VirtualKey.Control)
                 .HasFlag(CoreVirtualKeyStates.Down):
-                GalleryPreviewScrollViewer.ChangeView(null, null, 1f);
+                GalleryPreviewScrollViewer.ChangeView(0, 0, 1f);
                 e.Handled = true;
                 break;
             case VirtualKey.I when InputKeyboardSource

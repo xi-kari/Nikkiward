@@ -8,6 +8,79 @@
     xmlns:viewModels="using:Nikkiward.ViewModels"
     x:DefaultBindMode="OneWay"
     Background="{x:Null}">
+    <VisualStateManager.VisualStateGroups>
+        <VisualStateGroup x:Name="LaunchSettingsWidthStates">
+            <VisualState x:Name="NarrowLaunchSettings">
+                <VisualState.StateTriggers>
+                    <AdaptiveTrigger MinWindowWidth="0" />
+                </VisualState.StateTriggers>
+                <VisualState.Setters>
+                    <Setter Target="SurfaceRoot.CornerRadius" Value="8" />
+                    <Setter Target="LaunchSettingsHeader.Padding" Value="14,12,10,8" />
+                    <Setter Target="LaunchSettingsTitle.FontSize" Value="20" />
+                    <Setter Target="LaunchSettingsNavigationView.PaneDisplayMode" Value="LeftCompact" />
+                    <Setter Target="LaunchSettingsNavigationView.IsPaneOpen" Value="False" />
+                    <Setter Target="LaunchSettingsNavigationView.IsPaneToggleButtonVisible" Value="True" />
+                    <Setter Target="LaunchSettingsContent.Margin" Value="14,8,14,20" />
+                    <Setter Target="LocateGameButton.(Grid.Row)" Value="1" />
+                    <Setter Target="LocateGameButton.(Grid.Column)" Value="0" />
+                    <Setter Target="LocateGameButton.(Grid.ColumnSpan)" Value="3" />
+                    <Setter Target="LocateGameButton.HorizontalAlignment" Value="Stretch" />
+                    <Setter Target="LocateGameButton.Margin" Value="0,10,0,0" />
+                    <Setter Target="BasicDetailsSecondColumn.Width" Value="0" />
+                    <Setter Target="LaunchCapabilityPanel.(Grid.Row)" Value="1" />
+                    <Setter Target="LaunchCapabilityPanel.(Grid.Column)" Value="0" />
+                    <Setter Target="StaticIdentityPanel.(Grid.Row)" Value="2" />
+                    <Setter Target="StaticIdentityPanel.(Grid.Column)" Value="0" />
+                    <Setter Target="ExecutionGatePanel.(Grid.Row)" Value="3" />
+                    <Setter Target="ExecutionGatePanel.(Grid.Column)" Value="0" />
+                    <Setter Target="ArgumentsSecondColumn.Width" Value="0" />
+                    <Setter Target="ArgumentsCapabilityPanel.(Grid.Row)" Value="1" />
+                    <Setter Target="ArgumentsCapabilityPanel.(Grid.Column)" Value="0" />
+                    <Setter Target="BackgroundPreviewSecondColumn.Width" Value="0" />
+                    <Setter Target="BackgroundPreviewGrid.Height" Value="324" />
+                    <Setter Target="CurrentBackgroundPreview.(Grid.Row)" Value="1" />
+                    <Setter Target="CurrentBackgroundPreview.(Grid.Column)" Value="0" />
+                    <Setter Target="BackgroundActions.Orientation" Value="Vertical" />
+                </VisualState.Setters>
+            </VisualState>
+            <VisualState x:Name="WideLaunchSettings">
+                <VisualState.StateTriggers>
+                    <AdaptiveTrigger MinWindowWidth="900" />
+                </VisualState.StateTriggers>
+                <VisualState.Setters>
+                    <Setter Target="SurfaceRoot.CornerRadius" Value="16" />
+                    <Setter Target="LaunchSettingsHeader.Padding" Value="28,22,18,14" />
+                    <Setter Target="LaunchSettingsTitle.FontSize" Value="25" />
+                    <Setter Target="LaunchSettingsNavigationView.PaneDisplayMode" Value="Left" />
+                    <Setter Target="LaunchSettingsNavigationView.IsPaneOpen" Value="True" />
+                    <Setter Target="LaunchSettingsNavigationView.IsPaneToggleButtonVisible" Value="False" />
+                    <Setter Target="LaunchSettingsContent.Margin" Value="28,8,28,28" />
+                    <Setter Target="LocateGameButton.(Grid.Row)" Value="0" />
+                    <Setter Target="LocateGameButton.(Grid.Column)" Value="2" />
+                    <Setter Target="LocateGameButton.(Grid.ColumnSpan)" Value="1" />
+                    <Setter Target="LocateGameButton.HorizontalAlignment" Value="Right" />
+                    <Setter Target="LocateGameButton.Margin" Value="0" />
+                    <Setter Target="BasicDetailsSecondColumn.Width" Value="*" />
+                    <Setter Target="LaunchCapabilityPanel.(Grid.Row)" Value="0" />
+                    <Setter Target="LaunchCapabilityPanel.(Grid.Column)" Value="1" />
+                    <Setter Target="StaticIdentityPanel.(Grid.Row)" Value="1" />
+                    <Setter Target="StaticIdentityPanel.(Grid.Column)" Value="0" />
+                    <Setter Target="ExecutionGatePanel.(Grid.Row)" Value="1" />
+                    <Setter Target="ExecutionGatePanel.(Grid.Column)" Value="1" />
+                    <Setter Target="ArgumentsSecondColumn.Width" Value="*" />
+                    <Setter Target="ArgumentsCapabilityPanel.(Grid.Row)" Value="0" />
+                    <Setter Target="ArgumentsCapabilityPanel.(Grid.Column)" Value="1" />
+                    <Setter Target="BackgroundPreviewSecondColumn.Width" Value="*" />
+                    <Setter Target="BackgroundPreviewGrid.Height" Value="156" />
+                    <Setter Target="CurrentBackgroundPreview.(Grid.Row)" Value="0" />
+                    <Setter Target="CurrentBackgroundPreview.(Grid.Column)" Value="1" />
+                    <Setter Target="BackgroundActions.Orientation" Value="Horizontal" />
+                </VisualState.Setters>
+            </VisualState>
+        </VisualStateGroup>
+    </VisualStateManager.VisualStateGroups>
+
     <Border
         x:Name="SurfaceRoot"
         HorizontalAlignment="Stretch"
@@ -17,19 +90,23 @@
         BorderThickness="1"
         CornerRadius="16"
         Shadow="{ThemeResource WarmThemeShadow}">
-        <Grid>
+        <Grid
+            x:Name="LayoutRoot"
+            Loaded="OnLayoutRootLoaded"
+            SizeChanged="OnLayoutRootSizeChanged">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <Grid Padding="28,22,18,14" ColumnSpacing="12">
+            <Grid x:Name="LaunchSettingsHeader" Padding="28,22,18,14" ColumnSpacing="12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Spacing="3">
                     <TextBlock
+                        x:Name="LaunchSettingsTitle"
                         automation:AutomationProperties.HeadingLevel="Level1"
                         FontSize="25"
                         FontWeight="SemiBold"
@@ -68,6 +145,7 @@
                 IsSettingsVisible="False"
                 IsTitleBarAutoPaddingEnabled="False"
                 ItemInvoked="OnNavigationItemInvoked"
+                CompactPaneLength="48"
                 OpenPaneLength="220"
                 PaneDisplayMode="Left">
                 <NavigationView.Resources>
@@ -75,7 +153,6 @@
                     <Thickness x:Key="NavigationViewContentGridBorderThickness">0</Thickness>
                     <Thickness x:Key="NavigationViewContentMargin">0</Thickness>
                     <Thickness x:Key="NavigationViewHeaderMargin">0</Thickness>
-                    <x:Double x:Key="PaneToggleButtonHeight">0</x:Double>
                 </NavigationView.Resources>
 
                 <NavigationView.MenuItems>
@@ -83,33 +160,54 @@
                         x:Name="BasicNavigationItem"
                         Content="基本信息"
                         IsSelected="True"
-                        Tag="basic" />
+                        Tag="basic">
+                        <NavigationViewItem.Icon>
+                            <FontIcon Glyph="&#xE946;" />
+                        </NavigationViewItem.Icon>
+                    </NavigationViewItem>
                     <NavigationViewItem
                         x:Name="ArgumentsNavigationItem"
                         Content="启动参数"
-                        Tag="arguments" />
+                        Tag="arguments">
+                        <NavigationViewItem.Icon>
+                            <FontIcon Glyph="&#xE756;" />
+                        </NavigationViewItem.Icon>
+                    </NavigationViewItem>
                     <NavigationViewItem
                         x:Name="BackgroundNavigationItem"
                         Content="自定义背景"
-                        Tag="background" />
+                        Tag="background">
+                        <NavigationViewItem.Icon>
+                            <FontIcon Glyph="&#xE91B;" />
+                        </NavigationViewItem.Icon>
+                    </NavigationViewItem>
                     <NavigationViewItem
                         x:Name="PackageNavigationItem"
                         Content="游戏包体"
-                        Tag="package" />
+                        Tag="package">
+                        <NavigationViewItem.Icon>
+                            <FontIcon Glyph="&#xE7B8;" />
+                        </NavigationViewItem.Icon>
+                    </NavigationViewItem>
                 </NavigationView.MenuItems>
 
                 <ScrollViewer
                     x:Name="ContentScrollViewer"
+                    HorizontalContentAlignment="Stretch"
                     HorizontalScrollBarVisibility="Disabled"
                     VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="28,8,28,28" Spacing="22">
+                    <StackPanel x:Name="LaunchSettingsContent" Margin="28,8,28,28" Spacing="22">
                         <StackPanel x:Name="BasicSection" Spacing="16">
-                            <Grid ColumnSpacing="14">
+                            <Grid x:Name="BasicProfileHeader" ColumnSpacing="14">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
                                 <Border
                                     Width="52"
                                     Height="52"
@@ -121,15 +219,19 @@
                                         FontSize="18"
                                         FontWeight="SemiBold"
                                         Foreground="{ThemeResource OnArtPrimaryTextBrush}"
-                                        Text="{x:Bind ViewModel.ProfileDisplayName}" />
+                                        Text="{x:Bind ViewModel.ProfileDisplayName}"
+                                        TextWrapping="Wrap" />
                                     <TextBlock
                                         Foreground="{ThemeResource OnArtTertiaryTextBrush}"
-                                        Text="{x:Bind ViewModel.ChannelText}" />
+                                        Text="{x:Bind ViewModel.ChannelText}"
+                                        TextWrapping="Wrap" />
                                 </StackPanel>
                                 <Button
+                                    x:Name="LocateGameButton"
                                     Grid.Column="2"
                                     Height="38"
                                     Padding="12,0"
+                                    automation:AutomationProperties.Name="定位游戏"
                                     Click="OnChooseGameRootClicked"
                                     Style="{StaticResource OnArtGlassButtonStyle}">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
@@ -158,12 +260,14 @@
                                 </Grid>
                             </Border>
 
-                            <Grid ColumnSpacing="16" RowSpacing="14">
+                            <Grid x:Name="BasicDetailsGrid" ColumnSpacing="16" RowSpacing="14">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition x:Name="BasicDetailsSecondColumn" Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
@@ -171,15 +275,15 @@
                                     <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="渠道 / 平台" />
                                     <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.ChannelText}" TextWrapping="Wrap" />
                                 </StackPanel>
-                                <StackPanel Grid.Column="1" Spacing="4">
+                                <StackPanel x:Name="LaunchCapabilityPanel" Grid.Column="1" Spacing="4">
                                     <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="启动能力" />
                                     <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.LaunchCapabilityText}" TextWrapping="Wrap" />
                                 </StackPanel>
-                                <StackPanel Grid.Row="1" Spacing="4">
+                                <StackPanel x:Name="StaticIdentityPanel" Grid.Row="1" Spacing="4">
                                     <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="静态身份" />
                                     <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.StaticIdentityText}" TextWrapping="Wrap" />
                                 </StackPanel>
-                                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="4">
+                                <StackPanel x:Name="ExecutionGatePanel" Grid.Row="1" Grid.Column="1" Spacing="4">
                                     <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="执行门" />
                                     <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.ProviderExecutionEnabledText}" TextWrapping="Wrap" />
                                 </StackPanel>
@@ -212,16 +316,20 @@
                                 <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="ARGUMENT PRESET" />
                                 <TextBox Style="{StaticResource ReadOnlyMonospaceTextBoxStyle}" Text="{x:Bind ViewModel.ProviderArgumentVector}" />
                             </StackPanel>
-                            <Grid ColumnSpacing="16">
+                            <Grid x:Name="ArgumentsEvidenceGrid" ColumnSpacing="16" RowSpacing="14">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition x:Name="ArgumentsSecondColumn" Width="*" />
                                 </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
                                 <StackPanel Spacing="4">
                                     <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="EVIDENCE" />
                                     <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.ProviderEvidenceState}" TextWrapping="Wrap" />
                                 </StackPanel>
-                                <StackPanel Grid.Column="1" Spacing="4">
+                                <StackPanel x:Name="ArgumentsCapabilityPanel" Grid.Column="1" Spacing="4">
                                     <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="CAPABILITY" />
                                     <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.LaunchCapabilityText}" TextWrapping="Wrap" />
                                 </StackPanel>
@@ -231,19 +339,23 @@
                         <StackPanel x:Name="BackgroundSection" Spacing="14" Visibility="Collapsed">
                             <TextBlock Style="{StaticResource OnArtSectionTitleTextStyle}" Text="自定义背景" />
                             <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="背景仅影响 Nikkiward 当前会话；不会写入官方启动器或游戏目录。" TextWrapping="Wrap" />
-                            <Grid Height="156" ColumnSpacing="12">
+                            <Grid x:Name="BackgroundPreviewGrid" Height="156" ColumnSpacing="12" RowSpacing="12">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition x:Name="BackgroundPreviewSecondColumn" Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Border CornerRadius="10">
-                                    <Image Source="Assets/NikkiDefaultBackground.jpg" Stretch="UniformToFill" />
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Border Height="156" Background="{ThemeResource PaperRaisedBrush}" CornerRadius="10">
+                                    <Image x:Name="DefaultBackgroundPreviewImage" Source="Assets/NikkiDefaultBackground.jpg" Stretch="Uniform" />
                                 </Border>
-                                <Border Grid.Column="1" CornerRadius="10">
-                                    <Image x:Name="BackgroundPreviewImage" Stretch="UniformToFill" />
+                                <Border x:Name="CurrentBackgroundPreview" Grid.Column="1" Height="156" Background="{ThemeResource PaperRaisedBrush}" CornerRadius="10">
+                                    <Image x:Name="BackgroundPreviewImage" Stretch="Uniform" />
                                 </Border>
                             </Grid>
-                            <StackPanel Orientation="Horizontal" Spacing="8">
+                            <StackPanel x:Name="BackgroundActions" Orientation="Horizontal" Spacing="8">
                                 <Button automation:AutomationProperties.Name="选择背景图片" Click="OnChooseBackgroundClicked" Style="{StaticResource OnArtGlassButtonStyle}">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon Glyph="&#xE91B;" />

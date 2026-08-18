@@ -265,9 +265,19 @@ public sealed class GalleryFavoriteProtectionStore
     {
         var normalizedScopeId = NormalizeScopeId(scopeId);
         var normalizedRelativePath = NormalizeRelativePath(relativePath);
+        if (IsRootAbsentForRead())
+        {
+            return null;
+        }
+
         _gate.Wait();
         try
         {
+            if (IsRootAbsentForRead())
+            {
+                return null;
+            }
+
             using var storeLock = AcquireStoreLock();
             var manifest = LoadManifest();
             return FindEntry(manifest.Entries, normalizedScopeId, normalizedRelativePath);
@@ -280,9 +290,19 @@ public sealed class GalleryFavoriteProtectionStore
 
     public IReadOnlyList<GalleryFavoriteProtectionEntry> GetEntries()
     {
+        if (IsRootAbsentForRead())
+        {
+            return [];
+        }
+
         _gate.Wait();
         try
         {
+            if (IsRootAbsentForRead())
+            {
+                return [];
+            }
+
             using var storeLock = AcquireStoreLock();
             return LoadManifest().Entries.ToArray();
         }
@@ -295,9 +315,19 @@ public sealed class GalleryFavoriteProtectionStore
     public IReadOnlyList<GalleryFavoriteProtectionEntry> GetEntries(string scopeId)
     {
         var normalizedScopeId = NormalizeScopeId(scopeId);
+        if (IsRootAbsentForRead())
+        {
+            return [];
+        }
+
         _gate.Wait();
         try
         {
+            if (IsRootAbsentForRead())
+            {
+                return [];
+            }
+
             using var storeLock = AcquireStoreLock();
             return LoadManifest().Entries
                 .Where(entry => string.Equals(
@@ -319,10 +349,19 @@ public sealed class GalleryFavoriteProtectionStore
     {
         var normalizedScopeId = NormalizeScopeId(scopeId);
         var normalizedRelativePath = NormalizeRelativePath(relativePath);
+        if (IsRootAbsentForRead())
+        {
+            return null;
+        }
 
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            if (IsRootAbsentForRead())
+            {
+                return null;
+            }
+
             await using var storeLock = await AcquireStoreLockAsync(cancellationToken)
                 .ConfigureAwait(false);
             var manifest = await LoadManifestAsync(cancellationToken).ConfigureAwait(false);
@@ -355,9 +394,19 @@ public sealed class GalleryFavoriteProtectionStore
     public async Task<IReadOnlyList<GalleryFavoriteProtectionEntry>> VerifyAsync(
         CancellationToken cancellationToken = default)
     {
+        if (IsRootAbsentForRead())
+        {
+            return [];
+        }
+
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            if (IsRootAbsentForRead())
+            {
+                return [];
+            }
+
             await using var storeLock = await AcquireStoreLockAsync(cancellationToken)
                 .ConfigureAwait(false);
             var manifest = await LoadManifestAsync(cancellationToken).ConfigureAwait(false);
@@ -429,10 +478,19 @@ public sealed class GalleryFavoriteProtectionStore
         var starred = starredRelativePaths
             .Select(NormalizeRelativePath)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (IsRootAbsentForRead())
+        {
+            return new GalleryFavoriteProtectionCleanupResult();
+        }
 
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            if (IsRootAbsentForRead())
+            {
+                return new GalleryFavoriteProtectionCleanupResult();
+            }
+
             await using var storeLock = await AcquireStoreLockAsync(cancellationToken)
                 .ConfigureAwait(false);
             var manifestExisted = File.Exists(ManifestPath);
@@ -967,6 +1025,25 @@ public sealed class GalleryFavoriteProtectionStore
         if (Directory.Exists(RootPath))
         {
             EnsureDirectoryIsNotReparsePoint(RootPath);
+        }
+    }
+
+    private bool IsRootAbsentForRead()
+    {
+        try
+        {
+            var attributes = File.GetAttributes(RootPath);
+            if ((attributes & FileAttributes.Directory) == 0)
+            {
+                throw new IOException("The favorite protection root is not a directory.");
+            }
+
+            EnsureDirectoryIsNotReparsePoint(RootPath);
+            return false;
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return true;
         }
     }
 

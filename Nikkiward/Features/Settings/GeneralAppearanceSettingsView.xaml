@@ -200,6 +200,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <ToggleSwitch
                         x:Name="CarouselToggle"
@@ -231,8 +232,16 @@
                         OnContent="开启"
                         Toggled="OnBackgroundOptionChanged" />
                     <ToggleSwitch
-                        x:Name="MotionToggle"
+                        x:Name="HolographicCardToggle"
                         Grid.Row="2"
+                        automation:AutomationProperties.Name="光栅卡效果"
+                        Header="光栅卡效果"
+                        OffContent="关闭"
+                        OnContent="开启"
+                        Toggled="OnBackgroundOptionChanged" />
+                    <ToggleSwitch
+                        x:Name="MotionToggle"
+                        Grid.Row="3"
                         automation:AutomationProperties.Name="视频背景"
                         Header="视频背景"
                         OffContent="关闭"
@@ -240,13 +249,13 @@
                         Toggled="OnBackgroundOptionChanged" />
                     <ToggleSwitch
                         x:Name="LiveBlurToggle"
-                        Grid.Row="3"
+                        Grid.Row="4"
                         automation:AutomationProperties.Name="静态背景实时模糊"
                         Header="静态背景实时模糊"
                         OffContent="关闭"
                         OnContent="开启"
                         Toggled="OnBackgroundOptionChanged" />
-                    <StackPanel Grid.Row="4" Grid.ColumnSpan="2" Spacing="{StaticResource SpaceHair}">
+                    <StackPanel Grid.Row="5" Grid.ColumnSpan="2" Spacing="{StaticResource SpaceHair}">
                         <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="玻璃强度" />
                         <Slider
                             x:Name="GlassIntensitySlider"
@@ -259,13 +268,13 @@
                     </StackPanel>
                     <ToggleSwitch
                         x:Name="MotionPanToggle"
-                        Grid.Row="5"
+                        Grid.Row="6"
                         automation:AutomationProperties.Name="视频视差"
                         Header="视频视差"
                         OffContent="关闭"
                         OnContent="开启"
                         Toggled="OnBackgroundOptionChanged" />
-                    <StackPanel Grid.Row="6" Grid.ColumnSpan="2" Spacing="{StaticResource SpaceHair}">
+                    <StackPanel Grid.Row="7" Grid.ColumnSpan="2" Spacing="{StaticResource SpaceHair}">
                         <TextBlock Style="{StaticResource OnArtBodyTextStyle}" Text="视频缩放" />
                         <Slider
                             x:Name="MotionZoomSlider"
@@ -277,7 +286,7 @@
                             ValueChanged="OnMotionZoomChanged" />
                     </StackPanel>
                     <TextBlock
-                        Grid.Row="7"
+                        Grid.Row="8"
                         Grid.ColumnSpan="2"
                         Style="{StaticResource CaptionUI}"
                         Text="轮播会在已选择的背景列表中切换；当前只有一张可用图片时保持该图片。" />

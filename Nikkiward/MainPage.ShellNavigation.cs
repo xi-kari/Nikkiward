@@ -146,9 +146,6 @@ public sealed partial class MainPage
                     await ShowGalleryAsync(viewMode: GalleryViewMode.Favorites);
                 }
                 break;
-            case "profiles":
-                ShowProfileOverlay(selectNavigationItem: false);
-                break;
             case "photo-plugin":
                 if (ContentFrame.Visibility == Visibility.Visible &&
                     ContentFrame.Content is PhotoPluginPage)

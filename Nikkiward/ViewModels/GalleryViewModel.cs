@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Nikkiward.Features.Gallery;
+using Windows.Graphics.Imaging;
 
 namespace Nikkiward.ViewModels;
 
@@ -599,6 +600,9 @@ public sealed class GalleryPhotoItemViewModel : INotifyPropertyChanged
     private ImageSource? _thumbnailSource;
     private bool _thumbnailRequested;
     private bool _isStarred;
+    private ImageSource? _cardSource;
+    private double _cardAspectRatio = GalleryFavoriteCardLayoutProjection.DefaultAspectRatio;
+    private int _cardAspectRatioLoadVersion;
     private string? _protectedFilePath;
     private bool _isUsingProtectedCopy;
 
@@ -664,6 +668,12 @@ public sealed class GalleryPhotoItemViewModel : INotifyPropertyChanged
     public string StarCommandText => _isStarred ? "取消收藏" : "添加到收藏";
 
     public string StarGlyph => _isStarred ? "\uE735" : "\uE734";
+
+    public ImageSource CardSource => _isStarred
+        ? _cardSource ??= CreateFullResolutionSource(ResolveFavoriteCardPath(FilePath))
+        : ThumbnailSource;
+
+    public double CardAspectRatio => _cardAspectRatio;
 
     public string? ProtectedFilePath => _protectedFilePath;
 
@@ -744,7 +754,16 @@ public sealed class GalleryPhotoItemViewModel : INotifyPropertyChanged
         }
 
         _isStarred = isStarred;
+        _cardSource = null;
+        var aspectRatioLoadVersion = ++_cardAspectRatioLoadVersion;
+        SetCardAspectRatio(GalleryFavoriteCardLayoutProjection.DefaultAspectRatio);
+        if (isStarred)
+        {
+            _ = LoadCardAspectRatioAsync(aspectRatioLoadVersion);
+        }
+
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsStarred)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CardSource)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StarredVisibility)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StarCommandText)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StarGlyph)));
@@ -784,6 +803,70 @@ public sealed class GalleryPhotoItemViewModel : INotifyPropertyChanged
             UriSource = new Uri(filePath, UriKind.Absolute),
         };
         return image;
+    }
+
+    private static BitmapImage CreateFullResolutionSource(string filePath)
+    {
+        return new BitmapImage
+        {
+            CreateOptions = BitmapCreateOptions.IgnoreImageCache,
+            UriSource = new Uri(filePath, UriKind.Absolute),
+        };
+    }
+
+    private async Task LoadCardAspectRatioAsync(int loadVersion)
+    {
+        try
+        {
+            var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(
+                ResolveFavoriteCardPath(FilePath));
+            using var stream = await file.OpenReadAsync();
+            var decoder = await BitmapDecoder.CreateAsync(stream);
+            if (!_isStarred || loadVersion != _cardAspectRatioLoadVersion)
+            {
+                return;
+            }
+
+            SetCardAspectRatio(
+                decoder.OrientedPixelWidth / (double)decoder.OrientedPixelHeight);
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    private void SetCardAspectRatio(double aspectRatio)
+    {
+        var normalized = double.IsFinite(aspectRatio) && aspectRatio > 0d
+            ? aspectRatio
+            : GalleryFavoriteCardLayoutProjection.DefaultAspectRatio;
+        if (Math.Abs(_cardAspectRatio - normalized) < 0.000001d)
+        {
+            return;
+        }
+
+        _cardAspectRatio = normalized;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CardAspectRatio)));
+    }
+
+    private static string ResolveFavoriteCardPath(string filePath)
+    {
+        var stem = Path.GetFileNameWithoutExtension(filePath);
+        if (!stem.EndsWith("_Low", StringComparison.OrdinalIgnoreCase))
+        {
+            return filePath;
+        }
+
+        var directory = Path.GetDirectoryName(filePath);
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            return filePath;
+        }
+
+        var candidate = Path.Combine(
+            directory,
+            stem[..^4] + Path.GetExtension(filePath));
+        return File.Exists(candidate) ? candidate : filePath;
     }
 
     private static string FormatBytes(long bytes)

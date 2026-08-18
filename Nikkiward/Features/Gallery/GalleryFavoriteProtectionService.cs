@@ -30,7 +30,8 @@ public sealed record GalleryFavoriteProtectionResult(
 
 public sealed record GalleryFavoriteProtectionOverview(
     GalleryFavoriteProtectionPreferences Preferences,
-    GalleryFavoriteProtectionStatistics Statistics);
+    GalleryFavoriteProtectionStatistics Statistics,
+    IReadOnlyList<string> UnavailableRootPaths);
 
 public sealed class GalleryFavoriteProtectionService
 {
@@ -242,6 +243,7 @@ public sealed class GalleryFavoriteProtectionService
     {
         var preferences = await GetPreferencesAsync(cancellationToken).ConfigureAwait(false);
         var entries = new List<(string RootPath, GalleryFavoriteProtectionEntry Entry)>();
+        var unavailableRootPaths = new List<string>();
         foreach (var rootPath in EnumerateRoots(preferences))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -259,6 +261,7 @@ public sealed class GalleryFavoriteProtectionService
                 or NotSupportedException
                 or InvalidDataException)
             {
+                unavailableRootPaths.Add(rootPath);
             }
         }
 
@@ -285,7 +288,10 @@ public sealed class GalleryFavoriteProtectionService
             UniqueObjectCount = uniqueObjects.Length,
             ProtectedBytes = uniqueObjects.Sum(entry => entry.OriginalLength),
         };
-        return new GalleryFavoriteProtectionOverview(preferences, statistics);
+        return new GalleryFavoriteProtectionOverview(
+            preferences,
+            statistics,
+            unavailableRootPaths.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
     }
 
     public Task<GalleryFavoriteProtectionOverview> VerifyAsync(

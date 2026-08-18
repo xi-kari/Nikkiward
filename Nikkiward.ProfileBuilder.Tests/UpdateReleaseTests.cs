@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Xml.Linq;
 using Nikkiward.Features.Updates;
 using NuGet.Versioning;
 
@@ -13,6 +14,7 @@ internal static class UpdateReleaseTests
         ("update check validates one GitHub release and manifest", TestValidUpdateCheck),
         ("update check rejects package metadata drift", TestPackageMetadataDrift),
         ("private or unpublished update source stays calm", TestMissingPublicRelease),
+        ("release packaging configuration preserves required assets", TestPackagingConfiguration),
     ];
 
     private static Task TestSemanticReleaseSelection()
@@ -70,6 +72,94 @@ internal static class UpdateReleaseTests
 
         AssertEqual(UpdateCheckStatus.NoPublishedRelease, result.Status, "missing release status");
         Assert(result.ReleaseUri is null, "missing release URL");
+    }
+
+    private static Task TestPackagingConfiguration()
+    {
+        var root = FindWorkspaceRoot();
+        var projectPath = Path.Combine(root, "Nikkiward", "Nikkiward.csproj");
+        var project = XDocument.Load(projectPath);
+        var contentItems = project.Descendants("Content").ToArray();
+
+        var avatar = contentItems.SingleOrDefault(item =>
+            string.Equals((string?)item.Attribute("Update"), "Assets\\XikariAvatar.jpg", StringComparison.Ordinal));
+        Assert(avatar is not null, "author avatar publish item");
+        AssertEqual("PreserveNewest", avatar!.Element("CopyToOutputDirectory")?.Value, "avatar output copy policy");
+        AssertEqual("PreserveNewest", avatar.Element("CopyToPublishDirectory")?.Value, "avatar publish copy policy");
+
+        var removedContent = contentItems
+            .SelectMany(item => ((string?)item.Attribute("Remove") ?? string.Empty)
+                .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Assert(removedContent.Contains("Assets\\NikkiBackground.png"), "local background exclusion");
+        Assert(removedContent.Contains("Assets\\NikkiDefaultBackground.png"), "large local background exclusion");
+
+        var trimValues = project.Descendants("PublishTrimmed")
+            .Select(element => element.Value.Trim())
+            .ToArray();
+        Assert(trimValues.Any(value => string.Equals(value, "False", StringComparison.OrdinalIgnoreCase)), "publish trimming disabled");
+        Assert(!trimValues.Any(value => string.Equals(value, "True", StringComparison.OrdinalIgnoreCase)), "publish trimming must not be enabled by project defaults");
+
+        var workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "release.yml"));
+        var publishChecks = ExtractSection(workflow, "$required = @(", "foreach ($path in $required)");
+        var zipChecks = ExtractSection(workflow, "$requiredInZip = @(", "foreach ($path in $requiredInZip)");
+        AssertContains(publishChecks, "Assets\\XikariAvatar.jpg", "publish avatar verification");
+        AssertContains(zipChecks, "Assets\\XikariAvatar.jpg", "ZIP avatar verification");
+
+        var readme = File.ReadAllText(Path.Combine(root, "README.md"));
+        AssertContains(readme, "计划面向 Windows x64 提供安装包和便携 ZIP，目前尚未公开发布", "unpublished distribution status");
+        AssertContains(readme, "docs/PACKAGING_ACCEPTANCE.md", "packaging acceptance link");
+
+        var acceptancePath = Path.Combine(root, "docs", "PACKAGING_ACCEPTANCE.md");
+        Assert(File.Exists(acceptancePath), "packaging acceptance document");
+        var acceptance = File.ReadAllText(acceptancePath);
+        foreach (var requiredText in new[]
+        {
+            "unpackaged",
+            "self-contained",
+            "Windows 10",
+            "Windows 11",
+            "标准用户",
+            "WebView2",
+            "中文、空格",
+            "非系统盘",
+            "Steam",
+            "%LOCALAPPDATA%\\Nikkiward",
+        })
+        {
+            AssertContains(acceptance, requiredText, "packaging acceptance contract");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private static string FindWorkspaceRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Nikkiward", "Nikkiward.csproj")))
+            {
+                return directory.FullName;
+            }
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Nikkiward workspace root was not found.");
+    }
+
+    private static string ExtractSection(string text, string start, string end)
+    {
+        var startIndex = text.IndexOf(start, StringComparison.Ordinal);
+        Assert(startIndex >= 0, $"section start is missing: {start}");
+        var endIndex = text.IndexOf(end, startIndex, StringComparison.Ordinal);
+        Assert(endIndex > startIndex, $"section end is missing: {end}");
+        return text[startIndex..endIndex];
+    }
+
+    private static void AssertContains(string text, string expected, string message)
+    {
+        Assert(text.Contains(expected, StringComparison.Ordinal), $"{message}: {expected}");
     }
 
     private static TestFeed CreateFeed(long packageAssetSize = 42)

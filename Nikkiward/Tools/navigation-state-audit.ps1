@@ -54,12 +54,23 @@ $visibleAutomationIds = $visibleElements |
 Write-Output "AUTOMATION root=$($automationRoot.Current.Name) descendants=$($visibleElements.Count)"
 Write-Output "AUTOMATION ids=$($visibleAutomationIds -join ',')"
 
+$profileNavigation = $visibleElements |
+    Where-Object {
+        $_.Current.AutomationId -eq 'ProfilesNavigationItem' -or
+        $_.Current.Name -eq 'Profile 与渠道'
+    } |
+    Select-Object -First 1
+if ($profileNavigation) {
+    Write-Output 'FAIL profile_navigation present=true'
+    throw 'profile navigation must not be present'
+}
+Write-Output 'PASS profile_navigation present=false'
+
 $navigationIds = @{
     '启动管理' = 'LauncherNavigationItem'
     '奇想手账' = 'LibraryNavigationItem'
     '相册' = 'GalleryNavigationItem'
     '收藏' = 'GalleryFavoritesNavigationItem'
-    'Profile 与渠道' = 'ProfilesNavigationItem'
     '心愿共鸣记录' = 'ResonanceNavigationItem'
 }
 $navigationPoints = @{}
@@ -92,10 +103,10 @@ function Invoke-Navigation([string]$name) {
 }
 
 for ($iteration = 0; $iteration -lt $Iterations; $iteration++) {
-    foreach ($name in @('奇想手账', 'Profile 与渠道', '启动管理')) {
+    foreach ($name in @('奇想手账', '启动管理')) {
         Invoke-Navigation $name
     }
-    foreach ($name in @('相册', '收藏', 'Profile 与渠道', '启动管理')) {
+    foreach ($name in @('相册', '收藏', '启动管理')) {
         Invoke-Navigation $name
     }
 }
@@ -140,8 +151,9 @@ else {
     Write-Output "PASS selection selected_count=1 selected=启动管理"
 }
 
-$visiblePages = 0
-foreach ($name in @('奇想手账', '相册', '收藏', 'Profile 与渠道', '心愿共鸣记录', '启动管理')) {
+$homeProfileVisible = $false
+$hiddenPageCount = 0
+foreach ($name in @('奇想手账', '相册', '收藏', '心愿共鸣记录', '启动管理')) {
     Invoke-Navigation $name
     Start-Sleep -Milliseconds 1200
     $pageElements = $automationRoot.FindAll(
@@ -150,17 +162,28 @@ foreach ($name in @('奇想手账', '相册', '收藏', 'Profile 与渠道', '�
     $profileButton = $pageElements |
         Where-Object { $_.Current.AutomationId -eq 'ProfileButton' } |
         Select-Object -First 1
-    if (-not $profileButton -or $profileButton.Current.IsOffscreen) {
-        Write-Output "FAIL profile icon page=$name"
+    $isHome = $name -eq '启动管理'
+    $isVisible =
+        $profileButton -and
+        -not $profileButton.Current.IsOffscreen -and
+        $profileButton.Current.BoundingRectangle.Width -gt 0 -and
+        $profileButton.Current.BoundingRectangle.Height -gt 0
+    if ($isVisible -ne $isHome) {
+        Write-Output "FAIL profile icon page=$name visible=$isVisible expected=$isHome"
         $failed++
     }
     else {
-        $visiblePages++
+        if ($isHome) {
+            $homeProfileVisible = $true
+        }
+        else {
+            $hiddenPageCount++
+        }
     }
 }
 
 Invoke-Navigation '启动管理'
 Start-Sleep -Milliseconds 1200
-Write-Output "PASS profile_icon visible_pages=$visiblePages/6"
+Write-Output "PASS profile_icon home_visible=$homeProfileVisible hidden_pages=$hiddenPageCount/4"
 Write-Output "RESULT iterations=$Iterations failed=$failed"
 if ($failed -gt 0) { exit 1 }
