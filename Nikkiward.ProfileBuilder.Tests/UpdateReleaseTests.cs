@@ -107,6 +107,7 @@ internal static class UpdateReleaseTests
         AssertContains(zipChecks, "Assets\\XikariAvatar.jpg", "ZIP avatar verification");
         AssertContains(workflow, "Set up Inno Setup", "installer compiler setup");
         AssertContains(workflow, "IncludeSourceRevisionInInformationalVersion=false", "single release commit suffix");
+        AssertContains(workflow, "-p:Configuration=Release -p:PublishReadyToRun=true", "release restore matches publish mode");
         AssertContains(workflow, "Package-Installer.ps1", "installer package invocation");
         AssertContains(workflow, "Nikkiward-Setup-win-x64.exe", "installer release asset");
         AssertContains(workflow, "Test Windows installer", "installer workflow acceptance step");

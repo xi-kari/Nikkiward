@@ -60,7 +60,7 @@ jobs:
         shell: pwsh
         run: |
           $publishDir = Join-Path $env:RUNNER_TEMP 'nikkiward-publish'
-          dotnet restore .\Nikkiward\Nikkiward.csproj -r win-x64
+          dotnet restore .\Nikkiward\Nikkiward.csproj -r win-x64 -p:Platform=x64 -p:Configuration=Release -p:PublishReadyToRun=true
           dotnet publish .\Nikkiward\Nikkiward.csproj -c Release -p:Platform=x64 -r win-x64 --self-contained true --no-restore -o $publishDir -p:PublishTrimmed=false -p:ContinuousIntegrationBuild=true -p:IncludeSourceRevisionInInformationalVersion=false -p:Version='${{ steps.release_meta.outputs.version }}' -p:AssemblyVersion='${{ steps.release_meta.outputs.version_prefix }}.0' -p:FileVersion='${{ steps.release_meta.outputs.version_prefix }}.0' -p:InformationalVersion='${{ steps.release_meta.outputs.version }}+${{ github.sha }}'
           Get-ChildItem -LiteralPath $publishDir -Filter *.pdb -Recurse | Remove-Item -Force
           $required = @(
