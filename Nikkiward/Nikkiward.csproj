@@ -21,7 +21,7 @@
     <Authors>xi-kari</Authors>
     <Company>xi-kari</Company>
     <Copyright>Copyright (c) 2026 xi-kari</Copyright>
-    <Version>0.1.0-preview.2</Version>
+    <Version>0.1.0-preview.3</Version>
     <AssemblyVersion>0.1.0.0</AssemblyVersion>
     <FileVersion>0.1.0.0</FileVersion>
     <InformationalVersion>$(Version)</InformationalVersion>
@@ -118,6 +118,7 @@
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.3.1" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools.WinApp" Version="0.5.0" />
     <PackageReference Include="NuGet.Versioning" Version="7.6.0" />
+    <PackageReference Include="Starward.Codec" Version="0.5.2" />
     <!--
       Gamepad enhancement. Starward.GameInput is Scighost's repackage of
       TheNathannator/SharpGameInput (MIT); it ships lib/net9.0 only, which

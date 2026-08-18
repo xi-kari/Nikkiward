@@ -13,6 +13,7 @@ internal static class JournalDomainTests
         ("journal fields require capture source before showing a value", JournalFieldsRequireSource),
         ("journal failure projection distinguishes all three failure states", FailureProjectionDistinguishesStates),
         ("journal navigation ignores canceled and stale completions", NavigationIgnoresCanceledAndStaleCompletions),
+        ("journal navigation retries transient web errors only", NavigationRetriesTransientErrorsOnly),
         ("journal capture assessment separates sign-in and selector drift", CaptureAssessmentSeparatesFailures),
         ("journal document readiness waits for complete content", DocumentReadinessWaitsForCompleteContent),
         ("journal snapshot quality rejects obvious partial replacements", SnapshotQualityRejectsPartialReplacements),
@@ -196,6 +197,44 @@ internal static class JournalDomainTests
                 isCurrentNavigation: true,
                 webErrorStatus: "HostNameNotResolved"),
             "real network failure");
+        return Task.CompletedTask;
+    }
+
+    private static Task NavigationRetriesTransientErrorsOnly()
+    {
+        foreach (var status in new[]
+        {
+            "CannotConnect",
+            "ConnectionAborted",
+            "ConnectionReset",
+            "Disconnected",
+            "ErrorHttpInvalidServerResponse",
+            "HostNameNotResolved",
+            "ServerUnreachable",
+            "Timeout",
+            "UnexpectedError",
+        })
+        {
+            Assert(
+                JournalNavigationFailureProjector.ShouldRetry(status),
+                $"transient status should retry: {status}");
+        }
+
+        foreach (var status in new[]
+        {
+            "CertificateIsInvalid",
+            "OperationCanceled",
+            "ProxyAuthenticationRequired",
+            "ValidAuthenticationCredentialsRequired",
+            "Unknown",
+            null,
+        })
+        {
+            Assert(
+                !JournalNavigationFailureProjector.ShouldRetry(status),
+                $"non-transient status should not retry: {status ?? "null"}");
+        }
+
         return Task.CompletedTask;
     }
 

@@ -6,6 +6,7 @@
 ## Starward
 
 - 来源：https://github.com/Scighost/Starward（tag 0.18.1）
+- 截图编码使用 `Starward.Codec` 0.5.2（MIT），用于 AVIF、JPEG XL 与颜色配置文件写入。
 - 许可证：MIT
 - 复用范围：`Nikkiward/Features/GamepadControl/` 下的手柄增强实现
   （`GamepadController.cs`、`GamepadKeyNames.cs`），改写自上游
@@ -35,6 +36,25 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+### Starward.Codec native runtime
+
+`Starward.Codec` 0.5.2 的 `win-x64` native runtime 会随便携 ZIP 和安装包一起分发
+下列上游组件。它们用于图片编码、色彩配置文件和视频解码；本项目不修改这些
+二进制文件。对应的上游许可证和版权声明应与组件一起保留：
+
+- [libavif](https://github.com/AOMediaCodec/libavif)：BSD 2-Clause
+- [libjxl](https://github.com/libjxl/libjxl)：BSD 3-Clause
+- [libultrahdr](https://github.com/google/libultrahdr)：Apache License 2.0
+- [Little CMS](https://github.com/mm2/Little-CMS)：MIT
+- [libvpx](https://chromium.googlesource.com/webm/libvpx/)：BSD 3-Clause
+- [Brotli](https://github.com/google/brotli)：MIT
+- [libyuv](https://chromium.googlesource.com/libyuv/libyuv/)：BSD 3-Clause
+- Ogg/Vorbis runtime：BSD-style license
+
+组件版本和来源以 `Starward.Codec.nuspec`（package 0.5.2）记录为准；其原生
+工具程序（`avifdec.exe`、`avifenc.exe`、`avifgainmaputil.exe`、`cjxl.exe`、
+`djxl.exe`、`jxlinfo.exe`）属于同一依赖的 runtime 文件，不是 Nikkiward 插件。
 
 ## NikkiGallery native metadata library
 

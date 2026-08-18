@@ -256,6 +256,22 @@ public sealed partial class MainPage
         page.JournalOpenRequested += OnSettingsJournalOpenRequested;
         page.JournalCacheClearRequested += OnSettingsJournalCacheClearRequested;
         page.AppearanceSettingsChanged += OnSettingsAppearanceChanged;
+        page.GeneralSettingsChanged += OnSettingsGeneralChanged;
+        page.VisualEffectsRequested += OnSettingsVisualEffectsRequested;
+        page.DownloadSettingsChanged += OnSettingsDownloadChanged;
+        page.DownloadPathRequested += OnSettingsDownloadPathRequested;
+        page.UserDataFolderRequested += OnSettingsUserDataFolderRequested;
+        page.FileBackupRequested += OnSettingsFileBackupRequested;
+        page.FileOpenBackupRequested += OnSettingsFileOpenBackupRequested;
+        page.FileDeleteAllSettingsRequested += OnSettingsFileDeleteAllSettingsRequested;
+        page.FileOpenLogsRequested += OnSettingsFileOpenLogsRequested;
+        page.FileClearCacheRequested += OnSettingsFileClearCacheRequested;
+        page.FileClearLauncherBackgroundChanged += OnSettingsFileClearLauncherBackgroundChanged;
+        page.ScreenshotSettingsChanged += OnSettingsScreenshotSettingsChanged;
+        page.ScreenshotFolderRequested += OnSettingsScreenshotFolderRequested;
+        page.ScreenshotTestCaptureRequested += OnSettingsScreenshotTestCaptureRequested;
+        page.ScreenshotClearThumbnailCacheRequested += OnSettingsScreenshotClearThumbnailCacheRequested;
+        page.HotkeySettingsChanged += OnSettingsHotkeySettingsChanged;
         page.BackgroundChooseRequested += OnSettingsBackgroundChooseRequested;
         page.BackgroundResetRequested += OnSettingsBackgroundResetRequested;
         page.GamepadSettingsChanged += OnSettingsGamepadChanged;
@@ -289,6 +305,22 @@ public sealed partial class MainPage
         page.JournalOpenRequested -= OnSettingsJournalOpenRequested;
         page.JournalCacheClearRequested -= OnSettingsJournalCacheClearRequested;
         page.AppearanceSettingsChanged -= OnSettingsAppearanceChanged;
+        page.GeneralSettingsChanged -= OnSettingsGeneralChanged;
+        page.VisualEffectsRequested -= OnSettingsVisualEffectsRequested;
+        page.DownloadSettingsChanged -= OnSettingsDownloadChanged;
+        page.DownloadPathRequested -= OnSettingsDownloadPathRequested;
+        page.UserDataFolderRequested -= OnSettingsUserDataFolderRequested;
+        page.FileBackupRequested -= OnSettingsFileBackupRequested;
+        page.FileOpenBackupRequested -= OnSettingsFileOpenBackupRequested;
+        page.FileDeleteAllSettingsRequested -= OnSettingsFileDeleteAllSettingsRequested;
+        page.FileOpenLogsRequested -= OnSettingsFileOpenLogsRequested;
+        page.FileClearCacheRequested -= OnSettingsFileClearCacheRequested;
+        page.FileClearLauncherBackgroundChanged -= OnSettingsFileClearLauncherBackgroundChanged;
+        page.ScreenshotSettingsChanged -= OnSettingsScreenshotSettingsChanged;
+        page.ScreenshotFolderRequested -= OnSettingsScreenshotFolderRequested;
+        page.ScreenshotTestCaptureRequested -= OnSettingsScreenshotTestCaptureRequested;
+        page.ScreenshotClearThumbnailCacheRequested -= OnSettingsScreenshotClearThumbnailCacheRequested;
+        page.HotkeySettingsChanged -= OnSettingsHotkeySettingsChanged;
         page.BackgroundChooseRequested -= OnSettingsBackgroundChooseRequested;
         page.BackgroundResetRequested -= OnSettingsBackgroundResetRequested;
         page.GamepadSettingsChanged -= OnSettingsGamepadChanged;
@@ -387,6 +419,15 @@ public sealed partial class MainPage
             await LoadResonanceHistoryAsync(currentCancellation.Token);
             await LoadWishHistoryAsync(currentCancellation.Token);
             await ViewModel.InitializeAsync(currentCancellation.Token);
+            App.MainWindow.ApplyCloseBehavior(ViewModel.GeneralSettings.CloseWindowBehavior);
+            var hotkeyRegistration = App.MainWindow.ApplyHotkeys(
+                ViewModel.GeneralSettings.MainWindowHotkey,
+                ViewModel.ScreenshotSettings.Hotkey);
+            if (!hotkeyRegistration.Succeeded)
+            {
+                ViewModel.ReportUiError(hotkeyRegistration.Message);
+            }
+            SyncLauncherChrome();
             await RestoreAppearanceAsync(
                 ViewModel.AppearanceSettings,
                 currentCancellation.Token);

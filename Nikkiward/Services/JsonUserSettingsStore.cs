@@ -28,26 +28,25 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
 
     public JsonUserSettingsStore(string? localApplicationDataPath = null)
     {
-        var localDataRoot = localApplicationDataPath;
-        if (string.IsNullOrWhiteSpace(localDataRoot))
-        {
-            localDataRoot = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        }
-
-        if (string.IsNullOrWhiteSpace(localDataRoot))
-        {
-            throw new InvalidOperationException("The LocalApplicationData directory is unavailable.");
-        }
-
-        SettingsFilePath = Path.Combine(Path.GetFullPath(localDataRoot), "Nikkiward", "settings.json");
+        var applicationRoot = string.IsNullOrWhiteSpace(localApplicationDataPath)
+            ? ApplicationDataPaths.Root
+            : Path.Combine(
+                Path.GetFullPath(localApplicationDataPath),
+                "Nikkiward");
+        SettingsFilePath = Path.Combine(applicationRoot, "settings.json");
         MigrationRollbackFilePath = Path.Combine(
             Path.GetDirectoryName(SettingsFilePath)!,
             "settings.pre-schema6.rollback.json");
+        Schema7MigrationRollbackFilePath = Path.Combine(
+            Path.GetDirectoryName(SettingsFilePath)!,
+            "settings.pre-schema7.rollback.json");
     }
 
     public string SettingsFilePath { get; }
 
     public string MigrationRollbackFilePath { get; }
+
+    public string Schema7MigrationRollbackFilePath { get; }
 
     public async Task<UserSettings> LoadAsync(CancellationToken cancellationToken = default)
     {
@@ -105,8 +104,20 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
 
             if (version == UserSettings.PreviousSchemaVersion)
             {
-                await PreserveMigrationRollbackAsync(cancellationToken).ConfigureAwait(false);
+                await PreserveMigrationRollbackAsync(
+                    MigrationRollbackFilePath,
+                    cancellationToken).ConfigureAwait(false);
                 root = AppearanceSettingsMigration.MigrateSchema5To6(root);
+                migrated = true;
+                version = UserSettings.HolographicCardSchemaVersion;
+            }
+
+            if (version == UserSettings.HolographicCardSchemaVersion)
+            {
+                await PreserveMigrationRollbackAsync(
+                    Schema7MigrationRollbackFilePath,
+                    cancellationToken).ConfigureAwait(false);
+                root = ApplicationSettingsMigration.MigrateSchema6To7(root);
                 migrated = true;
                 version = UserSettings.CurrentSchemaVersion;
             }
@@ -217,14 +228,16 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
         }
     }
 
-    private async Task PreserveMigrationRollbackAsync(CancellationToken cancellationToken)
+    private async Task PreserveMigrationRollbackAsync(
+        string rollbackFilePath,
+        CancellationToken cancellationToken)
     {
-        if (File.Exists(MigrationRollbackFilePath))
+        if (File.Exists(rollbackFilePath))
         {
             return;
         }
 
-        var temporaryPath = $"{MigrationRollbackFilePath}.{Guid.NewGuid():N}.tmp";
+        var temporaryPath = $"{rollbackFilePath}.{Guid.NewGuid():N}.tmp";
         try
         {
             await using (var source = new FileStream(
@@ -246,9 +259,9 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
                 await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
 
-            File.Move(temporaryPath, MigrationRollbackFilePath, overwrite: false);
+            File.Move(temporaryPath, rollbackFilePath, overwrite: false);
         }
-        catch (IOException) when (File.Exists(MigrationRollbackFilePath))
+        catch (IOException) when (File.Exists(rollbackFilePath))
         {
         }
         finally
@@ -274,6 +287,10 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
         foreach (var section in new[]
         {
             "appearance",
+            "general",
+            "download",
+            "fileManagement",
+            "screenshot",
             "profiles",
             "galleryProfiles",
             "gamepad",
@@ -329,6 +346,10 @@ internal static class UserSettingsValidator
             settings.GalleryProfiles is null ||
             settings.ChannelStore is null ||
             settings.ChannelStore.Profiles is null ||
+            settings.General is null ||
+            settings.Download is null ||
+            settings.FileManagement is null ||
+            settings.Screenshot is null ||
             settings.Gamepad is null)
         {
             throw new ArgumentException("Settings sections cannot be null.", nameof(settings));
@@ -393,6 +414,10 @@ internal static class UserSettingsValidator
         {
             SelectedProfileId = NormalizeOptional(settings.SelectedProfileId),
             Appearance = AppearanceSettingsValidator.Normalize(settings.Appearance),
+            General = ApplicationSettingsValidator.Normalize(settings.General),
+            Download = ApplicationSettingsValidator.Normalize(settings.Download),
+            FileManagement = ApplicationSettingsValidator.Normalize(settings.FileManagement),
+            Screenshot = ApplicationSettingsValidator.Normalize(settings.Screenshot),
             Profiles = settings.Profiles
                 .Select(item => item with { ProfileId = item.ProfileId.Trim() })
                 .ToArray(),

@@ -118,15 +118,8 @@ public sealed class GalleryFavoriteProtectionStore
     {
         if (string.IsNullOrWhiteSpace(rootPath))
         {
-            var localRoot = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            if (string.IsNullOrWhiteSpace(localRoot))
-            {
-                throw new InvalidOperationException("The LocalApplicationData directory is unavailable.");
-            }
-
             rootPath = Path.Combine(
-                localRoot,
-                "Nikkiward",
+                Nikkiward.Services.ApplicationDataPaths.Root,
                 "Gallery",
                 "ProtectedFavorites");
         }

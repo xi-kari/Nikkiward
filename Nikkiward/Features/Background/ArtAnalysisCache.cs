@@ -30,15 +30,11 @@ public sealed class ArtAnalysisCache : IArtAnalysisCache
 
     public ArtAnalysisCache(string? localApplicationDataPath = null)
     {
-        var root = string.IsNullOrWhiteSpace(localApplicationDataPath)
-            ? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)
-            : localApplicationDataPath;
-        if (string.IsNullOrWhiteSpace(root))
-        {
-            root = Path.GetTempPath();
-        }
-
-        var applicationRoot = Path.Combine(Path.GetFullPath(root), "Nikkiward");
+        var applicationRoot = string.IsNullOrWhiteSpace(localApplicationDataPath)
+            ? Nikkiward.Services.ApplicationDataPaths.Root
+            : Path.Combine(
+                Path.GetFullPath(localApplicationDataPath),
+                "Nikkiward");
         RootPath = Path.Combine(applicationRoot, "PaletteCache");
         BlurCachePath = Path.Combine(applicationRoot, "ArtCache");
     }

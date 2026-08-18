@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using Nikkiward.Serialization;
+using Nikkiward.Services;
 
 namespace Nikkiward.ViewModels;
 
@@ -120,18 +121,12 @@ public sealed class ResonanceHistoryCache
 
     public ResonanceHistoryCache(string? localApplicationDataPath = null)
     {
-        var localApplicationData = string.IsNullOrWhiteSpace(localApplicationDataPath)
-            ? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)
-            : localApplicationDataPath;
-        if (string.IsNullOrWhiteSpace(localApplicationData))
-        {
-            localApplicationData = Path.GetTempPath();
-        }
-
-        RootPath = Path.Combine(
-            Path.GetFullPath(localApplicationData),
-            "Nikkiward",
-            "JournalCache");
+        var applicationRoot = string.IsNullOrWhiteSpace(localApplicationDataPath)
+            ? ApplicationDataPaths.Root
+            : Path.Combine(
+                Path.GetFullPath(localApplicationDataPath),
+                "Nikkiward");
+        RootPath = Path.Combine(applicationRoot, "JournalCache");
         AssetsPath = Path.Combine(RootPath, "ResonanceAssets");
         SnapshotPath = Path.Combine(RootPath, "resonance-history.json");
 

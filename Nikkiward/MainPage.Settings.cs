@@ -88,10 +88,19 @@ public sealed partial class MainPage
             ViewModel.AppearanceSettings,
             _backgroundStatusText,
             _currentBackgroundSource);
+        page.ApplyGeneralSettings(ViewModel.GeneralSettings);
+        page.ApplyDownloadSettings(ViewModel.DownloadSettings);
+        page.ApplyFileManagementState(CreateFileManagementSettingsViewState());
+        page.ApplyScreenshotSettings(
+            ViewModel.ScreenshotSettings,
+            ResolveScreenshotFolderPath());
+        page.ApplyHotkeySettings(ViewModel.GeneralSettings, ViewModel.ScreenshotSettings);
         page.ApplyGamepadState(
             ViewModel.GamepadSettings,
             CreateGamepadRuntimeState());
         page.ApplyDeveloperMode(ViewModel.DeveloperModeEnabled);
+        _ = RefreshFileManagementSettingsStateAsync(
+            _lifetimeCancellation?.Token ?? CancellationToken.None);
     }
 
     private GamepadRuntimeViewState CreateGamepadRuntimeState()
@@ -124,18 +133,12 @@ public sealed partial class MainPage
         SettingsDestinationEventArgs e) =>
         _activeSettingsDestination = e.Destination;
 
-    private async void OnSettingsExternalDestinationRequested(
+    private void OnSettingsExternalDestinationRequested(
         object? sender,
         SettingsDestinationEventArgs e)
     {
         switch (e.Destination)
         {
-            case SettingsDestination.Hotkeys:
-                await TryShowDialogAsync(
-                    "键盘快捷键",
-                    "当前版本尚未接入全局快捷键。现有 AccessKey 继续有效，此处不会注册新的系统热键。");
-                _hostedSettingsPage?.NavigateTo(_activeSettingsDestination);
-                break;
             case SettingsDestination.Status:
                 ShowStatusDrawer();
                 break;

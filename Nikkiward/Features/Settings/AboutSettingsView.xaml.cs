@@ -240,6 +240,7 @@ public sealed partial class AboutSettingsView : UserControl
         try
         {
             _appVersion = AppVersionProvider.GetCurrent();
+            UpdateChannelSelector.SelectedIndex = _appVersion.Version.IsPrerelease ? 1 : 0;
             VersionText.Text = _appVersion.DisplayVersion;
             RuntimeText.Text = $"{_appVersion.RuntimeIdentifier} · {_appVersion.DistributionKind}";
             if (!string.IsNullOrWhiteSpace(_appVersion.CommitSha))
@@ -280,14 +281,29 @@ public sealed partial class AboutSettingsView : UserControl
                 channel,
                 _appVersion.Version,
                 cancellation.Token);
-            ApplyUpdateResult(result);
+            ApplyUpdateResult(result, channel);
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
         }
-        catch (Exception ex) when (ex is HttpRequestException or JsonException or InvalidDataException)
+        catch (OperationCanceledException)
         {
-            ShowStatus(InfoBarSeverity.Error, "检查失败", ex.Message);
+            ShowStatus(
+                InfoBarSeverity.Error,
+                "连接超时",
+                "GitHub 更新服务没有在限定时间内响应，请检查网络或代理后重试。");
+        }
+        catch (HttpRequestException ex)
+        {
+            ShowStatus(InfoBarSeverity.Error, "连接 GitHub 失败", ex.Message);
+        }
+        catch (JsonException ex)
+        {
+            ShowStatus(InfoBarSeverity.Error, "GitHub 响应无效", ex.Message);
+        }
+        catch (InvalidDataException ex)
+        {
+            ShowStatus(InfoBarSeverity.Error, "更新清单无效", ex.Message);
         }
         finally
         {
@@ -300,7 +316,7 @@ public sealed partial class AboutSettingsView : UserControl
         }
     }
 
-    private void ApplyUpdateResult(UpdateCheckResult result)
+    private void ApplyUpdateResult(UpdateCheckResult result, UpdateChannel channel)
     {
         _releaseUri = result.ReleaseUri;
         ReleaseButton.Visibility = result.ReleaseUri is null
@@ -324,10 +340,11 @@ public sealed partial class AboutSettingsView : UserControl
                     result.CurrentVersion.ToNormalizedString());
                 break;
             default:
+                var channelName = channel == UpdateChannel.Preview ? "预览版" : "稳定版";
                 ShowStatus(
                     InfoBarSeverity.Informational,
-                    "暂无公开发布",
-                    "当前更新源没有可用的公开 Release。");
+                    $"{channelName}暂无公开发布",
+                    $"已连接 GitHub，但当前更新源没有可用的{channelName} Release。");
                 break;
         }
     }

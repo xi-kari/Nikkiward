@@ -8,7 +8,9 @@ public sealed record UserSettings
 
     public const int PreviousSchemaVersion = 5;
 
-    public const int CurrentSchemaVersion = 6;
+    public const int HolographicCardSchemaVersion = 6;
+
+    public const int CurrentSchemaVersion = 7;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
@@ -17,6 +19,14 @@ public sealed record UserSettings
     public bool DeveloperModeEnabled { get; init; }
 
     public AppearanceSettings Appearance { get; init; } = new();
+
+    public GeneralSettings General { get; init; } = new();
+
+    public DownloadSettings Download { get; init; } = new();
+
+    public FileManagementSettings FileManagement { get; init; } = new();
+
+    public ScreenshotSettings Screenshot { get; init; } = new();
 
     public IReadOnlyList<LaunchProfile> Profiles { get; init; } = Array.Empty<LaunchProfile>();
 

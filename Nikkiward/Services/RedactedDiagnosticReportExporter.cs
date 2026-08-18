@@ -251,6 +251,10 @@ public sealed class RedactedDiagnosticReportExporter : IDiagnosticReportExporter
 
         AddMapping(
             mappings,
+            ApplicationDataPaths.Root,
+            "%NIKKIWARD_DATA%");
+        AddMapping(
+            mappings,
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "%LOCALAPPDATA%");
         AddMapping(

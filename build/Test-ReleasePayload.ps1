@@ -96,7 +96,13 @@ if ($blockedPathRecords.Count -gt 0) {
 $allowedExecutablePaths = @(
     'Nikkiward.exe',
     'createdump.exe',
-    'RestartAgent.exe'
+    'RestartAgent.exe',
+    'avifdec.exe',
+    'avifenc.exe',
+    'avifgainmaputil.exe',
+    'cjxl.exe',
+    'djxl.exe',
+    'jxlinfo.exe'
 )
 if ($AllowInstallerArtifacts) {
     $allowedExecutablePaths += 'unins000.exe'
@@ -174,6 +180,12 @@ $requiredPaths = @(
     'Nikkiward.pri',
     'createdump.exe',
     'RestartAgent.exe',
+    'avifdec.exe',
+    'avifenc.exe',
+    'avifgainmaputil.exe',
+    'cjxl.exe',
+    'djxl.exe',
+    'jxlinfo.exe',
     'LICENSE',
     'PRIVACY.md',
     'THIRD-PARTY-NOTICES.md'

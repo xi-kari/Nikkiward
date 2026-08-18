@@ -51,6 +51,11 @@ internal static class AboutSettingsContractTests
         Assert(!code.Contains("DispatcherQueueTimer", StringComparison.Ordinal), "author card must not run a repeating timer");
         Assert(!code.Contains("StartAnimation", StringComparison.Ordinal), "author card must not start Composition animation");
         AssertContains(xaml, "AutomationProperties.Name=\"检查更新\"", "update action");
+        AssertContains(code, "Version.IsPrerelease ? 1 : 0", "preview builds use the preview update channel");
+        AssertContains(code, "ApplyUpdateResult(result, channel)", "update result keeps its selected channel");
+        AssertContains(code, "已连接 GitHub", "empty channel result confirms the GitHub connection");
+        AssertContains(code, "连接 GitHub 失败", "network failures identify GitHub as the failed endpoint");
+        AssertContains(code, "连接超时", "update timeouts are shown instead of escaping the async event");
         AssertContains(xaml, "https://github.com/xi-kari/Nikkiward/releases", "release history link");
         AssertContains(xaml, "非官方项目", "independence notice");
         Assert(!xaml.Contains("<ScrollViewer", StringComparison.Ordinal), "About must use SettingsPage's scroll owner");

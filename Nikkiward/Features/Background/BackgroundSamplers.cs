@@ -222,13 +222,12 @@ public sealed class MotionBackgroundImporter
     public MotionBackgroundImporter(MotionSampler? sampler = null, string? localDataRoot = null)
     {
         _sampler = sampler ?? new MotionSampler();
-        var root = string.IsNullOrWhiteSpace(localDataRoot)
-            ? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)
-            : localDataRoot;
-        _rootPath = Path.Combine(
-            string.IsNullOrWhiteSpace(root) ? AppContext.BaseDirectory : root,
-            "Nikkiward",
-            "MotionBackgrounds");
+        var applicationRoot = string.IsNullOrWhiteSpace(localDataRoot)
+            ? Nikkiward.Services.ApplicationDataPaths.Root
+            : Path.Combine(
+                Path.GetFullPath(localDataRoot),
+                "Nikkiward");
+        _rootPath = Path.Combine(applicationRoot, "MotionBackgrounds");
     }
 
     public async Task<(BackgroundSourceValidation Validation, string? ImportedPath)> ImportAsync(

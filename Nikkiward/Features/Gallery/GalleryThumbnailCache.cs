@@ -353,8 +353,7 @@ public static class GalleryThumbnailCache
         try
         {
             var folder = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Nikkiward",
+                Nikkiward.Services.ApplicationDataPaths.Root,
                 "GalleryCache",
                 "Thumbnails");
             Directory.CreateDirectory(folder);

@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Nikkiward.Features.Settings.ScreenshotSettingsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation">
+    <StackPanel Spacing="18">
+        <StackPanel Spacing="6">
+            <TextBlock
+                automation:AutomationProperties.HeadingLevel="Level2"
+                Style="{StaticResource OnArtSectionTitleTextStyle}"
+                Text="游戏截图" />
+            <TextBlock
+                Style="{StaticResource OnArtBodyTextStyle}"
+                Text="内置截图功能会将图片保存到以下文件夹。"
+                TextWrapping="Wrap" />
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Button
+                    x:Name="ChooseScreenshotFolderButton"
+                    automation:AutomationProperties.Name="修改截图文件夹"
+                    Click="OnChooseFolderClicked"
+                    Style="{StaticResource OnArtGlassButtonStyle}">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <FontIcon Glyph="&#xE8B7;" />
+                        <TextBlock Text="修改文件夹" />
+                    </StackPanel>
+                </Button>
+                <TextBox
+                    x:Name="ScreenshotFolderTextBox"
+                    Grid.Column="1"
+                    automation:AutomationProperties.Name="当前截图文件夹"
+                    IsReadOnly="True"
+                    Style="{StaticResource EditableMonospaceTextBoxStyle}"
+                    Text="尚未选择" />
+                <Button
+                    x:Name="OpenScreenshotFolderButton"
+                    Grid.Column="2"
+                    automation:AutomationProperties.Name="打开截图文件夹"
+                    Click="OnOpenFolderClicked"
+                    IsEnabled="False"
+                    Style="{StaticResource OnArtGlassButtonStyle}">
+                    <FontIcon Glyph="&#xE8A7;" />
+                </Button>
+            </Grid>
+        </StackPanel>
+
+        <StackPanel Spacing="6">
+            <TextBlock
+                automation:AutomationProperties.HeadingLevel="Level2"
+                Style="{StaticResource OnArtSectionTitleTextStyle}"
+                Text="截图快捷键" />
+            <TextBlock
+                Style="{StaticResource OnArtBodyTextStyle}"
+                Text="如果注册单键快捷键（F1-F12），需要以管理员权限运行 Nikkiward，否则在游戏中快捷键可能无法生效。"
+                TextWrapping="Wrap" />
+            <TextBox
+                x:Name="HotkeyTextBox"
+                automation:AutomationProperties.Name="截图快捷键"
+                HorizontalAlignment="Left"
+                LostFocus="OnHotkeyLostFocus"
+                PlaceholderText="例如 Alt+D"
+                Style="{StaticResource EditableMonospaceTextBoxStyle}" />
+        </StackPanel>
+
+        <StackPanel Spacing="8">
+            <TextBlock
+                automation:AutomationProperties.HeadingLevel="Level2"
+                Style="{StaticResource OnArtSectionTitleTextStyle}"
+                Text="其他选项" />
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <TextBlock VerticalAlignment="Center" Text="格式和质量" />
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <RadioButton x:Name="PngFormatRadio" Content="PNG" GroupName="ScreenshotFormat" Tag="png" Checked="OnFormatChecked" />
+                    <RadioButton x:Name="AvifFormatRadio" Content="AVIF" GroupName="ScreenshotFormat" Tag="avif" Checked="OnFormatChecked" />
+                    <RadioButton x:Name="JpegXlFormatRadio" Content="JPEG XL" GroupName="ScreenshotFormat" Tag="jxl" Checked="OnFormatChecked" />
+                </StackPanel>
+            </StackPanel>
+            <StackPanel x:Name="QualityPanel" Orientation="Horizontal" Spacing="12" Visibility="Collapsed">
+                <TextBlock VerticalAlignment="Center" Text="质量" />
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <RadioButton x:Name="MediumQualityRadio" Content="中" GroupName="ScreenshotQuality" Tag="medium" Checked="OnQualityChecked" />
+                    <RadioButton x:Name="HighQualityRadio" Content="高" GroupName="ScreenshotQuality" Tag="high" Checked="OnQualityChecked" />
+                    <RadioButton x:Name="LosslessQualityRadio" Content="无损" GroupName="ScreenshotQuality" Tag="lossless" Checked="OnQualityChecked" />
+                </StackPanel>
+            </StackPanel>
+            <TextBlock
+                Style="{StaticResource OnArtBodyTextStyle}"
+                Text="高质量的 AVIF 和 JPEG XL 图片格式可节省约 85% 的存储空间。"
+                TextWrapping="Wrap" />
+            <ToggleSwitch
+                x:Name="ColorManagementToggle"
+                automation:AutomationProperties.Name="色彩管理"
+                OffContent="色彩管理"
+                OnContent="色彩管理"
+                Toggled="OnToggleChanged" />
+            <TextBlock
+                Style="{StaticResource OnArtBodyTextStyle}"
+                Text="色彩管理应用于 SDR 输出；HDR 主文件始终保留 HDR 色彩信息。"
+                TextWrapping="Wrap" />
+            <ToggleSwitch
+                x:Name="AutoCopyToggle"
+                automation:AutomationProperties.Name="自动复制截图文件"
+                OffContent="自动复制截图文件"
+                OnContent="自动复制截图文件"
+                Toggled="OnToggleChanged" />
+            <ToggleSwitch
+                x:Name="AutoConvertSdrToggle"
+                automation:AutomationProperties.Name="自动转换为 SDR 图片"
+                OffContent="自动转换为 SDR 图片"
+                OnContent="自动转换为 SDR 图片"
+                Toggled="OnToggleChanged" />
+            <TextBlock
+                Style="{StaticResource OnArtBodyTextStyle}"
+                Text="如果截图为 HDR 图像，将同时保存 SDR 图片。"
+                TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button
+                x:Name="TestCaptureButton"
+                automation:AutomationProperties.Name="测试截图"
+                Click="OnTestCaptureClicked"
+                Style="{StaticResource OnArtGlassButtonStyle}">
+                <StackPanel Orientation="Horizontal" Spacing="7">
+                    <FontIcon Glyph="&#xE91B;" />
+                    <TextBlock Text="测试截图" />
+                </StackPanel>
+            </Button>
+            <Button
+                x:Name="ClearThumbnailCacheButton"
+                automation:AutomationProperties.Name="清除缩略图缓存"
+                Click="OnClearThumbnailCacheClicked"
+                Style="{StaticResource OnArtGlassButtonStyle}">
+                <TextBlock Text="清除缩略图缓存" />
+            </Button>
+        </StackPanel>
+        <TextBlock
+            x:Name="StatusText"
+            automation:AutomationProperties.LiveSetting="Polite"
+            Foreground="{ThemeResource SystemFillColorCautionBrush}"
+            Style="{StaticResource OnArtBodyTextStyle}"
+            Text="" />
+        <StackPanel Spacing="3">
+            <TextBlock
+                Style="{StaticResource OnArtBodyTextStyle}"
+                Text="截图功能会截取当前可见窗口，无法截取已最小化的窗口；超出屏幕显示范围的区域可能缺失，极少数情况下可能截取到非游戏窗口的内容。"
+                TextWrapping="Wrap" />
+            <TextBlock
+                Style="{StaticResource OnArtBodyTextStyle}"
+                Text="使用手柄时，可以在手柄增强设置中将分享键映射为截图快捷键。"
+                TextWrapping="Wrap" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

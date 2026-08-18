@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using System.Text.RegularExpressions;
 using Nikkiward.Serialization;
+using Nikkiward.Services;
 
 namespace Nikkiward.ViewModels;
 
@@ -61,10 +62,12 @@ public sealed class LocalPluginCatalog
 
     public LocalPluginCatalog(string? localApplicationDataPath = null)
     {
-        var localRoot = string.IsNullOrWhiteSpace(localApplicationDataPath)
-            ? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)
-            : localApplicationDataPath;
-        _pluginsRoot = Path.GetFullPath(Path.Combine(localRoot, "Nikkiward", "Plugins"));
+        var applicationRoot = string.IsNullOrWhiteSpace(localApplicationDataPath)
+            ? ApplicationDataPaths.Root
+            : Path.Combine(
+                Path.GetFullPath(localApplicationDataPath),
+                "Nikkiward");
+        _pluginsRoot = Path.Combine(applicationRoot, "Plugins");
     }
 
     public string PluginsRoot => _pluginsRoot;

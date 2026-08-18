@@ -54,17 +54,14 @@ public sealed class GalleryFavoriteProtectionService
         string? localApplicationDataPath = null,
         string? picturesPath = null)
     {
-        var localRoot = string.IsNullOrWhiteSpace(localApplicationDataPath)
-            ? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)
-            : localApplicationDataPath;
-        if (string.IsNullOrWhiteSpace(localRoot))
-        {
-            throw new InvalidOperationException("The LocalApplicationData directory is unavailable.");
-        }
+        var applicationRoot = string.IsNullOrWhiteSpace(localApplicationDataPath)
+            ? Nikkiward.Services.ApplicationDataPaths.Root
+            : Path.Combine(
+                Path.GetFullPath(localApplicationDataPath),
+                "Nikkiward");
 
         SettingsFilePath = Path.Combine(
-            Path.GetFullPath(localRoot),
-            "Nikkiward",
+            applicationRoot,
             "Gallery",
             "protection-settings.json");
 
@@ -72,7 +69,7 @@ public sealed class GalleryFavoriteProtectionService
             ? Environment.GetFolderPath(Environment.SpecialFolder.MyPictures)
             : picturesPath;
         _defaultRootPath = string.IsNullOrWhiteSpace(picturesRoot)
-            ? Path.Combine(Path.GetFullPath(localRoot), "Nikkiward", "Gallery", "ProtectedFavorites")
+            ? Path.Combine(applicationRoot, "Gallery", "ProtectedFavorites")
             : Path.Combine(Path.GetFullPath(picturesRoot), "Nikkiward", "ProtectedFavorites");
     }
 

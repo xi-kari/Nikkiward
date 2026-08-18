@@ -22,6 +22,7 @@ public sealed partial class MainPageViewModel
         _channelStorePlan?.StoreRootPath ??
         _pendingChannelStoreRootPath ??
         _channelStoreSettings.StoreRootPath ??
+        ApplicationSettingsValidator.ResolveDefaultChannelStoreRoot(DownloadSettings) ??
         "尚未选择";
 
     public string ChannelStoreStatusText
@@ -143,6 +144,8 @@ public sealed partial class MainPageViewModel
                 {
                     Candidates = _profileBuildResult.Candidates,
                     StoreRootPath = storeRootPath,
+                    EnableHardLinks = DownloadSettings.EnableHardLinks,
+                    SpeedLimitKbps = DownloadSettings.SpeedLimitKbps,
                 },
                 progress,
                 cancellationToken);

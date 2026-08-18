@@ -1350,16 +1350,19 @@ internal static class AppearanceRuntimeContractTests
             statusCode.Contains("TechnicalDetailsExpander.IsExpanded = false", StringComparison.Ordinal),
             "status technical evidence must default to collapsed on every entry");
         Assert(
-            !settings.Contains("游戏截图", StringComparison.Ordinal) &&
-            !settings.Contains("Tag=\"screenshot\"", StringComparison.Ordinal) &&
+            settings.Contains("游戏截图", StringComparison.Ordinal) &&
+            settings.Contains("Tag=\"screenshot\"", StringComparison.Ordinal) &&
             settings.Contains("x:Name=\"GalleryItem\"", StringComparison.Ordinal) &&
             settings.Contains("Tag=\"gallery\"", StringComparison.Ordinal) &&
+            settingsCode.Contains(
+                "SettingsDestination.Screenshot => Select(_screenshotView",
+                StringComparison.Ordinal) &&
             settingsCode.Contains(
                 "SettingsDestination.Gallery => Select(_galleryView",
                 StringComparison.Ordinal) &&
             settingsNavigation.Contains("Gallery,", StringComparison.Ordinal) &&
             settingsHome.Contains("Tag=\"gallery\"", StringComparison.Ordinal),
-            "gallery management must stay inside settings and replace the retired screenshot destination");
+            "gallery and screenshot management must stay inside settings");
         Assert(
             gallerySettings.Contains("x:Name=\"ChooseRootButton\"", StringComparison.Ordinal) &&
             gallerySettings.Contains("x:Name=\"ResetRootButton\"", StringComparison.Ordinal) &&
@@ -1509,8 +1512,16 @@ internal static class AppearanceRuntimeContractTests
                 StringComparison.Ordinal))
             .ToArray();
         Assert(
-            retiredScreenshotEntries.Length == 0,
-            "the retired screenshot settings destination must not return");
+            retiredScreenshotEntries.Length == 2 &&
+            retiredScreenshotEntries.Any(path => string.Equals(
+                Path.GetFileName(path),
+                "SettingsPage.xaml",
+                StringComparison.OrdinalIgnoreCase)) &&
+            retiredScreenshotEntries.Any(path => string.Equals(
+                Path.GetFileName(path),
+                "SettingsHomeView.xaml",
+                StringComparison.OrdinalIgnoreCase)),
+            "screenshot settings must have navigation and overview entries");
         Assert(
             !galleryPage.Contains("GalleryAdvancedToolsButton", StringComparison.Ordinal) &&
             !galleryPage.Contains("Label=\"高级工具\"", StringComparison.Ordinal) &&
@@ -1654,7 +1665,7 @@ internal static class AppearanceRuntimeContractTests
             settingsHome.Contains("<Setter Property=\"Height\" Value=\"Auto\" />", StringComparison.Ordinal) &&
             settingsHome.Contains("<Setter Property=\"MinHeight\" Value=\"72\" />", StringComparison.Ordinal) &&
             settingsHome.Contains("<Setter Property=\"HorizontalAlignment\" Value=\"Stretch\" />", StringComparison.Ordinal) &&
-            Count(settingsHome, "Style=\"{StaticResource SettingsHomeCardButtonStyle}\"") == 10 &&
+            Count(settingsHome, "Style=\"{StaticResource SettingsHomeCardButtonStyle}\"") == 14 &&
             !settingsHome.Contains("MinHeight=\"52\"", StringComparison.Ordinal),
             "settings overview cards must fill their columns and allow both title and supporting text to use their full line height");
         Assert(

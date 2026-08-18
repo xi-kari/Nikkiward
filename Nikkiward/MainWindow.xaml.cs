@@ -5,6 +5,8 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Nikkiward.Features.Background;
+using Nikkiward.Models;
+using Nikkiward.Services;
 using Windows.Graphics;
 using Windows.UI.ViewManagement;
 
@@ -20,7 +22,10 @@ public sealed partial class MainWindow : Window
     private const double CaptionButtonsWidth = 160;
 
     private InputNonClientPointerSource? _nonClientPointerSource;
+    private readonly NativeWindowRuntime _nativeWindowRuntime;
     private MainPage? _mainPage;
+    private CloseWindowBehavior _closeWindowBehavior = CloseWindowBehavior.Exit;
+    private bool _allowClose;
 
     public MainWindow()
     {
@@ -44,6 +49,7 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.ButtonHoverBackgroundColor = Colors.Transparent;
         AppWindow.TitleBar.ButtonPressedBackgroundColor = Colors.Transparent;
         ApplyCaptionButtonPolarity(ArtPreferredTheme.Dark);
+        AppWindow.Closing += OnAppWindowClosing;
 
         try
         {
@@ -57,6 +63,13 @@ public sealed partial class MainWindow : Window
 
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "NikkiwardIcon.ico"));
         CenterAtDesignSize();
+
+        var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        _nativeWindowRuntime = new NativeWindowRuntime(windowHandle);
+        _nativeWindowRuntime.ShowWindowRequested += OnNativeShowWindowRequested;
+        _nativeWindowRuntime.ExitRequested += OnNativeExitRequested;
+        _nativeWindowRuntime.ScreenshotRequested += OnNativeScreenshotRequested;
+        Closed += OnWindowClosed;
 
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
@@ -93,6 +106,53 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.ButtonInactiveForegroundColor = foreground;
         AppWindow.TitleBar.ButtonHoverForegroundColor = foreground;
         AppWindow.TitleBar.ButtonPressedForegroundColor = foreground;
+    }
+
+    public void ApplyCloseBehavior(CloseWindowBehavior behavior)
+    {
+        _closeWindowBehavior = behavior;
+        _nativeWindowRuntime.SetTrayEnabled(
+            behavior is CloseWindowBehavior.MinimizeToTray);
+    }
+
+    public HotkeyRegistrationResult ApplyHotkeys(
+        string showWindowHotkey,
+        string screenshotHotkey) =>
+        _nativeWindowRuntime.ApplyHotkeys(showWindowHotkey, screenshotHotkey);
+
+    public void ExitApplication()
+    {
+        _allowClose = true;
+        Close();
+    }
+
+    private void OnAppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
+    {
+        if (_allowClose || _closeWindowBehavior is CloseWindowBehavior.Exit)
+        {
+            return;
+        }
+
+        args.Cancel = true;
+        _nativeWindowRuntime.SetTrayEnabled(true);
+        AppWindow.Hide();
+    }
+
+    private void OnNativeShowWindowRequested(object? sender, EventArgs e) =>
+        ShowWindowCore();
+
+    private void OnNativeExitRequested(object? sender, EventArgs e) =>
+        ExitApplication();
+
+    private void OnNativeScreenshotRequested(object? sender, EventArgs e) =>
+        _mainPage?.CaptureGameScreenshotFromHotkey();
+
+    private void OnWindowClosed(object sender, WindowEventArgs args)
+    {
+        _nativeWindowRuntime.ShowWindowRequested -= OnNativeShowWindowRequested;
+        _nativeWindowRuntime.ExitRequested -= OnNativeExitRequested;
+        _nativeWindowRuntime.ScreenshotRequested -= OnNativeScreenshotRequested;
+        _nativeWindowRuntime.Dispose();
     }
 
     private void OnTitleBarPassthroughChanged(object? sender, EventArgs e)
@@ -226,6 +286,11 @@ public sealed partial class MainWindow : Window
     /// UI thread from the gamepad controller.
     /// </summary>
     public void ShowByGamepad()
+    {
+        ShowWindowCore();
+    }
+
+    private void ShowWindowCore()
     {
         try
         {

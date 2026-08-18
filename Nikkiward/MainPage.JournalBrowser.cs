@@ -57,9 +57,14 @@ public sealed partial class MainPage
         }
         catch (Exception ex)
         {
-            ViewModel.ReportUiError($"奇想手账内置页面打开失败：{ex.GetType().Name}: {ex.Message}");
-            _hostedJournalPage?.SetBrowserStatus("内置页面暂时不可用；可使用“系统浏览器打开”。");
-            await TryShowDialogAsync("奇想手账内置页面打开失败", "请点击手账面板中的“系统浏览器打开”，登录后仍可回到 Nikkiward 手动同步当前页面。\n\n" + ViewModel.LastErrorText);
+            var detail = ex is JournalWebView2RuntimeUnavailableException
+                ? $"{ex.Message}\n下载地址：{JournalPage.WebView2RuntimeDownloadUri}"
+                : $"内置页面暂时不可用；可使用“系统浏览器打开”。\n\n{ex.GetType().Name}: {ex.Message}";
+            ViewModel.ReportUiError($"奇想手账内置页面打开失败：{detail}");
+            _hostedJournalPage?.SetBrowserStatus(detail);
+            await TryShowDialogAsync(
+                "奇想手账内置页面打开失败",
+                detail + "\n\n请点击手账面板中的“系统浏览器打开”，登录后仍可回到 Nikkiward 手动同步当前页面。");
         }
     }
 

@@ -79,6 +79,14 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
 
     public AppearanceSettings AppearanceSettings { get; private set; } = new();
 
+    public GeneralSettings GeneralSettings { get; private set; } = new();
+
+    public DownloadSettings DownloadSettings { get; private set; } = new();
+
+    public FileManagementSettings FileManagementSettings { get; private set; } = new();
+
+    public ScreenshotSettings ScreenshotSettings { get; private set; } = new();
+
     public bool DeveloperModeEnabled { get; private set; }
 
     public ThemeMode ThemeMode => AppearanceSettings.ThemeMode;
@@ -565,6 +573,10 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             _persistedSettings = settings;
             GamepadSettings = settings.Gamepad;
             AppearanceSettings = settings.Appearance;
+            GeneralSettings = settings.General;
+            DownloadSettings = settings.Download;
+            FileManagementSettings = settings.FileManagement;
+            ScreenshotSettings = settings.Screenshot;
             DeveloperModeEnabled = settings.DeveloperModeEnabled;
             InitializeChannelStoreSettings(settings.ChannelStore);
 
@@ -575,6 +587,8 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 ? $"已读取设置；能力字段仅作为非权威 seed，未知值已忽略 · {_settingsStore.SettingsFilePath}"
                 : $"已读取设置；仅使用 SelectedProfileId 作为精确选择提示 · {_settingsStore.SettingsFilePath}";
         }
+
+        ApplicationLanguageRuntime.Apply(GeneralSettings.LanguageTag);
 
         try
         {
@@ -851,6 +865,77 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         await _settingsStore.SaveAsync(updated, cancellationToken);
         _persistedSettings = updated;
         GamepadSettings = gamepad;
+    }
+
+    public async Task SaveGeneralSettingsAsync(
+        GeneralSettings general,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = ApplicationSettingsValidator.Normalize(general);
+        var updated = _persistedSettings with { General = normalized };
+        await _settingsStore.SaveAsync(updated, cancellationToken);
+        _persistedSettings = updated;
+        GeneralSettings = normalized;
+        OnPropertyChanged(nameof(GeneralSettings));
+    }
+
+    public async Task SaveDownloadSettingsAsync(
+        DownloadSettings download,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = ApplicationSettingsValidator.Normalize(download);
+        var updated = _persistedSettings with { Download = normalized };
+        await _settingsStore.SaveAsync(updated, cancellationToken);
+        _persistedSettings = updated;
+        DownloadSettings = normalized;
+        OnPropertyChanged(nameof(DownloadSettings));
+        OnPropertyChanged(nameof(ChannelStoreRootPath));
+    }
+
+    public async Task SaveFileManagementSettingsAsync(
+        FileManagementSettings fileManagement,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = ApplicationSettingsValidator.Normalize(fileManagement);
+        var updated = _persistedSettings with { FileManagement = normalized };
+        await _settingsStore.SaveAsync(updated, cancellationToken);
+        _persistedSettings = updated;
+        FileManagementSettings = normalized;
+        OnPropertyChanged(nameof(FileManagementSettings));
+    }
+
+    public async Task SaveScreenshotSettingsAsync(
+        ScreenshotSettings screenshot,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = ApplicationSettingsValidator.Normalize(screenshot);
+        var updated = _persistedSettings with { Screenshot = normalized };
+        await _settingsStore.SaveAsync(updated, cancellationToken);
+        _persistedSettings = updated;
+        ScreenshotSettings = normalized;
+        OnPropertyChanged(nameof(ScreenshotSettings));
+    }
+
+    public async Task SaveHotkeySettingsAsync(
+        string mainWindowHotkey,
+        string screenshotHotkey,
+        CancellationToken cancellationToken = default)
+    {
+        var general = ApplicationSettingsValidator.Normalize(
+            GeneralSettings with { MainWindowHotkey = mainWindowHotkey });
+        var screenshot = ApplicationSettingsValidator.Normalize(
+            ScreenshotSettings with { Hotkey = screenshotHotkey });
+        var updated = _persistedSettings with
+        {
+            General = general,
+            Screenshot = screenshot,
+        };
+        await _settingsStore.SaveAsync(updated, cancellationToken);
+        _persistedSettings = updated;
+        GeneralSettings = general;
+        ScreenshotSettings = screenshot;
+        OnPropertyChanged(nameof(GeneralSettings));
+        OnPropertyChanged(nameof(ScreenshotSettings));
     }
 
     public async Task SaveDeveloperModeAsync(
@@ -1577,6 +1662,11 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         var result = value;
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+        result = result.Replace(
+            ApplicationDataPaths.Root,
+            "%NIKKIWARD_DATA%",
+            StringComparison.OrdinalIgnoreCase);
 
         if (!string.IsNullOrWhiteSpace(localAppData))
         {

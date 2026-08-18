@@ -209,6 +209,10 @@ public sealed partial class MainPage
 
         PageHostBackdrop.Visibility = Visible(pageOpen);
         ProfileQuickSwitchHost.Visibility = Visible(launcherSurfaceVisible);
+        if (!ViewModel.GeneralSettings.EnableProfileQuickSwitcher)
+        {
+            ProfileQuickSwitchHost.Visibility = Visibility.Collapsed;
+        }
         if (_hostedLauncherPage is { } launcherPage)
         {
             launcherPage.IsHitTestVisible = launcherOpen && !overlayOpen;

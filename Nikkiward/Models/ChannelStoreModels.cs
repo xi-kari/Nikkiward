@@ -43,6 +43,10 @@ public sealed record ChannelStoreBuildRequest
     public required IReadOnlyList<InstallationProfileCandidate> Candidates { get; init; }
 
     public required string StoreRootPath { get; init; }
+
+    public bool EnableHardLinks { get; init; } = true;
+
+    public int SpeedLimitKbps { get; init; }
 }
 
 public sealed record ChannelStoreProgress
@@ -117,6 +121,8 @@ public sealed record ChannelStoreBuildPlan
     public long HardLinkBytes { get; init; }
 
     public long CopyBytes { get; init; }
+
+    public int SpeedLimitKbps { get; init; }
 
     public string PlanSha256 { get; init; } = string.Empty;
 

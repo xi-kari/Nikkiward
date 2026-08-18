@@ -3,7 +3,7 @@
 Nikkiward 是面向《无限暖暖》PC 版的非官方社区启动与本地管理工具。项目使用
 WinUI 3 构建，GitHub Releases 提供 Windows x64 安装包和便携 ZIP。
 
-当前预览版本：`0.1.0-preview.2`
+当前预览版本：`0.1.0-preview.3`
 
 ## 当前范围
 

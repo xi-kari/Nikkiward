@@ -313,6 +313,19 @@ public static class JournalCaptureFailureProjector
 
 public static class JournalNavigationFailureProjector
 {
+    private static readonly string[] RetryableStatuses =
+    [
+        "CannotConnect",
+        "ConnectionAborted",
+        "ConnectionReset",
+        "Disconnected",
+        "ErrorHttpInvalidServerResponse",
+        "HostNameNotResolved",
+        "ServerUnreachable",
+        "Timeout",
+        "UnexpectedError",
+    ];
+
     public static JournalCaptureFailureKind? Project(
         bool isSuccess,
         bool isCurrentNavigation,
@@ -335,6 +348,13 @@ public static class JournalNavigationFailureProjector
             ? JournalCaptureFailureKind.NotSignedIn
             : JournalCaptureFailureKind.NetworkFailure;
     }
+
+    public static bool ShouldRetry(string? webErrorStatus) =>
+        !string.IsNullOrWhiteSpace(webErrorStatus) &&
+        RetryableStatuses.Any(status => string.Equals(
+            status,
+            webErrorStatus,
+            StringComparison.OrdinalIgnoreCase));
 }
 
 public sealed record JournalCaptureAssessment(

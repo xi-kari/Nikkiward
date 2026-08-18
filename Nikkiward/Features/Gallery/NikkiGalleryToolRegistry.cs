@@ -43,17 +43,13 @@ public sealed class NikkiGalleryToolRegistry
 
     public NikkiGalleryToolRegistry(string? localApplicationDataPath = null)
     {
-        var localRoot = string.IsNullOrWhiteSpace(localApplicationDataPath)
-            ? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)
-            : localApplicationDataPath;
-        if (string.IsNullOrWhiteSpace(localRoot))
-        {
-            throw new InvalidOperationException("LocalApplicationData is unavailable.");
-        }
-
+        var applicationRoot = string.IsNullOrWhiteSpace(localApplicationDataPath)
+            ? Nikkiward.Services.ApplicationDataPaths.Root
+            : Path.Combine(
+                Path.GetFullPath(localApplicationDataPath),
+                "Nikkiward");
         AssociationFilePath = Path.Combine(
-            Path.GetFullPath(localRoot),
-            "Nikkiward",
+            applicationRoot,
             "ExternalTools",
             "nikkigallery.json");
     }

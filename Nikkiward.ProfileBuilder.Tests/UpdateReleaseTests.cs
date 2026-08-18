@@ -14,6 +14,8 @@ internal static class UpdateReleaseTests
         ("update check validates one GitHub release and manifest", TestValidUpdateCheck),
         ("update check rejects package metadata drift", TestPackageMetadataDrift),
         ("private or unpublished update source stays calm", TestMissingPublicRelease),
+        ("GitHub HTTP failures remain observable", TestHttpFailure),
+        ("an empty GitHub release list stays a no-release result", TestEmptyReleaseList),
         ("release packaging configuration preserves required assets", TestPackagingConfiguration),
         ("release payload gate rejects private and unapproved content", TestReleasePayloadGate),
     ];
@@ -75,6 +77,31 @@ internal static class UpdateReleaseTests
         Assert(result.ReleaseUri is null, "missing release URL");
     }
 
+    private static async Task TestHttpFailure()
+    {
+        using var client = new HttpClient(new StubHttpMessageHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.Forbidden)));
+        var service = new GitHubReleaseUpdateService(client);
+
+        var exception = await AssertThrowsAsync<HttpRequestException>(
+            () => service.CheckAsync(UpdateChannel.Stable, NuGetVersion.Parse("0.1.0")),
+            "GitHub HTTP failure");
+
+        AssertEqual(HttpStatusCode.Forbidden, exception.StatusCode, "GitHub HTTP status");
+    }
+
+    private static async Task TestEmptyReleaseList()
+    {
+        using var client = new HttpClient(new StubHttpMessageHandler(_ =>
+            JsonResponse(Encoding.UTF8.GetBytes("[]"))));
+        var service = new GitHubReleaseUpdateService(client);
+
+        var result = await service.CheckAsync(UpdateChannel.Stable, NuGetVersion.Parse("0.1.0"));
+
+        AssertEqual(UpdateCheckStatus.NoPublishedRelease, result.Status, "empty release list status");
+        Assert(result.ReleaseUri is null, "empty release list URL");
+    }
+
     private static Task TestPackagingConfiguration()
     {
         var root = FindWorkspaceRoot();
@@ -82,7 +109,7 @@ internal static class UpdateReleaseTests
         var project = XDocument.Load(projectPath);
         var contentItems = project.Descendants("Content").ToArray();
         var projectVersion = project.Descendants("Version").Single().Value.Trim();
-        AssertEqual("0.1.0-preview.2", projectVersion, "preview release version");
+        AssertEqual("0.1.0-preview.3", projectVersion, "preview release version");
 
         var avatar = contentItems.SingleOrDefault(item =>
             string.Equals((string?)item.Attribute("Update"), "Assets\\XikariAvatar.jpg", StringComparison.Ordinal));
@@ -315,6 +342,12 @@ internal static class UpdateReleaseTests
             "Nikkiward.exe",
             "createdump.exe",
             "RestartAgent.exe",
+            "avifdec.exe",
+            "avifenc.exe",
+            "avifgainmaputil.exe",
+            "cjxl.exe",
+            "djxl.exe",
+            "jxlinfo.exe",
             "Nikkiward.dll",
             "Nikkiward.deps.json",
             "Nikkiward.runtimeconfig.json",
@@ -543,16 +576,16 @@ internal static class UpdateReleaseTests
         },
     };
 
-    private static async Task AssertThrowsAsync<TException>(Func<Task> action, string message)
+    private static async Task<TException> AssertThrowsAsync<TException>(Func<Task> action, string message)
         where TException : Exception
     {
         try
         {
             await action();
         }
-        catch (TException)
+        catch (TException exception)
         {
-            return;
+            return exception;
         }
 
         throw new InvalidOperationException($"Expected {typeof(TException).Name}: {message}");

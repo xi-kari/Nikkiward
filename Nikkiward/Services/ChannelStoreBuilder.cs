@@ -119,7 +119,10 @@ public sealed class WindowsChannelStoreBuilder : IChannelStoreBuilder
                     TotalBytes = totalImportBytes,
                     CurrentPath = item.DestinationPath,
                 });
-                var created = await ImportAsync(item, cancellationToken).ConfigureAwait(false);
+                var created = await ImportAsync(
+                    item,
+                    plan.SpeedLimitKbps,
+                    cancellationToken).ConfigureAwait(false);
                 if (created)
                 {
                     importedFiles.Add(item.DestinationPath);
@@ -428,7 +431,8 @@ public sealed class WindowsChannelStoreBuilder : IChannelStoreBuilder
                 preferred.Length,
                 preferred.Sha256,
                 sharedContent: true,
-                storeRoot));
+                storeRoot,
+                request.EnableHardLinks));
         }
 
         var variantPlans = new List<ChannelStoreVariantPlan>();
@@ -459,7 +463,8 @@ public sealed class WindowsChannelStoreBuilder : IChannelStoreBuilder
                     runtimeFile.Length,
                     runtimeFile.Sha256,
                     sharedContent: false,
-                    storeRoot));
+                    storeRoot,
+                    request.EnableHardLinks));
             }
 
             var entries = new List<VariantManifestEntry>();
@@ -499,7 +504,8 @@ public sealed class WindowsChannelStoreBuilder : IChannelStoreBuilder
                     file.Length,
                     file.Sha256,
                     sharedContent: false,
-                    storeRoot));
+                    storeRoot,
+                    request.EnableHardLinks));
             }
 
             if (source.Definition.VariantId is GameVariantId.MainlandBilibili &&
@@ -556,6 +562,7 @@ public sealed class WindowsChannelStoreBuilder : IChannelStoreBuilder
             CopyBytes = imports
                 .Where(item => item.Action is ChannelStoreImportAction.CopyFile)
                 .Sum(item => item.Length),
+            SpeedLimitKbps = Math.Clamp(request.SpeedLimitKbps, 0, 10_000_000),
         };
         return plan with { PlanSha256 = ComputePlanSha256(plan) };
     }
@@ -780,11 +787,12 @@ public sealed class WindowsChannelStoreBuilder : IChannelStoreBuilder
         long length,
         string sha256,
         bool sharedContent,
-        string storeRoot)
+        string storeRoot,
+        bool enableHardLinks)
     {
         var action = File.Exists(destinationPath)
             ? ChannelStoreImportAction.KeepVerifiedFile
-            : CanHardLink(sourcePath, storeRoot)
+            : enableHardLinks && CanHardLink(sourcePath, storeRoot)
                 ? ChannelStoreImportAction.CreateHardLink
                 : ChannelStoreImportAction.CopyFile;
         return new ChannelStoreImportItem
@@ -800,6 +808,7 @@ public sealed class WindowsChannelStoreBuilder : IChannelStoreBuilder
 
     private static async Task<bool> ImportAsync(
         ChannelStoreImportItem item,
+        int speedLimitKbps,
         CancellationToken cancellationToken)
     {
         var sourceVerification = await VerifyFileAsync(
@@ -854,7 +863,11 @@ public sealed class WindowsChannelStoreBuilder : IChannelStoreBuilder
             }
             else
             {
-                await CopyFileAsync(item.SourcePath, temporaryPath, cancellationToken)
+                await CopyFileAsync(
+                        item.SourcePath,
+                        temporaryPath,
+                        speedLimitKbps,
+                        cancellationToken)
                     .ConfigureAwait(false);
             }
 
@@ -964,6 +977,7 @@ public sealed class WindowsChannelStoreBuilder : IChannelStoreBuilder
         writer.WriteStartObject();
         writer.WriteString("storeRootPath", plan.StoreRootPath);
         writer.WriteString("sharedContentRootPath", plan.SharedContentRootPath);
+        writer.WriteNumber("speedLimitKbps", plan.SpeedLimitKbps);
         writer.WriteStartArray("imports");
         foreach (var item in plan.Imports.OrderBy(item => item.DestinationPath, StringComparer.OrdinalIgnoreCase))
         {
@@ -1003,6 +1017,7 @@ public sealed class WindowsChannelStoreBuilder : IChannelStoreBuilder
     private static async Task CopyFileAsync(
         string sourcePath,
         string destinationPath,
+        int speedLimitKbps,
         CancellationToken cancellationToken)
     {
         await using var source = new FileStream(
@@ -1019,7 +1034,31 @@ public sealed class WindowsChannelStoreBuilder : IChannelStoreBuilder
             FileShare.None,
             1024 * 1024,
             FileOptions.Asynchronous | FileOptions.WriteThrough);
-        await source.CopyToAsync(destination, 1024 * 1024, cancellationToken).ConfigureAwait(false);
+        var buffer = new byte[1024 * 1024];
+        var copiedBytes = 0L;
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        while (true)
+        {
+            var read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+            if (read == 0)
+            {
+                break;
+            }
+
+            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken)
+                .ConfigureAwait(false);
+            copiedBytes += read;
+            if (speedLimitKbps > 0)
+            {
+                var expectedElapsed = TimeSpan.FromSeconds(
+                    copiedBytes / (speedLimitKbps * 1024d));
+                var delay = expectedElapsed - stopwatch.Elapsed;
+                if (delay > TimeSpan.Zero)
+                {
+                    await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                }
+            }
+        }
         await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
         destination.Flush(flushToDisk: true);
     }

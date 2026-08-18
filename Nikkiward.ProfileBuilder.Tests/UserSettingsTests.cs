@@ -7,24 +7,25 @@ internal static class UserSettingsTests
 {
     public static (string Name, Func<Task> Run)[] All =>
     [
-        ("new settings use the single appearance authority in schema 6", NewSettingsUseAppearanceSchema6),
+        ("new settings use the single appearance authority in schema 7", NewSettingsUseAppearanceSchema6),
         ("appearance settings round trip through settings json", AppearanceRoundTripsThroughSettingsJson),
         ("schema 5 holographic migration preserves a rollback copy", Schema5HolographicMigrationPreservesRollback),
         ("gallery roots round trip per profile", GalleryRootsRoundTripPerProfile),
         ("schema 5 without channel store migrates to empty defaults", Schema5WithoutChannelStoreLoadsDefaults),
         ("channel store settings round trip through settings json", ChannelStoreSettingsRoundTrip),
         ("settings schema 3 migrates profiles gallery gamepad and theme", SettingsSchema3MigratesEverySection),
-        ("settings migration is persisted atomically as schema 6", MigratedSettingsPersistAsSchema6),
+        ("settings migration is persisted atomically as schema 7", MigratedSettingsPersistAsSchema6),
         ("unsupported settings schemas fail closed", UnsupportedSettingsSchemasFailClosed),
         ("damaged settings documents fail closed", DamagedSettingsDocumentsFailClosed),
         ("settings save rejects invalid schema and appearance", SaveRejectsInvalidSettings),
         ("settings atomic replacement leaves no temporary files", AtomicReplacementLeavesNoTemporaryFiles),
+        ("application paths preserve Windows drive roots", ApplicationPathsPreserveDriveRoots),
     ];
 
     private static Task NewSettingsUseAppearanceSchema6()
     {
         var settings = new UserSettings();
-        AssertEqual(6, settings.SchemaVersion, "schema version");
+        AssertEqual(7, settings.SchemaVersion, "schema version");
         AssertEqual(ThemeMode.FollowArtwork, settings.Appearance.ThemeMode, "theme mode");
         AssertEqual(
             LauncherCapsuleStyle.Ocean,
@@ -142,7 +143,7 @@ internal static class UserSettingsTests
 
             var loaded = await store.LoadAsync();
 
-            AssertEqual(6, loaded.SchemaVersion, "migrated schema");
+            AssertEqual(7, loaded.SchemaVersion, "migrated schema");
             Assert(
                 loaded.Appearance.Background.HolographicCardEnabled,
                 "missing holographic card setting should default enabled");
@@ -230,7 +231,7 @@ internal static class UserSettingsTests
 
                 var loaded = await store.LoadAsync();
 
-                AssertEqual(6, loaded.SchemaVersion, "schema version");
+                AssertEqual(7, loaded.SchemaVersion, "schema version");
                 AssertEqual<string?>(null, loaded.ChannelStore.StoreRootPath, "store root");
                 AssertEqual<string?>(null, loaded.ChannelStore.LastReceiptId, "receipt id");
                 AssertEqual<string?>(null, loaded.ChannelStore.LastPlanSha256, "plan hash");
@@ -362,7 +363,7 @@ internal static class UserSettingsTests
 
             var loaded = await store.LoadAsync();
 
-            AssertEqual(6, loaded.SchemaVersion, "schema version");
+            AssertEqual(7, loaded.SchemaVersion, "schema version");
             AssertEqual("profile-a", loaded.SelectedProfileId, "selected profile");
             AssertEqual(ThemeMode.WarmDark, loaded.Appearance.ThemeMode, "migrated theme");
             AssertEqual(1, loaded.Profiles.Count, "profile count");
@@ -410,7 +411,7 @@ internal static class UserSettingsTests
             var migrated = await store.LoadAsync();
             var json = await File.ReadAllTextAsync(store.SettingsFilePath);
 
-            Assert(json.Contains("\"schemaVersion\": 6", StringComparison.Ordinal), "schema 6 output");
+            Assert(json.Contains("\"schemaVersion\": 7", StringComparison.Ordinal), "schema 7 output");
             Assert(json.Contains("\"appearance\"", StringComparison.Ordinal), "appearance output");
             Assert(
                 json.Contains("\"launcherCapsuleStyle\": \"ocean\"", StringComparison.Ordinal),
@@ -426,7 +427,7 @@ internal static class UserSettingsTests
 
     private static async Task UnsupportedSettingsSchemasFailClosed()
     {
-        foreach (var version in new[] { 2, 7 })
+        foreach (var version in new[] { 2, 8 })
         {
             var root = CreateTemporaryRoot();
             try
@@ -441,7 +442,7 @@ internal static class UserSettingsTests
                     () => store.LoadAsync());
                 Assert(exception.InnerException is JsonException, "inner exception must be JSON failure");
                 Assert(
-                    exception.InnerException!.Message.Contains("expected 6", StringComparison.Ordinal),
+                    exception.InnerException!.Message.Contains("expected 7", StringComparison.Ordinal),
                     "schema mismatch must identify current version");
             }
             finally
@@ -538,6 +539,19 @@ internal static class UserSettingsTests
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    private static Task ApplicationPathsPreserveDriveRoots()
+    {
+        var driveRoot = Path.GetPathRoot(Environment.SystemDirectory)
+            ?? throw new InvalidOperationException("The Windows drive root is unavailable.");
+        var normalized = ApplicationSettingsValidator.Normalize(new DownloadSettings
+        {
+            DefaultGameInstallPath = driveRoot,
+        });
+
+        AssertEqual(driveRoot, normalized.DefaultGameInstallPath, "drive root path");
+        return Task.CompletedTask;
     }
 
     private static string CreateTemporaryRoot()

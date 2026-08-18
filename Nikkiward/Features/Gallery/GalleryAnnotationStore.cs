@@ -40,17 +40,13 @@ public sealed class GalleryAnnotationStore
 
     public GalleryAnnotationStore(string? localApplicationDataPath = null)
     {
-        var localRoot = string.IsNullOrWhiteSpace(localApplicationDataPath)
-            ? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)
-            : localApplicationDataPath;
-        if (string.IsNullOrWhiteSpace(localRoot))
-        {
-            throw new InvalidOperationException("The LocalApplicationData directory is unavailable.");
-        }
-
+        var applicationRoot = string.IsNullOrWhiteSpace(localApplicationDataPath)
+            ? Nikkiward.Services.ApplicationDataPaths.Root
+            : Path.Combine(
+                Path.GetFullPath(localApplicationDataPath),
+                "Nikkiward");
         AnnotationFilePath = Path.Combine(
-            Path.GetFullPath(localRoot),
-            "Nikkiward",
+            applicationRoot,
             "Gallery",
             "stars.json");
     }
@@ -258,13 +254,11 @@ public sealed class GalleryDefaultFavoriteSeedService
         string? assetsRootPath = null,
         IReadOnlyList<GalleryDefaultFavoriteAsset>? assets = null)
     {
-        var localRoot = string.IsNullOrWhiteSpace(localApplicationDataPath)
-            ? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)
-            : localApplicationDataPath;
-        if (string.IsNullOrWhiteSpace(localRoot))
-        {
-            throw new InvalidOperationException("The LocalApplicationData directory is unavailable.");
-        }
+        var applicationRoot = string.IsNullOrWhiteSpace(localApplicationDataPath)
+            ? Nikkiward.Services.ApplicationDataPaths.Root
+            : Path.Combine(
+                Path.GetFullPath(localApplicationDataPath),
+                "Nikkiward");
 
         _assetsRootPath = string.IsNullOrWhiteSpace(assetsRootPath)
             ? Path.Combine(AppContext.BaseDirectory, "Assets", "DefaultFavorites")
@@ -285,8 +279,7 @@ public sealed class GalleryDefaultFavoriteSeedService
         }
 
         DestinationDirectoryPath = Path.Combine(
-            Path.GetFullPath(localRoot),
-            "Nikkiward",
+            applicationRoot,
             "Gallery",
             "DefaultFavorites");
         SeedMarkerFilePath = Path.Combine(

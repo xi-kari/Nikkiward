@@ -16,15 +16,18 @@ public sealed partial class JournalPage : PageBase
     private Task? _ensureBrowserTask;
     private ulong _currentNavigationId;
     private Uri? _currentNavigationUri;
+    private Uri? _retryingNavigationUri;
     private long _routeGeneration;
 
     public static Uri LoginUri { get; } = new("https://myl.nuanpaper.com/tools/journal/login");
 
     public static Uri ResonanceUri { get; } = new("https://myl.nuanpaper.com/tools/journal/clothesPress");
 
+    public static Uri WebView2RuntimeDownloadUri { get; } = new(
+        "https://developer.microsoft.com/microsoft-edge/webview2/");
+
     public static string WebViewDataPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Nikkiward",
+        Nikkiward.Services.ApplicationDataPaths.Root,
         WebView2FolderName);
 
     public override string PageTitle => "奇想手账";
@@ -184,13 +187,19 @@ public sealed partial class JournalPage : PageBase
         try
         {
             Directory.CreateDirectory(WebViewDataPath);
+            var runtimeVersion = GetWebView2RuntimeVersion();
+            var environmentOptions = new CoreWebView2EnvironmentOptions();
+            environmentOptions.AdditionalBrowserArguments = "--disable-quic";
+            environmentOptions.Language = "zh-CN";
             var environment = await CoreWebView2Environment.CreateWithOptionsAsync(
                 null,
                 WebViewDataPath,
-                null);
+                environmentOptions);
             await JournalWebView.EnsureCoreWebView2Async(environment);
             JournalWebView.CoreWebView2.SourceChanged += OnCoreSourceChanged;
+            JournalWebView.CoreWebView2.ProcessFailed += OnCoreProcessFailed;
             _browserInitialized = true;
+            BrowserStatusText.Text = $"WebView2 {runtimeVersion} 已就绪，正在打开官方手账。";
             JournalWebView.Source = LoginUri;
         }
         catch
@@ -198,6 +207,24 @@ public sealed partial class JournalPage : PageBase
             _ensureBrowserTask = null;
             throw;
         }
+    }
+
+    private static string GetWebView2RuntimeVersion()
+    {
+        try
+        {
+            var version = CoreWebView2Environment.GetAvailableBrowserVersionString(null);
+            if (!string.IsNullOrWhiteSpace(version))
+            {
+                return version;
+            }
+        }
+        catch (Exception ex)
+        {
+            throw new JournalWebView2RuntimeUnavailableException(ex);
+        }
+
+        throw new JournalWebView2RuntimeUnavailableException();
     }
 
     private void OnSummaryOpenRequested(object? sender, EventArgs e) =>
@@ -226,6 +253,7 @@ public sealed partial class JournalPage : PageBase
     {
         if (_browserInitialized)
         {
+            _retryingNavigationUri = null;
             JournalWebView.Reload();
         }
     }
@@ -260,6 +288,11 @@ public sealed partial class JournalPage : PageBase
         _currentNavigationUri = Uri.TryCreate(args.Uri, UriKind.Absolute, out var uri)
             ? uri
             : null;
+        if (_retryingNavigationUri is null ||
+            !Equals(_retryingNavigationUri, _currentNavigationUri))
+        {
+            _retryingNavigationUri = null;
+        }
         Interlocked.Increment(ref _routeGeneration);
     }
 
@@ -301,13 +334,63 @@ public sealed partial class JournalPage : PageBase
             _lastContentUri = completedUri;
         }
 
+        var webErrorStatus = args.WebErrorStatus.ToString();
         NavigationFinished?.Invoke(
             this,
             new JournalNavigationEventArgs(
                 completedUri,
                 args.IsSuccess,
-                args.WebErrorStatus.ToString(),
+                webErrorStatus,
                 isCurrentNavigation));
+
+        if (args.IsSuccess && isCurrentNavigation)
+        {
+            _retryingNavigationUri = null;
+            return;
+        }
+
+        if (isCurrentNavigation &&
+            completedUri is not null &&
+            !completedUri.AbsoluteUri.Equals("about:blank", StringComparison.OrdinalIgnoreCase) &&
+            JournalNavigationFailureProjector.ShouldRetry(webErrorStatus) &&
+            !Equals(_retryingNavigationUri, completedUri))
+        {
+            _retryingNavigationUri = completedUri;
+            BrowserStatusText.Text = "官方手账连接暂时失败，正在自动重试……";
+            _ = RetryNavigationAsync(completedUri);
+        }
+    }
+
+    private async Task RetryNavigationAsync(Uri uri)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(700));
+            if (!_browserInitialized ||
+                !Equals(CurrentUri, uri) ||
+                JournalWebView.Source is null ||
+                JournalWebView.Source.AbsoluteUri.Equals("about:blank", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            JournalWebView.Reload();
+        }
+        catch (Exception ex)
+        {
+            BrowserStatusText.Text = $"官方手账重试失败：{ex.GetType().Name}。可使用系统浏览器打开。";
+        }
+    }
+
+    private void OnCoreProcessFailed(
+        CoreWebView2 sender,
+        CoreWebView2ProcessFailedEventArgs args)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            BrowserStatusText.Text =
+                $"内置网页运行时异常（{args.ProcessFailedKind}）；请刷新或使用系统浏览器打开。";
+        });
     }
 
 }
@@ -343,4 +426,14 @@ public sealed class JournalNavigationEventArgs : EventArgs
     public string WebErrorStatus { get; }
 
     public bool IsCurrentNavigation { get; }
+}
+
+public sealed class JournalWebView2RuntimeUnavailableException : InvalidOperationException
+{
+    public JournalWebView2RuntimeUnavailableException(Exception? innerException = null)
+        : base(
+            "未检测到 Microsoft Edge WebView2 Evergreen Runtime，请先安装 WebView2 Runtime。",
+            innerException)
+    {
+    }
 }

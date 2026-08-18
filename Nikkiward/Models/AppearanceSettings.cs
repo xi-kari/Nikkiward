@@ -549,7 +549,7 @@ public static class AppearanceSettingsMigration
         }
 
         background.TryAdd("holographicCardEnabled", true);
-        migrated["schemaVersion"] = UserSettings.CurrentSchemaVersion;
+        migrated["schemaVersion"] = UserSettings.HolographicCardSchemaVersion;
         return migrated;
     }
 

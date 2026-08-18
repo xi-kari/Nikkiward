@@ -1,7 +1,7 @@
 #define ProductName "Nikkiward"
 
 #ifndef MyAppVersion
-  #define MyAppVersion "0.1.0-preview.2"
+  #define MyAppVersion "0.1.0-preview.3"
 #endif
 
 #ifndef MyVersionInfoVersion

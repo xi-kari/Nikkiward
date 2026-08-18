@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using Nikkiward.Serialization;
+using Nikkiward.Services;
 
 namespace Nikkiward.ViewModels;
 
@@ -238,15 +239,12 @@ public sealed class WishHistoryStore
 
     public WishHistoryStore(string? localApplicationDataPath = null)
     {
-        var root = string.IsNullOrWhiteSpace(localApplicationDataPath)
-            ? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)
-            : localApplicationDataPath;
-        if (string.IsNullOrWhiteSpace(root))
-        {
-            root = Path.GetTempPath();
-        }
-
-        RootPath = Path.Combine(Path.GetFullPath(root), "Nikkiward", "WishHistory");
+        var applicationRoot = string.IsNullOrWhiteSpace(localApplicationDataPath)
+            ? ApplicationDataPaths.Root
+            : Path.Combine(
+                Path.GetFullPath(localApplicationDataPath),
+                "Nikkiward");
+        RootPath = Path.Combine(applicationRoot, "WishHistory");
         HistoryPath = Path.Combine(RootPath, "wish-history.json");
     }
 
