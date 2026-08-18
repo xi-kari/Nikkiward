@@ -78,6 +78,31 @@ jobs:
             }
           }
 
+      - name: Set up Inno Setup
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'innosetup-6.7.3.exe'
+          $innoDir = Join-Path $env:RUNNER_TEMP 'inno-setup'
+          Invoke-WebRequest -Uri 'https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe' -OutFile $installer
+          $expectedHash = '9C73C3BAE7ED48D44112A0F48E66742C00090BDB5BEF71D9D3C056C66E97B732'
+          $actualHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer).Hash
+          if ($actualHash -ne $expectedHash) {
+            throw "Inno Setup hash mismatch: $actualHash"
+          }
+          $signature = Get-AuthenticodeSignature -FilePath $installer
+          if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+            throw "Inno Setup signature is invalid: $($signature.Status)"
+          }
+          $process = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$innoDir") -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+            throw "Inno Setup installation failed with exit code $($process.ExitCode)."
+          }
+          $iscc = Join-Path $innoDir 'ISCC.exe'
+          if (-not (Test-Path -LiteralPath $iscc -PathType Leaf)) {
+            throw "ISCC.exe is missing: $iscc"
+          }
+          "INNO_SETUP_PATH=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Package and generate manifest
         shell: pwsh
         run: |
@@ -86,6 +111,11 @@ jobs:
           New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
           $zipPath = Join-Path $releaseDir 'Nikkiward-win-x64.zip'
           Compress-Archive -Path (Join-Path $publishDir '*') -DestinationPath $zipPath -CompressionLevel Optimal
+          .\build\Package-Installer.ps1 -PublishDir $publishDir -OutputDir $releaseDir -Version '${{ steps.release_meta.outputs.version }}' -VersionInfoVersion '${{ steps.release_meta.outputs.version_prefix }}.0' -IsccPath $env:INNO_SETUP_PATH
+          $setupPath = Join-Path $releaseDir 'Nikkiward-Setup-win-x64.exe'
+          if (-not (Test-Path -LiteralPath $setupPath -PathType Leaf)) {
+            throw "Installer package is missing: $setupPath"
+          }
           $manifestPath = Join-Path $releaseDir 'Nikkiward-update.json'
           .\build\New-UpdateManifest.ps1 -Version '${{ steps.release_meta.outputs.version }}' -Channel '${{ steps.release_meta.outputs.channel }}' -PackagePath $zipPath -Repository '${{ github.repository }}' -Tag '${{ steps.release_meta.outputs.tag }}' -CommitSha '${{ github.sha }}' -OutputPath $manifestPath
           $checksumPath = Join-Path $releaseDir 'SHA256SUMS.txt'
@@ -110,6 +140,15 @@ jobs:
               throw "Required file is missing from ZIP: $path"
             }
           }
+
+      - name: Test Windows installer
+        shell: pwsh
+        run: |
+          $publishDir = Join-Path $env:RUNNER_TEMP 'nikkiward-publish'
+          $setupPath = Join-Path $env:RUNNER_TEMP 'nikkiward-release\Nikkiward-Setup-win-x64.exe'
+          $testRoot = Join-Path $env:RUNNER_TEMP 'Nikkiward 安装验证\preview build'
+          .\build\Test-Installer.ps1 -SetupPath $setupPath -PublishDir $publishDir -TestRoot $testRoot
+          .\build\Test-Installer.ps1 -SetupPath $setupPath -PublishDir $publishDir -TestRoot $testRoot -UseDefaultInstallPath
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4

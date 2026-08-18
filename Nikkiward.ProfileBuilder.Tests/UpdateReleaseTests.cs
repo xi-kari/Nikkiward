@@ -105,9 +105,37 @@ internal static class UpdateReleaseTests
         var zipChecks = ExtractSection(workflow, "$requiredInZip = @(", "foreach ($path in $requiredInZip)");
         AssertContains(publishChecks, "Assets\\XikariAvatar.jpg", "publish avatar verification");
         AssertContains(zipChecks, "Assets\\XikariAvatar.jpg", "ZIP avatar verification");
+        AssertContains(workflow, "Set up Inno Setup", "installer compiler setup");
+        AssertContains(workflow, "Package-Installer.ps1", "installer package invocation");
+        AssertContains(workflow, "Nikkiward-Setup-win-x64.exe", "installer release asset");
+        AssertContains(workflow, "Test Windows installer", "installer workflow acceptance step");
+        AssertContains(workflow, "Test-Installer.ps1", "installer workflow acceptance invocation");
+
+        var installerDefinitionPath = Path.Combine(root, "build", "Nikkiward.iss");
+        var installerScriptPath = Path.Combine(root, "build", "Package-Installer.ps1");
+        var installerTestPath = Path.Combine(root, "build", "Test-Installer.ps1");
+        Assert(File.Exists(installerDefinitionPath), "installer definition");
+        Assert(File.Exists(installerScriptPath), "installer package script");
+        Assert(File.Exists(installerTestPath), "installer acceptance script");
+        var installerDefinition = File.ReadAllText(installerDefinitionPath);
+        var installerScript = File.ReadAllText(installerScriptPath);
+        var installerTest = File.ReadAllText(installerTestPath);
+        AssertContains(installerDefinition, "PrivilegesRequired=lowest", "per-user installer privilege policy");
+        AssertContains(installerDefinition, "{localappdata}\\Programs\\Nikkiward", "per-user install root");
+        AssertContains(installerDefinition, "Nikkiward-Setup-win-x64", "installer output name");
+        AssertContains(installerDefinition, "VersionInfoProductVersion={#MyVersionInfoVersion}", "numeric installer product version");
+        AssertContains(installerDefinition, "{userdesktop}\\Nikkiward", "per-user desktop shortcut");
+        AssertContains(installerDefinition, "Source: \"{#PublishDir}\\*\"", "installer publish payload");
+        AssertContains(installerScript, "runtimes\\win-x64\\native\\nuan5_decryption.dll", "installer native dependency gate");
+        AssertContains(installerTest, "INSTALL_VERIFY=PASS", "installer file verification");
+        AssertContains(installerTest, "LAUNCH_VERIFY=PASS", "installed app launch verification");
+        AssertContains(installerTest, "REPAIR_VERIFY=PASS", "installer repair verification");
+        AssertContains(installerTest, "UNINSTALL_VERIFY=PASS", "installer uninstall verification");
+        AssertContains(installerTest, "user_data_preserved=True", "installer user-data preservation verification");
+        AssertContains(installerTest, "UseDefaultInstallPath", "default installer path verification");
 
         var readme = File.ReadAllText(Path.Combine(root, "README.md"));
-        AssertContains(readme, "计划面向 Windows x64 提供安装包和便携 ZIP，目前尚未公开发布", "unpublished distribution status");
+        AssertContains(readme, "GitHub Releases 提供 Windows x64 安装包和便携 ZIP", "published distribution status");
         AssertContains(readme, "docs/PACKAGING_ACCEPTANCE.md", "packaging acceptance link");
 
         var acceptancePath = Path.Combine(root, "docs", "PACKAGING_ACCEPTANCE.md");

@@ -1,7 +1,7 @@
 # Nikkiward
 
 Nikkiward 是面向《无限暖暖》PC 版的非官方社区启动与本地管理工具。项目使用
-WinUI 3 构建，计划面向 Windows x64 提供安装包和便携 ZIP，目前尚未公开发布。
+WinUI 3 构建，GitHub Releases 提供 Windows x64 安装包和便携 ZIP。
 
 当前预览版本：`0.1.0-preview.1`
 
@@ -42,9 +42,10 @@ dotnet build .\Nikkiward\Nikkiward.csproj -c Debug -p:Platform=x64 -r win-x64 --
 
 ## 发布与更新
 
-仓库已配置 `v*` 标签触发的 Release 工作流，计划产出：
+仓库已配置 `v*` 标签触发的 Release 工作流，产出：
 
 - `Nikkiward-win-x64.zip`
+- `Nikkiward-Setup-win-x64.exe`
 - `Nikkiward-update.json`
 - `SHA256SUMS.txt`
 
