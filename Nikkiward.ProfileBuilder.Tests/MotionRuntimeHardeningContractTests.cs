@@ -11,6 +11,12 @@ internal static class MotionRuntimeHardeningContractTests
         ("motion import is uncapped and isolates transient source locks", MotionImportIsUncappedAndLockTolerant),
         ("motion playback ignores audio codec failures", MotionPlaybackIgnoresAudioCodecFailures),
         ("visible focus loss preserves the clear motion frame", VisibleFocusLossPreservesClearMotionFrame),
+        ("native focus transitions drive backdrop lifecycle", NativeFocusTransitionsDriveBackdropLifecycle),
+        ("wallpaper engine layout updates are coalesced", WallpaperEngineLayoutUpdatesAreCoalesced),
+        ("wallpaper engine parking and resume races remain live", WallpaperEngineParkingAndResumeRacesRemainLive),
+        ("wallpaper capture setup uses the owner dispatcher", WallpaperCaptureSetupUsesOwnerDispatcher),
+        ("wallpaper resume cancellation follows stop", WallpaperResumeCancellationFollowsStop),
+        ("wallpaper import defers startup while launcher is covered", WallpaperImportDefersStartupWhileLauncherIsCovered),
     ];
 
     private static Task AppearanceWritesShareOneTransaction()
@@ -158,6 +164,7 @@ internal static class MotionRuntimeHardeningContractTests
             StringComparison.Ordinal);
         Assert(importerStart >= 0, "motion importer source boundary was not found");
         var importer = samplers[importerStart..];
+        var chooseWallpaper = FindMethod(appearance, "ChooseWallpaperAsync");
         Assert(
             !rules.Contains("MaximumFileBytes", StringComparison.Ordinal) &&
             !importer.Contains("MaximumFileBytes", StringComparison.Ordinal) &&
@@ -172,13 +179,14 @@ internal static class MotionRuntimeHardeningContractTests
             !rules.Contains("IsH264", StringComparison.Ordinal) &&
             !rules.Contains("IsAac", StringComparison.Ordinal) &&
             appearance.Contains(
-                "foreach (var extension in MotionSourceRules.SupportedExtensions)",
+                "WallpaperSourceRules.InferMode(file.Path)",
                 StringComparison.Ordinal) &&
-            appearance.Contains("picker.FileTypeFilter.Add(\"*\")", StringComparison.Ordinal) &&
+            chooseWallpaper.Contains("WallpaperSourceRules.PackageExtensions", StringComparison.Ordinal) &&
+            !chooseWallpaper.Contains("picker.FileTypeFilter.Add(\"*\")", StringComparison.Ordinal) &&
             appearance.Contains(
-                "MotionSourceRules.IsSupportedExtension(file.FileType)",
+                "ImportMotionBackgroundAsync",
                 StringComparison.Ordinal),
-            "common containers must be discoverable while dedicated import defers to system decoders");
+            "common containers must reach the dedicated import path while decoder selection remains system-owned");
         var copy = importer.IndexOf(
             "MotionImportFileCopier.CopyWithRetryAsync",
             StringComparison.Ordinal);
@@ -241,7 +249,7 @@ internal static class MotionRuntimeHardeningContractTests
     private static Task VisibleFocusLossPreservesClearMotionFrame()
     {
         var view = ReadProductSource("Features", "Background", "ArtBackdropView.xaml.cs");
-        var activation = FindMethod(view, "OnHostActivated");
+        var activation = FindMethod(view, "UpdateHostFocus");
         var appWindowChanged = FindMethod(view, "OnHostAppWindowChanged");
         var pause = FindMethod(view, "PauseAfterDeactivationAsync");
         var freeze = FindMethod(view, "FreezeMotion");
@@ -273,6 +281,246 @@ internal static class MotionRuntimeHardeningContractTests
             canResume.Contains("_hostFocused", StringComparison.Ordinal) &&
             canResume.Contains("!_hostMinimized", StringComparison.Ordinal),
             "motion resume must remain blocked while the window is unfocused or minimized");
+        return Task.CompletedTask;
+    }
+
+    private static Task NativeFocusTransitionsDriveBackdropLifecycle()
+    {
+        var runtime = ReadProductSource("Services", "NativeWindowRuntime.cs");
+        var window = ReadProductSource("MainWindow.xaml.cs");
+        var view = ReadProductSource("Features", "Background", "ArtBackdropView.xaml.cs");
+        var updateRuntimeState = FindMethod(runtime, "SetApplicationActive");
+        var attach = FindMethod(view, "Attach");
+        var detach = FindMethod(view, "Detach");
+        var nativeActivation = FindMethod(view, "OnNativeHostActivationChanged");
+
+        Assert(
+            runtime.Contains("private const uint WmActivateApp = 0x001C;", StringComparison.Ordinal) &&
+            runtime.Contains("SetWinEventHook(", StringComparison.Ordinal) &&
+            runtime.Contains("EventSystemForeground", StringComparison.Ordinal) &&
+            runtime.Contains("PostMessage(", StringComparison.Ordinal) &&
+            runtime.Contains("message is WmActivateApp or WmAppForegroundSync", StringComparison.Ordinal) &&
+            runtime.Contains("SetApplicationActive(IsCurrentProcessForeground())", StringComparison.Ordinal),
+            "the native host must reconcile WM_ACTIVATEAPP with system foreground transitions");
+        Assert(
+            updateRuntimeState.Contains("ActivationChanged?.Invoke", StringComparison.Ordinal) &&
+            runtime.Contains("public bool IsApplicationActive", StringComparison.Ordinal) &&
+            runtime.Contains("_applicationActive = IsCurrentProcessForeground();", StringComparison.Ordinal) &&
+            runtime.Contains("UnhookWinEvent(_foregroundWinEventHook)", StringComparison.Ordinal),
+            "native activation must expose both current state and transitions");
+        Assert(
+            window.Contains("ForegroundActivationChanged", StringComparison.Ordinal) &&
+            window.Contains("IsForegroundActive", StringComparison.Ordinal),
+            "MainWindow must expose the native foreground contract");
+        Assert(
+            attach.Contains("_hostFocused = nativeHostWindow.IsForegroundActive", StringComparison.Ordinal) &&
+            attach.Contains("ForegroundActivationChanged += OnNativeHostActivationChanged", StringComparison.Ordinal) &&
+            attach.Contains("else", StringComparison.Ordinal) &&
+            attach.Contains("_hostWindow.Activated += OnHostActivated", StringComparison.Ordinal) &&
+            detach.Contains("ForegroundActivationChanged -= OnNativeHostActivationChanged", StringComparison.Ordinal),
+            "the backdrop must prefer native activation while retaining the generic Window fallback");
+        Assert(
+            nativeActivation.Contains("UpdateHostFocus(args.IsActive)", StringComparison.Ordinal),
+            "native foreground transitions must use the shared focus lifecycle");
+        Assert(
+            FindMethod(view, "OnHostActivated").Contains(
+                "if (_nativeHostWindow is not null)",
+                StringComparison.Ordinal),
+            "WinUI activation must not override the native MainWindow authority");
+        return Task.CompletedTask;
+    }
+
+    private static Task WallpaperEngineLayoutUpdatesAreCoalesced()
+    {
+        var view = ReadProductSource("Features", "Background", "ArtBackdropView.xaml.cs");
+        var runtime = ReadProductSource("Features", "Background", "WallpaperEngineRuntimeHost.cs");
+        var pointer = FindMethod(view, "OnRootPointerMoved");
+        var appWindowChanged = FindMethod(view, "OnHostAppWindowChanged");
+        var sizeChanged = FindMethod(view, "OnBackdropSizeChanged");
+        var hostSizeChanged = FindMethod(view, "OnArtSharpHostSizeChanged");
+        var timer = FindMethod(view, "CreateWallpaperEngineLayoutTimer");
+        var updateBounds = FindMethod(runtime, "UpdateBounds");
+        var startCapture = FindMethod(runtime, "StartCapture");
+        var show = FindMethod(runtime, "ShowCoreAsync");
+
+        Assert(
+            !pointer.Contains("UpdateWallpaperEngineLayout", StringComparison.Ordinal),
+            "pointer samples must not reposition the hidden Wallpaper Engine window");
+        Assert(
+            appWindowChanged.Contains("args.DidPositionChange", StringComparison.Ordinal) &&
+            appWindowChanged.Contains("args.DidSizeChange", StringComparison.Ordinal) &&
+            appWindowChanged.Contains("args.DidVisibilityChange", StringComparison.Ordinal) &&
+            appWindowChanged.Contains("args.DidPresenterChange", StringComparison.Ordinal) &&
+            appWindowChanged.Contains("_wallpaperEngineHost?.UpdatePlacement()", StringComparison.Ordinal),
+            "pure AppWindow position changes must keep the runtime behind the owner without resizing capture");
+        Assert(
+            sizeChanged.Contains("QueueWallpaperEngineLayout", StringComparison.Ordinal) &&
+            hostSizeChanged.Contains("QueueWallpaperEngineLayout", StringComparison.Ordinal),
+            "backdrop size changes must use the coalesced layout path");
+        Assert(
+            view.Contains("DispatcherQueueTimer? _wallpaperEngineLayoutTimer", StringComparison.Ordinal) &&
+            timer.Contains("Interval = TimeSpan.FromMilliseconds(75)", StringComparison.Ordinal) &&
+            timer.Contains("IsRepeating = false", StringComparison.Ordinal),
+            "Wallpaper Engine layout updates must be debounced with a one-shot dispatcher timer");
+
+        var placement = updateBounds.IndexOf(
+            "PlaceWindowBehindOwner",
+            StringComparison.Ordinal);
+        var dimensionsGuard = updateBounds.IndexOf(
+            "!dimensionsChanged",
+            StringComparison.Ordinal);
+        var recreate = updateBounds.IndexOf(
+            "framePool.Recreate",
+            StringComparison.Ordinal);
+        Assert(
+            placement >= 0 && dimensionsGuard > placement && recreate > dimensionsGuard,
+            "runtime bounds updates must refresh owner-relative placement before recreating changed capture dimensions");
+        Assert(
+            show.Contains("_captureWindow = _wallpaperWindow", StringComparison.Ordinal) &&
+            show.IndexOf("PlaceWindowBehindOwner", StringComparison.Ordinal) <
+                show.IndexOf("StartCapture", StringComparison.Ordinal) &&
+            !show.Contains("WaitForRenderWindowAsync", StringComparison.Ordinal) &&
+            startCapture.Contains("TryCreateFromWindowId", StringComparison.Ordinal) &&
+            startCapture.Contains("CreateFreeThreaded", StringComparison.Ordinal) &&
+            startCapture.Contains("Direct3D11CaptureFramePool.Create(", StringComparison.Ordinal),
+            "capture must target the WPE owner and prefer the free-threaded frame pool with a fallback");
+        return Task.CompletedTask;
+    }
+
+    private static Task WallpaperEngineParkingAndResumeRacesRemainLive()
+    {
+        var view = ReadProductSource("Features", "Background", "ArtBackdropView.xaml.cs");
+        var runtime = ReadProductSource("Features", "Background", "WallpaperEngineRuntimeHost.cs");
+        var show = FindMethod(view, "ShowWallpaperEngineAsync");
+        var stop = FindMethod(view, "StopWallpaperEngine");
+        var suspend = FindMethod(view, "SuspendWallpaperEngine");
+        var queueResume = FindMethod(view, "QueueWallpaperEngineResume");
+        var resume = FindMethod(view, "ResumeWallpaperEngineAsync");
+        var stopMotion = FindMethod(view, "StopMotion");
+        var placement = FindMethod(runtime, "PlaceWindowBehindOwner");
+        var updatePlacement = FindMethod(runtime, "UpdatePlacement");
+
+        Assert(
+            runtime.Contains("private static readonly IntPtr HwndBottom = new(1);", StringComparison.Ordinal) &&
+            placement.Contains("GetWindowRect(_ownerWindowHandle", StringComparison.Ordinal) &&
+            placement.Contains("SetWindowPos(", StringComparison.Ordinal) &&
+            placement.Contains("HwndBottom", StringComparison.Ordinal) &&
+            !runtime.Contains("MoveWindowOffscreen", StringComparison.Ordinal) &&
+            !runtime.Contains("SmXVirtualScreen", StringComparison.Ordinal),
+            "the WPE owner must remain on-screen behind Nikkiward so the scene renderer keeps presenting frames");
+        Assert(
+            updatePlacement.Contains("configureStyle: false", StringComparison.Ordinal) &&
+            placement.Contains("if (configureStyle)", StringComparison.Ordinal) &&
+            placement.Contains("ShowWindow(wallpaperWindow, SwHide)", StringComparison.Ordinal) &&
+            placement.Contains("SwShowNoActivate", StringComparison.Ordinal),
+            "pure owner movement must not rewrite WPE window styles on every position event");
+        Assert(
+            show.Contains("CancelWallpaperEnginePause()", StringComparison.Ordinal) &&
+            show.Contains("_wallpaperEngineHost.ShowAsync", StringComparison.Ordinal) &&
+            show.Contains("_wallpaperEngineResumePending = true", StringComparison.Ordinal) &&
+            runtime.Contains("CancellationTokenSource? _showCancellation", StringComparison.Ordinal) &&
+            runtime.Contains("CloseWallpaperWindowAfterStop", StringComparison.Ordinal) &&
+            stop.Contains("_wallpaperEngineResumePending = false", StringComparison.Ordinal) &&
+            suspend.Contains("_wallpaperEngineResumePending = false", StringComparison.Ordinal) &&
+            !stopMotion.Contains("CancelWallpaperEnginePause()", StringComparison.Ordinal),
+            "inactive import must defer WPE startup while preserving independent stop state");
+
+        var inFlight = queueResume.IndexOf(
+            "if (_wallpaperEngineStartInFlight)",
+            StringComparison.Ordinal);
+        var active = queueResume.IndexOf(
+            "if (_wallpaperEngineHost.IsActive)",
+            StringComparison.Ordinal);
+        Assert(
+            inFlight >= 0 && active > inFlight &&
+            queueResume.Contains("_wallpaperEngineResumePending = true", StringComparison.Ordinal) &&
+            resume.Contains("_wallpaperEngineResumePending", StringComparison.Ordinal) &&
+            resume.Contains("QueueWallpaperEngineResume()", StringComparison.Ordinal),
+            "a focus return during an in-flight WPE start must schedule one deferred resume");
+        return Task.CompletedTask;
+    }
+
+    private static Task WallpaperCaptureSetupUsesOwnerDispatcher()
+    {
+        var runtime = ReadProductSource(
+            "Features",
+            "Background",
+            "WallpaperEngineRuntimeHost.cs");
+        var retry = FindMethod(runtime, "StartCaptureWithRetryAsync");
+        var dispatch = FindMethod(runtime, "StartCaptureOnOwnerDispatcherAsync");
+
+        Assert(
+            retry.Contains(
+                "StartCaptureOnOwnerDispatcherAsync",
+                StringComparison.Ordinal),
+            "capture retries must marshal UI-bound setup to the owner dispatcher");
+        Assert(
+            dispatch.Contains(
+                "var dispatcherQueue = _ownerDispatcherQueue",
+                StringComparison.Ordinal) &&
+            dispatch.Contains(
+                "dispatcherQueue.HasThreadAccess",
+                StringComparison.Ordinal) &&
+            dispatch.Contains("TryEnqueue", StringComparison.Ordinal) &&
+            dispatch.Contains(
+                "StartCapture(captureWindow, bounds)",
+                StringComparison.Ordinal),
+            "capture setup must run on the owner dispatcher when continuation resumes off-thread");
+        return Task.CompletedTask;
+    }
+
+    private static Task WallpaperResumeCancellationFollowsStop()
+    {
+        var view = ReadProductSource(
+            "Features",
+            "Background",
+            "ArtBackdropView.xaml.cs");
+        var stop = FindMethod(view, "StopWallpaperEngine");
+        var suspend = FindMethod(view, "SuspendWallpaperEngine");
+        var queue = FindMethod(view, "QueueWallpaperEngineResume");
+        var resume = FindMethod(view, "ResumeWallpaperEngineAsync");
+
+        Assert(
+            view.Contains(
+                "CancellationTokenSource? _wallpaperEngineResumeCancellation",
+                StringComparison.Ordinal) &&
+            stop.Contains("CancelWallpaperEngineResume()", StringComparison.Ordinal) &&
+            suspend.Contains("CancelWallpaperEngineResume()", StringComparison.Ordinal),
+            "stopping or suspending the backdrop must cancel an in-flight WPE resume");
+        Assert(
+            queue.Contains(
+                "new CancellationTokenSource()",
+                StringComparison.Ordinal) &&
+            resume.Contains(
+                "cancellationSource.Token",
+                StringComparison.Ordinal) &&
+            resume.Contains(
+                "_wallpaperEngineRequested",
+                StringComparison.Ordinal),
+            "WPE resume must carry its cancellation token and never requeue after stop");
+        return Task.CompletedTask;
+    }
+
+    private static Task WallpaperImportDefersStartupWhileLauncherIsCovered()
+    {
+        var view = ReadProductSource(
+            "Features",
+            "Background",
+            "ArtBackdropView.xaml.cs");
+        var show = FindMethod(view, "ShowWallpaperEngineAsync");
+
+        var inactive = show.IndexOf(
+            "if (!CanShowWallpaperEngine())",
+            StringComparison.Ordinal);
+        var pending = show.IndexOf(
+            "_wallpaperEngineResumePending = true",
+            StringComparison.Ordinal);
+        var runtimeStart = show.IndexOf(
+            "_wallpaperEngineHost.ShowAsync",
+            StringComparison.Ordinal);
+        Assert(
+            inactive >= 0 && pending > inactive && runtimeStart > pending,
+            "an import initiated under the settings overlay must defer runtime startup until the launcher surface returns");
         return Task.CompletedTask;
     }
 

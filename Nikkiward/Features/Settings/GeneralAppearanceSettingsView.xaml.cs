@@ -63,6 +63,7 @@ public sealed partial class GeneralAppearanceSettingsView : UserControl
             LauncherMastheadSubtitleBox.Text = settings.LauncherMastheadSubtitle;
             LauncherUtilityPanelsToggle.IsOn = settings.ShowLauncherUtilityPanels;
             ApplyCapsuleStyleSelection(settings.LauncherCapsuleStyle);
+            ApplyBackgroundPresetSelection(settings.Background.SelectedSource);
             FollowArtworkThemeButton.IsChecked =
                 settings.ThemeMode == ThemeMode.FollowArtwork;
             WarmLightThemeButton.IsChecked =
@@ -135,6 +136,28 @@ public sealed partial class GeneralAppearanceSettingsView : UserControl
 
     private void OnChooseClicked(object sender, RoutedEventArgs e) =>
         ChooseBackgroundRequested?.Invoke(this, EventArgs.Empty);
+
+    private void OnPresetBackgroundClicked(object sender, RoutedEventArgs e)
+    {
+        if (_uiLoading ||
+            sender is not Button { Tag: string id } ||
+            !AppearanceBackgroundPresets.TryGet(id, out var preset))
+        {
+            return;
+        }
+
+        var settings = _settings with
+        {
+            ThemeMode = preset.SurfaceThemeMode ?? _settings.ThemeMode,
+            LauncherCapsuleStyle = preset.CapsuleStyle,
+            Background = new BackgroundArtSettings
+            {
+                SelectedSource = preset.Source,
+            },
+        };
+        ApplySettings(settings);
+        Commit(settings, forceStaticBackgroundReload: true);
+    }
 
     private void OnResetClicked(object sender, RoutedEventArgs e) =>
         ResetBackgroundRequested?.Invoke(this, EventArgs.Empty);
@@ -443,12 +466,16 @@ public sealed partial class GeneralAppearanceSettingsView : UserControl
         });
     }
 
-    private void Commit(AppearanceSettings settings)
+    private void Commit(
+        AppearanceSettings settings,
+        bool forceStaticBackgroundReload = false)
     {
         _settings = settings;
         AppearanceSettingsChanged?.Invoke(
             this,
-            new AppearanceSettingsChangedEventArgs(settings));
+            new AppearanceSettingsChangedEventArgs(
+                settings,
+                forceStaticBackgroundReload));
     }
 
     private void ApplyFixedAccentSelection(FixedAccentColor accent)
@@ -480,6 +507,26 @@ public sealed partial class GeneralAppearanceSettingsView : UserControl
         PlusCapsuleStyleButton.IsChecked = style == LauncherCapsuleStyle.Plus;
     }
 
+    private void ApplyBackgroundPresetSelection(string? selectedSource)
+    {
+        var source = selectedSource?.Trim();
+        Preset1SelectionBorder.Visibility =
+            string.IsNullOrWhiteSpace(source) ||
+            string.Equals(
+                source,
+                AppearanceBackgroundPresets.Preset1Source,
+                StringComparison.OrdinalIgnoreCase)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        Preset2SelectionBorder.Visibility =
+            string.Equals(
+                source,
+                AppearanceBackgroundPresets.Preset2Source,
+                StringComparison.OrdinalIgnoreCase)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+    }
+
     private void ApplyCustomAccentPreview(uint? argb)
     {
         if (argb is uint value)
@@ -506,18 +553,7 @@ public sealed partial class GeneralAppearanceSettingsView : UserControl
     {
         var narrow = e.NewSize.Width < NarrowBreakpoint;
         ApplyGridState(ThemeChoiceGrid, narrow, 3);
-        ApplyGridState(BackgroundPreviewGrid, narrow, 2);
-
-        if (narrow)
-        {
-            DefaultBackgroundButton.SetValue(Grid.RowProperty, 0);
-            CurrentBackgroundButton.SetValue(Grid.RowProperty, 1);
-        }
-        else
-        {
-            DefaultBackgroundButton.SetValue(Grid.RowProperty, 0);
-            CurrentBackgroundButton.SetValue(Grid.RowProperty, 0);
-        }
+        ApplyGridState(BackgroundPreviewGrid, narrow, 3);
     }
 
     private static void ApplyGridState(Grid grid, bool narrow, int itemCount)
@@ -546,10 +582,15 @@ public sealed partial class GeneralAppearanceSettingsView : UserControl
 
 public sealed class AppearanceSettingsChangedEventArgs : EventArgs
 {
-    public AppearanceSettingsChangedEventArgs(AppearanceSettings settings)
+    public AppearanceSettingsChangedEventArgs(
+        AppearanceSettings settings,
+        bool forceStaticBackgroundReload = false)
     {
         Settings = settings;
+        ForceStaticBackgroundReload = forceStaticBackgroundReload;
     }
 
     public AppearanceSettings Settings { get; }
+
+    public bool ForceStaticBackgroundReload { get; }
 }

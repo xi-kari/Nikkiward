@@ -355,17 +355,27 @@
                                     <Image x:Name="BackgroundPreviewImage" Stretch="Uniform" />
                                 </Border>
                             </Grid>
+                            <StackPanel Spacing="8">
+                                <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="导入模式" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <RadioButton
+                                        x:Name="HolographicImportModeButton"
+                                        automation:AutomationProperties.Name="导入模式 光栅卡片"
+                                        Content="光栅卡片"
+                                        GroupName="WallpaperImportMode"
+                                        IsChecked="True" />
+                                    <RadioButton
+                                        x:Name="MotionImportModeButton"
+                                        automation:AutomationProperties.Name="导入模式 动态背景"
+                                        Content="动态背景"
+                                        GroupName="WallpaperImportMode" />
+                                </StackPanel>
+                            </StackPanel>
                             <StackPanel x:Name="BackgroundActions" Orientation="Horizontal" Spacing="8">
-                                <Button automation:AutomationProperties.Name="选择背景图片" Click="OnChooseBackgroundClicked" Style="{StaticResource OnArtGlassButtonStyle}">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <FontIcon Glyph="&#xE91B;" />
-                                        <TextBlock Text="选择图片" />
-                                    </StackPanel>
-                                </Button>
-                                <Button automation:AutomationProperties.Name="导入动态壁纸" Click="OnChooseMotionBackgroundClicked" Style="{StaticResource OnArtGlassButtonStyle}">
+                                <Button automation:AutomationProperties.Name="导入壁纸" Click="OnChooseWallpaperClicked" Style="{StaticResource OnArtGlassButtonStyle}">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon Glyph="&#xE8B2;" />
-                                        <TextBlock Text="导入动态壁纸" />
+                                        <TextBlock Text="导入壁纸" />
                                     </StackPanel>
                                 </Button>
                                 <Button automation:AutomationProperties.Name="恢复默认背景" Click="OnResetBackgroundClicked" Style="{StaticResource OnArtGlassButtonStyle}">

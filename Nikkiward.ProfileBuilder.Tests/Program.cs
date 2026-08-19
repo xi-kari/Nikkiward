@@ -35,6 +35,7 @@ internal static class Program
             .Concat(ChannelStoreBuilderTests.All)
             .Concat(BackdropTests.All)
             .Concat(MotionBackgroundTests.All)
+            .Concat(WallpaperImportTests.All)
             .Concat(MotionRuntimeHardeningContractTests.All)
             .Concat(DiagnosticTests.All)
             .Concat(UserSettingsTests.All)

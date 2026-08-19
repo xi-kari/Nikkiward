@@ -55,6 +55,7 @@ public sealed partial class MainPage : Page
     // with a null queue it would mutate brushes on whichever thread published.
     private readonly ArtBackdropService _backdrop = new();
     private readonly MotionBackgroundImporter _motionBackgroundImporter = new();
+    private readonly WallpaperAssetImporter _wallpaperAssetImporter = new();
     private CancellationTokenSource? _lifetimeCancellation;
     private DispatcherTimer? _launchStateTimer;
     private int _launchStateRefreshInProgress;

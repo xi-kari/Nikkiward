@@ -90,8 +90,8 @@
                         Width="406"
                         Height="564"
                         IsHitTestVisible="False"
-                        Background="#FF090A0D"
-                        BorderBrush="#52FFFFFF"
+                        Background="{ThemeResource AuthorCardSurfaceBrush}"
+                        BorderBrush="{ThemeResource AuthorCardEdgeBrush}"
                         BorderThickness="1"
                         CornerRadius="24">
                         <Grid>
@@ -100,16 +100,15 @@
                             automation:AutomationProperties.Name="Xikari 卡片底图"
                             Source="ms-appx:///Assets/XikariAvatar.jpg"
                             Stretch="UniformToFill" />
-                        <Rectangle Fill="#2407080B" />
-                        <Rectangle IsHitTestVisible="False">
-                            <Rectangle.Fill>
-                                <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
-                                    <GradientStop Color="#12000000" Offset="0" />
-                                    <GradientStop Color="#00000000" Offset="0.42" />
-                                    <GradientStop Color="#B8000000" Offset="1" />
-                                </LinearGradientBrush>
-                            </Rectangle.Fill>
-                        </Rectangle>
+                        <Rectangle Fill="{ThemeResource AuthorCardImageTintBrush}" IsHitTestVisible="False" />
+                        <Rectangle
+                            Fill="{ThemeResource AuthorCardBottomScrimBrush}"
+                            IsHitTestVisible="False" />
+                        <Border
+                            BorderBrush="{ThemeResource AuthorCardInnerRingBrush}"
+                            BorderThickness="1"
+                            CornerRadius="23"
+                            IsHitTestVisible="False" />
                         <canvas:CanvasControl
                             x:Name="AuthorHologramCanvas"
                             Width="406"
@@ -127,11 +126,11 @@
                             <TextBlock
                                 FontSize="34"
                                 FontWeight="SemiBold"
-                                Foreground="#FFF8FAFF"
+                                Foreground="{ThemeResource AuthorCardTitleBrush}"
                                 Text="Xikari" />
                             <TextBlock
                                 FontSize="14"
-                                Foreground="#D9E2E8F4"
+                                Foreground="{ThemeResource AuthorCardMetaBrush}"
                                 Text="Nikkiward author" />
                         </StackPanel>
 
@@ -140,8 +139,8 @@
                             Margin="18"
                             Padding="12"
                             VerticalAlignment="Bottom"
-                            Background="#8A11141B"
-                            BorderBrush="#42FFFFFF"
+                            Background="{ThemeResource AuthorCardPanelBrush}"
+                            BorderBrush="{ThemeResource AuthorCardPanelEdgeBrush}"
                             BorderThickness="1"
                             CornerRadius="12">
                             <Grid ColumnSpacing="11">
@@ -153,6 +152,7 @@
                                 <Border
                                     Width="44"
                                     Height="44"
+                                    Background="{ThemeResource AuthorCardTagBrush}"
                                     CornerRadius="22">
                                     <Image
                                         automation:AutomationProperties.Name="Xikari 头像"
@@ -166,22 +166,22 @@
                                     <TextBlock
                                         FontSize="14"
                                         FontWeight="SemiBold"
-                                        Foreground="#FFF7F9FD"
+                                        Foreground="{ThemeResource AuthorCardTitleBrush}"
                                         Text="@xi-kari" />
                                     <TextBlock
                                         FontSize="12"
-                                        Foreground="#C9D8DFEA"
+                                        Foreground="{ThemeResource AuthorCardMetaBrush}"
                                         Text="作者 / 维护者" />
                                 </StackPanel>
                                 <Border
                                     Grid.Column="2"
                                     Padding="9,5"
                                     VerticalAlignment="Center"
-                                    Background="#24FFFFFF"
+                                    Background="{ThemeResource AuthorCardTagBrush}"
                                     CornerRadius="8">
                                     <TextBlock
                                         FontSize="11"
-                                        Foreground="#EAF7F9FD"
+                                        Foreground="{ThemeResource AuthorCardTagTextBrush}"
                                         Text="Nikkiward" />
                                 </Border>
                             </Grid>

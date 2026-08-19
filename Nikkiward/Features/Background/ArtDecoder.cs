@@ -31,6 +31,26 @@ public static class ArtDecoder
                 !uri.IsFile &&
                 uri.Scheme.Length > 1)
             {
+                if (uri.Scheme.Equals("ms-appx", StringComparison.OrdinalIgnoreCase))
+                {
+                    var baseDirectory = Path.GetFullPath(AppContext.BaseDirectory);
+                    var basePrefix = baseDirectory.EndsWith(Path.DirectorySeparatorChar)
+                        ? baseDirectory
+                        : baseDirectory + Path.DirectorySeparatorChar;
+                    var relativePath = Uri.UnescapeDataString(uri.AbsolutePath)
+                        .TrimStart('/')
+                        .Replace('/', Path.DirectorySeparatorChar);
+                    var candidatePath = Path.GetFullPath(
+                        Path.Combine(baseDirectory, relativePath));
+                    if (candidatePath.StartsWith(
+                            basePrefix,
+                            StringComparison.OrdinalIgnoreCase) &&
+                        File.Exists(candidatePath))
+                    {
+                        return await StorageFile.GetFileFromPathAsync(candidatePath);
+                    }
+                }
+
                 return await StorageFile.GetFileFromApplicationUriAsync(uri);
             }
 

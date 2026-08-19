@@ -27,6 +27,14 @@ public sealed partial class MainWindow : Window
     private CloseWindowBehavior _closeWindowBehavior = CloseWindowBehavior.Exit;
     private bool _allowClose;
 
+    public event EventHandler<NativeWindowActivationChangedEventArgs>? ForegroundActivationChanged
+    {
+        add => _nativeWindowRuntime.ActivationChanged += value;
+        remove => _nativeWindowRuntime.ActivationChanged -= value;
+    }
+
+    public bool IsForegroundActive => _nativeWindowRuntime.IsApplicationActive;
+
     public MainWindow()
     {
         InitializeComponent();

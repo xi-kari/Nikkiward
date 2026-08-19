@@ -122,21 +122,24 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <Button
-                        x:Name="DefaultBackgroundButton"
+                        x:Name="Preset1BackgroundButton"
                         Grid.Column="0"
                         Height="132"
                         Padding="0"
                         HorizontalContentAlignment="Stretch"
-                        automation:AutomationProperties.Name="使用内置背景"
+                        Tag="background1"
+                        automation:AutomationProperties.Name="使用默认预设背景 1"
                         Background="Transparent"
                         BorderThickness="0"
-                        Click="OnResetClicked"
+                        Click="OnPresetBackgroundClicked"
                         CornerRadius="{ThemeResource RadiusCard}">
                         <Border CornerRadius="{ThemeResource RadiusCard}">
                             <Grid>
@@ -150,15 +153,59 @@
                                     </Rectangle.Fill>
                                 </Rectangle>
                                 <StackPanel Margin="12,0,12,10" VerticalAlignment="Bottom" Spacing="1">
-                                    <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource OnArtPrimaryTextBrush}" Text="Nikkiward 内置背景" />
-                                    <TextBlock FontSize="10" Foreground="{ThemeResource OnArtTertiaryTextBrush}" Text="可随时恢复" />
+                                    <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource OnArtPrimaryTextBrush}" Text="默认预设背景 1" />
+                                    <TextBlock FontSize="10" Foreground="{ThemeResource OnArtTertiaryTextBrush}" Text="蓝色 / OCEAN" />
                                 </StackPanel>
+                                <Border
+                                    x:Name="Preset1SelectionBorder"
+                                    IsHitTestVisible="False"
+                                    BorderBrush="{ThemeResource DerivedAccentBrush}"
+                                    BorderThickness="2"
+                                    CornerRadius="{ThemeResource RadiusCard}"
+                                    Visibility="Collapsed" />
+                            </Grid>
+                        </Border>
+                    </Button>
+                    <Button
+                        x:Name="Preset2BackgroundButton"
+                        Grid.Column="1"
+                        Height="132"
+                        Padding="0"
+                        HorizontalContentAlignment="Stretch"
+                        Tag="background2"
+                        automation:AutomationProperties.Name="使用默认预设背景 2"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Click="OnPresetBackgroundClicked"
+                        CornerRadius="{ThemeResource RadiusCard}">
+                        <Border CornerRadius="{ThemeResource RadiusCard}">
+                            <Grid>
+                                <Image Source="Assets/NikkiPresetBackground2.jpg" Stretch="UniformToFill" />
+                                <Rectangle Opacity="0.82">
+                                    <Rectangle.Fill>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Offset="0.45" Color="{ThemeResource OnArtScrimTransparentColor}" />
+                                            <GradientStop Offset="1" Color="{ThemeResource OnArtScrimColor}" />
+                                        </LinearGradientBrush>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+                                <StackPanel Margin="12,0,12,10" VerticalAlignment="Bottom" Spacing="1">
+                                    <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource OnArtPrimaryTextBrush}" Text="默认预设背景 2" />
+                                    <TextBlock FontSize="10" Foreground="{ThemeResource OnArtTertiaryTextBrush}" Text="暖色 / PLUS" />
+                                </StackPanel>
+                                <Border
+                                    x:Name="Preset2SelectionBorder"
+                                    IsHitTestVisible="False"
+                                    BorderBrush="{ThemeResource DerivedAccentBrush}"
+                                    BorderThickness="2"
+                                    CornerRadius="{ThemeResource RadiusCard}"
+                                    Visibility="Collapsed" />
                             </Grid>
                         </Border>
                     </Button>
                     <Button
                         x:Name="CurrentBackgroundButton"
-                        Grid.Column="1"
+                        Grid.Column="2"
                         Height="132"
                         Padding="0"
                         HorizontalContentAlignment="Stretch"
@@ -179,7 +226,7 @@
                                     </Rectangle.Fill>
                                 </Rectangle>
                                 <StackPanel Margin="12,0,12,10" VerticalAlignment="Bottom" Spacing="1">
-                                    <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource OnArtPrimaryTextBrush}" Text="当前背景" />
+                                    <TextBlock FontWeight="SemiBold" Foreground="{ThemeResource OnArtPrimaryTextBrush}" Text="自定义背景" />
                                     <TextBlock FontSize="10" Foreground="{ThemeResource OnArtTertiaryTextBrush}" Text="点击选择图片或视频" />
                                 </StackPanel>
                             </Grid>

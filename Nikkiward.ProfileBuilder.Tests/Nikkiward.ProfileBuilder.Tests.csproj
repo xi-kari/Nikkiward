@@ -61,6 +61,7 @@
     <Compile Include="..\Nikkiward\Features\Background\ArtAnalysisCache.cs" Link="Features\Background\ArtAnalysisCache.cs" />
     <Compile Include="..\Nikkiward\Features\Background\MotionSourceRules.cs" Link="Features\Background\MotionSourceRules.cs" />
     <Compile Include="..\Nikkiward\Features\Background\MotionImportFileCopier.cs" Link="Features\Background\MotionImportFileCopier.cs" />
+    <Compile Include="..\Nikkiward\Features\Background\WallpaperImportSupport.cs" Link="Features\Background\WallpaperImportSupport.cs" />
     <Compile Include="..\Nikkiward\Features\Background\HolographicBackdropProjection.cs" Link="Features\Background\HolographicBackdropProjection.cs" />
     <Compile Include="..\Nikkiward\Features\Settings\AuthorProfileDepthProjection.cs" Link="Features\Settings\AuthorProfileDepthProjection.cs" />
     <Compile Include="..\Nikkiward\Features\Shell\GlassTierResolver.cs" Link="Features\Shell\GlassTierResolver.cs" />
@@ -89,6 +90,7 @@
     <Compile Include="ChannelStoreBuilderTests.cs" />
     <Compile Include="BackdropTests.cs" />
     <Compile Include="MotionBackgroundTests.cs" />
+    <Compile Include="WallpaperImportTests.cs" />
     <Compile Include="MotionRuntimeHardeningContractTests.cs" />
     <Compile Include="DiagnosticTests.cs" />
     <Compile Include="UserSettingsTests.cs" />

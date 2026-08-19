@@ -22,6 +22,14 @@
             VerticalAlignment="Stretch"
             Visibility="Collapsed" />
 
+        <Image
+            x:Name="WallpaperEngineBackdropFrame"
+            HorizontalAlignment="Stretch"
+            IsHitTestVisible="False"
+            Stretch="UniformToFill"
+            VerticalAlignment="Stretch"
+            Visibility="Collapsed" />
+
         <Grid x:Name="StaticBackdrop">
             <!-- Pre-baked full-bleed depth plates. -->
             <Image
@@ -54,6 +62,14 @@
                         Source="ms-appx:///Assets/NikkiDefaultBackground.jpg"
                         Stretch="Uniform"
                         VerticalAlignment="Stretch" />
+
+                    <Image
+                        x:Name="WallpaperEngineCardFrame"
+                        HorizontalAlignment="Stretch"
+                        IsHitTestVisible="False"
+                        Stretch="Uniform"
+                        VerticalAlignment="Stretch"
+                        Visibility="Collapsed" />
 
                     <controls:HolographicBackdropOverlay
                         x:Name="HolographicOverlay"

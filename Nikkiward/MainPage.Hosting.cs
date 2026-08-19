@@ -507,6 +507,16 @@ public sealed partial class MainPage
             ? "使用 Nikkiward 内置背景；可随时选择本地图片覆盖。"
             : $"当前背景：{Path.GetFileName(projection.Source)}";
 
+        if (settings.Background.WallpaperEnginePresentation ==
+                WallpaperEnginePresentation.HolographicCard &&
+            await TryActivateConfiguredWallpaperEngineAsync(
+                settings,
+                WallpaperEnginePresentation.HolographicCard,
+                cancellationToken))
+        {
+            return;
+        }
+
         if (settings.Background.MotionEnabled &&
             await TryActivateConfiguredMotionAsync(settings, cancellationToken))
         {

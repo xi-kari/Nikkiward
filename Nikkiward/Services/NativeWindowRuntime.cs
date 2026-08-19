@@ -9,12 +9,20 @@ public sealed record HotkeyRegistrationResult(bool Succeeded, string Message)
     public static HotkeyRegistrationResult Failure(string message) => new(false, message);
 }
 
+public sealed class NativeWindowActivationChangedEventArgs(bool isActive) : EventArgs
+{
+    public bool IsActive { get; } = isActive;
+}
+
 public sealed class NativeWindowRuntime : IDisposable
 {
     private const int ShowWindowHotkeyId = 0x4E11;
     private const int ScreenshotHotkeyId = 0x4E12;
+    private const uint EventSystemForeground = 0x0003;
+    private const uint WmActivateApp = 0x001C;
     private const uint WmHotkey = 0x0312;
     private const uint WmAppTray = 0x8000 + 0x42;
+    private const uint WmAppForegroundSync = 0x8000 + 0x43;
     private const uint WmLButtonUp = 0x0202;
     private const uint WmLButtonDoubleClick = 0x0203;
     private const uint WmRButtonUp = 0x0205;
@@ -45,12 +53,16 @@ public sealed class NativeWindowRuntime : IDisposable
 
     private readonly IntPtr _windowHandle;
     private readonly SubclassProcedure _subclassProcedure;
+    private readonly WinEventProcedure _winEventProcedure;
     private readonly UIntPtr _subclassId = new(0x4E494B4B);
+    private IntPtr _foregroundWinEventHook;
     private HotkeyGesture? _showWindowGesture;
     private HotkeyGesture? _screenshotGesture;
     private IntPtr _trayIconHandle;
     private bool _ownsTrayIconHandle;
     private bool _trayVisible;
+    private bool _applicationActive;
+    private int _disposeState;
     private bool _disposed;
 
     public event EventHandler? ShowWindowRequested;
@@ -58,6 +70,17 @@ public sealed class NativeWindowRuntime : IDisposable
     public event EventHandler? ExitRequested;
 
     public event EventHandler? ScreenshotRequested;
+
+    public event EventHandler<NativeWindowActivationChangedEventArgs>? ActivationChanged;
+
+    public bool IsApplicationActive
+    {
+        get
+        {
+            _applicationActive = IsCurrentProcessForeground();
+            return _applicationActive;
+        }
+    }
 
     public NativeWindowRuntime(IntPtr windowHandle)
     {
@@ -67,7 +90,9 @@ public sealed class NativeWindowRuntime : IDisposable
         }
 
         _windowHandle = windowHandle;
+        _applicationActive = IsCurrentProcessForeground();
         _subclassProcedure = WindowSubclassProcedure;
+        _winEventProcedure = OnForegroundWinEvent;
         if (!SetWindowSubclass(
                 _windowHandle,
                 _subclassProcedure,
@@ -77,6 +102,23 @@ public sealed class NativeWindowRuntime : IDisposable
             throw new InvalidOperationException(
                 $"Window message subclass registration failed with Win32 error {Marshal.GetLastWin32Error()}.");
         }
+
+        _foregroundWinEventHook = SetWinEventHook(
+            EventSystemForeground,
+            EventSystemForeground,
+            IntPtr.Zero,
+            _winEventProcedure,
+            0,
+            0,
+            0);
+        if (_foregroundWinEventHook == IntPtr.Zero)
+        {
+            RemoveWindowSubclass(_windowHandle, _subclassProcedure, _subclassId);
+            throw new InvalidOperationException(
+                $"Foreground event hook registration failed with Win32 error {Marshal.GetLastWin32Error()}.");
+        }
+
+        _applicationActive = IsCurrentProcessForeground();
     }
 
     public HotkeyRegistrationResult ApplyHotkeys(
@@ -149,12 +191,18 @@ public sealed class NativeWindowRuntime : IDisposable
 
     public void Dispose()
     {
-        if (_disposed)
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0)
         {
             return;
         }
 
         _disposed = true;
+        if (_foregroundWinEventHook != IntPtr.Zero)
+        {
+            _ = UnhookWinEvent(_foregroundWinEventHook);
+            _foregroundWinEventHook = IntPtr.Zero;
+        }
+
         UnregisterHotkeys();
         RemoveTrayIcon();
         RemoveWindowSubclass(_windowHandle, _subclassProcedure, _subclassId);
@@ -169,7 +217,11 @@ public sealed class NativeWindowRuntime : IDisposable
         UIntPtr subclassId,
         UIntPtr referenceData)
     {
-        if (message == WmHotkey)
+        if (message is WmActivateApp or WmAppForegroundSync)
+        {
+            SetApplicationActive(IsCurrentProcessForeground());
+        }
+        else if (message == WmHotkey)
         {
             switch (unchecked((int)wParam.ToUInt64()))
             {
@@ -198,6 +250,50 @@ public sealed class NativeWindowRuntime : IDisposable
         }
 
         return DefSubclassProc(windowHandle, message, wParam, lParam);
+    }
+
+    private void OnForegroundWinEvent(
+        IntPtr winEventHook,
+        uint eventType,
+        IntPtr windowHandle,
+        int objectId,
+        int childId,
+        uint eventThreadId,
+        uint eventTime)
+    {
+        if (Volatile.Read(ref _disposeState) == 0)
+        {
+            _ = PostMessage(
+                _windowHandle,
+                WmAppForegroundSync,
+                UIntPtr.Zero,
+                IntPtr.Zero);
+        }
+    }
+
+    private void SetApplicationActive(bool isActive)
+    {
+        if (_applicationActive == isActive)
+        {
+            return;
+        }
+
+        _applicationActive = isActive;
+        ActivationChanged?.Invoke(
+            this,
+            new NativeWindowActivationChangedEventArgs(isActive));
+    }
+
+    private static bool IsCurrentProcessForeground()
+    {
+        var foregroundWindow = GetForegroundWindow();
+        if (foregroundWindow == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        _ = GetWindowThreadProcessId(foregroundWindow, out var processId);
+        return processId == (uint)Environment.ProcessId;
     }
 
     private void AddTrayIcon()
@@ -547,6 +643,15 @@ public sealed class NativeWindowRuntime : IDisposable
         UIntPtr subclassId,
         UIntPtr referenceData);
 
+    private delegate void WinEventProcedure(
+        IntPtr winEventHook,
+        uint eventType,
+        IntPtr windowHandle,
+        int objectId,
+        int childId,
+        uint eventThreadId,
+        uint eventTime);
+
     [DllImport("comctl32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetWindowSubclass(
@@ -570,6 +675,28 @@ public sealed class NativeWindowRuntime : IDisposable
         IntPtr lParam);
 
     [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr SetWinEventHook(
+        uint eventMinimum,
+        uint eventMaximum,
+        IntPtr moduleHandle,
+        WinEventProcedure winEventProcedure,
+        uint processId,
+        uint threadId,
+        uint flags);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool UnhookWinEvent(IntPtr winEventHook);
+
+    [DllImport("user32.dll", EntryPoint = "PostMessageW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool PostMessage(
+        IntPtr windowHandle,
+        uint message,
+        UIntPtr wParam,
+        IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool RegisterHotKey(
         IntPtr windowHandle,
@@ -580,6 +707,14 @@ public sealed class NativeWindowRuntime : IDisposable
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool UnregisterHotKey(IntPtr windowHandle, int id);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(
+        IntPtr windowHandle,
+        out uint processId);
 
     [DllImport("shell32.dll", EntryPoint = "Shell_NotifyIconW", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

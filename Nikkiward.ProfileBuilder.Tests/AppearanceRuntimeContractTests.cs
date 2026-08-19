@@ -17,6 +17,7 @@ internal static class AppearanceRuntimeContractTests
         ("overlay composition and XAML transitions stay sequenced", OverlayTransitionsStaySequenced),
         ("CJK page titles retain their full line bounds", CjkPageTitlesRetainFullLineBounds),
         ("custom background exposes the motion wallpaper importer", CustomBackgroundExposesMotionImporter),
+        ("Wallpaper package recovery persists canonical paths and authoritative modes", WallpaperPackageRecoveryPersistsCanonicalState),
         ("custom background exposes the launcher subtitle editor", CustomBackgroundExposesSubtitleEditor),
         ("high contrast focus uses the system focus color", HighContrastFocusUsesSystemColor),
         ("every custom transition consumes the live motion authority", CustomTransitionsConsumeMotionAuthority),
@@ -465,26 +466,102 @@ internal static class AppearanceRuntimeContractTests
             "LaunchSettingsPage.xaml.cs");
         var overlay = ReadSource("Nikkiward", "MainPage.Overlays.cs");
         var appearance = ReadSource("Nikkiward", "MainPage.Appearance.cs");
+        var wallpaperSupport = ReadSource(
+            "Nikkiward",
+            "Features",
+            "Background",
+            "WallpaperImportSupport.cs");
+        var wallpaperRuntime = ReadSource(
+            "Nikkiward",
+            "Features",
+            "Background",
+            "WallpaperEngineRuntimeHost.cs");
 
         Assert(
             settingsXaml.Contains("BackgroundSection", StringComparison.Ordinal) &&
-            settingsXaml.Contains("导入动态壁纸", StringComparison.Ordinal) &&
-            settingsXaml.Contains("OnChooseMotionBackgroundClicked", StringComparison.Ordinal),
-            "custom background must expose a dedicated motion wallpaper command");
+            settingsXaml.Contains("HolographicImportModeButton", StringComparison.Ordinal) &&
+            settingsXaml.Contains("MotionImportModeButton", StringComparison.Ordinal) &&
+            settingsXaml.Contains("导入壁纸", StringComparison.Ordinal) &&
+            settingsXaml.Contains("OnChooseWallpaperClicked", StringComparison.Ordinal),
+            "custom background must expose explicit holographic-card and motion import modes");
         Assert(
-            settingsCode.Contains("MotionBackgroundChooseRequested", StringComparison.Ordinal) &&
-            overlay.Contains("OnLaunchSettingsMotionBackgroundChooseRequested", StringComparison.Ordinal) &&
+            settingsCode.Contains("WallpaperImportRequestedEventArgs", StringComparison.Ordinal) &&
+            settingsCode.Contains("WallpaperImportMode", StringComparison.Ordinal) &&
+            overlay.Contains("OnLaunchSettingsWallpaperImportRequested", StringComparison.Ordinal) &&
+            overlay.Contains("ChooseWallpaperAsync(e.Mode)", StringComparison.Ordinal) &&
             appearance.Contains(
-                "foreach (var extension in MotionSourceRules.SupportedExtensions)",
+                "WallpaperSourceRules.Resolve(sourcePath, mode)",
                 StringComparison.Ordinal) &&
             appearance.Contains(
-                "picker.FileTypeFilter.Add(\"*\")",
+                "WallpaperSourceRules.PackageExtensions",
                 StringComparison.Ordinal) &&
             appearance.Contains(
-                "MotionSourceRules.IsSupportedExtension(file.FileType)",
+                "CommitStillBackgroundAsync",
                 StringComparison.Ordinal) &&
-            appearance.Contains("ImportMotionBackgroundAsync", StringComparison.Ordinal),
-            "the visible motion command must reach the system-decoded multi-container import path");
+            appearance.Contains("ImportMotionBackgroundAsync", StringComparison.Ordinal) &&
+            appearance.Contains("ImportWallpaperEnginePackageAsync", StringComparison.Ordinal),
+            "the visible wallpaper command must route each selected import mode into the existing card or motion pipeline");
+        Assert(
+            wallpaperSupport.Contains("PKGV", StringComparison.Ordinal) &&
+            wallpaperSupport.Contains("project.json", StringComparison.Ordinal) &&
+            wallpaperSupport.Contains("TryResolveSafeSibling", StringComparison.Ordinal),
+            "Wallpaper Engine packages must be identified through a bounded PKGV index and local project metadata");
+        Assert(
+            wallpaperRuntime.Contains("GraphicsCaptureItem.TryCreateFromWindowId", StringComparison.Ordinal) &&
+            wallpaperRuntime.Contains("openWallpaper", StringComparison.Ordinal) &&
+            wallpaperRuntime.Contains("closeWallpaper", StringComparison.Ordinal),
+            "Wallpaper Engine packages must use the runtime window and capture its live frames into XAML");
+        return Task.CompletedTask;
+    }
+
+    private static Task WallpaperPackageRecoveryPersistsCanonicalState()
+    {
+        var appearance = ReadSource("Nikkiward", "MainPage.Appearance.cs");
+        var launchSettings = ReadSource(
+            "Nikkiward",
+            "Features",
+            "Launcher",
+            "LaunchSettingsPage.xaml.cs");
+        var activation = FindMethod(
+            appearance,
+            "TryActivateConfiguredWallpaperEngineAsync");
+        var persistence = FindMethod(
+            appearance,
+            "PersistCanonicalWallpaperPackageSourceAsync");
+
+        Assert(
+            activation.Contains(
+                "PersistCanonicalWallpaperPackageSourceAsync",
+                StringComparison.Ordinal) &&
+            activation.Contains(
+                "importedPackage.ImportedPath",
+                StringComparison.Ordinal),
+            "a recovered Wallpaper package must persist the canonical cache path after activation");
+        Assert(
+            persistence.Contains(
+                "WallpaperEnginePackageSource = canonicalPackageSource",
+                StringComparison.Ordinal) &&
+            persistence.Contains(
+                "MotionSource = normalizedMotionSource",
+                StringComparison.Ordinal) &&
+            persistence.Contains(
+                "ViewModel.SaveAppearanceSettingsAsync",
+                StringComparison.Ordinal),
+            "canonical Wallpaper package recovery must update and save every matching package path");
+        Assert(
+            launchSettings.Contains(
+                "settings.Background.WallpaperEnginePresentation switch",
+                StringComparison.Ordinal) &&
+            launchSettings.Contains(
+                "WallpaperEnginePresentation.MotionBackdrop => true",
+                StringComparison.Ordinal) &&
+            launchSettings.Contains(
+                "WallpaperEnginePresentation.HolographicCard => false",
+                StringComparison.Ordinal) &&
+            launchSettings.Contains(
+                "_ => settings.Background.MotionEnabled",
+                StringComparison.Ordinal),
+            "Wallpaper package presentation must be authoritative while ordinary video retains the motion fallback");
         return Task.CompletedTask;
     }
 
@@ -1299,8 +1376,9 @@ internal static class AppearanceRuntimeContractTests
             main.Contains("x:Name=\"ProfileButton\"", StringComparison.Ordinal) &&
             main.Contains("Click=\"OnProfileButtonClicked\"", StringComparison.Ordinal) &&
             chrome.Contains(
-                "ProfileQuickSwitchHost.Visibility = Visible(launcherSurfaceVisible)",
+                "profilePickerOpen || launcherSurfaceVisible",
                 StringComparison.Ordinal) &&
+            chrome.Contains("!profilePickerOpen", StringComparison.Ordinal) &&
             chrome.Contains("SetLauncherSurfaceState(", StringComparison.Ordinal) &&
             backdrop.Contains(
                 "SetLauncherSurfaceState(bool visible, bool interactionEnabled)",

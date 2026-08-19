@@ -157,8 +157,7 @@ public sealed partial class MainPage
         {
             previous.CloseRequested -= OnLaunchSettingsCloseRequested;
             previous.ChooseGameRootRequested -= OnLaunchSettingsChooseGameRootRequested;
-            previous.BackgroundChooseRequested -= OnLaunchSettingsBackgroundChooseRequested;
-            previous.MotionBackgroundChooseRequested -= OnLaunchSettingsMotionBackgroundChooseRequested;
+            previous.WallpaperImportRequested -= OnLaunchSettingsWallpaperImportRequested;
             previous.BackgroundResetRequested -= OnLaunchSettingsBackgroundResetRequested;
             previous.MastheadSubtitleSaveRequested -= OnLaunchSettingsMastheadSubtitleSaveRequested;
             previous.MastheadInteractionRegionChanged -= OnMastheadRegionChanged;
@@ -169,8 +168,7 @@ public sealed partial class MainPage
         {
             current.CloseRequested += OnLaunchSettingsCloseRequested;
             current.ChooseGameRootRequested += OnLaunchSettingsChooseGameRootRequested;
-            current.BackgroundChooseRequested += OnLaunchSettingsBackgroundChooseRequested;
-            current.MotionBackgroundChooseRequested += OnLaunchSettingsMotionBackgroundChooseRequested;
+            current.WallpaperImportRequested += OnLaunchSettingsWallpaperImportRequested;
             current.BackgroundResetRequested += OnLaunchSettingsBackgroundResetRequested;
             current.MastheadSubtitleSaveRequested += OnLaunchSettingsMastheadSubtitleSaveRequested;
             current.MastheadInteractionRegionChanged += OnMastheadRegionChanged;
@@ -186,11 +184,10 @@ public sealed partial class MainPage
     private void OnLaunchSettingsChooseGameRootRequested(object? sender, EventArgs e) =>
         OnChooseGameRootClicked(sender ?? this, new RoutedEventArgs());
 
-    private void OnLaunchSettingsBackgroundChooseRequested(object? sender, EventArgs e) =>
-        OnChooseBackgroundClicked(sender ?? this, new RoutedEventArgs());
-
-    private void OnLaunchSettingsMotionBackgroundChooseRequested(object? sender, EventArgs e) =>
-        OnChooseMotionBackgroundClicked(sender ?? this, new RoutedEventArgs());
+    private async void OnLaunchSettingsWallpaperImportRequested(
+        object? sender,
+        WallpaperImportRequestedEventArgs e) =>
+        await ChooseWallpaperAsync(e.Mode);
 
     private async void OnLaunchSettingsMastheadSubtitleSaveRequested(
         object? sender,

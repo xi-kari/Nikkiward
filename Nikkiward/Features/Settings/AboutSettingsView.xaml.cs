@@ -21,7 +21,15 @@ public sealed partial class AboutSettingsView : UserControl
     private const float AuthorCardHeight = 564f;
     private const float AuthorPatternAngle = -20f;
 
-    private static readonly Color[] AuthorPatternColors =
+    private static readonly Color[] AuthorPatternColorsLight =
+    [
+        Color.FromArgb(24, 101, 91, 111),
+        Color.FromArgb(22, 111, 104, 120),
+        Color.FromArgb(20, 131, 112, 125),
+        Color.FromArgb(18, 145, 121, 90),
+    ];
+
+    private static readonly Color[] AuthorPatternColorsDark =
     [
         Color.FromArgb(25, 122, 225, 255),
         Color.FromArgb(24, 183, 159, 255),
@@ -128,10 +136,10 @@ public sealed partial class AboutSettingsView : UserControl
         var pointer = new Vector2(_authorPointer.X * scaleX, _authorPointer.Y * scaleY);
         if (_authorStrength > 0.001d)
         {
-            DrawAuthorGlare(sender, args.DrawingSession, pointer, width, height);
+            DrawAuthorGlare(sender, args.DrawingSession, pointer, width, height, sender.ActualTheme);
         }
 
-        DrawAuthorPattern(sender, args.DrawingSession, pointer, width, height);
+        DrawAuthorPattern(sender, args.DrawingSession, pointer, width, height, sender.ActualTheme);
     }
 
     private void DrawAuthorGlare(
@@ -139,13 +147,19 @@ public sealed partial class AboutSettingsView : UserControl
         CanvasDrawingSession drawingSession,
         Vector2 pointer,
         float width,
-        float height)
+        float height,
+        ElementTheme theme)
     {
         var radius = Math.Clamp(Math.Min(width, height) * 0.42f, 105f, 170f);
+        var isDark = theme == ElementTheme.Dark;
         using var glareBrush = new CanvasRadialGradientBrush(
             resourceCreator,
-            Color.FromArgb(34, 222, 241, 255),
-            Color.FromArgb(0, 169, 135, 255))
+            isDark
+                ? Color.FromArgb(34, 222, 241, 255)
+                : Color.FromArgb(42, 157, 130, 190),
+            isDark
+                ? Color.FromArgb(0, 169, 135, 255)
+                : Color.FromArgb(0, 92, 145, 125))
         {
             Center = pointer,
             RadiusX = radius * 1.12f,
@@ -164,7 +178,8 @@ public sealed partial class AboutSettingsView : UserControl
         CanvasDrawingSession drawingSession,
         Vector2 pointer,
         float width,
-        float height)
+        float height,
+        ElementTheme theme)
     {
         var center = new Vector2(width / 2f, height / 2f);
         var rotation = Matrix3x2.CreateRotation(
@@ -177,13 +192,45 @@ public sealed partial class AboutSettingsView : UserControl
 
         var patternPointer = Vector2.Transform(pointer, inverseRotation);
         var radius = Math.Clamp(Math.Min(width, height) * 0.42f, 105f, 170f);
+        var isDark = theme == ElementTheme.Dark;
+        var patternColors = isDark ? AuthorPatternColorsDark : AuthorPatternColorsLight;
         var stops = new CanvasGradientStop[]
         {
-            new() { Position = 0f, Color = Color.FromArgb(242, 244, 255, 255) },
-            new() { Position = 0.20f, Color = Color.FromArgb(224, 126, 222, 255) },
-            new() { Position = 0.46f, Color = Color.FromArgb(190, 180, 145, 255) },
-            new() { Position = 0.72f, Color = Color.FromArgb(92, 255, 170, 219) },
-            new() { Position = 1f, Color = Color.FromArgb(0, 255, 170, 219) },
+            new()
+            {
+                Position = 0f,
+                Color = isDark
+                    ? Color.FromArgb(242, 244, 255, 255)
+                    : Color.FromArgb(150, 210, 198, 218),
+            },
+            new()
+            {
+                Position = 0.20f,
+                Color = isDark
+                    ? Color.FromArgb(224, 126, 222, 255)
+                    : Color.FromArgb(120, 162, 137, 171),
+            },
+            new()
+            {
+                Position = 0.46f,
+                Color = isDark
+                    ? Color.FromArgb(190, 180, 145, 255)
+                    : Color.FromArgb(90, 137, 151, 129),
+            },
+            new()
+            {
+                Position = 0.72f,
+                Color = isDark
+                    ? Color.FromArgb(92, 255, 170, 219)
+                    : Color.FromArgb(48, 176, 144, 159),
+            },
+            new()
+            {
+                Position = 1f,
+                Color = isDark
+                    ? Color.FromArgb(0, 255, 170, 219)
+                    : Color.FromArgb(0, 176, 144, 159),
+            },
         };
         using var shineBrush = new CanvasRadialGradientBrush(resourceCreator, stops)
         {
@@ -212,7 +259,7 @@ public sealed partial class AboutSettingsView : UserControl
                     drawingSession.DrawText(
                         "Xikari",
                         position,
-                        AuthorPatternColors[(row + column) % AuthorPatternColors.Length],
+                        patternColors[(row + column) % patternColors.Length],
                         _authorPatternFormat);
                     if (_authorStrength > 0.001d)
                     {
@@ -401,15 +448,21 @@ public sealed partial class AboutSettingsView : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        ActualThemeChanged -= OnAuthorCardThemeChanged;
+        ActualThemeChanged += OnAuthorCardThemeChanged;
         ApplyAuthorProjection();
         AuthorHologramCanvas.Invalidate();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        ActualThemeChanged -= OnAuthorCardThemeChanged;
         _authorPointerNormalized = Vector2.Zero;
         _authorStrength = 0d;
         _authorPointer = new Vector2(AuthorCardWidth / 2f, AuthorCardHeight / 2f);
         _updateCancellation?.Cancel();
     }
+
+    private void OnAuthorCardThemeChanged(FrameworkElement sender, object args) =>
+        AuthorHologramCanvas.Invalidate();
 }

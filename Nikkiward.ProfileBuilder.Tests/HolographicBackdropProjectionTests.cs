@@ -6,6 +6,7 @@ internal static class HolographicBackdropProjectionTests
     [
         ("holographic layout fills compatible aspect ratios", CompatibleAspectUsesFill),
         ("holographic layout preserves a near-matching portrait", PortraitAspectUsesContain),
+        ("square Wallpaper preview drives a square card", SquarePreviewDrivesSquareCard),
         ("holographic layout contains extreme aspect ratios", ExtremeAspectUsesContain),
         ("holographic layout handles missing source dimensions", MissingSourceUsesViewport),
         ("holographic pointer projection clamps and rejects invalid input", PointerProjectionIsBounded),
@@ -52,6 +53,22 @@ internal static class HolographicBackdropProjectionTests
         return Task.CompletedTask;
     }
 
+    private static Task SquarePreviewDrivesSquareCard()
+    {
+        var layout = HolographicBackdropProjection.ProjectLayout(
+            1024,
+            1024,
+            2032,
+            1143);
+
+        Assert(layout.IsValid, "square preview layout should be valid");
+        AssertEqual(StillArtworkFitMode.Contain, layout.FitMode, "square preview fit mode");
+        AssertNear(1143, layout.Width, "square preview width");
+        AssertNear(1143, layout.Height, "square preview height");
+        AssertNear(1, layout.SourceRetention, "square preview retention");
+        return Task.CompletedTask;
+    }
+
     private static Task MissingSourceUsesViewport()
     {
         var layout = HolographicBackdropProjection.ProjectLayout(0, 0, 640, 360);
@@ -85,6 +102,16 @@ internal static class HolographicBackdropProjectionTests
             "Nikkiward",
             "Controls",
             "HolographicBackdropOverlay.cs"));
+        var backdrop = File.ReadAllText(Path.Combine(
+            FindWorkspaceRoot(),
+            "Nikkiward",
+            "Features",
+            "Background",
+            "ArtBackdropView.xaml.cs"));
+        var appearance = File.ReadAllText(Path.Combine(
+            FindWorkspaceRoot(),
+            "Nikkiward",
+            "MainPage.Appearance.cs"));
 
         AssertContains(code, "ResetVisualState();", "unload reset owner");
         AssertContains(code, "_pointerActive = false;", "pointer reset");
@@ -94,6 +121,25 @@ internal static class HolographicBackdropProjectionTests
         AssertContains(code, "Scale = Vector3.One;", "scale reset");
         AssertContains(code, "Translation = Vector3.Zero;", "translation reset");
         AssertContains(code, "_animationTimer.Tick -= OnAnimationTick;", "timer event release");
+        AssertContains(
+            backdrop,
+            "ArtSharpHost.Projection = _stillArtProjection;",
+            "shared card projection owner");
+        Assert(
+            !backdrop.Contains("ArtSharp.Projection = _stillArtProjection;", StringComparison.Ordinal),
+            "static artwork must not own a projection that excludes the live Wallpaper Engine frame");
+        AssertContains(
+            backdrop,
+            "CaptureStillSourceDimensions(ArtSharp.Source);",
+            "preview dimension capture");
+        AssertContains(
+            backdrop,
+            "var target = _wallpaperEnginePresentation == WallpaperEnginePresentation.HolographicCard",
+            "card capture bounds target");
+        AssertContains(
+            appearance,
+            "SetCurrentBackgroundSource(previewPath);",
+            "Wallpaper preview source assignment");
         return Task.CompletedTask;
     }
 

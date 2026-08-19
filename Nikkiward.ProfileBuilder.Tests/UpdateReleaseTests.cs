@@ -109,7 +109,7 @@ internal static class UpdateReleaseTests
         var project = XDocument.Load(projectPath);
         var contentItems = project.Descendants("Content").ToArray();
         var projectVersion = project.Descendants("Version").Single().Value.Trim();
-        AssertEqual("0.1.0-preview.3", projectVersion, "preview release version");
+        AssertEqual("0.1.0-preview.4", projectVersion, "preview release version");
 
         var avatar = contentItems.SingleOrDefault(item =>
             string.Equals((string?)item.Attribute("Update"), "Assets\\XikariAvatar.jpg", StringComparison.Ordinal));
@@ -126,6 +126,7 @@ internal static class UpdateReleaseTests
         foreach (var requiredAsset in new[]
         {
             "Assets\\NikkiDefaultBackgroundBlur.jpg",
+            "Assets\\NikkiPresetBackground2.jpg",
             "Assets\\NikkiGameIcon.png",
         })
         {
@@ -199,6 +200,7 @@ internal static class UpdateReleaseTests
         AssertContains(payloadValidator, "48A54DA85DA2570AAE87F76F0D773A47DD01011ACE7AFE66AABA831FACD2E069", "external gallery hash block");
         AssertContains(payloadValidator, "DefaultFavorites\\01.jpg", "default favorite payload gate");
         AssertContains(payloadValidator, "Assets\\NikkiDefaultBackgroundBlur.jpg", "blur asset gate");
+        AssertContains(payloadValidator, "Assets\\NikkiPresetBackground2.jpg", "preset background asset gate");
         AssertContains(payloadValidator, "Assets\\NikkiGameIcon.png", "game icon gate");
         AssertContains(payloadValidator, "runtimes\\win-x64\\native\\nuan5_decryption.dll", "native dependency gate");
         AssertContains(payloadValidator, "ProtectedFavorites", "protected favorites rejection gate");
@@ -363,6 +365,7 @@ internal static class UpdateReleaseTests
         {
             "Assets\\NikkiwardIcon.ico",
             "Assets\\NikkiDefaultBackground.jpg",
+            "Assets\\NikkiPresetBackground2.jpg",
             "Assets\\NikkiDefaultBackgroundBlur.jpg",
             "Assets\\NikkiGameIcon.png",
             "Assets\\XikariAvatar.jpg",

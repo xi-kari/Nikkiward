@@ -26,6 +26,8 @@ internal static class AppearanceSettingsTests
         ("motion levels remain ordered and off is zero", MotionLevelsRemainOrdered),
         ("missing background projects to shipped artwork", MissingBackgroundUsesShippedArtwork),
         ("available background remains selected", AvailableBackgroundRemainsSelected),
+        ("built-in background presets bind sources and capsule styles", BuiltInBackgroundPresetsBindSourcesAndStyles),
+        ("built-in background sources remain selectable", BuiltInBackgroundSourcesRemainSelectable),
     ];
 
     private static Task DefaultsTargetSchema6()
@@ -34,7 +36,7 @@ internal static class AppearanceSettingsTests
         var settings = userSettings.Appearance;
 
         AssertEqual(7, UserSettings.CurrentSchemaVersion, "schema version");
-        AssertEqual(ThemeMode.FollowArtwork, settings.ThemeMode, "theme mode");
+        AssertEqual(ThemeMode.WarmDark, settings.ThemeMode, "theme mode");
         AssertEqual(AccentColorMode.Adaptive, settings.AccentMode, "accent mode");
         AssertEqual(FixedAccentColor.Blush, settings.FixedAccent, "fixed accent");
         Assert(settings.CustomAccentArgb is null, "custom accent should be absent");
@@ -53,6 +55,13 @@ internal static class AppearanceSettingsTests
         Assert(settings.Background.HolographicCardEnabled, "holographic card should be enabled");
         Assert(!settings.Background.MotionEnabled, "motion should be disabled by default");
         Assert(settings.Background.MotionSource is null, "motion source should be absent");
+        AssertEqual(
+            WallpaperEnginePresentation.None,
+            settings.Background.WallpaperEnginePresentation,
+            "Wallpaper Engine presentation should be disabled by default");
+        Assert(
+            settings.Background.WallpaperEnginePackageSource is null,
+            "Wallpaper Engine package source should be absent");
         AssertEqual(30, settings.Background.MotionFpsCap, "motion FPS cap");
         Assert(!settings.Background.UseLiveBlur, "live blur should be disabled by default");
         AssertEqual(1d, settings.Background.GlassIntensity, "glass intensity");
@@ -526,6 +535,81 @@ internal static class AppearanceSettingsTests
         Assert(projection.CarouselEnabled, "carousel projection");
         AssertEqual(30, projection.CarouselIntervalMinutes, "carousel interval");
         Assert(!projection.ParallaxEnabled, "parallax preference");
+        return Task.CompletedTask;
+    }
+
+    private static Task BuiltInBackgroundPresetsBindSourcesAndStyles()
+    {
+        AssertEqual(2, AppearanceBackgroundPresets.All.Count, "preset count");
+        AssertEqual(
+            AppearanceBackgroundPresets.Preset1Source,
+            AppearanceBackgroundPresets.All[0].Source,
+            "preset 1 source");
+        AssertEqual(
+            LauncherCapsuleStyle.Ocean,
+            AppearanceBackgroundPresets.All[0].CapsuleStyle,
+            "preset 1 capsule style");
+        AssertEqual(
+            ThemeMode.WarmDark,
+            AppearanceBackgroundPresets.All[0].SurfaceThemeMode,
+            "preset 1 surface theme");
+        AssertEqual(
+            AppearanceBackgroundPresets.Preset2Source,
+            AppearanceBackgroundPresets.All[1].Source,
+            "preset 2 source");
+        AssertEqual(
+            LauncherCapsuleStyle.Plus,
+            AppearanceBackgroundPresets.All[1].CapsuleStyle,
+            "preset 2 capsule style");
+        AssertEqual(
+            ThemeMode.WarmLight,
+            AppearanceBackgroundPresets.All[1].SurfaceThemeMode,
+            "preset 2 surface theme");
+        AssertEqual(
+            AppearanceProjector.BuiltInBackgroundSource,
+            AppearanceBackgroundPresets.Preset1Source,
+            "default source alias");
+        return Task.CompletedTask;
+    }
+
+    private static Task BuiltInBackgroundSourcesRemainSelectable()
+    {
+        var second = AppearanceProjector.ProjectBackground(
+            new BackgroundArtSettings
+            {
+                SelectedSource = AppearanceBackgroundPresets.Preset2Source,
+            },
+            []);
+        AssertEqual(
+            AppearanceBackgroundPresets.Preset2Source,
+            second.Source,
+            "preset 2 projection source");
+        Assert(!second.UsesFallback, "preset 2 should not use fallback");
+
+        var unknown = AppearanceProjector.ProjectBackground(
+            new BackgroundArtSettings
+            {
+                SelectedSource = "ms-appx:///Assets/Unknown.jpg",
+            },
+            ["ms-appx:///Assets/Unknown.jpg"]);
+        AssertEqual(
+            AppearanceProjector.BuiltInBackgroundSource,
+            unknown.Source,
+            "unknown app resource fallback");
+        Assert(unknown.UsesFallback, "unknown app resource should use fallback");
+
+        var manualPresetCarousel = AppearanceProjector.ProjectBackground(
+            new BackgroundArtSettings
+            {
+                CarouselEnabled = true,
+                CarouselSources =
+                [
+                    AppearanceBackgroundPresets.Preset1Source,
+                    AppearanceBackgroundPresets.Preset2Source,
+                ],
+            },
+            []);
+        Assert(!manualPresetCarousel.CarouselEnabled, "built-in presets are not carousel sources");
         return Task.CompletedTask;
     }
 

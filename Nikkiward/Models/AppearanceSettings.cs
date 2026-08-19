@@ -28,6 +28,13 @@ public enum AppearanceMotionMode
     Off,
 }
 
+public enum WallpaperEnginePresentation
+{
+    None,
+    HolographicCard,
+    MotionBackdrop,
+}
+
 public enum InterfaceDensity
 {
     Compact,
@@ -55,7 +62,7 @@ public sealed record AppearanceSettings
 
     public const string DefaultLauncherMastheadSubtitle = "无限暖暖启动！";
 
-    public ThemeMode ThemeMode { get; init; } = ThemeMode.FollowArtwork;
+    public ThemeMode ThemeMode { get; init; } = ThemeMode.WarmDark;
 
     public BackgroundArtSettings Background { get; init; } = new();
 
@@ -106,6 +113,10 @@ public sealed record BackgroundArtSettings
 
     public string? MotionSource { get; init; }
 
+    public WallpaperEnginePresentation WallpaperEnginePresentation { get; init; }
+
+    public string? WallpaperEnginePackageSource { get; init; }
+
     public int MotionFpsCap { get; init; } = 30;
 
     public bool UseLiveBlur { get; init; }
@@ -115,6 +126,64 @@ public sealed record BackgroundArtSettings
     public bool MotionPanEnabled { get; init; }
 
     public double MotionZoom { get; init; } = 1.0;
+}
+
+public readonly record struct AppearanceBackgroundPreset(
+    string Id,
+    string Title,
+    string Source,
+    LauncherCapsuleStyle CapsuleStyle,
+    ThemeMode? SurfaceThemeMode);
+
+public static class AppearanceBackgroundPresets
+{
+    public const string Preset1Id = "background1";
+
+    public const string Preset2Id = "background2";
+
+    public const string Preset1Source =
+        "ms-appx:///Assets/NikkiDefaultBackground.jpg";
+
+    public const string Preset2Source =
+        "ms-appx:///Assets/NikkiPresetBackground2.jpg";
+
+    public static IReadOnlyList<AppearanceBackgroundPreset> All { get; } =
+    [
+        new(
+            Preset1Id,
+            "默认预设背景 1",
+            Preset1Source,
+            LauncherCapsuleStyle.Ocean,
+            ThemeMode.WarmDark),
+        new(
+            Preset2Id,
+            "默认预设背景 2",
+            Preset2Source,
+            LauncherCapsuleStyle.Plus,
+            ThemeMode.WarmLight),
+    ];
+
+    public static bool IsBuiltInSource(string? source) =>
+        string.Equals(source, Preset1Source, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(source, Preset2Source, StringComparison.OrdinalIgnoreCase);
+
+    public static bool TryGet(string? id, out AppearanceBackgroundPreset preset)
+    {
+        if (string.Equals(id, Preset1Id, StringComparison.Ordinal))
+        {
+            preset = All[0];
+            return true;
+        }
+
+        if (string.Equals(id, Preset2Id, StringComparison.Ordinal))
+        {
+            preset = All[1];
+            return true;
+        }
+
+        preset = default;
+        return false;
+    }
 }
 
 public readonly record struct AccentSwatch(
@@ -212,7 +281,10 @@ public sealed record BackgroundProjection
 public static class AppearanceProjector
 {
     public const string BuiltInBackgroundSource =
-        "ms-appx:///Assets/NikkiDefaultBackground.jpg";
+        AppearanceBackgroundPresets.Preset1Source;
+
+    public const string BuiltInBackgroundPreset2Source =
+        AppearanceBackgroundPresets.Preset2Source;
 
     public const string BuiltInBlurredBackgroundSource =
         "ms-appx:///Assets/NikkiDefaultBackgroundBlur.jpg";
@@ -276,13 +348,20 @@ public static class AppearanceProjector
                 .Select(source => source!) ?? [],
             StringComparer.OrdinalIgnoreCase);
 
+        bool IsAvailableCustomSource(string source) =>
+            !source.StartsWith("ms-appx:///", StringComparison.OrdinalIgnoreCase) &&
+            available.Contains(source);
+
         var selected = NormaliseSource(settings?.SelectedSource);
-        if (selected is null || !available.Contains(selected))
+        var hasSelectedSource = selected is not null &&
+            (AppearanceBackgroundPresets.IsBuiltInSource(selected) ||
+             IsAvailableCustomSource(selected));
+        if (!hasSelectedSource)
         {
             selected = settings?.CarouselSources?
                 .Select(NormaliseSource)
                 .FirstOrDefault(source =>
-                    source is not null && available.Contains(source));
+                    source is not null && IsAvailableCustomSource(source));
         }
 
         var usesFallback = selected is null;
@@ -296,7 +375,7 @@ public static class AppearanceProjector
 
         var availableCarouselCount = settings?.CarouselSources?
             .Select(NormaliseSource)
-            .Where(source => source is not null && available.Contains(source))
+            .Where(source => source is not null && IsAvailableCustomSource(source))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count() ?? 0;
 
@@ -330,6 +409,9 @@ public static class AppearanceSettingsValidator
 
         var background = settings.Background ??
             throw new ArgumentException("Background settings are required.", nameof(settings));
+        EnsureDefined(
+            background.WallpaperEnginePresentation,
+            nameof(background.WallpaperEnginePresentation));
         if (background.CarouselSources is null)
         {
             throw new ArgumentException("Carousel sources are required.", nameof(settings));
@@ -370,6 +452,11 @@ public static class AppearanceSettingsValidator
             .ToArray();
         var normalizedMotionSource = AppearanceProjector.NormaliseSource(background.MotionSource);
         var normalizedMotionEnabled = background.MotionEnabled && normalizedMotionSource is not null;
+        var normalizedPackageSource = AppearanceProjector.NormaliseSource(
+            background.WallpaperEnginePackageSource);
+        var normalizedPackagePresentation = normalizedPackageSource is null
+            ? WallpaperEnginePresentation.None
+            : background.WallpaperEnginePresentation;
         var normalizedBackground = background with
         {
             SelectedSource = AppearanceProjector.NormaliseSource(background.SelectedSource),
@@ -377,6 +464,8 @@ public static class AppearanceSettingsValidator
             CarouselEnabled = background.CarouselEnabled && !normalizedMotionEnabled,
             MotionEnabled = normalizedMotionEnabled,
             MotionSource = normalizedMotionSource,
+            WallpaperEnginePresentation = normalizedPackagePresentation,
+            WallpaperEnginePackageSource = normalizedPackageSource,
         };
 
         return settings with

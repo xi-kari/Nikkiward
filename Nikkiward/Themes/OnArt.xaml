@@ -41,6 +41,26 @@
 
             <SolidColorBrush x:Key="OnArtStrokeBrush" Color="#33241E1B" />
 
+            <SolidColorBrush x:Key="AuthorCardSurfaceBrush" Color="#B8E7E2EB" />
+            <LinearGradientBrush x:Key="AuthorCardImageTintBrush" StartPoint="0.5,0" EndPoint="0.5,1">
+                <GradientStop Offset="0" Color="#8AF6F1EA" />
+                <GradientStop Offset="0.46" Color="#18F6F1EA" />
+                <GradientStop Offset="1" Color="#7AF6F1EA" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="AuthorCardBottomScrimBrush" StartPoint="0.5,0" EndPoint="0.5,1">
+                <GradientStop Offset="0" Color="#00F6F1EA" />
+                <GradientStop Offset="0.5" Color="#38F6F1EA" />
+                <GradientStop Offset="1" Color="#B8F6F1EA" />
+            </LinearGradientBrush>
+            <SolidColorBrush x:Key="AuthorCardEdgeBrush" Color="#663E3546" />
+            <SolidColorBrush x:Key="AuthorCardInnerRingBrush" Color="#24332D3A" />
+            <SolidColorBrush x:Key="AuthorCardTitleBrush" Color="#FF332D3A" />
+            <SolidColorBrush x:Key="AuthorCardMetaBrush" Color="#FF746B79" />
+            <SolidColorBrush x:Key="AuthorCardPanelBrush" Color="#CFF8F4F1" />
+            <SolidColorBrush x:Key="AuthorCardPanelEdgeBrush" Color="#663E3546" />
+            <SolidColorBrush x:Key="AuthorCardTagBrush" Color="#66FFFFFF" />
+            <SolidColorBrush x:Key="AuthorCardTagTextBrush" Color="#FF332D3A" />
+
         </ResourceDictionary>
 
         <!-- ====================== DARK: dark artwork ====================== -->
@@ -75,6 +95,26 @@
 
             <SolidColorBrush x:Key="OnArtStrokeBrush" Color="#33F7F2EA" />
 
+            <SolidColorBrush x:Key="AuthorCardSurfaceBrush" Color="#B8211D26" />
+            <LinearGradientBrush x:Key="AuthorCardImageTintBrush" StartPoint="0.5,0" EndPoint="0.5,1">
+                <GradientStop Offset="0" Color="#321F1B25" />
+                <GradientStop Offset="0.46" Color="#001F1B25" />
+                <GradientStop Offset="1" Color="#7A211D26" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="AuthorCardBottomScrimBrush" StartPoint="0.5,0" EndPoint="0.5,1">
+                <GradientStop Offset="0" Color="#00211D26" />
+                <GradientStop Offset="0.5" Color="#38211D26" />
+                <GradientStop Offset="1" Color="#B8211D26" />
+            </LinearGradientBrush>
+            <SolidColorBrush x:Key="AuthorCardEdgeBrush" Color="#66E7D9ED" />
+            <SolidColorBrush x:Key="AuthorCardInnerRingBrush" Color="#24FFFFFF" />
+            <SolidColorBrush x:Key="AuthorCardTitleBrush" Color="#FFF8F1F6" />
+            <SolidColorBrush x:Key="AuthorCardMetaBrush" Color="#D1C8BBC8" />
+            <SolidColorBrush x:Key="AuthorCardPanelBrush" Color="#B82F2937" />
+            <SolidColorBrush x:Key="AuthorCardPanelEdgeBrush" Color="#66E7D9ED" />
+            <SolidColorBrush x:Key="AuthorCardTagBrush" Color="#42FFFFFF" />
+            <SolidColorBrush x:Key="AuthorCardTagTextBrush" Color="#FFF8F1F6" />
+
         </ResourceDictionary>
 
         <!-- ========================= HIGH CONTRAST ========================= -->
@@ -97,6 +137,18 @@
             <SolidColorBrush x:Key="OnArtPlateStrongBrush" Color="{ThemeResource SystemColorWindowColor}" />
 
             <SolidColorBrush x:Key="OnArtStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+
+            <SolidColorBrush x:Key="AuthorCardSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="AuthorCardImageTintBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="AuthorCardBottomScrimBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="AuthorCardEdgeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="AuthorCardInnerRingBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="AuthorCardTitleBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="AuthorCardMetaBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="AuthorCardPanelBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="AuthorCardPanelEdgeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="AuthorCardTagBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="AuthorCardTagTextBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
 
         </ResourceDictionary>
 

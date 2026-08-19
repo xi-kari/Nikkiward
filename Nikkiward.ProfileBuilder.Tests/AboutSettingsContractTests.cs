@@ -4,6 +4,7 @@ internal static class AboutSettingsContractTests
     [
         ("settings keeps About in the navigation footer", TestAboutNavigationContract),
         ("About exposes version update links and disclaimer", TestAboutViewContract),
+        ("About author card follows all theme resource dictionaries", TestAuthorCardThemeContract),
     ];
 
     private static Task TestAboutNavigationContract()
@@ -18,6 +19,75 @@ internal static class AboutSettingsContractTests
         AssertContains(xaml, "Tag=\"about\"", "About navigation tag");
         AssertContains(code, "SettingsDestination.About", "About destination branch");
         AssertContains(context, "About,", "About destination enum");
+        return Task.CompletedTask;
+    }
+
+    private static Task TestAuthorCardThemeContract()
+    {
+        var root = FindWorkspaceRoot();
+        var xaml = File.ReadAllText(Path.Combine(root, "Nikkiward", "Features", "Settings", "AboutSettingsView.xaml"));
+        var themePath = Path.Combine(root, "Nikkiward", "Themes", "OnArt.xaml");
+        var document = System.Xml.Linq.XDocument.Load(themePath);
+        var xNamespace = (System.Xml.Linq.XNamespace)"http://schemas.microsoft.com/winfx/2006/xaml";
+        var presentationNamespace = (System.Xml.Linq.XNamespace)"http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        var keys = new[]
+        {
+            "AuthorCardSurfaceBrush",
+            "AuthorCardImageTintBrush",
+            "AuthorCardBottomScrimBrush",
+            "AuthorCardEdgeBrush",
+            "AuthorCardInnerRingBrush",
+            "AuthorCardTitleBrush",
+            "AuthorCardMetaBrush",
+            "AuthorCardPanelBrush",
+            "AuthorCardPanelEdgeBrush",
+            "AuthorCardTagBrush",
+            "AuthorCardTagTextBrush",
+        };
+
+        foreach (var themeName in new[] { "Light", "Dark", "HighContrast" })
+        {
+            var theme = document
+                .Descendants(presentationNamespace + "ResourceDictionary")
+                .Single(element => string.Equals(
+                    (string?)element.Attribute(xNamespace + "Key"),
+                    themeName,
+                    StringComparison.Ordinal));
+            foreach (var key in keys)
+            {
+                Assert(
+                    theme.Descendants().Any(element => string.Equals(
+                        (string?)element.Attribute(xNamespace + "Key"),
+                        key,
+                        StringComparison.Ordinal)),
+                    $"{themeName} author card resource: {key}");
+            }
+        }
+
+        foreach (var legacyColor in new[]
+        {
+            "#FF090A0D",
+            "#52FFFFFF",
+            "#2407080B",
+            "#B8000000",
+            "#8A11141B",
+            "#42FFFFFF",
+            "#FFF8FAFF",
+            "#D9E2E8F4",
+            "#FFF7F9FD",
+            "#C9D8DFEA",
+            "#24FFFFFF",
+            "#EAF7F9FD",
+        })
+        {
+            Assert(!xaml.Contains(legacyColor, StringComparison.Ordinal), $"legacy author card color removed: {legacyColor}");
+        }
+
+        foreach (var key in keys)
+        {
+            AssertContains(xaml, $"{{ThemeResource {key}}}", $"author card theme binding: {key}");
+        }
+
         return Task.CompletedTask;
     }
 
@@ -47,6 +117,10 @@ internal static class AboutSettingsContractTests
         Assert(!code.Contains("CompositionTarget.Rendering", StringComparison.Ordinal), "author card must not own a frame loop");
         AssertContains(code, "CanvasRadialGradientBrush", "pointer-centered radial shine");
         AssertContains(code, "\"Xikari\",", "Xikari glyph mask");
+        AssertContains(code, "AuthorPatternColorsLight", "light theme letter palette");
+        AssertContains(code, "AuthorPatternColorsDark", "dark theme letter palette");
+        AssertContains(code, "sender.ActualTheme", "letter palette follows the active theme");
+        AssertContains(code, "ActualThemeChanged += OnAuthorCardThemeChanged", "theme changes redraw the letter canvas");
         AssertContains(code, "patternDrift", "pointer-following wordmark pattern");
         Assert(!code.Contains("DispatcherQueueTimer", StringComparison.Ordinal), "author card must not run a repeating timer");
         Assert(!code.Contains("StartAnimation", StringComparison.Ordinal), "author card must not start Composition animation");

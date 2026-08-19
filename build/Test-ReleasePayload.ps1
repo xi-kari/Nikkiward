@@ -120,6 +120,7 @@ if ($unexpectedExecutablePaths.Count -gt 0) {
 
 $allowedMediaPaths = @(
     'Assets\NikkiDefaultBackground.jpg',
+    'Assets\NikkiPresetBackground2.jpg',
     'Assets\NikkiDefaultBackgroundBlur.jpg',
     'Assets\NikkiGameIcon.png',
     'Assets\NikkiwardIcon.ico',
@@ -160,6 +161,7 @@ if ($unexpectedBinaryPaths.Count -gt 0) {
 
 $requiredHashes = [ordered]@{
     'Assets\NikkiDefaultBackground.jpg' = '79E98642EC260C9CA8F4A89A12D8294B0474B78658DAB6DE330BFCB192514880'
+    'Assets\NikkiPresetBackground2.jpg' = '7462F1C59F5DFAF23A850ADBF25D81C3163C37187735052249A690F9AADEB68B'
     'Assets\NikkiDefaultBackgroundBlur.jpg' = 'E4279123900181ED11C0C4249EFA1A881E20D4AF6FEF29D283D314281DBD9108'
     'Assets\NikkiGameIcon.png' = '58F6FF748453DF0509C050D35FF1B109D96DFCBB2910F8076FA604E1D1A4E103'
     'Assets\NikkiwardIcon.ico' = '984927AC315620ED7F3668B157C5CB11D5127C4E19217CAADEAC17B7EC3280BE'

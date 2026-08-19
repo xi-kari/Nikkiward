@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
+using Nikkiward.Features.Background;
 using Nikkiward.Models;
 using Nikkiward.Features.Shell;
 using Nikkiward.ViewModels;
@@ -22,8 +23,7 @@ public sealed partial class LaunchSettingsPage : PageBase
 
     public event EventHandler? CloseRequested;
     public event EventHandler? ChooseGameRootRequested;
-    public event EventHandler? BackgroundChooseRequested;
-    public event EventHandler? MotionBackgroundChooseRequested;
+    public event EventHandler<WallpaperImportRequestedEventArgs>? WallpaperImportRequested;
     public event EventHandler? BackgroundResetRequested;
     public event EventHandler<MastheadSubtitleChangedEventArgs>? MastheadSubtitleSaveRequested;
 
@@ -52,8 +52,18 @@ public sealed partial class LaunchSettingsPage : PageBase
     public void ApplyBackgroundPreview(ImageSource? source) =>
         BackgroundPreviewImage.Source = source;
 
-    public void ApplyAppearanceSettings(AppearanceSettings settings) =>
+    public void ApplyAppearanceSettings(AppearanceSettings settings)
+    {
         MastheadSubtitleBox.Text = settings.LauncherMastheadSubtitle;
+        var motionMode = settings.Background.WallpaperEnginePresentation switch
+        {
+            WallpaperEnginePresentation.MotionBackdrop => true,
+            WallpaperEnginePresentation.HolographicCard => false,
+            _ => settings.Background.MotionEnabled,
+        };
+        MotionImportModeButton.IsChecked = motionMode;
+        HolographicImportModeButton.IsChecked = !motionMode;
+    }
 
     public void ResetToBasic() =>
         ShowSection(BasicSection, BasicNavigationItem);
@@ -64,11 +74,13 @@ public sealed partial class LaunchSettingsPage : PageBase
     private void OnChooseGameRootClicked(object sender, RoutedEventArgs e) =>
         ChooseGameRootRequested?.Invoke(this, EventArgs.Empty);
 
-    private void OnChooseBackgroundClicked(object sender, RoutedEventArgs e) =>
-        BackgroundChooseRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnChooseMotionBackgroundClicked(object sender, RoutedEventArgs e) =>
-        MotionBackgroundChooseRequested?.Invoke(this, EventArgs.Empty);
+    private void OnChooseWallpaperClicked(object sender, RoutedEventArgs e) =>
+        WallpaperImportRequested?.Invoke(
+            this,
+            new WallpaperImportRequestedEventArgs(
+                MotionImportModeButton.IsChecked == true
+                    ? WallpaperImportMode.MotionBackdrop
+                    : WallpaperImportMode.HolographicCard));
 
     private void OnResetBackgroundClicked(object sender, RoutedEventArgs e) =>
         BackgroundResetRequested?.Invoke(this, EventArgs.Empty);
@@ -210,4 +222,9 @@ public sealed partial class LaunchSettingsPage : PageBase
 public sealed class MastheadSubtitleChangedEventArgs(string subtitle) : EventArgs
 {
     public string Subtitle { get; } = subtitle;
+}
+
+public sealed class WallpaperImportRequestedEventArgs(WallpaperImportMode mode) : EventArgs
+{
+    public WallpaperImportMode Mode { get; } = mode;
 }

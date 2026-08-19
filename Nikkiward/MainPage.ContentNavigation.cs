@@ -199,16 +199,21 @@ public sealed partial class MainPage
             LaunchSettingsFrame.Visibility == Visibility.Visible;
         bool overlayOpen = blockingOverlayOpen || profileOpen;
         bool launcherSurfaceVisible =
-            profilePickerOpen ||
-            (launcherOpen && !blockingOverlayOpen);
-        bool launcherSurfaceInteractive = launcherOpen && !overlayOpen;
+            launcherOpen &&
+            !blockingOverlayOpen &&
+            !profilePickerOpen;
+        bool launcherSurfaceInteractive =
+            launcherOpen &&
+            !overlayOpen &&
+            !profilePickerOpen;
 
         LauncherBackground.SetLauncherSurfaceState(
             launcherSurfaceVisible,
             launcherSurfaceInteractive);
 
         PageHostBackdrop.Visibility = Visible(pageOpen);
-        ProfileQuickSwitchHost.Visibility = Visible(launcherSurfaceVisible);
+        ProfileQuickSwitchHost.Visibility =
+            Visible(profilePickerOpen || launcherSurfaceVisible);
         if (!ViewModel.GeneralSettings.EnableProfileQuickSwitcher)
         {
             ProfileQuickSwitchHost.Visibility = Visibility.Collapsed;
@@ -263,6 +268,19 @@ public sealed partial class MainPage
         }
 
         _backdrop.AttachOnArtSurface(OnArtScrim, hosts.ToArray());
+        ApplyOnArtScrimTheme();
+    }
+
+    private void ApplyOnArtScrimTheme()
+    {
+        OnArtScrim.RequestedTheme = ViewModel.ThemeMode switch
+        {
+            ThemeMode.WarmLight => ElementTheme.Light,
+            ThemeMode.WarmDark => ElementTheme.Dark,
+            _ => _backdrop.PreferredTheme == ArtPreferredTheme.Dark
+                ? ElementTheme.Dark
+                : ElementTheme.Light,
+        };
     }
 
     /// <summary>

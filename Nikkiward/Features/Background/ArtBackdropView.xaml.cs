@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -45,6 +46,7 @@ public sealed partial class ArtBackdropView : UserControl
     private ArtBackdropService? _service;
     private Window? _hostWindow;
     private AppWindow? _hostAppWindow;
+    private MainWindow? _nativeHostWindow;
     private UIElement? _pointerRoot;
     private Vector3 _parallaxTarget;
     private Vector3 _parallaxCurrent;
@@ -70,6 +72,7 @@ public sealed partial class ArtBackdropView : UserControl
     private DispatcherTimer? _motionResampleTimer;
     private CancellationTokenSource? _motionLifetimeCancellation;
     private CancellationTokenSource? _motionPauseCancellation;
+    private CancellationTokenSource? _wallpaperEnginePauseCancellation;
     private TaskCompletionSource<bool>? _motionOpenCompletion;
     private AppearanceSettings _appearanceSettings = new();
     private bool _motionRequested;
@@ -87,6 +90,14 @@ public sealed partial class ArtBackdropView : UserControl
     private double _stillCardTiltTargetY;
     private double _stillCardTiltCurrentX;
     private double _stillCardTiltCurrentY;
+    private WallpaperEngineRuntimeHost? _wallpaperEngineHost;
+    private string? _wallpaperEnginePackageSource;
+    private WallpaperEnginePresentation _wallpaperEnginePresentation;
+    private bool _wallpaperEngineRequested;
+    private bool _wallpaperEngineStartInFlight;
+    private bool _wallpaperEngineResumePending;
+    private CancellationTokenSource? _wallpaperEngineResumeCancellation;
+    private DispatcherQueueTimer? _wallpaperEngineLayoutTimer;
 
     public ArtBackdropView()
     {
@@ -96,7 +107,7 @@ public sealed partial class ArtBackdropView : UserControl
             CenterOfRotationX = 0.5d,
             CenterOfRotationY = 0.5d,
         };
-        ArtSharp.Projection = _stillArtProjection;
+        ArtSharpHost.Projection = _stillArtProjection;
         _stillArtSource = ArtSharp.Source;
         _frameIntervalMonitor = new FrameIntervalMonitor(
             GlassCapabilities.Current.ReportLowFrameRate);
@@ -105,6 +116,7 @@ public sealed partial class ArtBackdropView : UserControl
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
         SizeChanged += OnBackdropSizeChanged;
+        ArtSharpHost.SizeChanged += OnArtSharpHostSizeChanged;
     }
 
     /// <summary>
@@ -122,9 +134,22 @@ public sealed partial class ArtBackdropView : UserControl
         _hostWindow = hostWindow;
         if (_hostWindow is not null)
         {
-            _hostWindow.Activated += OnHostActivated;
             _hostAppWindow = _hostWindow.AppWindow;
             _hostAppWindow.Changed += OnHostAppWindowChanged;
+            if (_hostWindow is MainWindow nativeHostWindow)
+            {
+                _nativeHostWindow = nativeHostWindow;
+                _hostFocused = nativeHostWindow.IsForegroundActive;
+                nativeHostWindow.ForegroundActivationChanged += OnNativeHostActivationChanged;
+            }
+            else
+            {
+                _hostWindow.Activated += OnHostActivated;
+            }
+
+            _wallpaperEngineHost = new WallpaperEngineRuntimeHost(
+                WinRT.Interop.WindowNative.GetWindowHandle(_hostWindow));
+            _wallpaperEngineHost.FrameSourceChanged += OnWallpaperEngineFrameSourceChanged;
         }
 
         ApplyBlurPlate(service.BlurredArtPath);
@@ -134,6 +159,8 @@ public sealed partial class ArtBackdropView : UserControl
     {
         StopCrossFade(promoteIncoming: true);
         StopMotion(clearSource: true);
+        CancelWallpaperEngineLayout();
+        StopWallpaperEngine();
 
         if (_service is not null)
         {
@@ -148,11 +175,25 @@ public sealed partial class ArtBackdropView : UserControl
             hostWindow.Activated -= OnHostActivated;
         }
 
+        if (_nativeHostWindow is not null)
+        {
+            var nativeHostWindow = _nativeHostWindow;
+            _nativeHostWindow = null;
+            nativeHostWindow.ForegroundActivationChanged -= OnNativeHostActivationChanged;
+        }
+
         if (_hostAppWindow is not null)
         {
             var hostAppWindow = _hostAppWindow;
             _hostAppWindow = null;
             hostAppWindow.Changed -= OnHostAppWindowChanged;
+        }
+
+        if (_wallpaperEngineHost is not null)
+        {
+            _wallpaperEngineHost.FrameSourceChanged -= OnWallpaperEngineFrameSourceChanged;
+            _wallpaperEngineHost.Dispose();
+            _wallpaperEngineHost = null;
         }
 
     }
@@ -167,6 +208,7 @@ public sealed partial class ArtBackdropView : UserControl
             _stillSourcePixelHeight = 0d;
             CaptureStillSourceDimensions(value);
             StopMotion(clearSource: true);
+            StopWallpaperEngine();
             StopCrossFade(promoteIncoming: false);
             ArtSharp.Source = value;
             HolographicOverlay.Visibility = value is null || !_holographicCardEnabled
@@ -183,6 +225,12 @@ public sealed partial class ArtBackdropView : UserControl
     {
         ArgumentNullException.ThrowIfNull(settings);
         _appearanceSettings = settings;
+        RequestedTheme = settings.ThemeMode switch
+        {
+            ThemeMode.WarmLight => ElementTheme.Light,
+            ThemeMode.WarmDark => ElementTheme.Dark,
+            _ => ElementTheme.Default,
+        };
         _motionMode = settings.Motion;
         _parallaxPreferenceEnabled = settings.Background.ParallaxEnabled;
         _holographicCardEnabled = settings.Background.HolographicCardEnabled;
@@ -231,13 +279,437 @@ public sealed partial class ArtBackdropView : UserControl
                 ? Visibility.Visible
                 : Visibility.Collapsed;
         RefreshMotionProjection();
+        if (!_launcherSurfaceActive)
+        {
+            SuspendWallpaperEngine();
+        }
+        else if (_wallpaperEngineRequested)
+        {
+            QueueWallpaperEngineResume();
+        }
     }
 
     public bool IsMotionActive => _motionRequested && _motionReady;
 
+    public bool IsWallpaperEngineActive =>
+        _wallpaperEngineRequested && _wallpaperEngineHost?.IsActive == true;
+
     public string? MotionSource => _motionDescriptor?.Source;
 
     public event EventHandler<MotionPlaybackFailedEventArgs>? MotionPlaybackFailed;
+
+    public async Task<WallpaperEngineRuntimeResult> ShowWallpaperEngineAsync(
+        string source,
+        WallpaperEnginePresentation presentation,
+        CancellationToken cancellationToken = default)
+    {
+        if (_wallpaperEngineHost is null)
+        {
+            return WallpaperEngineRuntimeResult.Failure(
+                "Wallpaper Engine 宿主尚未连接到主窗口。");
+        }
+
+        if (presentation is WallpaperEnginePresentation.None)
+        {
+            return WallpaperEngineRuntimeResult.Failure(
+                "Wallpaper Engine 展示模式无效。");
+        }
+
+        CancelWallpaperEngineResume();
+        CancelWallpaperEnginePause();
+        _wallpaperEngineResumePending = false;
+        StopMotion(clearSource: true);
+        _wallpaperEngineRequested = true;
+        _wallpaperEnginePackageSource = Path.GetFullPath(source);
+        _wallpaperEnginePresentation = presentation;
+
+        if (!CanShowWallpaperEngine())
+        {
+            if (!File.Exists(_wallpaperEnginePackageSource))
+            {
+                StopWallpaperEngine();
+                return WallpaperEngineRuntimeResult.Failure(
+                    "Wallpaper Engine 场景文件不存在。");
+            }
+
+            _wallpaperEngineResumePending = true;
+            return WallpaperEngineRuntimeResult.Success();
+        }
+
+        var bounds = GetWallpaperEngineBounds();
+        if (bounds is null)
+        {
+            StopWallpaperEngine();
+            return WallpaperEngineRuntimeResult.Failure(
+                "Wallpaper Engine 画布尚未完成布局，无法启动场景。");
+        }
+
+        WallpaperEngineRuntimeResult result;
+        try
+        {
+            result = await _wallpaperEngineHost.ShowAsync(
+                _wallpaperEnginePackageSource,
+                bounds.Value,
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            StopWallpaperEngine();
+            throw;
+        }
+        if (!result.Succeeded)
+        {
+            StopWallpaperEngine();
+            return result;
+        }
+
+        if (!_wallpaperEngineRequested ||
+            !CanShowWallpaperEngine() ||
+            !string.Equals(
+                _wallpaperEnginePackageSource,
+                Path.GetFullPath(source),
+                StringComparison.OrdinalIgnoreCase) ||
+            _wallpaperEnginePresentation != presentation)
+        {
+            _wallpaperEngineHost.Stop();
+            ClearWallpaperEngineFrames();
+            RestoreWallpaperEngineLayers();
+            return WallpaperEngineRuntimeResult.Success();
+        }
+
+        ApplyWallpaperEngineFrame();
+        UpdateWallpaperEngineVisibility();
+        return result;
+    }
+
+    public void StopWallpaperEngine()
+    {
+        CancelWallpaperEngineResume();
+        CancelWallpaperEnginePause();
+        CancelWallpaperEngineLayout();
+        _wallpaperEngineRequested = false;
+        _wallpaperEngineResumePending = false;
+        _wallpaperEnginePackageSource = null;
+        _wallpaperEnginePresentation = WallpaperEnginePresentation.None;
+        _wallpaperEngineHost?.Stop();
+        ClearWallpaperEngineFrames();
+        RestoreWallpaperEngineLayers();
+    }
+
+    private void SuspendWallpaperEngine()
+    {
+        if (!_wallpaperEngineRequested)
+        {
+            return;
+        }
+
+        CancelWallpaperEngineLayout();
+        CancelWallpaperEngineResume();
+        CancelWallpaperEnginePause();
+        _wallpaperEngineResumePending = false;
+        _wallpaperEngineHost?.Stop();
+        ClearWallpaperEngineFrames();
+        RestoreWallpaperEngineLayers();
+    }
+
+    private void QueueWallpaperEngineResume()
+    {
+        if (!_wallpaperEngineRequested ||
+            _wallpaperEngineHost is null ||
+            !CanShowWallpaperEngine())
+        {
+            return;
+        }
+
+        if (_wallpaperEngineStartInFlight)
+        {
+            _wallpaperEngineResumePending = true;
+            return;
+        }
+
+        if (_wallpaperEngineHost.IsActive)
+        {
+            QueueWallpaperEngineLayout();
+            return;
+        }
+
+        _wallpaperEngineResumePending = false;
+        _wallpaperEngineStartInFlight = true;
+        var cancellation = new CancellationTokenSource();
+        _wallpaperEngineResumeCancellation = cancellation;
+        _ = ResumeWallpaperEngineAsync(cancellation);
+    }
+
+    private async Task ResumeWallpaperEngineAsync(
+        CancellationTokenSource cancellationSource)
+    {
+        try
+        {
+            var source = _wallpaperEnginePackageSource;
+            var presentation = _wallpaperEnginePresentation;
+            var host = _wallpaperEngineHost;
+            var bounds = GetWallpaperEngineBounds();
+            if (host is null ||
+                source is null ||
+                bounds is null ||
+                presentation is WallpaperEnginePresentation.None ||
+                !CanShowWallpaperEngine())
+            {
+                return;
+            }
+
+            var result = await host.ShowAsync(
+                source,
+                bounds.Value,
+                cancellationSource.Token);
+            var isCurrentRequest =
+                ReferenceEquals(host, _wallpaperEngineHost) &&
+                _wallpaperEngineRequested &&
+                CanShowWallpaperEngine() &&
+                _wallpaperEnginePresentation == presentation &&
+                string.Equals(
+                    _wallpaperEnginePackageSource,
+                    source,
+                    StringComparison.OrdinalIgnoreCase);
+            if (result.Succeeded && isCurrentRequest)
+            {
+                ApplyWallpaperEngineFrame();
+                UpdateWallpaperEngineVisibility();
+            }
+            else if (result.Succeeded &&
+                ReferenceEquals(host, _wallpaperEngineHost) &&
+                _wallpaperEngineRequested &&
+                _wallpaperEnginePresentation == presentation &&
+                string.Equals(
+                    _wallpaperEnginePackageSource,
+                    source,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                host.Stop();
+                ClearWallpaperEngineFrames();
+                RestoreWallpaperEngineLayers();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            _wallpaperEngineStartInFlight = false;
+            if (ReferenceEquals(
+                    _wallpaperEngineResumeCancellation,
+                    cancellationSource))
+            {
+                _wallpaperEngineResumeCancellation = null;
+            }
+
+            cancellationSource.Dispose();
+
+            if (_wallpaperEngineResumePending &&
+                _wallpaperEngineRequested)
+            {
+                _wallpaperEngineResumePending = false;
+                QueueWallpaperEngineResume();
+            }
+        }
+    }
+
+    private void CancelWallpaperEngineResume()
+    {
+        var cancellation = _wallpaperEngineResumeCancellation;
+        _wallpaperEngineResumeCancellation = null;
+        cancellation?.Cancel();
+    }
+
+    private bool CanShowWallpaperEngine() =>
+        _isLoaded &&
+        _launcherSurfaceActive &&
+        _hostFocused &&
+        !_hostMinimized &&
+        _hostWindow?.AppWindow.IsVisible != false;
+
+    private WallpaperEngineHostBounds? GetWallpaperEngineBounds(
+        bool allowInactiveSurface = false)
+    {
+        var target = _wallpaperEnginePresentation == WallpaperEnginePresentation.HolographicCard
+            ? (FrameworkElement)ArtSharpHost
+            : BackdropRoot;
+        if (target.XamlRoot is null && BackdropRoot.XamlRoot is null)
+        {
+            return null;
+        }
+
+        if (allowInactiveSurface &&
+            (target.ActualWidth <= 0d || target.ActualHeight <= 0d))
+        {
+            target = BackdropRoot;
+        }
+
+        if (target.ActualWidth <= 0d || target.ActualHeight <= 0d)
+        {
+            return null;
+        }
+
+        var scale = (target.XamlRoot ?? BackdropRoot.XamlRoot)?.RasterizationScale ?? 1d;
+        return new WallpaperEngineHostBounds(
+            Math.Max(1, (int)Math.Ceiling(target.ActualWidth * scale)),
+            Math.Max(1, (int)Math.Ceiling(target.ActualHeight * scale)));
+    }
+
+    private void UpdateWallpaperEngineVisibility()
+    {
+        if (!_wallpaperEngineRequested || _wallpaperEngineHost is null)
+        {
+            return;
+        }
+
+        if (!CanShowWallpaperEngine())
+        {
+            _wallpaperEngineHost.Stop();
+            ClearWallpaperEngineFrames();
+            RestoreWallpaperEngineLayers();
+            return;
+        }
+
+        ApplyWallpaperEngineFrame();
+        var bounds = GetWallpaperEngineBounds();
+        if (bounds is not null)
+        {
+            _wallpaperEngineHost.UpdateBounds(bounds.Value);
+        }
+    }
+
+    private void UpdateWallpaperEngineLayout()
+    {
+        if (!_wallpaperEngineRequested || _wallpaperEngineHost is null)
+        {
+            return;
+        }
+
+        var bounds = GetWallpaperEngineBounds();
+        if (bounds is not null)
+        {
+            _wallpaperEngineHost.UpdateBounds(bounds.Value);
+        }
+    }
+
+    private void QueueWallpaperEngineLayout()
+    {
+        if (!_wallpaperEngineRequested || _wallpaperEngineHost is null)
+        {
+            return;
+        }
+
+        _wallpaperEngineLayoutTimer ??= CreateWallpaperEngineLayoutTimer();
+        _wallpaperEngineLayoutTimer.Stop();
+        _wallpaperEngineLayoutTimer.Start();
+    }
+
+    private DispatcherQueueTimer CreateWallpaperEngineLayoutTimer()
+    {
+        var timer = DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromMilliseconds(75);
+        timer.IsRepeating = false;
+        timer.Tick += OnWallpaperEngineLayoutTimerTick;
+        return timer;
+    }
+
+    private void OnWallpaperEngineLayoutTimerTick(
+        DispatcherQueueTimer sender,
+        object args)
+    {
+        sender.Stop();
+        UpdateWallpaperEngineLayout();
+    }
+
+    private void CancelWallpaperEngineLayout()
+    {
+        if (_wallpaperEngineLayoutTimer is null)
+        {
+            return;
+        }
+
+        _wallpaperEngineLayoutTimer.Stop();
+        _wallpaperEngineLayoutTimer.Tick -= OnWallpaperEngineLayoutTimerTick;
+        _wallpaperEngineLayoutTimer = null;
+    }
+
+    private void ApplyWallpaperEngineFrame()
+    {
+        var source = _wallpaperEngineHost?.FrameSource;
+        if (!CanShowWallpaperEngine() || source is null)
+        {
+            ClearWallpaperEngineFrames();
+            RestoreWallpaperEngineLayers();
+            return;
+        }
+
+        if (_wallpaperEnginePresentation == WallpaperEnginePresentation.MotionBackdrop)
+        {
+            WallpaperEngineBackdropFrame.Source = source;
+            WallpaperEngineBackdropFrame.Visibility = CanShowWallpaperEngine() && source is not null
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            WallpaperEngineCardFrame.Source = null;
+            WallpaperEngineCardFrame.Visibility = Visibility.Collapsed;
+            MediaFloor.Visibility = Visibility.Collapsed;
+            StaticBackdrop.Visibility = Visibility.Collapsed;
+            MotionHost.Visibility = Visibility.Collapsed;
+            ArtSharpHost.Visibility = Visibility.Collapsed;
+            HolographicOverlay.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        WallpaperEngineCardFrame.Source = source;
+        WallpaperEngineCardFrame.Visibility = CanShowWallpaperEngine() && source is not null
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        WallpaperEngineBackdropFrame.Source = null;
+        WallpaperEngineBackdropFrame.Visibility = Visibility.Collapsed;
+        MediaFloor.Visibility = Visibility.Visible;
+        StaticBackdrop.Visibility = Visibility.Visible;
+        HolographicOverlay.Visibility =
+            _holographicCardEnabled && _stillArtSource is not null
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+    }
+
+    private void ClearWallpaperEngineFrames()
+    {
+        WallpaperEngineBackdropFrame.Source = null;
+        WallpaperEngineBackdropFrame.Visibility = Visibility.Collapsed;
+        WallpaperEngineCardFrame.Source = null;
+        WallpaperEngineCardFrame.Visibility = Visibility.Collapsed;
+    }
+
+    private void RestoreWallpaperEngineLayers()
+    {
+        MediaFloor.Visibility = Visibility.Visible;
+        StaticBackdrop.Visibility = Visibility.Visible;
+        ArtSharpHost.Visibility = _launcherSurfaceVisible && ArtSharp.Source is not null
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        HolographicOverlay.Visibility =
+            _launcherSurfaceVisible && _holographicCardEnabled && _stillArtSource is not null
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+    }
+
+    private void OnWallpaperEngineFrameSourceChanged(
+        object? sender,
+        WallpaperEngineFrameChangedEventArgs args)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (!ReferenceEquals(sender, _wallpaperEngineHost) ||
+                !_wallpaperEngineRequested)
+            {
+                return;
+            }
+
+            ApplyWallpaperEngineFrame();
+        });
+    }
 
     public async Task<bool> ShowMotionAsync(
         string source,
@@ -247,6 +719,8 @@ public sealed partial class ArtBackdropView : UserControl
         {
             return false;
         }
+
+        StopWallpaperEngine();
 
         if (_motionReady &&
             string.Equals(
@@ -377,7 +851,11 @@ public sealed partial class ArtBackdropView : UserControl
         }
     }
 
-    public void ShowStill() => StopMotion(clearSource: true);
+    public void ShowStill()
+    {
+        StopMotion(clearSource: true);
+        StopWallpaperEngine();
+    }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
@@ -414,6 +892,10 @@ public sealed partial class ArtBackdropView : UserControl
         UpdateStillArtworkLayout();
         HolographicOverlay.ApplyMotion(_motionMode);
         RefreshFrameIntervalMonitoring();
+        if (_wallpaperEngineRequested)
+        {
+            QueueWallpaperEngineResume();
+        }
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -452,10 +934,33 @@ public sealed partial class ArtBackdropView : UserControl
 
     private void OnHostActivated(object sender, WindowActivatedEventArgs args)
     {
-        _hostFocused = args.WindowActivationState != WindowActivationState.Deactivated;
+        if (_nativeHostWindow is not null)
+        {
+            return;
+        }
+
+        UpdateHostFocus(
+            args.WindowActivationState != WindowActivationState.Deactivated);
+    }
+
+    private void OnNativeHostActivationChanged(
+        object? sender,
+        Nikkiward.Services.NativeWindowActivationChangedEventArgs args) =>
+        UpdateHostFocus(args.IsActive);
+
+    private void UpdateHostFocus(bool isFocused)
+    {
+        if (_hostFocused == isFocused)
+        {
+            return;
+        }
+
+        _hostFocused = isFocused;
         GlassCapabilities.Current.RefreshPlatformState();
         if (_hostFocused)
         {
+            CancelWallpaperEnginePause();
+            QueueWallpaperEngineResume();
             _motionPauseCancellation?.Cancel();
             GlassCapabilities.Current.SetWindowOccluded(false);
             if (CanResumeMotion())
@@ -469,6 +974,7 @@ public sealed partial class ArtBackdropView : UserControl
         }
         else
         {
+            ScheduleWallpaperEnginePause();
             ScheduleMotionPause();
         }
 
@@ -478,6 +984,22 @@ public sealed partial class ArtBackdropView : UserControl
 
     private void OnHostAppWindowChanged(AppWindow sender, AppWindowChangedEventArgs args)
     {
+        if (args.DidPositionChange &&
+            !args.DidSizeChange &&
+            !args.DidVisibilityChange &&
+            !args.DidPresenterChange)
+        {
+            _wallpaperEngineHost?.UpdatePlacement();
+            return;
+        }
+
+        if (!args.DidSizeChange &&
+            !args.DidVisibilityChange &&
+            !args.DidPresenterChange)
+        {
+            return;
+        }
+
         var minimized = sender.Presenter is OverlappedPresenter
         {
             State: OverlappedPresenterState.Minimized,
@@ -488,10 +1010,13 @@ public sealed partial class ArtBackdropView : UserControl
         GlassCapabilities.Current.SetWindowOccluded(unavailable);
         if (unavailable)
         {
+            SuspendWallpaperEngine();
             FreezeMotion();
         }
         else if (_hostFocused)
         {
+            CancelWallpaperEnginePause();
+            QueueWallpaperEngineResume();
             ResumeMotionIfAllowed();
         }
         else if (_motionRequested && _motionReady)
@@ -1041,6 +1566,41 @@ public sealed partial class ArtBackdropView : UserControl
         _ = PauseAfterDeactivationAsync(_motionPauseCancellation.Token);
     }
 
+    private void ScheduleWallpaperEnginePause()
+    {
+        _wallpaperEnginePauseCancellation?.Cancel();
+        _wallpaperEnginePauseCancellation?.Dispose();
+        _wallpaperEnginePauseCancellation = new CancellationTokenSource();
+        _ = PauseWallpaperEngineAfterDeactivationAsync(
+            _wallpaperEnginePauseCancellation.Token);
+    }
+
+    private async Task PauseWallpaperEngineAfterDeactivationAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+            if (!_hostFocused &&
+                !_hostMinimized &&
+                _wallpaperEngineRequested &&
+                !cancellationToken.IsCancellationRequested)
+            {
+                SuspendWallpaperEngine();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void CancelWallpaperEnginePause()
+    {
+        _wallpaperEnginePauseCancellation?.Cancel();
+        _wallpaperEnginePauseCancellation?.Dispose();
+        _wallpaperEnginePauseCancellation = null;
+    }
+
     private async Task PauseAfterDeactivationAsync(CancellationToken cancellationToken)
     {
         try
@@ -1256,7 +1816,11 @@ public sealed partial class ArtBackdropView : UserControl
     {
         ApplyMotionTransform();
         UpdateStillArtworkLayout();
+        QueueWallpaperEngineLayout();
     }
+
+    private void OnArtSharpHostSizeChanged(object sender, SizeChangedEventArgs args) =>
+        QueueWallpaperEngineLayout();
 
     private void OnArtSharpImageOpened(object sender, RoutedEventArgs args)
     {

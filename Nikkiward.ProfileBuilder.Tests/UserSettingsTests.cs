@@ -9,6 +9,8 @@ internal static class UserSettingsTests
     [
         ("new settings use the single appearance authority in schema 7", NewSettingsUseAppearanceSchema6),
         ("appearance settings round trip through settings json", AppearanceRoundTripsThroughSettingsJson),
+        ("Wallpaper Engine presentation settings round trip through settings json", WallpaperEnginePresentationRoundTripsThroughSettingsJson),
+        ("current schema settings default absent Wallpaper Engine fields", CurrentSchemaDefaultsAbsentWallpaperEngineFields),
         ("schema 5 holographic migration preserves a rollback copy", Schema5HolographicMigrationPreservesRollback),
         ("gallery roots round trip per profile", GalleryRootsRoundTripPerProfile),
         ("schema 5 without channel store migrates to empty defaults", Schema5WithoutChannelStoreLoadsDefaults),
@@ -26,7 +28,7 @@ internal static class UserSettingsTests
     {
         var settings = new UserSettings();
         AssertEqual(7, settings.SchemaVersion, "schema version");
-        AssertEqual(ThemeMode.FollowArtwork, settings.Appearance.ThemeMode, "theme mode");
+        AssertEqual(ThemeMode.WarmDark, settings.Appearance.ThemeMode, "theme mode");
         AssertEqual(
             LauncherCapsuleStyle.Ocean,
             settings.Appearance.LauncherCapsuleStyle,
@@ -152,6 +154,83 @@ internal static class UserSettingsTests
                 schema5Json,
                 await File.ReadAllTextAsync(store.MigrationRollbackFilePath),
                 "migration rollback bytes");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static async Task WallpaperEnginePresentationRoundTripsThroughSettingsJson()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var store = new JsonUserSettingsStore(root);
+            await store.SaveAsync(new UserSettings
+            {
+                Appearance = new AppearanceSettings
+                {
+                    Background = new BackgroundArtSettings
+                    {
+                        SelectedSource = "C:\\Nikkiward\\WallpaperImports\\Still\\preview.jpg",
+                        MotionEnabled = true,
+                        MotionSource = "C:\\Nikkiward\\WallpaperImports\\Packages\\scene.pkg",
+                        WallpaperEnginePresentation = WallpaperEnginePresentation.MotionBackdrop,
+                        WallpaperEnginePackageSource = " C:\\Nikkiward\\WallpaperImports\\Packages\\scene.pkg ",
+                    },
+                },
+            });
+
+            var loaded = await store.LoadAsync();
+            AssertEqual(
+                WallpaperEnginePresentation.MotionBackdrop,
+                loaded.Appearance.Background.WallpaperEnginePresentation,
+                "Wallpaper Engine presentation");
+            AssertEqual(
+                "C:\\Nikkiward\\WallpaperImports\\Packages\\scene.pkg",
+                loaded.Appearance.Background.WallpaperEnginePackageSource,
+                "Wallpaper Engine package path");
+
+            var json = await File.ReadAllTextAsync(store.SettingsFilePath);
+            Assert(
+                json.Contains("\"wallpaperEnginePresentation\": \"motionBackdrop\"", StringComparison.Ordinal),
+                "Wallpaper Engine presentation must serialize as a camel-case enum");
+            Assert(
+                json.Contains("\"wallpaperEnginePackageSource\"", StringComparison.Ordinal),
+                "Wallpaper Engine package source must serialize");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static async Task CurrentSchemaDefaultsAbsentWallpaperEngineFields()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var store = new JsonUserSettingsStore(root);
+            await store.SaveAsync(new UserSettings());
+            var document = JsonNode.Parse(
+                await File.ReadAllTextAsync(store.SettingsFilePath))!.AsObject();
+            var background = document["appearance"]?["background"]?.AsObject() ??
+                throw new InvalidOperationException("appearance background missing");
+            background.Remove("wallpaperEnginePresentation");
+            background.Remove("wallpaperEnginePackageSource");
+            await File.WriteAllTextAsync(
+                store.SettingsFilePath,
+                document.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+
+            var loaded = await store.LoadAsync();
+            AssertEqual(
+                WallpaperEnginePresentation.None,
+                loaded.Appearance.Background.WallpaperEnginePresentation,
+                "missing Wallpaper Engine presentation default");
+            Assert(
+                loaded.Appearance.Background.WallpaperEnginePackageSource is null,
+                "missing Wallpaper Engine package source default");
         }
         finally
         {
