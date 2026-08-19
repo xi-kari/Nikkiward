@@ -5,11 +5,12 @@
 [![Preview](https://img.shields.io/badge/status-preview--4-cb718b?style=flat-square)](https://github.com/xi-kari/Nikkiward/releases)
 [![Windows](https://img.shields.io/badge/platform-Windows%20x64-3d6e66?style=flat-square)](https://github.com/xi-kari/Nikkiward/releases)
 [![.NET](https://img.shields.io/badge/.NET-10-5b536d?style=flat-square)](https://dotnet.microsoft.com/)
+[![Build](https://github.com/xi-kari/Nikkiward/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/xi-kari/Nikkiward/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/license-MIT-8b6b57?style=flat-square)](LICENSE)
 
 Nikkiward 把多渠道安装档案、启动前检查、游戏内照片和个人记录放进一个安静的暖纸界面里。它的设计重点不是替玩家隐藏复杂度，而是把每个渠道当前的状态、可执行动作和不可用原因讲清楚。GitHub Releases 提供 Windows x64 安装包和便携 ZIP。
 
-**[查看项目介绍页](docs/index.html)** · **[下载 Releases](https://github.com/xi-kari/Nikkiward/releases)** · **[查看发布门](docs/PACKAGING_ACCEPTANCE.md)**
+**[查看项目介绍页](https://xi-kari.github.io/Nikkiward/)** · **[下载 Releases](https://github.com/xi-kari/Nikkiward/releases)** · **[查看发布门](docs/PACKAGING_ACCEPTANCE.md)**
 
 ![Nikkiward preview](docs/assets/nikki-spring.jpg)
 
@@ -78,7 +79,7 @@ dotnet build .\Nikkiward\Nikkiward.csproj -c Debug -p:Platform=x64 -r win-x64 --
 
 ## 参与项目
 
-欢迎提交 Issue、改进文案和 UI 建议。涉及启动链路、渠道认证、网页抓取或外部插件的改动，请同时说明：
+欢迎提交 Issue、改进文案和 UI 建议。请先阅读 [贡献指南](.github/CONTRIBUTING.md)，再选择合适的 Issue 模板或提交 Pull Request。涉及启动链路、渠道认证、网页抓取或外部插件的改动，请同时说明：
 
 1. 实际验证过的环境、版本和渠道；
 2. 观察到的结果与仍未验证的部分；

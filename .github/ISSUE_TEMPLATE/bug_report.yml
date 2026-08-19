@@ -1,0 +1,58 @@
+name: Bug 报告
+description: 报告可复现的功能问题
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请先搜索已有 Issue。不要提交账号、Cookie、令牌、UID 或完整本地路径。
+  - type: input
+    id: version
+    attributes:
+      label: Nikkiward 版本
+      placeholder: 0.1.0-preview.4
+    validations:
+      required: true
+  - type: dropdown
+    id: channel
+    attributes:
+      label: 渠道
+      options:
+        - 国服官方
+        - 哔哩哔哩
+        - Steam 国际服
+        - 不涉及渠道
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 重现步骤
+      description: 请按顺序写出最短重现路径。
+      placeholder: |
+        1. 打开……
+        2. 选择……
+        3. 点击……
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期结果
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 环境信息
+      description: Windows 版本、安装方式和是否为干净 Profile。
+    validations:
+      required: true

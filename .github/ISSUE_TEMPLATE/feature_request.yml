@@ -1,0 +1,42 @@
+name: 功能建议
+description: 提议一个面向玩家的改进或新功能
+title: "[建议] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请围绕玩家场景描述建议，尽量避免把实现方案当作需求本身。
+  - type: textarea
+    id: problem
+    attributes:
+      label: 想解决的问题
+      description: 哪个启动、管理或记录场景目前不够顺畅？
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 期望体验
+      description: 描述你希望用户能够完成的事情和结果。
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 功能区域
+      options:
+        - 启动与渠道档案
+        - 安装与更新提示
+        - 相册与收藏
+        - 手账与记录
+        - 界面与输入
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 现有替代方案
+      description: 可选。你现在如何完成这件事？
