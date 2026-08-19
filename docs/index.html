@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#171513">
+  <meta name="description" content="Nikkiward 是面向无限暖暖 PC 版的非官方社区启动与本地管理工具。">
+  <title>Nikkiward · 让每一次进入暖暖，都从你的方式开始</title>
+  <style>
+    :root {
+      --ink: #211d1a;
+      --ink-soft: #655a53;
+      --paper: #f4eee7;
+      --paper-deep: #e9dfd5;
+      --card: rgba(255, 252, 248, .74);
+      --line: rgba(44, 34, 28, .13);
+      --gold: #ad713c;
+      --gold-deep: #8e522b;
+      --sage: #647261;
+      --night: #1b1918;
+      --max: 1180px;
+      --serif: "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", "STSong", serif;
+      --sans: "Segoe UI Variable", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: var(--sans);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; }
+    .shell { width: min(var(--max), calc(100% - 48px)); margin: 0 auto; }
+
+    .topbar {
+      position: fixed;
+      inset: 0 0 auto;
+      z-index: 20;
+      color: #fffaf4;
+      background: rgba(19, 17, 16, .56);
+      transition: background .3s ease, backdrop-filter .3s ease;
+    }
+    .topbar.scrolled {
+      background: rgba(25, 22, 20, .86);
+      backdrop-filter: blur(18px);
+    }
+    .nav {
+      display: flex;
+      height: 76px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+    .brand { display: inline-flex; align-items: center; gap: 11px; font-weight: 700; letter-spacing: .03em; }
+    .brand-mark {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,.45);
+      border-radius: 11px;
+      background: rgba(255,255,255,.14);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.24);
+      overflow: hidden;
+    }
+    .brand-mark img { width: 100%; height: 100%; object-fit: cover; }
+    .brand-name { font-size: 16px; }
+    .brand-name small { display: block; color: rgba(255,250,244,.67); font-size: 10px; font-weight: 500; letter-spacing: .1em; }
+    .nav-links { display: flex; align-items: center; gap: 28px; color: rgba(255,250,244,.78); font-size: 13px; }
+    .nav-links a { transition: color .2s ease; }
+    .nav-links a:hover { color: #fff; }
+    .nav-cta { border: 1px solid rgba(255,255,255,.35); border-radius: 999px; padding: 9px 17px; color: #fff; background: rgba(255,255,255,.11); }
+    .nav-toggle { display: none; border: 0; color: #fff; background: none; cursor: pointer; }
+
+    .hero {
+      position: relative;
+      min-height: 760px;
+      display: grid;
+      align-items: end;
+      overflow: hidden;
+      color: #fffaf4;
+      background: var(--night);
+    }
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, rgba(20,17,16,.9) 0%, rgba(20,17,16,.55) 40%, rgba(20,17,16,.18) 75%), linear-gradient(0deg, rgba(20,17,16,.76), transparent 54%);
+      z-index: 1;
+    }
+    .hero-art {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+      opacity: .95;
+      transform: scale(1.02);
+    }
+    .hero-inner { position: relative; z-index: 2; width: min(var(--max), calc(100% - 48px)); margin: 0 auto; padding: 150px 0 94px; }
+    .eyebrow { display: inline-flex; align-items: center; gap: 9px; color: #f6c995; font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+    .eyebrow::before { content: ""; width: 28px; height: 1px; background: #f6c995; }
+    h1 { max-width: 700px; margin: 20px 0 18px; font-family: var(--serif); font-size: 82px; font-weight: 500; letter-spacing: 0; line-height: .98; }
+    .hero-copy { max-width: 560px; margin: 0; color: rgba(255,250,244,.82); font-size: 18px; line-height: 1.8; }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+    .button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 46px; padding: 0 19px; border: 1px solid transparent; border-radius: 999px; font-size: 13px; font-weight: 700; cursor: pointer; transition: transform .2s ease, background .2s ease, border .2s ease; }
+    .button:hover { transform: translateY(-2px); }
+    .button-primary { color: #281b12; background: #f3bd78; box-shadow: 0 12px 28px rgba(18, 11, 7, .27); }
+    .button-primary:hover { background: #ffd09a; }
+    .button-ghost { color: #fffaf4; border-color: rgba(255,255,255,.35); background: rgba(255,255,255,.1); }
+    .button-ghost:hover { border-color: rgba(255,255,255,.7); background: rgba(255,255,255,.18); }
+    .hero-foot { display: flex; flex-wrap: wrap; gap: 24px; margin-top: 56px; color: rgba(255,250,244,.64); font-size: 12px; }
+    .hero-foot span { display: inline-flex; align-items: center; gap: 8px; }
+    .hero-foot i { width: 6px; height: 6px; border-radius: 50%; background: #c99b6d; }
+
+    .intro-band { border-bottom: 1px solid var(--line); background: #f8f3ee; }
+    .facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; }
+    .fact { min-height: 120px; display: flex; flex-direction: column; justify-content: center; border-right: 1px solid var(--line); padding: 20px 28px; }
+    .fact:first-child { padding-left: 0; }
+    .fact:last-child { border-right: 0; }
+    .fact strong { font-family: var(--serif); font-size: 28px; font-weight: 500; letter-spacing: 0; }
+    .fact span { color: var(--ink-soft); font-size: 12px; }
+
+    section { padding: 118px 0; }
+    .section-kicker { margin-bottom: 12px; color: var(--gold-deep); font-size: 11px; font-weight: 800; letter-spacing: .17em; text-transform: uppercase; }
+    .section-title { max-width: 650px; margin: 0; font-family: var(--serif); font-size: 56px; font-weight: 500; letter-spacing: 0; line-height: 1.08; }
+    .section-lede { max-width: 600px; margin: 22px 0 0; color: var(--ink-soft); font-size: 16px; }
+
+    .feature-section { background: var(--paper); }
+    .feature-head { display: flex; align-items: end; justify-content: space-between; gap: 28px; margin-bottom: 48px; }
+    .feature-head .section-lede { max-width: 420px; margin: 0; }
+    .feature-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
+    .feature-card { position: relative; min-height: 260px; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; padding: 26px; background: var(--card); box-shadow: 0 18px 45px rgba(70, 45, 29, .06); }
+    .feature-card:nth-child(1) { grid-column: span 7; background: linear-gradient(140deg, rgba(255,253,250,.85), rgba(235,224,214,.72)); }
+    .feature-card:nth-child(2) { grid-column: span 5; background: linear-gradient(140deg, rgba(229,237,225,.8), rgba(247,241,233,.74)); }
+    .feature-card:nth-child(3) { grid-column: span 5; min-height: 228px; }
+    .feature-card:nth-child(4) { grid-column: span 7; min-height: 228px; background: linear-gradient(140deg, rgba(248,235,214,.88), rgba(255,250,244,.75)); }
+    .feature-num { color: var(--gold-deep); font-family: var(--serif); font-size: 13px; }
+    .feature-card h3 { margin: 24px 0 9px; font-family: var(--serif); font-size: 27px; font-weight: 500; letter-spacing: 0; }
+    .feature-card p { max-width: 440px; margin: 0; color: var(--ink-soft); font-size: 14px; }
+    .feature-arrow { align-self: flex-end; display: grid; width: 35px; height: 35px; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--gold-deep); font-size: 18px; }
+
+    .gallery-section { padding-top: 20px; background: var(--paper); }
+    .gallery-frame { position: relative; min-height: 540px; overflow: hidden; border-radius: 8px; background: #222; }
+    .gallery-frame img { width: 100%; height: 540px; display: block; object-fit: cover; }
+    .gallery-frame::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(18,14,12,.78), rgba(18,14,12,.14) 58%, rgba(18,14,12,.12)); pointer-events: none; }
+    .gallery-copy { position: absolute; z-index: 1; left: clamp(25px, 6vw, 76px); bottom: 58px; max-width: 430px; color: #fffaf4; }
+    .gallery-copy .section-kicker { color: #f4bf81; }
+    .gallery-copy h2 { margin: 0 0 14px; font-family: var(--serif); font-size: 52px; font-weight: 500; letter-spacing: 0; line-height: 1.06; }
+    .gallery-copy p { margin: 0; color: rgba(255,250,244,.78); font-size: 14px; }
+    .gallery-thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+    .gallery-thumb { height: 138px; overflow: hidden; border-radius: 8px; background: var(--paper-deep); }
+    .gallery-thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform .4s ease; }
+    .gallery-thumb:hover img { transform: scale(1.05); }
+
+    footer { padding: 38px 0 44px; color: rgba(255,250,244,.65); background: var(--night); }
+    .footer-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+    .footer-brand { color: #fffaf4; }
+    .footer-note { margin: 7px 0 0; font-size: 12px; }
+    .footer-links { display: flex; gap: 21px; font-size: 12px; }
+    .footer-links a:hover { color: #fff; }
+    .legal { margin-top: 32px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,.12); color: rgba(255,250,244,.43); font-size: 11px; }
+
+    .reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s ease; }
+    .reveal.visible { opacity: 1; transform: none; }
+    @media (max-width: 820px) {
+      .shell, .hero-inner { width: min(var(--max), calc(100% - 34px)); }
+      .nav { height: 68px; }
+      .nav-toggle { display: block; font-size: 22px; }
+      .nav-links { position: absolute; top: 61px; left: 17px; right: 17px; display: none; flex-direction: column; align-items: stretch; gap: 0; padding: 8px; border: 1px solid rgba(255,255,255,.17); border-radius: 13px; background: rgba(28,24,22,.95); backdrop-filter: blur(18px); }
+      .nav-links.open { display: flex; }
+      .nav-links a { padding: 11px 12px; }
+      .nav-cta { margin-top: 3px; text-align: center; }
+      .hero { min-height: 700px; }
+      .hero-inner { padding-bottom: 68px; }
+      h1 { font-size: 60px; }
+      .section-title { font-size: 42px; }
+      .gallery-copy h2 { font-size: 42px; }
+      .hero-copy { font-size: 16px; }
+      .facts { grid-template-columns: repeat(2, 1fr); }
+      .fact, .fact:first-child { padding: 18px 15px; border-bottom: 1px solid var(--line); }
+      .fact:nth-child(2) { border-right: 0; }
+      .fact:nth-child(3), .fact:nth-child(4) { border-bottom: 0; }
+      section { padding: 84px 0; }
+      .feature-head { display: block; }
+      .feature-head .section-lede { margin-top: 18px; }
+      .feature-grid { display: block; }
+      .feature-card { min-height: 220px; margin-bottom: 13px; }
+      .gallery-frame, .gallery-frame img { min-height: 470px; height: 470px; }
+      .gallery-thumbs { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+      .gallery-thumb { height: 86px; border-radius: 9px; }
+      .footer-row { display: block; }
+      .footer-links { margin-top: 24px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+      .reveal { opacity: 1; transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar" id="topbar">
+    <div class="shell nav">
+      <a class="brand" href="#top" aria-label="Nikkiward 首页">
+        <span class="brand-mark"><img src="assets/nikki-default.jpg" alt=""></span>
+        <span class="brand-name">Nikkiward<small>COMMUNITY LAUNCHER</small></span>
+      </a>
+      <button class="nav-toggle" id="navToggle" type="button" aria-label="打开导航" aria-expanded="false">☰</button>
+      <nav class="nav-links" id="navLinks" aria-label="主导航">
+        <a href="#features">功能</a>
+        <a href="#gallery">画面</a>
+        <a href="https://github.com/xi-kari/Nikkiward/releases" target="_blank" rel="noreferrer">下载</a>
+        <a class="nav-cta" href="https://github.com/xi-kari/Nikkiward" target="_blank" rel="noreferrer">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <img class="hero-art" src="assets/nikki-spring.jpg" alt="无限暖暖春日场景">
+      <div class="hero-inner">
+        <div class="eyebrow">A calmer way into Miraland</div>
+        <h1>Nikkiward</h1>
+        <p class="hero-copy">《无限暖暖》PC 启动器。切换渠道、管理档案、查看状态，也把相册与记录放在身边。</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="https://github.com/xi-kari/Nikkiward/releases" target="_blank" rel="noreferrer">查看最新发布 <span>↗</span></a>
+          <a class="button button-ghost" href="#features">查看功能 <span>↓</span></a>
+        </div>
+        <div class="hero-foot"><span><i></i>渠道管理</span><span><i></i>启动状态</span><span><i></i>相册与记录</span></div>
+      </div>
+    </section>
+
+    <div class="intro-band">
+      <div class="shell facts">
+        <div class="fact"><strong>3</strong><span>游戏渠道</span></div>
+        <div class="fact"><strong>一处</strong><span>启动与档案管理</span></div>
+        <div class="fact"><strong>相册</strong><span>照片与收藏</span></div>
+        <div class="fact"><strong>记录</strong><span>手账与心愿</span></div>
+      </div>
+    </div>
+
+    <section class="feature-section" id="features">
+      <div class="shell">
+        <div class="feature-head reveal">
+          <div><div class="section-kicker">Your launcher</div><h2 class="section-title">启动、切换、记录，都在这里。</h2></div>
+          <p class="section-lede">常用功能集中在一个清爽的入口，打开游戏前不用再找来找去。</p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature-card reveal"><div><span class="feature-num">01 / CHANNELS</span><h3>三种渠道，随时切换</h3><p>国服官方、哔哩哔哩、Steam 国际服，各自保存自己的档案。</p></div><span class="feature-arrow">↗</span></article>
+          <article class="feature-card reveal"><div><span class="feature-num">02 / LAUNCH</span><h3>启动状态，一眼看懂</h3><p>查看安装、组件和当前状态，直接进入游戏。</p></div><span class="feature-arrow">↗</span></article>
+          <article class="feature-card reveal"><div><span class="feature-num">03 / GALLERY</span><h3>照片与收藏</h3><p>按日期浏览相册，保存喜欢的瞬间，快速打开照片位置。</p></div><span class="feature-arrow">↗</span></article>
+          <article class="feature-card reveal"><div><span class="feature-num">04 / JOURNAL</span><h3>手账与心愿记录</h3><p>把游戏时光、衣橱摘要和心愿记录整理在一个地方。</p></div><span class="feature-arrow">↗</span></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="gallery-section" id="gallery">
+      <div class="shell">
+        <div class="gallery-frame reveal">
+          <img src="assets/reference-ui-01.png" alt="Nikkiward 界面参考图">
+          <div class="gallery-copy"><div class="section-kicker">A softer desktop</div><h2>打开，就看见你的暖暖。</h2><p>用喜欢的画面做背景，把常用操作放在顺手的位置。</p></div>
+        </div>
+        <div class="gallery-thumbs reveal"><div class="gallery-thumb"><img src="assets/reference-ui-02.png" alt="界面参考图二"></div><div class="gallery-thumb"><img src="assets/nikki-default.jpg" alt="无限暖暖场景"></div><div class="gallery-thumb"><img src="assets/nikki-spring.jpg" alt="无限暖暖春日场景"></div></div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <div class="shell">
+      <div class="footer-row"><div><a class="brand footer-brand" href="#top"><span class="brand-mark"><img src="assets/nikki-default.jpg" alt=""></span><span class="brand-name">Nikkiward<small>COMMUNITY LAUNCHER</small></span></a><p class="footer-note">为每一次进入暖暖，保留一点从容。</p></div><div class="footer-links"><a href="https://github.com/xi-kari/Nikkiward" target="_blank" rel="noreferrer">GitHub ↗</a><a href="https://github.com/xi-kari/Nikkiward/releases" target="_blank" rel="noreferrer">下载 ↗</a></div></div>
+    </div>
+  </footer>
+  <script>
+    const topbar = document.getElementById('topbar');
+    const navToggle = document.getElementById('navToggle');
+    const navLinks = document.getElementById('navLinks');
+
+    window.addEventListener('scroll', () => topbar.classList.toggle('scrolled', window.scrollY > 18), { passive: true });
+    navToggle.addEventListener('click', () => {
+      const open = navLinks.classList.toggle('open');
+      navToggle.setAttribute('aria-expanded', String(open));
+    });
+    navLinks.querySelectorAll('a').forEach((link) => link.addEventListener('click', () => {
+      navLinks.classList.remove('open');
+      navToggle.setAttribute('aria-expanded', 'false');
+    }));
+    const observer = new IntersectionObserver((entries) => entries.forEach((entry) => {
+      if (entry.isIntersecting) { entry.target.classList.add('visible'); observer.unobserve(entry.target); }
+    }), { threshold: .12 });
+    document.querySelectorAll('.reveal').forEach((element) => observer.observe(element));
+  </script>
+</body>
+</html>
