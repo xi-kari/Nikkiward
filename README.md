@@ -12,7 +12,7 @@ Nikkiward 把多渠道安装档案、启动前检查、游戏内照片和个人�
 
 **[查看项目介绍页](https://xi-kari.github.io/Nikkiward/)** · **[下载 Releases](https://github.com/xi-kari/Nikkiward/releases)** · **[查看发布门](docs/PACKAGING_ACCEPTANCE.md)**
 
-![Nikkiward preview](docs/assets/nikki-spring.jpg)
+![Nikkiward preview](docs/assets/hero-blossom.jpg)
 
 ## 它解决什么
 

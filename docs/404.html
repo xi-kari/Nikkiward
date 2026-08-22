@@ -3,23 +3,95 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
   <title>Nikkiward · 页面未找到</title>
   <style>
-    :root { color-scheme: light; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; color: #2b2420; background: #f4eee7; }
-    body { min-height: 100vh; display: grid; place-items: center; margin: 0; }
-    main { width: min(560px, calc(100% - 40px)); text-align: center; }
-    .mark { width: 56px; height: 56px; margin: 0 auto 24px; border-radius: 16px; object-fit: cover; }
-    h1 { margin: 0 0 12px; font-family: Georgia, serif; font-size: 44px; font-weight: 500; }
-    p { margin: 0 auto 28px; color: #6b5d54; }
-    a { display: inline-flex; min-height: 44px; align-items: center; padding: 0 18px; border-radius: 22px; color: #2b2017; background: #eab172; font-weight: 700; text-decoration: none; }
+    :root {
+      color-scheme: light dark;
+      --ink: #2c2127;
+      --ink-soft: #6e5a63;
+      --gold: #7d5526;
+      --glass: rgba(255, 251, 250, .68);
+      --glass-strong: rgba(255, 252, 251, .92);
+      --glass-line: rgba(255, 255, 255, .72);
+      --art: url("/Nikkiward/assets/hero-blossom.jpg");
+      --scrim: linear-gradient(180deg, rgba(46, 22, 34, .2), rgba(46, 22, 34, .38));
+      --cap-scrim-a: rgba(58, 26, 40, .62);
+      --cap-scrim-b: rgba(58, 26, 40, .76);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --ink: #eef3fb;
+        --ink-soft: #b4c1d8;
+        --gold: #d9b678;
+        --glass: rgba(13, 19, 32, .6);
+        --glass-strong: rgba(15, 22, 37, .92);
+        --glass-line: rgba(168, 198, 236, .26);
+        --art: url("/Nikkiward/assets/hero-tide.jpg");
+        --scrim: linear-gradient(180deg, rgba(3, 6, 13, .35), rgba(3, 6, 13, .55));
+        --cap-scrim-a: rgba(6, 12, 24, .62);
+        --cap-scrim-b: rgba(6, 12, 24, .76);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh; margin: 0;
+      display: grid; place-items: center;
+      color: var(--ink);
+      font-family: "Segoe UI Variable", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+      line-height: 1.75;
+      background: #10141f;
+    }
+    .backdrop { position: fixed; inset: 0; z-index: -1; background: var(--art) center 34% / cover no-repeat; }
+    .backdrop::after { content: ""; position: absolute; inset: 0; background: var(--scrim); }
+    main {
+      width: min(520px, calc(100% - 36px));
+      padding: 42px 40px 38px; text-align: center;
+      border-radius: 26px;
+      background: var(--glass);
+      border: 1px solid var(--glass-line);
+      box-shadow: 0 24px 60px rgba(10, 6, 12, .3);
+      backdrop-filter: blur(28px) saturate(1.35);
+      -webkit-backdrop-filter: blur(28px) saturate(1.35);
+    }
+    @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+      main { background: var(--glass-strong); }
+    }
+    .mark { width: 60px; height: 60px; margin: 0 auto 18px; display: block; border-radius: 50%; object-fit: cover; border: 1.5px solid var(--glass-line); }
+    .eyebrow { margin: 0; color: var(--gold); font-size: 11px; font-weight: 800; letter-spacing: .22em; text-transform: uppercase; }
+    h1 { margin: 10px 0 8px; font-family: "Source Han Serif SC", "Noto Serif SC", "Songti SC", serif; font-size: 34px; font-weight: 600; line-height: 1.25; }
+    p { margin: 0 auto 26px; max-width: 360px; color: var(--ink-soft); font-size: 14px; }
+    .row { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+    a.pill {
+      display: inline-flex; align-items: center; gap: 9px;
+      min-height: 46px; padding: 0 22px; border-radius: 999px;
+      color: inherit; font-size: 13.5px; font-weight: 700; text-decoration: none;
+      border: 1px solid var(--glass-line);
+    }
+    a.primary {
+      color: #fff; border: 0;
+      background: linear-gradient(120deg, var(--cap-scrim-a), var(--cap-scrim-b)), var(--art) center 30% / cover no-repeat;
+      box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .6), 0 14px 34px rgba(10, 6, 12, .3);
+      text-shadow: 0 1px 8px rgba(10, 6, 10, .45);
+    }
+    a.pill:hover { transform: translateY(-2px); }
+    a.pill { transition: transform .2s ease; }
+    .fine { margin: 26px auto 0; max-width: 400px; color: var(--ink-soft); font-size: 11.5px; line-height: 1.8; }
+    @media (prefers-reduced-motion: reduce) { a.pill { transition: none; } }
   </style>
 </head>
 <body>
+  <div class="backdrop" aria-hidden="true"></div>
   <main>
-    <img class="mark" src="assets/nikki-default.jpg" alt="Nikkiward">
+    <img class="mark" src="/Nikkiward/assets/brand-avatar.jpg" alt="">
+    <p class="eyebrow" lang="en">404 · Not Found</p>
     <h1>这里还没有页面。</h1>
-    <p>回到 Nikkiward 首页，继续管理渠道、启动游戏和查看记录。</p>
-    <a href="./">回到首页</a>
+    <p>回到 Nikkiward 首页，继续了解这款社区启动器。</p>
+    <div class="row">
+      <a class="pill primary" href="/Nikkiward/">回到首页</a>
+      <a class="pill" href="https://github.com/xi-kari/Nikkiward" target="_blank" rel="noreferrer">GitHub 仓库 ↗</a>
+    </div>
+    <p class="fine">Nikkiward 是独立的非官方社区项目，页面背景来自《无限暖暖》，素材权利归其各自权利人。</p>
   </main>
 </body>
 </html>

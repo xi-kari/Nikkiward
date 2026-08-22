@@ -3,24 +3,89 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#171513">
-  <meta name="description" content="Nikkiward 是面向无限暖暖 PC 版的非官方社区启动与本地管理工具。">
-  <title>Nikkiward · 让每一次进入暖暖，都从你的方式开始</title>
+  <meta name="theme-color" content="#f6e7ec">
+  <meta name="description" content="Nikkiward 是为《无限暖暖》PC 玩家准备的非官方社区启动器：渠道档案、启动预检、相册与手账，浮在一张你自己挑的画上。">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Nikkiward · 你喜欢的画，就是启动页">
+  <meta property="og:description" content="为《无限暖暖》PC 玩家准备的非官方社区启动器。渠道、启动、相册、手账，安安静静放在一块玻璃后面。">
+  <meta property="og:url" content="https://xi-kari.github.io/Nikkiward/">
+  <meta property="og:image" content="https://xi-kari.github.io/Nikkiward/assets/hero-blossom.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://xi-kari.github.io/Nikkiward/">
+  <link rel="icon" href="assets/brand-avatar.jpg">
+  <title>Nikkiward · 《无限暖暖》社区启动器</title>
+  <script>
+    (function () {
+      var theme = null;
+      try { theme = localStorage.getItem('nikkiward-docs-theme'); } catch (e) {}
+      if (theme !== 'blossom' && theme !== 'tide') {
+        theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'tide' : 'blossom';
+      }
+      document.documentElement.setAttribute('data-theme', theme);
+      document.documentElement.classList.add('js');
+      var themeMeta = document.querySelector('meta[name="theme-color"]');
+      if (themeMeta) themeMeta.setAttribute('content', theme === 'tide' ? '#0b101d' : '#f6e7ec');
+      var heroPreload = document.createElement('link');
+      heroPreload.rel = 'preload';
+      heroPreload.as = 'image';
+      heroPreload.fetchPriority = 'high';
+      heroPreload.href = theme === 'tide' ? 'assets/hero-tide.jpg' : 'assets/hero-blossom.jpg';
+      document.head.appendChild(heroPreload);
+    })();
+  </script>
   <style>
     :root {
-      --ink: #211d1a;
-      --ink-soft: #655a53;
-      --paper: #f4eee7;
-      --paper-deep: #e9dfd5;
-      --card: rgba(255, 252, 248, .74);
-      --line: rgba(44, 34, 28, .13);
-      --gold: #ad713c;
-      --gold-deep: #8e522b;
-      --sage: #647261;
-      --night: #1b1918;
       --max: 1180px;
-      --serif: "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", "STSong", serif;
-      --sans: "Segoe UI Variable", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+      --serif: "Source Han Serif SC", "Noto Serif SC", "Noto Serif CJK SC", "Songti SC", "STSong", serif;
+      --sans: "Segoe UI Variable", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+
+      /* 花信（默认 · 亮） */
+      color-scheme: light;
+      --ink: #2c2127;
+      --ink-soft: #6e5a63;
+      --ink-faint: #7d6771;
+      --accent: #a84e6f;
+      --gold: #7d5526;
+      --glass: rgba(255, 251, 250, .66);
+      --glass-strong: rgba(255, 252, 251, .78);
+      --glass-line: rgba(255, 255, 255, .72);
+      --glass-line-soft: rgba(154, 116, 130, .2);
+      --veil: linear-gradient(180deg, rgba(252, 245, 248, .58), rgba(252, 245, 248, .9) 380px, rgba(253, 247, 249, .96) 900px);
+      --seg-on: rgba(255, 255, 255, .92);
+      --shadow: 0 24px 60px rgba(96, 48, 66, .16);
+      --shadow-soft: 0 14px 36px rgba(96, 48, 66, .1);
+      --cap-art: url("assets/hero-blossom.jpg");
+      --cap-scrim-a: rgba(58, 26, 40, .62);
+      --cap-scrim-b: rgba(58, 26, 40, .76);
+      --tint-a: linear-gradient(150deg, rgba(255, 246, 249, .82), rgba(247, 227, 234, .55));
+      --tint-b: linear-gradient(150deg, rgba(240, 243, 236, .8), rgba(252, 247, 240, .55));
+      --tint-c: linear-gradient(150deg, rgba(250, 240, 226, .8), rgba(253, 248, 244, .55));
+      --footer-bg: rgba(43, 26, 34, .88);
+      --footer-ink: rgba(255, 248, 250, .82);
+    }
+    [data-theme="tide"] {
+      color-scheme: dark;
+      --ink: #eef3fb;
+      --ink-soft: #b4c1d8;
+      --ink-faint: #8593ad;
+      --accent: #9fd0ea;
+      --gold: #d9b678;
+      --glass: rgba(13, 19, 32, .56);
+      --glass-strong: rgba(15, 22, 37, .72);
+      --glass-line: rgba(168, 198, 236, .26);
+      --glass-line-soft: rgba(168, 198, 236, .16);
+      --veil: linear-gradient(180deg, rgba(8, 12, 22, .62), rgba(8, 12, 22, .9) 380px, rgba(7, 11, 20, .96) 900px);
+      --seg-on: rgba(203, 224, 248, .24);
+      --shadow: 0 24px 60px rgba(2, 6, 14, .52);
+      --shadow-soft: 0 14px 36px rgba(2, 6, 14, .4);
+      --cap-art: url("assets/hero-tide.jpg");
+      --cap-scrim-a: rgba(6, 12, 24, .62);
+      --cap-scrim-b: rgba(6, 12, 24, .76);
+      --tint-a: linear-gradient(150deg, rgba(30, 42, 66, .62), rgba(15, 22, 37, .5));
+      --tint-b: linear-gradient(150deg, rgba(22, 40, 48, .6), rgba(15, 22, 37, .5));
+      --tint-c: linear-gradient(150deg, rgba(46, 38, 28, .55), rgba(15, 22, 37, .5));
+      --footer-bg: rgba(5, 9, 17, .9);
+      --footer-ink: rgba(224, 233, 247, .8);
     }
 
     * { box-sizing: border-box; }
@@ -28,274 +93,617 @@
     body {
       margin: 0;
       color: var(--ink);
-      background: var(--paper);
+      background: #10141f;
       font-family: var(--sans);
-      line-height: 1.65;
+      font-size: 15px;
+      line-height: 1.75;
       -webkit-font-smoothing: antialiased;
     }
     a { color: inherit; text-decoration: none; }
-    button { font: inherit; }
-    .shell { width: min(var(--max), calc(100% - 48px)); margin: 0 auto; }
-
-    .topbar {
-      position: fixed;
-      inset: 0 0 auto;
-      z-index: 20;
-      color: #fffaf4;
-      background: rgba(19, 17, 16, .56);
-      transition: background .3s ease, backdrop-filter .3s ease;
+    img { max-width: 100%; }
+    button { font: inherit; color: inherit; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+    .shell { width: min(var(--max), calc(100% - 44px)); margin: 0 auto; }
+    .skip {
+      position: fixed; top: -60px; left: 20px; z-index: 99;
+      padding: 10px 16px; border-radius: 999px;
+      color: var(--ink); background: var(--glass-strong);
+      transition: top .2s ease;
     }
+    .skip:focus-visible { top: 14px; }
+
+    /* ————— 背景画布：整页浮在一张画上 ————— */
+    .backdrop { position: fixed; inset: 0; z-index: -1; overflow: hidden; }
+    .backdrop::before {
+      content: ""; position: absolute; inset: 0;
+      background: url("assets/hero-blossom.jpg") center 32% / cover no-repeat;
+    }
+    [data-theme="tide"] .backdrop::before {
+      background-image: url("assets/hero-tide.jpg");
+      background-position: center 40%;
+    }
+    .backdrop::after {
+      content: ""; position: absolute; inset: 0;
+      background: linear-gradient(180deg, rgba(46, 22, 34, .22), rgba(46, 22, 34, 0) 30%, rgba(46, 22, 34, .18) 88%);
+    }
+    [data-theme="tide"] .backdrop::after {
+      background: linear-gradient(180deg, rgba(3, 6, 13, .4), rgba(3, 6, 13, .06) 34%, rgba(3, 6, 13, .38) 88%);
+    }
+
+    .glass {
+      background: var(--glass);
+      border: 1px solid var(--glass-line);
+      box-shadow: var(--shadow-soft);
+      backdrop-filter: blur(26px) saturate(1.35);
+      -webkit-backdrop-filter: blur(26px) saturate(1.35);
+    }
+    @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+      .glass { background: var(--glass-strong); }
+    }
+
+    /* ————— 顶栏 ————— */
+    .topbar { position: fixed; inset: 0 0 auto; z-index: 30; transition: background .3s ease, box-shadow .3s ease; }
     .topbar.scrolled {
-      background: rgba(25, 22, 20, .86);
-      backdrop-filter: blur(18px);
+      background: var(--glass-strong);
+      border-bottom: 1px solid var(--glass-line-soft);
+      box-shadow: var(--shadow-soft);
+      backdrop-filter: blur(24px) saturate(1.3);
+      -webkit-backdrop-filter: blur(24px) saturate(1.3);
     }
-    .nav {
-      display: flex;
-      height: 76px;
-      align-items: center;
-      justify-content: space-between;
-      gap: 24px;
-    }
-    .brand { display: inline-flex; align-items: center; gap: 11px; font-weight: 700; letter-spacing: .03em; }
+    .nav { display: flex; align-items: center; justify-content: space-between; gap: 20px; height: 72px; }
+    .brand { display: inline-flex; align-items: center; gap: 11px; font-weight: 700; letter-spacing: .02em; }
     .brand-mark {
-      display: grid;
-      width: 34px;
-      height: 34px;
-      place-items: center;
-      border: 1px solid rgba(255,255,255,.45);
-      border-radius: 11px;
-      background: rgba(255,255,255,.14);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.24);
-      overflow: hidden;
+      width: 34px; height: 34px; border-radius: 50%; overflow: hidden; flex: none;
+      border: 1.5px solid var(--glass-line); box-shadow: var(--shadow-soft);
     }
-    .brand-mark img { width: 100%; height: 100%; object-fit: cover; }
-    .brand-name { font-size: 16px; }
-    .brand-name small { display: block; color: rgba(255,250,244,.67); font-size: 10px; font-weight: 500; letter-spacing: .1em; }
-    .nav-links { display: flex; align-items: center; gap: 28px; color: rgba(255,250,244,.78); font-size: 13px; }
-    .nav-links a { transition: color .2s ease; }
-    .nav-links a:hover { color: #fff; }
-    .nav-cta { border: 1px solid rgba(255,255,255,.35); border-radius: 999px; padding: 9px 17px; color: #fff; background: rgba(255,255,255,.11); }
-    .nav-toggle { display: none; border: 0; color: #fff; background: none; cursor: pointer; }
-
-    .hero {
-      position: relative;
-      min-height: 760px;
-      display: grid;
-      align-items: end;
-      overflow: hidden;
-      color: #fffaf4;
-      background: var(--night);
+    .brand-mark img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .brand-name { font-size: 15px; line-height: 1.25; }
+    .brand-name small { display: block; color: var(--ink-soft); font-size: 10px; font-weight: 600; letter-spacing: .14em; }
+    .nav-links { display: flex; align-items: center; gap: 4px; font-size: 13px; }
+    .nav-links a { padding: 8px 12px; border-radius: 999px; color: var(--ink-soft); transition: color .2s ease, background .2s ease; }
+    .nav-links a:hover { color: var(--ink); background: var(--seg-on); }
+    .nav-side { display: flex; align-items: center; gap: 10px; }
+    .seg { display: flex; padding: 3px; border-radius: 999px; }
+    .seg button {
+      border: 0; background: none; cursor: pointer;
+      padding: 6px 13px; border-radius: 999px;
+      color: var(--ink-soft); font-size: 12px; font-weight: 600;
+      transition: background .2s ease, color .2s ease;
     }
-    .hero::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(90deg, rgba(20,17,16,.9) 0%, rgba(20,17,16,.55) 40%, rgba(20,17,16,.18) 75%), linear-gradient(0deg, rgba(20,17,16,.76), transparent 54%);
-      z-index: 1;
+    .seg button[aria-pressed="true"] { color: var(--ink); background: var(--seg-on); box-shadow: var(--shadow-soft); }
+    .nav-git {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 8px 15px; border-radius: 999px;
+      font-size: 12.5px; font-weight: 700;
     }
-    .hero-art {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      object-position: center;
-      opacity: .95;
-      transform: scale(1.02);
+    .nav-git:hover { background: var(--glass-strong); }
+    .nav-toggle { display: none; border: 0; background: none; cursor: pointer; font-size: 22px; line-height: 1; padding: 6px 10px; }
+    html:not(.js) .seg, html:not(.js) .nav-toggle { display: none; }
+
+    /* ————— Hero：玻璃岛 + 启动胶囊 ————— */
+    .hero { position: relative; min-height: clamp(660px, 96vh, 920px); display: grid; align-items: end; }
+    .hero-inner {
+      position: relative; z-index: 2;
+      width: min(var(--max), calc(100% - 44px)); margin: 0 auto;
+      display: grid; grid-template-columns: minmax(0, 640px) auto;
+      align-items: end; justify-content: space-between; gap: 44px;
+      padding: 150px 0 78px;
     }
-    .hero-inner { position: relative; z-index: 2; width: min(var(--max), calc(100% - 48px)); margin: 0 auto; padding: 150px 0 94px; }
-    .eyebrow { display: inline-flex; align-items: center; gap: 9px; color: #f6c995; font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
-    .eyebrow::before { content: ""; width: 28px; height: 1px; background: #f6c995; }
-    h1 { max-width: 700px; margin: 20px 0 18px; font-family: var(--serif); font-size: 82px; font-weight: 500; letter-spacing: 0; line-height: .98; }
-    .hero-copy { max-width: 560px; margin: 0; color: rgba(255,250,244,.82); font-size: 18px; line-height: 1.8; }
-    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
-    .button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 46px; padding: 0 19px; border: 1px solid transparent; border-radius: 999px; font-size: 13px; font-weight: 700; cursor: pointer; transition: transform .2s ease, background .2s ease, border .2s ease; }
-    .button:hover { transform: translateY(-2px); }
-    .button-primary { color: #281b12; background: #f3bd78; box-shadow: 0 12px 28px rgba(18, 11, 7, .27); }
-    .button-primary:hover { background: #ffd09a; }
-    .button-ghost { color: #fffaf4; border-color: rgba(255,255,255,.35); background: rgba(255,255,255,.1); }
-    .button-ghost:hover { border-color: rgba(255,255,255,.7); background: rgba(255,255,255,.18); }
-    .hero-foot { display: flex; flex-wrap: wrap; gap: 24px; margin-top: 56px; color: rgba(255,250,244,.64); font-size: 12px; }
-    .hero-foot span { display: inline-flex; align-items: center; gap: 8px; }
-    .hero-foot i { width: 6px; height: 6px; border-radius: 50%; background: #c99b6d; }
+    .hero-card { border-radius: 26px; padding: 38px 42px 34px; background: var(--glass-strong); }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 10px;
+      color: var(--gold); font-size: 11px; font-weight: 800;
+      letter-spacing: .22em; text-transform: uppercase;
+    }
+    .eyebrow::before { content: ""; width: 30px; height: 2px; background: var(--gold); border-radius: 2px; }
+    h1 { margin: 16px 0 4px; font-family: var(--serif); font-size: clamp(56px, 7vw, 84px); font-weight: 600; line-height: 1; letter-spacing: .01em; }
+    .hero-sub { margin: 0 0 14px; font-family: var(--serif); font-size: clamp(19px, 2.2vw, 24px); color: var(--ink); }
+    .hero-copy { margin: 0; max-width: 500px; color: var(--ink-soft); font-size: 15.5px; }
+    .hero-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 6px 13px; border-radius: 999px;
+      border: 1px solid var(--glass-line-soft); background: var(--seg-on);
+      color: var(--ink-soft); font-size: 12px; font-weight: 600;
+    }
+    .chip i { width: 5px; height: 5px; border-radius: 50%; background: var(--gold); }
 
-    .intro-band { border-bottom: 1px solid var(--line); background: #f8f3ee; }
-    .facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; }
-    .fact { min-height: 120px; display: flex; flex-direction: column; justify-content: center; border-right: 1px solid var(--line); padding: 20px 28px; }
-    .fact:first-child { padding-left: 0; }
-    .fact:last-child { border-right: 0; }
-    .fact strong { font-family: var(--serif); font-size: 28px; font-weight: 500; letter-spacing: 0; }
-    .fact span { color: var(--ink-soft); font-size: 12px; }
+    .hero-cta { display: flex; flex-direction: column; align-items: flex-end; gap: 12px; padding-bottom: 6px; }
+    .capsule {
+      display: inline-flex; align-items: center; justify-content: space-between; gap: 20px;
+      min-width: 300px; min-height: 62px;
+      padding: 8px 9px 8px 26px; border-radius: 999px;
+      font-size: 14.5px; font-weight: 700; letter-spacing: .04em;
+      cursor: pointer; transition: transform .22s ease, box-shadow .22s ease;
+    }
+    .capsule:hover { transform: translateY(-2px); }
+    .capsule-art {
+      color: #fff;
+      background: linear-gradient(120deg, var(--cap-scrim-a), var(--cap-scrim-b)), var(--cap-art) center 30% / cover no-repeat;
+      box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .6), var(--shadow);
+      text-shadow: 0 1px 10px rgba(10, 6, 10, .45);
+    }
+    .capsule-art:hover { box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .85), var(--shadow); }
+    .capsule-glass { color: var(--ink); }
+    .cap-dot {
+      width: 44px; height: 44px; flex: none;
+      display: grid; place-items: center;
+      border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, .62);
+      background: rgba(255, 255, 255, .16); font-size: 17px; font-weight: 400;
+    }
+    .capsule-glass .cap-dot { border-color: var(--glass-line-soft); background: var(--seg-on); color: var(--ink-soft); }
+    .hero-cta small {
+      color: var(--ink-soft); font-size: 11.5px; letter-spacing: .06em;
+      padding: 7px 15px; border-radius: 999px;
+      border: 1px solid var(--glass-line-soft);
+      background: var(--glass-strong);
+      backdrop-filter: blur(20px) saturate(1.3);
+      -webkit-backdrop-filter: blur(20px) saturate(1.3);
+    }
 
-    section { padding: 118px 0; }
-    .section-kicker { margin-bottom: 12px; color: var(--gold-deep); font-size: 11px; font-weight: 800; letter-spacing: .17em; text-transform: uppercase; }
-    .section-title { max-width: 650px; margin: 0; font-family: var(--serif); font-size: 56px; font-weight: 500; letter-spacing: 0; line-height: 1.08; }
-    .section-lede { max-width: 600px; margin: 22px 0 0; color: var(--ink-soft); font-size: 16px; }
+    /* 左侧装饰栏：呼应启动器侧边栏 */
+    .rail {
+      position: absolute; left: 26px; top: 50%; transform: translateY(-50%); z-index: 2;
+      display: flex; flex-direction: column; align-items: center; gap: 20px;
+      padding: 20px 0; width: 52px; border-radius: 999px;
+    }
+    .rail svg { width: 17px; height: 17px; opacity: .55; }
+    .rail svg:first-child { opacity: 1; color: var(--accent); }
 
-    .feature-section { background: var(--paper); }
-    .feature-head { display: flex; align-items: end; justify-content: space-between; gap: 28px; margin-bottom: 48px; }
-    .feature-head .section-lede { max-width: 420px; margin: 0; }
-    .feature-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
-    .feature-card { position: relative; min-height: 260px; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; padding: 26px; background: var(--card); box-shadow: 0 18px 45px rgba(70, 45, 29, .06); }
-    .feature-card:nth-child(1) { grid-column: span 7; background: linear-gradient(140deg, rgba(255,253,250,.85), rgba(235,224,214,.72)); }
-    .feature-card:nth-child(2) { grid-column: span 5; background: linear-gradient(140deg, rgba(229,237,225,.8), rgba(247,241,233,.74)); }
-    .feature-card:nth-child(3) { grid-column: span 5; min-height: 228px; }
-    .feature-card:nth-child(4) { grid-column: span 7; min-height: 228px; background: linear-gradient(140deg, rgba(248,235,214,.88), rgba(255,250,244,.75)); }
-    .feature-num { color: var(--gold-deep); font-family: var(--serif); font-size: 13px; }
-    .feature-card h3 { margin: 24px 0 9px; font-family: var(--serif); font-size: 27px; font-weight: 500; letter-spacing: 0; }
-    .feature-card p { max-width: 440px; margin: 0; color: var(--ink-soft); font-size: 14px; }
-    .feature-arrow { align-self: flex-end; display: grid; width: 35px; height: 35px; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--gold-deep); font-size: 18px; }
+    /* ————— 玻璃大帘：Hero 之后整体浮起 ————— */
+    .veil {
+      position: relative; z-index: 1;
+      margin-top: -30px;
+      border-radius: 30px 30px 0 0;
+      border-top: 1px solid var(--glass-line);
+      background: var(--veil);
+      backdrop-filter: blur(34px) saturate(1.25);
+      -webkit-backdrop-filter: blur(34px) saturate(1.25);
+    }
+    @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+      .veil { background: var(--glass-strong); }
+    }
 
-    .gallery-section { padding-top: 20px; background: var(--paper); }
-    .gallery-frame { position: relative; min-height: 540px; overflow: hidden; border-radius: 8px; background: #222; }
-    .gallery-frame img { width: 100%; height: 540px; display: block; object-fit: cover; }
-    .gallery-frame::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(18,14,12,.78), rgba(18,14,12,.14) 58%, rgba(18,14,12,.12)); pointer-events: none; }
-    .gallery-copy { position: absolute; z-index: 1; left: clamp(25px, 6vw, 76px); bottom: 58px; max-width: 430px; color: #fffaf4; }
-    .gallery-copy .section-kicker { color: #f4bf81; }
-    .gallery-copy h2 { margin: 0 0 14px; font-family: var(--serif); font-size: 52px; font-weight: 500; letter-spacing: 0; line-height: 1.06; }
-    .gallery-copy p { margin: 0; color: rgba(255,250,244,.78); font-size: 14px; }
-    .gallery-thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
-    .gallery-thumb { height: 138px; overflow: hidden; border-radius: 8px; background: var(--paper-deep); }
-    .gallery-thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform .4s ease; }
-    .gallery-thumb:hover img { transform: scale(1.05); }
+    .facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; padding: 34px 0 0; }
+    .fact { border-radius: 18px; padding: 20px 24px 17px; }
+    .fact strong { display: block; font-family: var(--serif); font-size: 30px; font-weight: 600; line-height: 1.15; }
+    .fact span { color: var(--ink-soft); font-size: 12.5px; }
 
-    footer { padding: 38px 0 44px; color: rgba(255,250,244,.65); background: var(--night); }
-    .footer-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-    .footer-brand { color: #fffaf4; }
-    .footer-note { margin: 7px 0 0; font-size: 12px; }
-    .footer-links { display: flex; gap: 21px; font-size: 12px; }
-    .footer-links a:hover { color: #fff; }
-    .legal { margin-top: 32px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,.12); color: rgba(255,250,244,.43); font-size: 11px; }
+    section { padding: 96px 0 8px; }
+    section:last-of-type { padding-bottom: 96px; }
+    .kicker { margin-bottom: 10px; color: var(--gold); font-size: 11px; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; }
+    .title { max-width: 640px; margin: 0; font-family: var(--serif); font-size: clamp(34px, 4.6vw, 50px); font-weight: 600; line-height: 1.14; }
+    .lede { max-width: 620px; margin: 16px 0 0; color: var(--ink-soft); font-size: 15.5px; }
 
-    .reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s ease; }
-    .reveal.visible { opacity: 1; transform: none; }
-    @media (max-width: 820px) {
-      .shell, .hero-inner { width: min(var(--max), calc(100% - 34px)); }
-      .nav { height: 68px; }
-      .nav-toggle { display: block; font-size: 22px; }
-      .nav-links { position: absolute; top: 61px; left: 17px; right: 17px; display: none; flex-direction: column; align-items: stretch; gap: 0; padding: 8px; border: 1px solid rgba(255,255,255,.17); border-radius: 13px; background: rgba(28,24,22,.95); backdrop-filter: blur(18px); }
+    /* ————— 功能 ————— */
+    .feature-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 15px; margin-top: 44px; }
+    .card { position: relative; border-radius: 20px; padding: 26px 28px; overflow: hidden; }
+    .card-tint-a { background: var(--tint-a); }
+    .card-tint-b { background: var(--tint-b); }
+    .card-tint-c { background: var(--tint-c); }
+    .card .num { color: var(--gold); font-family: var(--serif); font-size: 12.5px; letter-spacing: .12em; }
+    .card h3 { margin: 14px 0 8px; font-family: var(--serif); font-size: 23px; font-weight: 600; }
+    .card p { margin: 0; max-width: 470px; color: var(--ink-soft); font-size: 14px; }
+    .f-1 { grid-column: span 7; min-height: 208px; }
+    .f-2 { grid-column: span 5; min-height: 208px; }
+    .f-3, .f-4, .f-5 { grid-column: span 4; min-height: 196px; }
+    .f-6 { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 430px); gap: 30px; align-items: center; }
+    .f-6 figure { margin: 0; }
+    .f-6 img { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--glass-line-soft); box-shadow: var(--shadow-soft); }
+    .f-6 figcaption { margin-top: 9px; color: var(--ink-faint); font-size: 11.5px; letter-spacing: .04em; }
+
+    /* ————— 壁纸故事：原画 → 启动页 ————— */
+    .duo { display: grid; grid-template-columns: 1fr 54px 1fr; align-items: center; gap: 16px; margin-top: 46px; }
+    .duo-card { border-radius: 22px; padding: 14px; }
+    .duo-card img { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--glass-line-soft); }
+    .duo-tags { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 10px 6px 2px; }
+    .duo-tags b { font-family: var(--serif); font-size: 15px; font-weight: 600; }
+    .duo-tags span { color: var(--ink-faint); font-size: 11.5px; letter-spacing: .08em; }
+    .duo-arrow {
+      width: 48px; height: 48px; margin: 0 auto;
+      display: grid; place-items: center;
+      border-radius: 50%; color: var(--gold); font-size: 19px;
+    }
+    [data-theme="blossom"] .only-tide { display: none; }
+    [data-theme="tide"] .only-blossom { display: none; }
+    html:not([data-theme]) .only-tide { display: none; }
+    .wall-note { margin: 26px 0 0; color: var(--ink-soft); font-size: 13.5px; }
+    .wall-note b { color: var(--ink); }
+
+    /* ————— 画廊 ————— */
+    .art-grid { display: grid; grid-template-columns: minmax(0, 400px) 1fr; grid-template-rows: repeat(2, 252px); gap: 15px; margin-top: 44px; }
+    .art { position: relative; overflow: hidden; margin: 0; border-radius: 20px; border: 1px solid var(--glass-line-soft); box-shadow: var(--shadow-soft); background: #1a1420; }
+    .art img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .5s ease; }
+    .art:hover img { transform: scale(1.045); }
+    .art-tall { grid-row: span 2; }
+    .art-note { margin: 20px 0 0; color: var(--ink-faint); font-size: 12px; }
+
+    /* ————— 边界 ————— */
+    .honesty-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 44px; }
+    .rule-card { border-radius: 20px; padding: 24px 27px; display: flex; gap: 15px; align-items: flex-start; }
+    .rule-mark {
+      flex: none; width: 34px; height: 34px; margin-top: 2px;
+      display: grid; place-items: center;
+      border-radius: 50%; border: 1px solid var(--glass-line-soft);
+      color: var(--gold); background: var(--seg-on); font-size: 14px;
+    }
+    .rule-card p { margin: 0; color: var(--ink-soft); font-size: 14px; }
+    .rule-card b { display: block; margin-bottom: 3px; color: var(--ink); font-family: var(--serif); font-size: 16.5px; font-weight: 600; }
+
+    /* ————— 下载 ————— */
+    .get-grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 44px; align-items: start; margin-top: 44px; }
+    .steps { margin: 0; padding: 0; list-style: none; counter-reset: step; }
+    .steps li { position: relative; padding: 0 0 26px 62px; counter-increment: step; }
+    .steps li::before {
+      content: "0" counter(step);
+      position: absolute; left: 0; top: 1px;
+      font-family: var(--serif); font-size: 26px; color: var(--gold);
+    }
+    .steps b { display: block; font-family: var(--serif); font-size: 18px; font-weight: 600; }
+    .steps p { margin: 4px 0 0; color: var(--ink-soft); font-size: 13.5px; }
+    .get-panel { border-radius: 24px; padding: 30px 32px; background: var(--glass-strong); }
+    .get-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 22px; }
+    .get-panel .capsule { width: 100%; min-width: 0; margin-bottom: 12px; }
+    .get-links { display: flex; flex-wrap: wrap; gap: 7px 18px; margin-top: 18px; font-size: 12.5px; }
+    .get-links a { color: var(--ink-soft); border-bottom: 1px solid var(--glass-line-soft); padding-bottom: 1px; }
+    .get-links a:hover { color: var(--ink); border-color: var(--ink-soft); }
+    .get-note { margin: 18px 0 0; color: var(--ink-faint); font-size: 12px; }
+
+    /* ————— 页脚 ————— */
+    footer { color: var(--footer-ink); background: var(--footer-bg); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
+    .footer-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 30px; padding: 44px 0 8px; }
+    .footer-brand { display: flex; align-items: center; gap: 11px; font-weight: 700; }
+    .footer-brand .brand-name small { color: var(--footer-ink); }
+    .footer-note { margin: 10px 0 0; font-size: 13px; opacity: .82; }
+    .footer-links { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 12.5px; }
+    .footer-links a { opacity: .82; } .footer-links a:hover { opacity: 1; }
+    .legal { margin: 0; padding: 22px 0 36px; border-top: 1px solid rgba(255, 255, 255, .12); font-size: 11.5px; line-height: 1.9; opacity: .8; }
+
+    .reveal { opacity: 1; transform: none; }
+    .js .reveal { opacity: 0; transform: translateY(16px); transition: opacity .7s ease, transform .7s ease; }
+    .js .reveal.visible { opacity: 1; transform: none; }
+
+    @media (max-width: 1420px) { .rail { display: none; } }
+    @media (max-width: 960px) {
+      .hero-inner { grid-template-columns: 1fr; justify-content: stretch; gap: 26px; padding-top: 120px; }
+      .hero-cta { align-items: stretch; }
+      .capsule { width: 100%; min-width: 0; }
+      .f-1, .f-2, .f-3, .f-4, .f-5 { grid-column: 1 / -1; min-height: 0; }
+      .f-6 { grid-template-columns: 1fr; }
+      .get-grid { grid-template-columns: 1fr; gap: 30px; }
+      .honesty-grid { grid-template-columns: 1fr; }
+      .art-grid { grid-template-columns: minmax(0, 340px) 1fr; grid-template-rows: repeat(2, 214px); }
+    }
+    @media (max-width: 760px) {
+      .shell, .hero-inner { width: min(var(--max), calc(100% - 30px)); }
+      .nav { height: 64px; }
+      .nav-links {
+        position: absolute; top: 70px; left: 15px; right: 15px;
+        display: none; flex-direction: column; align-items: stretch;
+        padding: 8px; border-radius: 18px;
+      }
       .nav-links.open { display: flex; }
-      .nav-links a { padding: 11px 12px; }
-      .nav-cta { margin-top: 3px; text-align: center; }
-      .hero { min-height: 700px; }
-      .hero-inner { padding-bottom: 68px; }
-      h1 { font-size: 60px; }
-      .section-title { font-size: 42px; }
-      .gallery-copy h2 { font-size: 42px; }
-      .hero-copy { font-size: 16px; }
-      .facts { grid-template-columns: repeat(2, 1fr); }
-      .fact, .fact:first-child { padding: 18px 15px; border-bottom: 1px solid var(--line); }
-      .fact:nth-child(2) { border-right: 0; }
-      .fact:nth-child(3), .fact:nth-child(4) { border-bottom: 0; }
-      section { padding: 84px 0; }
-      .feature-head { display: block; }
-      .feature-head .section-lede { margin-top: 18px; }
-      .feature-grid { display: block; }
-      .feature-card { min-height: 220px; margin-bottom: 13px; }
-      .gallery-frame, .gallery-frame img { min-height: 470px; height: 470px; }
-      .gallery-thumbs { grid-template-columns: repeat(3, 1fr); gap: 8px; }
-      .gallery-thumb { height: 86px; border-radius: 9px; }
-      .footer-row { display: block; }
-      .footer-links { margin-top: 24px; }
+      html:not(.js) .nav-links { display: flex; }
+      .nav-links a { padding: 12px 14px; }
+      .nav-toggle { display: block; }
+      .nav-git { display: none; }
+      .hero-card { padding: 28px 26px 26px; }
+      .facts { grid-template-columns: 1fr 1fr; }
+      section { padding-top: 72px; }
+      .duo { grid-template-columns: 1fr; }
+      .duo-arrow { rotate: 90deg; }
+      .art-grid { grid-template-columns: 1fr; grid-template-rows: auto; }
+      .art-tall { grid-row: auto; }
+      .art img { height: 250px; }
+      .art-tall img { height: auto; }
+      .footer-row { flex-direction: column; gap: 18px; }
     }
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
       *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
-      .reveal { opacity: 1; transform: none; }
+      .js .reveal { opacity: 1; transform: none; }
     }
   </style>
 </head>
 <body>
+  <a class="skip" href="#main">跳到主要内容</a>
+  <div class="backdrop" aria-hidden="true"></div>
+
   <header class="topbar" id="topbar">
     <div class="shell nav">
       <a class="brand" href="#top" aria-label="Nikkiward 首页">
-        <span class="brand-mark"><img src="assets/nikki-default.jpg" alt=""></span>
-        <span class="brand-name">Nikkiward<small>COMMUNITY LAUNCHER</small></span>
+        <span class="brand-mark"><img src="assets/brand-avatar.jpg" alt=""></span>
+        <span class="brand-name">Nikkiward<small lang="en">COMMUNITY LAUNCHER</small></span>
       </a>
-      <button class="nav-toggle" id="navToggle" type="button" aria-label="打开导航" aria-expanded="false">☰</button>
-      <nav class="nav-links" id="navLinks" aria-label="主导航">
+      <nav class="nav-links glass" id="navLinks" aria-label="页面导航">
         <a href="#features">功能</a>
-        <a href="#gallery">画面</a>
-        <a href="https://github.com/xi-kari/Nikkiward/releases" target="_blank" rel="noreferrer">下载</a>
-        <a class="nav-cta" href="https://github.com/xi-kari/Nikkiward" target="_blank" rel="noreferrer">GitHub ↗</a>
+        <a href="#wallpaper">壁纸</a>
+        <a href="#gallery">画廊</a>
+        <a href="#honesty">边界</a>
+        <a href="#download">下载</a>
       </nav>
+      <div class="nav-side">
+        <div class="seg glass" role="group" aria-label="配色主题">
+          <button type="button" data-theme-set="blossom" aria-pressed="true">花信</button>
+          <button type="button" data-theme-set="tide" aria-pressed="false">海月</button>
+        </div>
+        <a class="nav-git glass" href="https://github.com/xi-kari/Nikkiward" target="_blank" rel="noreferrer">GitHub ↗</a>
+        <button class="nav-toggle" id="navToggle" type="button" aria-label="打开导航" aria-expanded="false" aria-controls="navLinks">☰</button>
+      </div>
     </div>
   </header>
 
-  <main id="top">
-    <section class="hero">
-      <img class="hero-art" src="assets/nikki-spring.jpg" alt="无限暖暖春日场景">
+  <main id="main">
+    <section class="hero" id="top">
+      <div class="rail glass" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-7h-6v7H4a1 1 0 0 1-1-1z"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 15l5-5 4 4 3-3 6 6"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5z"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.6 5.6L20 9.5l-4 4 1 6-5-3-5 3 1-6-4-4 5.4-.9z"/></svg>
+      </div>
       <div class="hero-inner">
-        <div class="eyebrow">A calmer way into Miraland</div>
-        <h1>Nikkiward</h1>
-        <p class="hero-copy">《无限暖暖》PC 启动器。切换渠道、管理档案、查看状态，也把相册与记录放在身边。</p>
-        <div class="hero-actions">
-          <a class="button button-primary" href="https://github.com/xi-kari/Nikkiward/releases" target="_blank" rel="noreferrer">查看最新发布 <span>↗</span></a>
-          <a class="button button-ghost" href="#features">查看功能 <span>↓</span></a>
+        <div class="hero-card glass reveal">
+          <p class="eyebrow">Nikkiward · 社区启动器</p>
+          <h1>无限暖暖</h1>
+          <p class="hero-sub">你喜欢的画，就是启动页。</p>
+          <p class="hero-copy">为《无限暖暖》PC 玩家准备的非官方社区启动器。渠道档案、启动预检、相册与手账，安安静静放在一块玻璃后面——背景，是你自己挑的那张。</p>
+          <div class="hero-chips">
+            <span class="chip"><i></i>Windows x64</span>
+            <span class="chip"><i></i>0.1.0-preview.4</span>
+            <span class="chip"><i></i>MIT 开源</span>
+            <span class="chip"><i></i>非官方 · 社区项目</span>
+          </div>
         </div>
-        <div class="hero-foot"><span><i></i>渠道管理</span><span><i></i>启动状态</span><span><i></i>相册与记录</span></div>
+        <div class="hero-cta reveal">
+          <a class="capsule capsule-art" href="https://github.com/xi-kari/Nikkiward/releases" target="_blank" rel="noreferrer">下载 Windows 版<span class="cap-dot" aria-hidden="true">↧</span></a>
+          <a class="capsule capsule-glass glass" href="https://github.com/xi-kari/Nikkiward" target="_blank" rel="noreferrer">查看源码仓库<span class="cap-dot" aria-hidden="true">↗</span></a>
+          <small>安装包 · 便携 ZIP · 附 SHA-256 校验</small>
+        </div>
       </div>
     </section>
 
-    <div class="intro-band">
+    <div class="veil">
       <div class="shell facts">
-        <div class="fact"><strong>3</strong><span>游戏渠道</span></div>
-        <div class="fact"><strong>一处</strong><span>启动与档案管理</span></div>
-        <div class="fact"><strong>相册</strong><span>照片与收藏</span></div>
-        <div class="fact"><strong>记录</strong><span>手账与心愿</span></div>
+        <div class="fact glass reveal"><strong>3</strong><span>渠道档案 · 国服 / B 服 / Steam</span></div>
+        <div class="fact glass reveal"><strong>1</strong><span>个安静入口 · 启动前把状态讲清楚</span></div>
+        <div class="fact glass reveal"><strong>0</strong><span>账号凭据 · 不读取令牌与密码</span></div>
+        <div class="fact glass reveal"><strong>MIT</strong><span>开源许可 · 隐私与安全策略公开</span></div>
       </div>
+
+      <section id="features">
+        <div class="shell">
+          <p class="kicker reveal" lang="en">What it does</p>
+          <h2 class="title reveal">启动、切换、收藏、记录，一块玻璃管到底。</h2>
+          <p class="lede reveal">它不替你隐藏复杂度，而是把每个渠道当前的状态、可执行的动作和不可用的原因，一条条讲清楚。</p>
+          <div class="feature-grid">
+            <article class="card glass card-tint-a reveal f-1">
+              <span class="num" lang="en">01 / CHANNELS</span>
+              <h3>三份渠道档案</h3>
+              <p>国服官方、哔哩哔哩、Steam 国际服各留一份档案：安装位置、组件状态、能不能启动，分开呈现。切换档案不会把「共用内容」误报成「共用登录」。</p>
+            </article>
+            <article class="card glass card-tint-b reveal f-2">
+              <span class="num" lang="en">02 / PREFLIGHT</span>
+              <h3>启动前，先预检</h3>
+              <p>路径在不在、组件齐不齐、进程有没有在跑。能启动就启动，不能启动，告诉你为什么。</p>
+            </article>
+            <article class="card glass reveal f-3">
+              <span class="num" lang="en">03 / GALLERY</span>
+              <h3>相册与收藏</h3>
+              <p>游戏截图按日期浏览，收藏可加保护；原生页面保持只读，原图一个字节都不动。</p>
+            </article>
+            <article class="card glass reveal f-4">
+              <span class="num" lang="en">04 / JOURNAL</span>
+              <h3>奇想手账</h3>
+              <p>登录天数、游戏时长、衣橱摘要，保存成本地快照，想翻的时候都在。</p>
+            </article>
+            <article class="card glass reveal f-5">
+              <span class="num" lang="en">05 / WISHES</span>
+              <h3>心愿共鸣记录</h3>
+              <p>导入后增量合并，重复同步不会覆盖已有历史。</p>
+            </article>
+            <article class="card glass card-tint-c reveal f-6">
+              <div>
+                <span class="num" lang="en">06 / SNAPSHOT</span>
+                <h3>一键游戏截图</h3>
+                <p>全局快捷键截图，PNG、AVIF、JPEG XL 随你选；HDR 画面自动另存一份 SDR，色彩管理和自动复制也在设置里说明白。</p>
+              </div>
+              <figure>
+                <img src="assets/shot-settings.jpg" alt="Nikkiward 游戏截图设置页：格式与质量、截图快捷键、HDR 转 SDR 等选项" loading="lazy" width="1400" height="788">
+                <figcaption>截图设置页 · 实拍</figcaption>
+              </figure>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="wallpaper">
+        <div class="shell">
+          <p class="kicker reveal" lang="en">Your wallpaper</p>
+          <h2 class="title reveal">把你喜欢的画，挂进启动页。</h2>
+          <p class="lede reveal">静态原画、视频，甚至 Wallpaper Engine 场景（需已安装桌面版 Wallpaper Engine），都可以成为启动器的背景。玻璃、文字与按钮会跟着画面换气质——下面两组，就是本页两套主题的出处。</p>
+
+          <div class="duo only-blossom">
+            <div class="duo-card glass reveal">
+              <img src="assets/hero-blossom.jpg" alt="《无限暖暖》原画：戴花帽的粉发少女与白鸽" loading="lazy" width="2400" height="1350">
+              <div class="duo-tags"><b>原画 · 花信</b><span>4K 壁纸</span></div>
+            </div>
+            <div class="duo-arrow glass reveal" aria-hidden="true">→</div>
+            <div class="duo-card glass reveal">
+              <img src="assets/shot-ui-01.jpg" alt="Nikkiward 启动器实拍：花信壁纸下的浅色玻璃界面" loading="lazy" width="1600" height="901">
+              <div class="duo-tags"><b>启动页 · 实拍</b><span>界面随画面变亮</span></div>
+            </div>
+          </div>
+          <div class="duo only-tide">
+            <div class="duo-card glass reveal">
+              <img src="assets/hero-tide.jpg" alt="《无限暖暖》原画：夜海中的蓝发人鱼" loading="lazy" width="2400" height="1350">
+              <div class="duo-tags"><b>原画 · 海月</b><span>4K 壁纸</span></div>
+            </div>
+            <div class="duo-arrow glass reveal" aria-hidden="true">→</div>
+            <div class="duo-card glass reveal">
+              <img src="assets/shot-ui-02.jpg" alt="Nikkiward 启动器实拍：海月壁纸下的深色玻璃界面" loading="lazy" width="1600" height="901">
+              <div class="duo-tags"><b>启动页 · 实拍</b><span>界面随画面变深</span></div>
+            </div>
+          </div>
+
+          <p class="wall-note reveal">用右上角的 <b>花信 / 海月</b> 切换本页主题，就是启动器换壁纸时的样子。</p>
+        </div>
+      </section>
+
+      <section id="gallery">
+        <div class="shell">
+          <p class="kicker reveal" lang="en">Built-in favorites</p>
+          <h2 class="title reveal">内置收藏，是起点不是终点。</h2>
+          <p class="lede reveal">启动器自带几张《无限暖暖》收藏画作为默认背景；更多的画，交给你自己的文件夹。</p>
+          <div class="art-grid reveal">
+            <figure class="art art-tall"><img src="assets/art-fae.jpg" alt="《无限暖暖》原画：花间的竖幅精灵装扮" loading="lazy" width="900" height="1600"></figure>
+            <figure class="art"><img src="assets/art-gown.jpg" alt="《无限暖暖》原画：花境中的金色长裙" loading="lazy" width="1400" height="875"></figure>
+            <figure class="art"><img src="assets/art-veil.jpg" alt="《无限暖暖》原画：金纱礼服" loading="lazy" width="1400" height="875"></figure>
+          </div>
+          <p class="art-note reveal">以上画面截取自《无限暖暖》，权利归其各自权利人，仅用于功能说明。</p>
+        </div>
+      </section>
+
+      <section id="honesty">
+        <div class="shell">
+          <p class="kicker reveal" lang="en">Honest boundaries</p>
+          <h2 class="title reveal">能做什么、不做什么，先讲清楚。</h2>
+          <p class="lede reveal">Nikkiward 是独立的社区工具。给陌生人用的软件，边界应该写在最显眼的地方。</p>
+          <div class="honesty-grid">
+            <div class="rule-card glass reveal">
+              <span class="rule-mark" aria-hidden="true">✕</span>
+              <p><b>不含游戏与凭据</b>不包含游戏本体、官方启动器、账号凭据或渠道令牌。</p>
+            </div>
+            <div class="rule-card glass reveal">
+              <span class="rule-mark" aria-hidden="true">◐</span>
+              <p><b>登录归各渠道</b>Steam 登录仍由 Steam 客户端完成；内容复用、档案切换与独立登录是三件事，界面分开呈现。</p>
+            </div>
+            <div class="rule-card glass reveal">
+              <span class="rule-mark" aria-hidden="true">☰</span>
+              <p><b>更新只读不写</b>更新检查只读取 GitHub Releases 并打开发布页，不静默下载、不自动覆盖程序。</p>
+            </div>
+            <div class="rule-card glass reveal">
+              <span class="rule-mark" aria-hidden="true">✎</span>
+              <p><b>相册保持只读</b>照片原图不做修改；需要编辑或批处理时，交给你已安装的外部工具。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="download">
+        <div class="shell">
+          <p class="kicker reveal" lang="en">Get started</p>
+          <h2 class="title reveal">三步，把 Nikkiward 带回家。</h2>
+          <div class="get-grid">
+            <ol class="steps reveal">
+              <li><b>下载</b><p>从 GitHub Releases 获取 Windows x64 安装包或便携 ZIP，附 SHA-256 校验文件。</p></li>
+              <li><b>确认档案</b><p>首次启动后，在档案页确认各渠道的安装路径。</p></li>
+              <li><b>预检并启动</b><p>回到启动页，跑一遍预检，然后进游戏。</p></li>
+            </ol>
+            <div class="get-panel glass reveal">
+              <div class="get-chips">
+                <span class="chip"><i></i>当前预览版 0.1.0-preview.4</span>
+                <span class="chip"><i></i>Windows 10 1809+</span>
+              </div>
+              <a class="capsule capsule-art" href="https://github.com/xi-kari/Nikkiward/releases" target="_blank" rel="noreferrer">前往 Releases 下载<span class="cap-dot" aria-hidden="true">↧</span></a>
+              <a class="capsule capsule-glass glass" href="https://github.com/xi-kari/Nikkiward/blob/main/README.md" target="_blank" rel="noreferrer">阅读 README<span class="cap-dot" aria-hidden="true">↗</span></a>
+              <div class="get-links">
+                <a href="https://github.com/xi-kari/Nikkiward/blob/main/docs/PACKAGING_ACCEPTANCE.md" target="_blank" rel="noreferrer">发布验收门</a>
+                <a href="https://github.com/xi-kari/Nikkiward/blob/main/docs/UPDATE_PROTOCOL.md" target="_blank" rel="noreferrer">更新协议</a>
+                <a href="https://github.com/xi-kari/Nikkiward/blob/main/.github/CONTRIBUTING.md" target="_blank" rel="noreferrer">贡献指南</a>
+              </div>
+              <p class="get-note">仍在预览阶段，边角可能有毛刺；欢迎用 Issue 告诉作者你遇到了什么。</p>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
-
-    <section class="feature-section" id="features">
-      <div class="shell">
-        <div class="feature-head reveal">
-          <div><div class="section-kicker">Your launcher</div><h2 class="section-title">启动、切换、记录，都在这里。</h2></div>
-          <p class="section-lede">常用功能集中在一个清爽的入口，打开游戏前不用再找来找去。</p>
-        </div>
-        <div class="feature-grid">
-          <article class="feature-card reveal"><div><span class="feature-num">01 / CHANNELS</span><h3>三种渠道，随时切换</h3><p>国服官方、哔哩哔哩、Steam 国际服，各自保存自己的档案。</p></div><span class="feature-arrow">↗</span></article>
-          <article class="feature-card reveal"><div><span class="feature-num">02 / LAUNCH</span><h3>启动状态，一眼看懂</h3><p>查看安装、组件和当前状态，直接进入游戏。</p></div><span class="feature-arrow">↗</span></article>
-          <article class="feature-card reveal"><div><span class="feature-num">03 / GALLERY</span><h3>照片与收藏</h3><p>按日期浏览相册，保存喜欢的瞬间，快速打开照片位置。</p></div><span class="feature-arrow">↗</span></article>
-          <article class="feature-card reveal"><div><span class="feature-num">04 / JOURNAL</span><h3>手账与心愿记录</h3><p>把游戏时光、衣橱摘要和心愿记录整理在一个地方。</p></div><span class="feature-arrow">↗</span></article>
-        </div>
-      </div>
-    </section>
-
-    <section class="gallery-section" id="gallery">
-      <div class="shell">
-        <div class="gallery-frame reveal">
-          <img src="assets/reference-ui-01.png" alt="Nikkiward 界面参考图">
-          <div class="gallery-copy"><div class="section-kicker">A softer desktop</div><h2>打开，就看见你的暖暖。</h2><p>用喜欢的画面做背景，把常用操作放在顺手的位置。</p></div>
-        </div>
-        <div class="gallery-thumbs reveal"><div class="gallery-thumb"><img src="assets/reference-ui-02.png" alt="界面参考图二"></div><div class="gallery-thumb"><img src="assets/nikki-default.jpg" alt="无限暖暖场景"></div><div class="gallery-thumb"><img src="assets/nikki-spring.jpg" alt="无限暖暖春日场景"></div></div>
-      </div>
-    </section>
-
   </main>
 
   <footer>
     <div class="shell">
-      <div class="footer-row"><div><a class="brand footer-brand" href="#top"><span class="brand-mark"><img src="assets/nikki-default.jpg" alt=""></span><span class="brand-name">Nikkiward<small>COMMUNITY LAUNCHER</small></span></a><p class="footer-note">为每一次进入暖暖，保留一点从容。</p></div><div class="footer-links"><a href="https://github.com/xi-kari/Nikkiward" target="_blank" rel="noreferrer">GitHub ↗</a><a href="https://github.com/xi-kari/Nikkiward/releases" target="_blank" rel="noreferrer">下载 ↗</a></div></div>
+      <div class="footer-row">
+        <div>
+          <a class="footer-brand" href="#top">
+            <span class="brand-mark"><img src="assets/brand-avatar.jpg" alt=""></span>
+            <span class="brand-name">Nikkiward<small lang="en">COMMUNITY LAUNCHER</small></span>
+          </a>
+          <p class="footer-note">为每一次进入暖暖，保留一点从容。</p>
+        </div>
+        <nav class="footer-links" aria-label="相关链接">
+          <a href="https://github.com/xi-kari/Nikkiward" target="_blank" rel="noreferrer">GitHub</a>
+          <a href="https://github.com/xi-kari/Nikkiward/releases" target="_blank" rel="noreferrer">下载</a>
+          <a href="https://github.com/xi-kari/Nikkiward/blob/main/PRIVACY.md" target="_blank" rel="noreferrer">隐私说明</a>
+          <a href="https://github.com/xi-kari/Nikkiward/blob/main/SECURITY.md" target="_blank" rel="noreferrer">安全策略</a>
+          <a href="https://github.com/xi-kari/Nikkiward/blob/main/THIRD-PARTY-NOTICES.md" target="_blank" rel="noreferrer">第三方声明</a>
+          <a href="https://github.com/xi-kari/Nikkiward/blob/main/LICENSE" target="_blank" rel="noreferrer">MIT License</a>
+        </nav>
+      </div>
+      <p class="legal">Nikkiward 是独立、非官方的社区项目，与叠纸网络、Infold Games、哔哩哔哩、Valve 或 Steam 不存在隶属、授权或背书关系。《无限暖暖》名称、图标、角色、美术及其他游戏素材的权利归其各自权利人；页面中的游戏画面与原画仅用于功能说明。</p>
     </div>
   </footer>
-  <script>
-    const topbar = document.getElementById('topbar');
-    const navToggle = document.getElementById('navToggle');
-    const navLinks = document.getElementById('navLinks');
 
-    window.addEventListener('scroll', () => topbar.classList.toggle('scrolled', window.scrollY > 18), { passive: true });
-    navToggle.addEventListener('click', () => {
-      const open = navLinks.classList.toggle('open');
-      navToggle.setAttribute('aria-expanded', String(open));
-    });
-    navLinks.querySelectorAll('a').forEach((link) => link.addEventListener('click', () => {
-      navLinks.classList.remove('open');
-      navToggle.setAttribute('aria-expanded', 'false');
-    }));
-    const observer = new IntersectionObserver((entries) => entries.forEach((entry) => {
-      if (entry.isIntersecting) { entry.target.classList.add('visible'); observer.unobserve(entry.target); }
-    }), { threshold: .12 });
-    document.querySelectorAll('.reveal').forEach((element) => observer.observe(element));
+  <script>
+    (function () {
+      var html = document.documentElement;
+      var themeMeta = document.querySelector('meta[name="theme-color"]');
+      var themeButtons = document.querySelectorAll('[data-theme-set]');
+      var THEME_COLOR = { blossom: '#f6e7ec', tide: '#0b101d' };
+
+      function applyTheme(theme, persist) {
+        html.setAttribute('data-theme', theme);
+        if (persist) { try { localStorage.setItem('nikkiward-docs-theme', theme); } catch (e) {} }
+        if (themeMeta) themeMeta.setAttribute('content', THEME_COLOR[theme]);
+        themeButtons.forEach(function (b) {
+          b.setAttribute('aria-pressed', String(b.getAttribute('data-theme-set') === theme));
+        });
+      }
+      themeButtons.forEach(function (b) {
+        b.addEventListener('click', function () { applyTheme(b.getAttribute('data-theme-set'), true); });
+      });
+      applyTheme(html.getAttribute('data-theme') || 'blossom');
+
+      var topbar = document.getElementById('topbar');
+      var onScroll = function () { topbar.classList.toggle('scrolled', window.scrollY > 14); };
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+
+      var navToggle = document.getElementById('navToggle');
+      var navLinks = document.getElementById('navLinks');
+      navToggle.addEventListener('click', function () {
+        var open = navLinks.classList.toggle('open');
+        navToggle.setAttribute('aria-expanded', String(open));
+        navToggle.setAttribute('aria-label', open ? '关闭导航' : '打开导航');
+        if (open) { var firstLink = navLinks.querySelector('a'); if (firstLink) firstLink.focus(); }
+      });
+      navLinks.querySelectorAll('a').forEach(function (link) {
+        link.addEventListener('click', function () {
+          navLinks.classList.remove('open');
+          navToggle.setAttribute('aria-expanded', 'false');
+          navToggle.setAttribute('aria-label', '打开导航');
+        });
+      });
+
+      if ('IntersectionObserver' in window) {
+        var observer = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) { entry.target.classList.add('visible'); observer.unobserve(entry.target); }
+          });
+        }, { threshold: .1, rootMargin: '0px 0px -6% 0px' });
+        document.querySelectorAll('.reveal').forEach(function (el) { observer.observe(el); });
+      } else {
+        document.querySelectorAll('.reveal').forEach(function (el) { el.classList.add('visible'); });
+      }
+
+      window.addEventListener('load', function () {
+        if (navigator.connection && navigator.connection.saveData) return;
+        var other = html.getAttribute('data-theme') === 'tide' ? 'assets/hero-blossom.jpg' : 'assets/hero-tide.jpg';
+        var prefetch = document.createElement('link');
+        prefetch.rel = 'prefetch';
+        prefetch.as = 'image';
+        prefetch.href = other;
+        document.head.appendChild(prefetch);
+      });
+    })();
   </script>
 </body>
 </html>
