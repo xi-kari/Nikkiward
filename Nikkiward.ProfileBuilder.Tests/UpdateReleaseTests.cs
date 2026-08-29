@@ -109,7 +109,7 @@ internal static class UpdateReleaseTests
         var project = XDocument.Load(projectPath);
         var contentItems = project.Descendants("Content").ToArray();
         var projectVersion = project.Descendants("Version").Single().Value.Trim();
-        AssertEqual("0.1.0-preview.4", projectVersion, "preview release version");
+        AssertEqual("0.1.0-preview.5", projectVersion, "preview release version");
 
         var avatar = contentItems.SingleOrDefault(item =>
             string.Equals((string?)item.Attribute("Update"), "Assets\\XikariAvatar.jpg", StringComparison.Ordinal));
