@@ -110,6 +110,7 @@
                 PointerExited="OnPrimaryActionPointerExited"
                 PointerPressed="OnPrimaryActionPointerPressed"
                 PointerReleased="OnPrimaryActionPointerReleased"
+                ToolTipService.ToolTip="{x:Bind ViewModel.LaunchButtonDetail}"
                 Translation="0,0,32">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />

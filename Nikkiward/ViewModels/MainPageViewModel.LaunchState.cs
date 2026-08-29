@@ -1,4 +1,3 @@
-using Microsoft.UI.Xaml;
 using Nikkiward.Models;
 
 namespace Nikkiward.ViewModels;
@@ -54,9 +53,12 @@ public sealed partial class MainPageViewModel
 
             return _preflightResult.FailureCode switch
             {
+                LaunchPreflightFailureCode.SignatureInvalid or
+                LaunchPreflightFailureCode.SignerMismatch =>
+                    LaunchButtonState.SignatureUntrusted,
+
                 LaunchPreflightFailureCode.ArtifactHashMismatch or
                 LaunchPreflightFailureCode.VersionMismatch or
-                LaunchPreflightFailureCode.BinaryIdentityDrift or
                 LaunchPreflightFailureCode.MarkerMismatch =>
                     LaunchButtonState.ContractDrift,
 
@@ -69,6 +71,9 @@ public sealed partial class MainPageViewModel
                 LaunchPreflightFailureCode.MarkerMissing =>
                     LaunchButtonState.NotInstalled,
 
+                // BinaryIdentityDrift (file changed while being read) is a
+                // transient condition — an update writing files right now —
+                // so it lands in Blocked and clears on the next refresh.
                 _ => LaunchButtonState.Blocked,
             };
         }
@@ -79,7 +84,8 @@ public sealed partial class MainPageViewModel
         LaunchButtonState.Checking => "检查安装中",
         LaunchButtonState.NotInstalled => "未找到游戏",
         LaunchButtonState.ChannelUnsupported => "渠道暂不支持",
-        LaunchButtonState.ContractDrift => "需要刷新启动契约",
+        LaunchButtonState.ContractDrift => "渠道身份不符",
+        LaunchButtonState.SignatureUntrusted => "签名验证未通过",
         LaunchButtonState.Blocked => "启动条件不满足",
         LaunchButtonState.CleanupRequired => "需要关闭残留进程",
         LaunchButtonState.Ready => "启动游戏",
@@ -95,7 +101,7 @@ public sealed partial class MainPageViewModel
     public string LaunchButtonDetail => LaunchButtonState switch
     {
         LaunchButtonState.Checking =>
-            "正在核对本机安装与启动契约。",
+            "正在核对本机安装与组件签名。",
         LaunchButtonState.NotInstalled =>
             "未发现无限暖暖安装，请在 Profile 页手动指定游戏目录。",
         LaunchButtonState.ChannelUnsupported =>
@@ -103,16 +109,20 @@ public sealed partial class MainPageViewModel
                 ? "Steam Windows 直启尚未验证，本次不会打开 Steam 或官方启动器。"
                 : "当前渠道或区服没有对应的启动契约，暂不支持辅助启动。",
         LaunchButtonState.ContractDrift =>
-            "游戏或启动器已更新，启动契约需要刷新后才能继续。",
+            "游戏目录的 product.db 渠道标识与所选渠道不一致，请确认选择的是国服目录。",
+        LaunchButtonState.SignatureUntrusted =>
+            "游戏组件的数字签名无效或签名者不受信任，为安全起见已拒绝启动。请用官方启动器校验游戏文件或重新安装后重试。",
         LaunchButtonState.Blocked =>
-            "静态校验未通过，可在设置的诊断页查看原因。",
+            "静态校验未通过，可在设置的诊断页查看原因；若游戏正在更新，请等更新完成后重试。",
         LaunchButtonState.CleanupRequired =>
             "启动入口或 bootstrap 仍在运行，请先使用右侧关闭按钮清理。",
         LaunchButtonState.Ready =>
             _selectedCandidate?.Identity.DistributionChannel is
                 DistributionChannel.Bilibili or DistributionChannel.Steam
                 ? $"点击后提交 {SelectedChannelLaunchRoute}。"
-                : "点击后重新核对契约、构建瞬时 plan 并请求 UAC 提权。",
+                : SelectedLauncherVersionName is { } version
+                    ? $"检测到启动器版本 {version}，组件签名验证通过；点击后构建瞬时 plan 并请求 UAC 提权。"
+                    : "点击后重新核对组件签名、构建瞬时 plan 并请求 UAC 提权。",
         LaunchButtonState.Launching =>
             "已提交 xstarter，等待游戏进程建立。",
         LaunchButtonState.Running =>
@@ -122,14 +132,9 @@ public sealed partial class MainPageViewModel
         _ => string.Empty,
     };
 
-    /// <summary>
-    /// True only for <see cref="LaunchButtonState.ContractDrift"/>, where the
-    /// user needs the refresh instructions rather than a generic error.
-    /// </summary>
-    public Visibility ContractDriftNoticeVisibility =>
-        LaunchButtonState == LaunchButtonState.ContractDrift
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+    private string? SelectedLauncherVersionName =>
+        Services.WindowsLaunchPreflightVerifier.TryGetVersionDirectoryName(
+            _selectedCandidate?.Provider?.BackendExecutablePath);
 
     /// <summary>
     /// Whether the launch attempt is blocked in a way the user cannot act on
@@ -143,7 +148,6 @@ public sealed partial class MainPageViewModel
         OnPropertyChanged(nameof(LaunchButtonState));
         OnPropertyChanged(nameof(LaunchButtonLabel));
         OnPropertyChanged(nameof(LaunchButtonDetail));
-        OnPropertyChanged(nameof(ContractDriftNoticeVisibility));
         OnPropertyChanged(nameof(IsLaunchButtonBusy));
     }
 }

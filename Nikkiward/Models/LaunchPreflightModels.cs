@@ -49,6 +49,17 @@ public sealed record PreflightComponentResult
 
     public string? ActualSignerThumbprint { get; init; }
 
+    public string? ActualSignerSubjectCommonName { get; init; }
+
+    public string? ActualSignerSubjectSerialNumber { get; init; }
+
+    /// <summary>
+    /// Structured failure classification, <see cref="LaunchPreflightFailureCode.None"/>
+    /// when the component passed. The verifier maps this straight onto the
+    /// result-level failure code instead of sniffing <see cref="FailureDetail"/> text.
+    /// </summary>
+    public LaunchPreflightFailureCode FailureCode { get; init; } = LaunchPreflightFailureCode.None;
+
     public string? FailureDetail { get; init; }
 }
 

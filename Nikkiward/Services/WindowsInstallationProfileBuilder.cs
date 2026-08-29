@@ -196,7 +196,10 @@ public sealed class WindowsInstallationProfileBuilder :
                 continue;
             }
 
-            foreach (var version in versions)
+            // A launcher self-update can leave stale version directories behind.
+            // Only the highest version — the one launcher.exe itself would spawn —
+            // is bound, so exactly one candidate stays selectable per root.
+            foreach (var version in versions.Take(1))
             {
                 foreach (var gameRoot in gameRoots)
                 {
@@ -460,7 +463,8 @@ public sealed class WindowsInstallationProfileBuilder :
                 continue;
             }
 
-            foreach (var version in versions)
+            // Same stale-version convergence as the CN branch.
+            foreach (var version in versions.Take(1))
             {
                 foreach (var gameRoot in gameRoots)
                 {
@@ -787,9 +791,31 @@ public sealed class WindowsInstallationProfileBuilder :
             return NormalizeExistingDirectories([request.ManualLauncherRootPath!]);
         }
 
-        return request.AllowAutomaticDiscovery
-            ? NormalizeExistingDirectories(_pathSource.GetOfficialLauncherRootCandidates())
-            : Array.Empty<string>();
+        var roots = new List<string>();
+        if (!string.IsNullOrWhiteSpace(request.ManualGameRootPath))
+        {
+            // The default official layout nests the game under the launcher
+            // root. When the user hand-picked a game directory and the fixed
+            // locations/registry yield nothing, the parent directory is the
+            // remaining evidence — mirror the Bilibili branch, but only accept
+            // parents that actually look like a launcher root so a stray
+            // launcher.exe next to a custom install path cannot hijack launch.
+            foreach (var gameRoot in ExpandGameRoot(request.ManualGameRootPath!))
+            {
+                var parent = Directory.GetParent(gameRoot)?.FullName;
+                if (parent is not null && HasLauncherLayout(parent))
+                {
+                    roots.Add(parent);
+                }
+            }
+        }
+
+        if (request.AllowAutomaticDiscovery)
+        {
+            roots.AddRange(_pathSource.GetOfficialLauncherRootCandidates());
+        }
+
+        return NormalizeExistingDirectories(roots);
     }
 
     private IReadOnlyList<string> ResolveBilibiliLauncherRoots(ProfileBuildRequest request)

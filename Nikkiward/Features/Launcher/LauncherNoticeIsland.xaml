@@ -106,11 +106,13 @@
                             Padding="{StaticResource SpaceTightHorizontalPaddingThickness}"
                             HorizontalAlignment="Stretch"
                             HorizontalContentAlignment="Stretch"
+                            automation:AutomationProperties.HelpText="{x:Bind ViewModel.LaunchButtonDetail}"
                             automation:AutomationProperties.Name="查看启动状态"
                             Background="Transparent"
                             BorderThickness="0"
                             Click="OnStatusClicked"
-                            CornerRadius="{StaticResource RadiusCard}">
+                            CornerRadius="{StaticResource RadiusCard}"
+                            ToolTipService.ToolTip="{x:Bind ViewModel.LaunchButtonDetail}">
                             <Grid ColumnSpacing="{StaticResource SpaceBase}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />

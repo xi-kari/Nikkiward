@@ -179,7 +179,7 @@ public sealed class OfficialAssistedLaunchCoordinator
         {
             return FailedPreparation(
                 "Preflight.ProfileMismatch",
-                "当前候选与冻结的 CN / Windows 1.3.1 OfficialAssisted contract 不一致。",
+                "当前候选与冻结的 CN / Windows OfficialAssisted contract 不一致。",
                 preflight);
         }
 
@@ -304,6 +304,99 @@ public sealed class OfficialAssistedLaunchCoordinator
             };
         }
 
+        // Hold a read handle on the one binary about to be elevated. With only
+        // FileShare.Read granted, writes, renames and deletes are blocked while
+        // the handle is open, but CreateProcess's read+execute open still
+        // succeeds — so the file that passes the re-verification below is the
+        // same bytes ShellExecute reads after the user consents to UAC. This
+        // closes the verify→launch swap window for the top-level executable.
+        FileStream backendGuard;
+        try
+        {
+            backendGuard = new FileStream(
+                preparation.Plan.ProviderExecutablePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return new OfficialAssistedLaunchReceipt
+            {
+                AttemptId = attemptId,
+                RequestedAtUtc = requestedAtUtc,
+                FailureCode = "Runtime.BackendIdentityDrift",
+                Detail = $"无法锁定官方 xstarter 以复核身份：{ex.GetType().Name}。",
+            };
+        }
+
+        using (backendGuard)
+        {
+            var identityFailure = VerifyBackendIdentityBeforeElevation(
+                preparation.Preflight?.Contract,
+                preparation.Plan.ProviderExecutablePath);
+            if (identityFailure is not null)
+            {
+                return new OfficialAssistedLaunchReceipt
+                {
+                    AttemptId = attemptId,
+                    RequestedAtUtc = requestedAtUtc,
+                    FailureCode = "Runtime.BackendIdentityDrift",
+                    Detail = $"临启动身份复核未通过：{identityFailure}",
+                };
+            }
+
+            return StartVerifiedBackend(preparation, attemptId, requestedAtUtc);
+        }
+    }
+
+    /// <summary>
+    /// Last-instant identity re-check of the binary being elevated, run while
+    /// the caller holds the write/delete-denying handle. Always uses the
+    /// production Authenticode probe: a preparation whose backend cannot be
+    /// attributed to a trusted publisher at this very moment must not launch.
+    /// </summary>
+    private static string? VerifyBackendIdentityBeforeElevation(
+        LaunchProviderContract? contract,
+        string backendExecutablePath)
+    {
+        var requirement = contract?.RequiredComponents
+            .FirstOrDefault(component => component.ComponentId == "official-backend");
+        if (requirement is null)
+        {
+            return "preflight 结果缺少 official-backend 组件契约。";
+        }
+
+        var probe = WindowsAuthenticodeIdentityProbe.Instance;
+        var signature = probe.VerifySignature(backendExecutablePath);
+        if (signature.Status is not AuthenticodeSignatureStatus.Valid)
+        {
+            return $"签名状态为 {signature.Status}。";
+        }
+
+        if (probe.ReadSignerIdentity(backendExecutablePath) is not { } signer ||
+            !WindowsLaunchPreflightVerifier.IsTrustedSigner(requirement.TrustedSigners, signer))
+        {
+            return "签名者不在可信列表。";
+        }
+
+        if (requirement.ExpectedOriginalFilename is not null &&
+            !string.Equals(
+                probe.ReadOriginalFilename(backendExecutablePath),
+                requirement.ExpectedOriginalFilename,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return $"OriginalFilename 与契约不符，该槽位放置的不是官方 {requirement.ExpectedOriginalFilename}。";
+        }
+
+        return null;
+    }
+
+    private static OfficialAssistedLaunchReceipt StartVerifiedBackend(
+        OfficialAssistedLaunchPreparation preparation,
+        Guid attemptId,
+        DateTimeOffset requestedAtUtc)
+    {
         var baselineFailure = CheckCleanBaseline(preparation.ObservedProcessPaths);
         if (baselineFailure is not null)
         {
@@ -320,7 +413,7 @@ public sealed class OfficialAssistedLaunchCoordinator
         {
             var startInfo = new ProcessStartInfo
             {
-                FileName = preparation.Plan.ProviderExecutablePath,
+                FileName = preparation.Plan!.ProviderExecutablePath,
                 WorkingDirectory = preparation.Plan.WorkingDirectory,
                 UseShellExecute = true,
                 Verb = "runas",

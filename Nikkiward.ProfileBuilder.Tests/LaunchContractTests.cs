@@ -25,8 +25,14 @@ internal static class LaunchContractTests
         ("Start refuses a preparation that never succeeded", StartRefusesUnpreparedPlan),
         ("process binding keeps the current profile game paths", ProcessBindingCarriesOnlyGamePaths),
         ("process binding requires the root process identity", ProcessBindingRejectsMissingRootIdentity),
-        ("the catalog only resolves the exact launcher version directory", CatalogVersionIsExact),
-        ("no component requirement omits its identity anchors", ComponentAnchorsPresent),
+        ("the catalog adapts to any discovered launcher version directory", CatalogResolvesDiscoveredVersions),
+        ("no component requirement omits its trusted signer anchors", ComponentAnchorsPresent),
+        ("an updated launcher version still prepares with unknown hashes", UpdatedVersionStillPrepares),
+        ("the trust gate passes trusted signers regardless of file content", TrustGatePassesTrustedSigner),
+        ("the trust gate survives a certificate rotation via subject identity", TrustGateSurvivesCertificateRotation),
+        ("an untrusted signer fails closed as SignerMismatch", UntrustedSignerFailsClosed),
+        ("an unreadable signer identity fails closed as SignerMismatch", UnreadableSignerIdentityFailsClosed),
+        ("Start re-verifies the backend identity before elevation", StartRefusesDriftedBackend),
         ("Bilibili config discovery preserves its independent identity", BilibiliConfigDiscoveryPreservesIdentity),
         ("Bilibili manual parent selection resolves InfinityNikkiBili", BilibiliManualParentSelectionResolvesGameRoot),
         ("Bilibili marker mismatch fails closed", BilibiliMarkerMismatchFailsClosed),
@@ -96,7 +102,7 @@ internal static class LaunchContractTests
         AssertTrue(harness.Succeeded, $"a closed gate must still prepare, got {harness.FailureCode}");
         AssertTrue(harness.Plan is not null, "a transient plan must be synthesized");
         AssertEqual(
-            Path.Combine(layout.LauncherRoot, LauncherVersion, "xstarter.exe"),
+            Path.Combine(layout.LauncherRoot, layout.Version, "xstarter.exe"),
             harness.Plan!.ProviderExecutablePath,
             "synthesized provider path");
         AssertEqual(5, harness.ObservedProcessPaths.Count, "observed component receipt count");
@@ -270,16 +276,43 @@ internal static class LaunchContractTests
             "a binding without the root start identity must fail closed");
     }
 
-    private static Task CatalogVersionIsExact()
+    private static Task CatalogResolvesDiscoveredVersions()
     {
-        AssertTrue(
-            LaunchProviderCatalog.TryGet(DistributionChannel.Official, LauncherVersion, out _),
-            "the exact launcher version must resolve");
-        foreach (var near in new[] { "1.3.2", "1.3", "1.3.1.0", "1.4.0", "" })
+        // Adaptive since ContractVersion 2: any three-part numeric version
+        // directory resolves, and both version-derived relative paths follow
+        // the requested directory. Everything else stays frozen.
+        foreach (var version in new[] { LauncherVersion, "1.3.2", "1.4.0", "12.0.3" })
         {
             AssertTrue(
-                !LaunchProviderCatalog.TryGet(DistributionChannel.Official, near, out _),
-                $"version '{near}' must not resolve — see LAUNCH_CONTRACT.md §5 when the launcher updates");
+                LaunchProviderCatalog.TryGet(DistributionChannel.Official, version, out var contract),
+                $"version '{version}' must resolve adaptively");
+            AssertEqual(
+                Path.Combine(version, "xstarter.exe"),
+                contract.BackendRelativeExecutablePath,
+                $"backend relative path for {version}");
+            AssertEqual(
+                Path.Combine(version, "xstarter.exe"),
+                contract.RequiredComponents.Single(c => c.ComponentId == "official-backend").RelativePath,
+                $"official-backend relative path for {version}");
+            AssertEqual(
+                LaunchProviderCatalog.CnWindows131ContractId,
+                contract.ContractId,
+                "the contract id must stay frozen across versions");
+            AssertEqual(
+                LaunchProviderCatalog.CnWindows131ArgumentPresetId,
+                contract.ArgumentPresetId,
+                "the argument preset id must stay frozen across versions");
+            AssertTrue(
+                contract.ArgumentList.SequenceEqual(["-skiplauncher"], StringComparer.Ordinal),
+                "the argument list must stay frozen across versions");
+            AssertTrue(!contract.ExecutionEnabled, "the execution gate must stay closed across versions");
+        }
+
+        foreach (var malformed in new[] { "1.3", "1.3.1.0", "", "1.4.0-beta", "v1.4.0" })
+        {
+            AssertTrue(
+                !LaunchProviderCatalog.TryGet(DistributionChannel.Official, malformed, out _),
+                $"malformed version '{malformed}' must not resolve");
         }
 
         foreach (var channel in new[]
@@ -305,19 +338,156 @@ internal static class LaunchContractTests
         foreach (var component in contract.RequiredComponents)
         {
             AssertTrue(
-                component.ExpectedSha256.Length == 64,
-                $"{component.ComponentId} must pin a 64-hex SHA-256");
-            AssertTrue(
-                !string.IsNullOrWhiteSpace(component.ExpectedSignerThumbprint),
-                $"{component.ComponentId} must pin a signer thumbprint");
+                component.TrustedSigners.Count > 0,
+                $"{component.ComponentId} must pin at least one trusted signer");
+            foreach (var signer in component.TrustedSigners)
+            {
+                AssertTrue(
+                    signer.Thumbprints.All(thumbprint => thumbprint.Length == 40),
+                    $"{component.ComponentId} signer thumbprints must be 40-hex SHA-1 values");
+                AssertTrue(
+                    signer.Thumbprints.Count > 0 || !string.IsNullOrWhiteSpace(signer.SubjectCommonName),
+                    $"{component.ComponentId} signer must anchor a thumbprint or a subject CN");
+            }
+
             AssertTrue(
                 component.ExpectedSignature is AuthenticodeSignatureStatus.Valid,
                 $"{component.ComponentId} must require a valid signature");
         }
 
+        // The rotation anchor: Papergames components must survive a certificate
+        // renewal via whole-value subject identity, not just the thumbprint.
+        var papergames = LaunchProviderCatalog.PapergamesSigner;
+        AssertTrue(
+            !string.IsNullOrWhiteSpace(papergames.SubjectCommonName) &&
+            !string.IsNullOrWhiteSpace(papergames.SubjectSerialNumber),
+            "the Papergames signer must pin subject CN and serialNumber for rotation survival");
+        AssertEqual(
+            "xstarter.exe",
+            contract.RequiredComponents.Single(c => c.ComponentId == "official-backend").ExpectedOriginalFilename,
+            "the elevated backend must pin its OriginalFilename");
+        AssertTrue(
+            contract.RequiredComponents
+                .Single(c => c.ComponentId == "anti-cheat-artifact")
+                .TrustedSigners.All(s => s.SubjectCommonName == LaunchProviderCatalog.AntiCheatExpertSigner.SubjectCommonName),
+            "the anti-cheat artifact must trust only the AntiCheatExpert signer");
+
         AssertEqual("InfinityNikki Launcher", contract.ProductMarker!.ExpectedName!, "product marker name");
         return Task.CompletedTask;
     }
+
+    private static async Task UpdatedVersionStillPrepares()
+    {
+        // The regression this whole redesign exists for: a machine whose game
+        // and launcher already updated (unknown hashes, new version directory)
+        // must still prepare a launch without a code change.
+        using var layout = FakeInstall.Create("1.4.0");
+        var harness = await RunPrepareAsync(ClosedGatePreflight(layout), layout);
+        AssertTrue(harness.Succeeded, $"an updated install must prepare, got {harness.FailureCode}: {harness.Detail}");
+        AssertEqual(
+            Path.Combine(layout.LauncherRoot, "1.4.0", "xstarter.exe"),
+            harness.Plan!.ProviderExecutablePath,
+            "updated provider path");
+        AssertEqual(layout.LauncherRoot, harness.Plan.WorkingDirectory, "updated plan working directory");
+        AssertTrue(
+            harness.Plan.ArgumentList.SequenceEqual(["-skiplauncher"], StringComparer.Ordinal),
+            "the frozen argument list must survive the version change");
+    }
+
+    private static async Task TrustGatePassesTrustedSigner()
+    {
+        using var layout = FakeInstall.Create("1.4.0");
+        var verifier = new WindowsLaunchPreflightVerifier(new FakeIdentityProbe(KnownThumbprintIdentity));
+        var result = await verifier.VerifyAsync(layout.BuildCandidate());
+
+        AssertTrue(result.StaticIdentityPassed, result.FailureDetail ?? "trusted signers must pass the static gate");
+        AssertTrue(!result.ExecutionAllowed, "the execution gate must stay closed");
+        AssertEqual(LaunchPreflightFailureCode.ExecutionGateClosed, result.FailureCode, "gate code");
+        AssertTrue(result.Plan is null, "a closed gate must not expose a plan");
+        AssertEqual(
+            Path.Combine("1.4.0", "xstarter.exe"),
+            result.Contract!.BackendRelativeExecutablePath,
+            "the verifier must materialize the contract for the candidate's version directory");
+        AssertEqual(5, result.Components.Count(component => component.Passed), "passing component receipts");
+    }
+
+    private static async Task TrustGateSurvivesCertificateRotation()
+    {
+        // Unknown thumbprints, same legal identity: the subject match keeps the
+        // gate open after the publisher renews its certificate.
+        using var layout = FakeInstall.Create();
+        var verifier = new WindowsLaunchPreflightVerifier(new FakeIdentityProbe(RotatedCertificateIdentity));
+        var result = await verifier.VerifyAsync(layout.BuildCandidate());
+
+        AssertTrue(result.StaticIdentityPassed, result.FailureDetail ?? "a rotated certificate with the pinned subject must pass");
+        AssertEqual(LaunchPreflightFailureCode.ExecutionGateClosed, result.FailureCode, "gate code after rotation");
+    }
+
+    private static async Task UntrustedSignerFailsClosed()
+    {
+        using var layout = FakeInstall.Create();
+        var verifier = new WindowsLaunchPreflightVerifier(new FakeIdentityProbe(_ =>
+            new SignerIdentity("0000000000000000000000000000000000000000", "Untrusted Corp", null)));
+        var result = await verifier.VerifyAsync(layout.BuildCandidate());
+
+        AssertTrue(!result.StaticIdentityPassed, "an untrusted signer must fail the static gate");
+        AssertTrue(!result.ExecutionAllowed, "an untrusted signer must close execution");
+        AssertEqual(LaunchPreflightFailureCode.SignerMismatch, result.FailureCode, "untrusted signer failure code");
+        AssertTrue(result.Plan is null, "an untrusted signer must not expose a plan");
+    }
+
+    private static async Task UnreadableSignerIdentityFailsClosed()
+    {
+        // Valid WinVerifyTrust status but the leaf certificate cannot be read:
+        // attribution is impossible, so the gate must not open.
+        using var layout = FakeInstall.Create();
+        var verifier = new WindowsLaunchPreflightVerifier(new FakeIdentityProbe(_ => null));
+        var result = await verifier.VerifyAsync(layout.BuildCandidate());
+
+        AssertTrue(!result.StaticIdentityPassed, "an unreadable signer identity must fail the static gate");
+        AssertEqual(LaunchPreflightFailureCode.SignerMismatch, result.FailureCode, "unreadable signer failure code");
+        AssertTrue(result.Plan is null, "an unreadable signer identity must not expose a plan");
+    }
+
+    private static async Task StartRefusesDriftedBackend()
+    {
+        // Prepare succeeds against canned receipts, but the stub xstarter on
+        // disk carries no Authenticode signature: the last-instant identity
+        // re-check inside Start (which runs the production probe while holding
+        // a write/delete-denying handle) must refuse to elevate it.
+        using var layout = FakeInstall.Create();
+        var preparation = await RunPrepareAsync(ClosedGatePreflight(layout), layout);
+        AssertTrue(preparation.Succeeded, $"preparation should succeed, got {preparation.FailureCode}");
+
+        var coordinator = new OfficialAssistedLaunchCoordinator(new StubVerifier(ClosedGatePreflight(layout)));
+        var receipt = coordinator.Start(preparation);
+
+        AssertTrue(!receipt.StartRequested, "a drifted backend must never reach Process.Start");
+        AssertEqual("Runtime.BackendIdentityDrift", receipt.FailureCode, "drifted backend failure code");
+        AssertTrue(receipt.RootProcessId is null, "no pid may be reported for a refused elevation");
+    }
+
+    private static SignerIdentity? KnownThumbprintIdentity(string filePath) =>
+        filePath.EndsWith("ACE-Service64.exe", StringComparison.OrdinalIgnoreCase)
+            ? new SignerIdentity(
+                LaunchProviderCatalog.AntiCheatExpertSigner.Thumbprints[0],
+                LaunchProviderCatalog.AntiCheatExpertSigner.SubjectCommonName,
+                null)
+            : new SignerIdentity(
+                LaunchProviderCatalog.PapergamesSigner.Thumbprints[0],
+                LaunchProviderCatalog.PapergamesSigner.SubjectCommonName,
+                LaunchProviderCatalog.PapergamesSigner.SubjectSerialNumber);
+
+    private static SignerIdentity? RotatedCertificateIdentity(string filePath) =>
+        filePath.EndsWith("ACE-Service64.exe", StringComparison.OrdinalIgnoreCase)
+            ? new SignerIdentity(
+                "1111111111111111111111111111111111111111",
+                LaunchProviderCatalog.AntiCheatExpertSigner.SubjectCommonName,
+                null)
+            : new SignerIdentity(
+                "2222222222222222222222222222222222222222",
+                LaunchProviderCatalog.PapergamesSigner.SubjectCommonName,
+                LaunchProviderCatalog.PapergamesSigner.SubjectSerialNumber);
 
     private static async Task BilibiliConfigDiscoveryPreservesIdentity()
     {
@@ -419,10 +589,27 @@ internal static class LaunchContractTests
         StaticIdentityPassed = true,
         ExecutionAllowed = false,
         FailureCode = LaunchPreflightFailureCode.ExecutionGateClosed,
-        Contract = LaunchProviderCatalog.CnWindows131,
+        Contract = layout.Contract,
         Plan = null,
         Components = layout.ComponentReceipts(),
     };
+
+    /// <summary>
+    /// Drives the real verifier against stub files: signature status and signer
+    /// identity come from the delegate, everything else (existence, TOCTOU
+    /// stability, path containment, marker) runs for real. OriginalFilename is
+    /// answered with the on-disk file name, which satisfies the launcher-side
+    /// pins for a well-formed layout.
+    /// </summary>
+    private sealed class FakeIdentityProbe(Func<string, SignerIdentity?> readIdentity) : IAuthenticodeIdentityProbe
+    {
+        public AuthenticodeVerification VerifySignature(string filePath) =>
+            new(AuthenticodeSignatureStatus.Valid, "0x00000000");
+
+        public SignerIdentity? ReadSignerIdentity(string filePath) => readIdentity(filePath);
+
+        public string? ReadOriginalFilename(string filePath) => Path.GetFileName(filePath);
+    }
 
     private sealed record BilibiliPathSource(
         IReadOnlyList<string> BilibiliRoots) : IWindowsInstallationPathSource
@@ -522,6 +709,7 @@ internal static class LaunchContractTests
             string launcherRootPath,
             string gameRootPath,
             string contractId,
+            string? versionDirectoryName = null,
             CancellationToken cancellationToken = default) => Task.FromResult(result);
     }
 
@@ -536,6 +724,7 @@ internal static class LaunchContractTests
             string launcherRootPath,
             string gameRootPath,
             string contractId,
+            string? versionDirectoryName = null,
             CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("the verifier must not run for an unusable profile");
     }

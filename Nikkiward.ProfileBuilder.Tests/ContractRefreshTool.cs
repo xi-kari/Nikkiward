@@ -1,18 +1,24 @@
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using Nikkiward.Models;
 using Nikkiward.Services;
 
 /// <summary>
-/// Reads the installation on this machine and prints a paste-ready
-/// RequiredComponents block for LaunchProviderCatalog. Read-only: it never
+/// Signature audit for the installation on this machine. Since the adaptive
+/// contract (ContractVersion 2) hashes and file versions are diagnostics, not
+/// gates, so a game update needs no refresh at all. This tool now reports each
+/// component's observed publisher identity, evaluates it against the
+/// contract's trusted signer list, and prints a paste-ready
+/// TrustedSignerRequirement only when an unknown signer shows up (i.e. the
+/// publisher rotated to a certificate with a new subject). Read-only: it never
 /// edits source. See LAUNCH_CONTRACT.md §5.
 /// </summary>
 internal static class ContractRefreshTool
 {
     public static async Task<int> RunAsync()
     {
-        Console.WriteLine("== 启动契约刷新工具 ==");
-        Console.WriteLine("只读扫描本机安装，输出可粘贴的契约片段。不会修改任何源文件。");
+        Console.WriteLine("== 启动契约签名审计 ==");
+        Console.WriteLine("只读扫描本机安装，核对组件签名者是否在契约可信列表内。不会修改任何源文件。");
         Console.WriteLine();
 
         var builder = new WindowsInstallationProfileBuilder();
@@ -41,157 +47,99 @@ internal static class ContractRefreshTool
         Console.WriteLine($"游戏根:      {gameRoot}");
 
         var versionDirectory = DetectVersionDirectory(launcherRoot);
-        Console.WriteLine($"版本目录:    {versionDirectory ?? "(未找到)"}");
-        if (versionDirectory is not null &&
-            !string.Equals(versionDirectory, LaunchProviderCatalog.CnLauncherVersion, StringComparison.OrdinalIgnoreCase))
-        {
-            Console.WriteLine();
-            Console.WriteLine($"  ⚠ 版本目录已从 {LaunchProviderCatalog.CnLauncherVersion} 变为 {versionDirectory}。");
-            Console.WriteLine($"    需同时把 CnLauncherVersion 改为 \"{versionDirectory}\"，");
-            Console.WriteLine("    并递增 ContractVersion（契约 id 可保留或按新版本命名）。");
-        }
-
-        var effectiveVersion = versionDirectory ?? LaunchProviderCatalog.CnLauncherVersion;
+        Console.WriteLine($"版本目录:    {versionDirectory ?? "(未找到)"}（契约按发现值自动适配，无需改常量）");
         Console.WriteLine();
 
+        var effectiveVersion = versionDirectory ?? LaunchProviderCatalog.CnLauncherVersion;
+        if (!LaunchProviderCatalog.TryGet(
+                DistributionChannel.Official,
+                effectiveVersion,
+                out var contract))
+        {
+            Console.WriteLine($"⚠ 版本目录 {effectiveVersion} 不是三段数字版本，无法实例化契约。");
+            return 1;
+        }
+
         var inspector = new WindowsInstallationInspector();
-        var probes = new (string ComponentId, string RootRole, string Root, string Relative)[]
-        {
-            ("official-launcher", "LauncherRoot", launcherRoot, "launcher.exe"),
-            ("official-backend", "LauncherRoot", launcherRoot, Path.Combine(effectiveVersion, "xstarter.exe")),
-            ("game-bootstrap", "GameRoot", gameRoot, "InfinityNikki.exe"),
-            ("game-client", "GameRoot", gameRoot,
-                Path.Combine("X6Game", "Binaries", "Win64", "X6Game-Win64-Shipping.exe")),
-            ("anti-cheat-artifact", "GameRoot", gameRoot,
-                Path.Combine("X6Game", "Binaries", "Win64", "AntiCheatExpert", "ACE-Service64.exe")),
-        };
-
-        var lines = new List<string>();
-        var drifted = new List<string>();
         var missing = new List<string>();
+        var untrusted = new List<(string ComponentId, SignerIdentity Signer)>();
 
-        foreach (var probe in probes)
+        foreach (var requirement in contract.RequiredComponents)
         {
-            var fullPath = Path.Combine(probe.Root, probe.Relative);
+            var root = string.Equals(requirement.RootRole, "GameRoot", StringComparison.Ordinal)
+                ? gameRoot
+                : launcherRoot;
+            var fullPath = Path.Combine(root, requirement.RelativePath);
             if (!File.Exists(fullPath))
             {
-                missing.Add($"{probe.ComponentId} -> {probe.Relative}");
+                missing.Add($"{requirement.ComponentId} -> {requirement.RelativePath}");
                 continue;
             }
 
             var observed = await inspector
-                .InspectComponentAsync(probe.ComponentId, probe.ComponentId, fullPath)
+                .InspectComponentAsync(requirement.ComponentId, requirement.ComponentId, fullPath)
                 .ConfigureAwait(false);
-            var sha = observed.Sha256 ?? await ComputeSha256Async(fullPath).ConfigureAwait(false);
-            var thumbprint = ReadSignerThumbprint(fullPath);
+            var identity = SignerIdentityReader.TryRead(fullPath);
 
-            var expected = LaunchProviderCatalog.CnWindows131.RequiredComponents
-                .FirstOrDefault(c => c.ComponentId == probe.ComponentId);
-            if (expected is not null &&
-                !string.Equals(expected.ExpectedSha256, sha, StringComparison.OrdinalIgnoreCase))
+            var trusted = identity is { } signer &&
+                WindowsLaunchPreflightVerifier.IsTrustedSigner(requirement.TrustedSigners, signer);
+            Console.WriteLine($"[{requirement.ComponentId}]");
+            Console.WriteLine($"  路径:        {fullPath}");
+            Console.WriteLine($"  签名状态:    {observed.SignatureStatus}（{observed.SignatureStatusCode}）");
+            Console.WriteLine($"  签名者指纹:  {identity?.Thumbprint ?? "(读取失败)"}");
+            Console.WriteLine($"  签名者 CN:   {identity?.SubjectCommonName ?? "(读取失败)"}");
+            Console.WriteLine($"  subject 序列: {identity?.SubjectSerialNumber ?? "(无)"}");
+            Console.WriteLine($"  可信判定:    {(trusted && observed.SignatureStatus is AuthenticodeSignatureStatus.Valid ? "通过" : "不通过")}");
+            Console.WriteLine($"  SHA-256（仅诊断）:   {observed.Sha256 ?? "(未计算)"}");
+            Console.WriteLine($"  文件版本（仅诊断）:  {observed.FileVersion ?? "(无)"} / {observed.ProductVersion ?? "(无)"}");
+            Console.WriteLine();
+
+            if (observed.SignatureStatus is AuthenticodeSignatureStatus.Valid &&
+                identity is { } validSigner &&
+                !trusted)
             {
-                drifted.Add(probe.ComponentId);
+                untrusted.Add((requirement.ComponentId, validSigner));
             }
-
-            if (observed.SignatureStatus is not AuthenticodeSignatureStatus.Valid)
-            {
-                Console.WriteLine(
-                    $"  ⚠ {probe.ComponentId} 签名状态为 {observed.SignatureStatus}" +
-                    $"（{observed.SignatureStatusCode}），请人工确认后再采用。");
-            }
-
-            lines.Add(Format(probe, sha, observed, thumbprint));
         }
 
         if (missing.Count > 0)
         {
-            Console.WriteLine("以下组件在磁盘上不存在，无法生成契约：");
+            Console.WriteLine("以下组件在磁盘上不存在：");
             missing.ForEach(m => Console.WriteLine($"  - {m}"));
             Console.WriteLine();
         }
 
-        Console.WriteLine(drifted.Count == 0
-            ? "所有组件哈希与当前契约一致 —— 无需刷新。"
-            : $"以下组件已漂移，需要刷新：{string.Join(", ", drifted)}");
-
-        if (lines.Count > 0)
+        if (untrusted.Count > 0)
         {
+            Console.WriteLine("⚠ 检测到签名有效但不在可信列表的签名者（官方可能更换了证书主体）。");
+            Console.WriteLine("  人工确认证书归属后，把以下片段合入 LaunchProviderCatalog 对应的 TrustedSignerRequirement：");
             Console.WriteLine();
-            Console.WriteLine("---- 以下内容替换 LaunchProviderCatalog.RequiredComponents ----");
-            Console.WriteLine("        RequiredComponents = new[]");
-            Console.WriteLine("        {");
-            Console.WriteLine(string.Join($",{Environment.NewLine}", lines));
-            Console.WriteLine("        },");
-            Console.WriteLine("---- 结束 ----");
-            Console.WriteLine();
-            Console.WriteLine("粘贴后运行：dotnet run --project Nikkiward.ProfileBuilder.Tests -- --current-machine");
+            foreach (var group in untrusted.GroupBy(item => item.Signer.Thumbprint))
+            {
+                var signer = group.First().Signer;
+                Console.WriteLine($"    // 影响组件: {string.Join(", ", group.Select(item => item.ComponentId))}");
+                Console.WriteLine("    new TrustedSignerRequirement");
+                Console.WriteLine("    {");
+                Console.WriteLine($"        DisplayName = \"{signer.SubjectCommonName}\",");
+                Console.WriteLine($"        Thumbprints = [\"{signer.Thumbprint}\"],");
+                Console.WriteLine($"        SubjectCommonName = \"{signer.SubjectCommonName}\",");
+                if (!string.IsNullOrWhiteSpace(signer.SubjectSerialNumber))
+                {
+                    Console.WriteLine($"        SubjectSerialNumber = \"{signer.SubjectSerialNumber}\",");
+                }
+
+                Console.WriteLine("    },");
+                Console.WriteLine();
+            }
+
+            Console.WriteLine("合入后运行：dotnet run --project Nikkiward.ProfileBuilder.Tests -- --current-machine");
+        }
+        else if (missing.Count == 0)
+        {
+            Console.WriteLine("所有组件签名者均在契约可信列表内 —— 无需任何维护动作。");
         }
 
-        return missing.Count == 0 ? 0 : 1;
-    }
-
-    private static string? ReadSignerThumbprint(string path)
-    {
-        try
-        {
-            // X509CertificateLoader cannot read an Authenticode signature out of a PE
-            // file; CreateFromSignedFile remains the only API that does.
-#pragma warning disable SYSLIB0057
-            using var certificate =
-                System.Security.Cryptography.X509Certificates.X509Certificate.CreateFromSignedFile(path);
-            using var signer =
-                new System.Security.Cryptography.X509Certificates.X509Certificate2(certificate);
-#pragma warning restore SYSLIB0057
-            return signer.Thumbprint;
-        }
-        catch (Exception ex) when (ex is CryptographicException or PlatformNotSupportedException or IOException)
-        {
-            return null;
-        }
-    }
-
-    private static string Format(
-        (string ComponentId, string RootRole, string Root, string Relative) probe,
-        string sha,
-        ComponentVerification observed,
-        string? thumbprint)
-    {
-        var relative = probe.ComponentId switch
-        {
-            "official-backend" => $"Path.Combine(CnLauncherVersion, \"xstarter.exe\")",
-            "game-client" => "Path.Combine(\n                    \"X6Game\",\n                    \"Binaries\",\n                    \"Win64\",\n                    \"X6Game-Win64-Shipping.exe\")",
-            "anti-cheat-artifact" => "Path.Combine(\n                    \"X6Game\",\n                    \"Binaries\",\n                    \"Win64\",\n                    \"AntiCheatExpert\",\n                    \"ACE-Service64.exe\")",
-            _ => $"\"{probe.Relative.Replace("\\", "\\\\")}\"",
-        };
-
-        var builder = new System.Text.StringBuilder();
-        builder.AppendLine("            new BinaryIdentityRequirement");
-        builder.AppendLine("            {");
-        builder.AppendLine($"                ComponentId = \"{probe.ComponentId}\",");
-        if (probe.RootRole != "LauncherRoot")
-        {
-            builder.AppendLine($"                RootRole = \"{probe.RootRole}\",");
-        }
-
-        builder.AppendLine($"                RelativePath = {relative},");
-        builder.AppendLine($"                ExpectedSha256 = \"{sha}\",");
-        if (!string.IsNullOrWhiteSpace(observed.FileVersion))
-        {
-            builder.AppendLine($"                ExpectedFileVersion = \"{observed.FileVersion}\",");
-        }
-
-        if (!string.IsNullOrWhiteSpace(observed.ProductVersion))
-        {
-            builder.AppendLine($"                ExpectedProductVersion = \"{observed.ProductVersion}\",");
-        }
-
-        if (!string.IsNullOrWhiteSpace(thumbprint))
-        {
-            builder.AppendLine($"                ExpectedSignerThumbprint = \"{thumbprint}\",");
-        }
-
-        builder.Append("            }");
-        return builder.ToString();
+        return missing.Count == 0 && untrusted.Count == 0 ? 0 : 1;
     }
 
     private static string? DetectVersionDirectory(string launcherRoot)
@@ -202,25 +150,14 @@ internal static class ContractRefreshTool
                 .Select(Path.GetFileName)
                 .Where(name => name is not null &&
                     System.Text.RegularExpressions.Regex.IsMatch(name, @"^\d+\.\d+\.\d+$"))
-                .OrderByDescending(name => name, StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(name => Version.TryParse(name, out var version)
+                    ? version
+                    : new Version(0, 0, 0))
                 .FirstOrDefault();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return null;
         }
-    }
-
-    private static async Task<string> ComputeSha256Async(string path)
-    {
-        await using var stream = new FileStream(
-            path,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            bufferSize: 1 << 20,
-            useAsync: true);
-        var hash = await SHA256.HashDataAsync(stream).ConfigureAwait(false);
-        return Convert.ToHexString(hash);
     }
 }

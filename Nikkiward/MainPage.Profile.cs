@@ -68,10 +68,14 @@ public sealed partial class MainPage
             }
 
             _manualGameRootPath = selected;
-            await ViewModel.DiscoverFromManualRootAsync(
+            var outcome = await ViewModel.DiscoverFromManualRootAsync(
                 selected,
                 _manualLauncherRootPath,
                 _lifetimeCancellation?.Token ?? CancellationToken.None);
+            if (!outcome.Succeeded)
+            {
+                await TryShowDialogAsync(outcome.Title, outcome.Detail);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -79,6 +83,7 @@ public sealed partial class MainPage
         catch (Exception ex)
         {
             ViewModel.ReportUiError($"游戏目录发现失败：{ex.GetType().Name}: {ex.Message}");
+            await TryShowDialogAsync("游戏目录发现失败", ViewModel.LastErrorText);
         }
     }
 
@@ -108,10 +113,14 @@ public sealed partial class MainPage
                 return;
             }
 
-            await ViewModel.DiscoverFromManualRootAsync(
+            var outcome = await ViewModel.DiscoverFromManualRootAsync(
                 gameRoot,
                 selected,
                 _lifetimeCancellation?.Token ?? CancellationToken.None);
+            if (!outcome.Succeeded)
+            {
+                await TryShowDialogAsync(outcome.Title, outcome.Detail);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -119,6 +128,7 @@ public sealed partial class MainPage
         catch (Exception ex)
         {
             ViewModel.ReportUiError($"launcher 目录发现失败：{ex.GetType().Name}: {ex.Message}");
+            await TryShowDialogAsync("launcher 目录发现失败", ViewModel.LastErrorText);
         }
     }
 

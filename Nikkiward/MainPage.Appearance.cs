@@ -34,17 +34,28 @@ public sealed partial class MainPage
         string commitButtonText,
         PickerLocationId suggestedStartLocation)
     {
-        var picker = new FolderPicker
-        {
-            CommitButtonText = commitButtonText,
-            SuggestedStartLocation = suggestedStartLocation,
-        };
-        picker.FileTypeFilter.Add("*");
-
         var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
-        WinRT.Interop.InitializeWithWindow.Initialize(picker, windowHandle);
-        var folder = await picker.PickSingleFolderAsync();
-        return string.IsNullOrWhiteSpace(folder?.Path) ? null : folder.Path;
+        try
+        {
+            var picker = new FolderPicker
+            {
+                CommitButtonText = commitButtonText,
+                SuggestedStartLocation = suggestedStartLocation,
+            };
+            picker.FileTypeFilter.Add("*");
+
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, windowHandle);
+            var folder = await picker.PickSingleFolderAsync();
+            return string.IsNullOrWhiteSpace(folder?.Path) ? null : folder.Path;
+        }
+        catch (Exception ex) when (
+            ex is System.Runtime.InteropServices.COMException or UnauthorizedAccessException)
+        {
+            // The WinRT picker cannot run in an elevated process; fall back to
+            // the Win32 dialog so "以管理员身份运行" users still get a picker
+            // instead of a silent no-op.
+            return Win32FolderDialog.PickFolder(windowHandle, commitButtonText);
+        }
     }
 
     private async void OnChooseBackgroundClicked(object sender, RoutedEventArgs e) =>

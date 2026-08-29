@@ -11,6 +11,7 @@ public interface ILaunchPreflightVerifier
         string launcherRootPath,
         string gameRootPath,
         string contractId,
+        string? versionDirectoryName = null,
         CancellationToken cancellationToken = default);
 
     Task<LaunchPreflightResult> VerifyAsync(
@@ -19,12 +20,78 @@ public interface ILaunchPreflightVerifier
 }
 
 /// <summary>
+/// The leaf certificate identity of the first Authenticode signature on a
+/// file. Read separately from WinVerifyTrust, which only reports chain status.
+/// </summary>
+internal readonly record struct SignerIdentity(
+    string? Thumbprint,
+    string? SubjectCommonName,
+    string? SubjectSerialNumber);
+
+/// <summary>
+/// Injection seam for the two signature primitives so the trust gate itself is
+/// testable against stub files; production always uses the WinVerifyTrust +
+/// CreateFromSignedFile implementation.
+/// </summary>
+internal interface IAuthenticodeIdentityProbe
+{
+    AuthenticodeVerification VerifySignature(string filePath);
+
+    SignerIdentity? ReadSignerIdentity(string filePath);
+
+    string? ReadOriginalFilename(string filePath);
+}
+
+internal sealed class WindowsAuthenticodeIdentityProbe : IAuthenticodeIdentityProbe
+{
+    public static WindowsAuthenticodeIdentityProbe Instance { get; } = new();
+
+    public AuthenticodeVerification VerifySignature(string filePath) =>
+        OperatingSystem.IsWindows()
+            ? WindowsAuthenticodeVerifier.Verify(filePath)
+            : new AuthenticodeVerification(AuthenticodeSignatureStatus.Error, "non-windows");
+
+    public SignerIdentity? ReadSignerIdentity(string filePath) =>
+        SignerIdentityReader.TryRead(filePath);
+
+    public string? ReadOriginalFilename(string filePath)
+    {
+        try
+        {
+            var value = FileVersionInfo.GetVersionInfo(filePath).OriginalFilename;
+            return string.IsNullOrWhiteSpace(value) ? null : value;
+        }
+        catch (FileNotFoundException)
+        {
+            return null;
+        }
+    }
+}
+
+/// <summary>
 /// Static, read-only identity gate. It deliberately stops before process
 /// creation; runtime ownership and observation belong to a later provider
-/// layer.
+/// layer. Since ContractVersion 2 the per-component gate is structural +
+/// publisher identity (file exists, stable while read, Authenticode Valid,
+/// signer in the contract's trusted list); hashes and file versions are
+/// recorded on the receipts as diagnostics but no longer block launching,
+/// so a game update does not require a new contract.
 /// </summary>
 public sealed class WindowsLaunchPreflightVerifier : ILaunchPreflightVerifier
 {
+    private readonly IAuthenticodeIdentityProbe _identityProbe;
+
+    public WindowsLaunchPreflightVerifier()
+        : this(WindowsAuthenticodeIdentityProbe.Instance)
+    {
+    }
+
+    internal WindowsLaunchPreflightVerifier(IAuthenticodeIdentityProbe identityProbe)
+    {
+        ArgumentNullException.ThrowIfNull(identityProbe);
+        _identityProbe = identityProbe;
+    }
+
     public Task<LaunchPreflightResult> VerifyAsync(
         InstallationProfileCandidate candidate,
         CancellationToken cancellationToken = default)
@@ -44,6 +111,7 @@ public sealed class WindowsLaunchPreflightVerifier : ILaunchPreflightVerifier
             candidate.LauncherRootPath,
             candidate.GameRootPath,
             candidate.Provider.ProviderId,
+            TryGetVersionDirectoryName(candidate.Provider.BackendExecutablePath),
             cancellationToken);
     }
 
@@ -51,6 +119,7 @@ public sealed class WindowsLaunchPreflightVerifier : ILaunchPreflightVerifier
         string launcherRootPath,
         string gameRootPath,
         string contractId,
+        string? versionDirectoryName = null,
         CancellationToken cancellationToken = default)
     {
         if (!string.Equals(contractId, LaunchProviderCatalog.CnWindows131ContractId, StringComparison.Ordinal))
@@ -68,7 +137,17 @@ public sealed class WindowsLaunchPreflightVerifier : ILaunchPreflightVerifier
                 "launcher root 或 game root 不存在。");
         }
 
-        var contract = LaunchProviderCatalog.CnWindows131;
+        // The contract must be materialized for the same version directory the
+        // discovery layer bound, otherwise the coordinator's path-derivation
+        // equality check fails closed.
+        var version = versionDirectoryName ?? LaunchProviderCatalog.CnLauncherVersion;
+        if (!LaunchProviderCatalog.TryGet(DistributionChannel.Official, version, out var contract))
+        {
+            return Failed(
+                LaunchPreflightFailureCode.InvalidContract,
+                $"版本目录 {version} 无法实例化 provider contract。");
+        }
+
         if (!contract.ArgumentList.SequenceEqual(["-skiplauncher"], StringComparer.Ordinal) ||
             !string.Equals(contract.WorkingDirectoryRole, "LauncherRoot", StringComparison.Ordinal))
         {
@@ -105,17 +184,9 @@ public sealed class WindowsLaunchPreflightVerifier : ILaunchPreflightVerifier
             componentResults.Add(component);
             if (!component.Passed)
             {
-                var code = component.FailureDetail?.StartsWith("签名", StringComparison.Ordinal) == true
-                    ? LaunchPreflightFailureCode.SignatureInvalid
-                    : component.FailureDetail?.StartsWith("签名者", StringComparison.Ordinal) == true
-                        ? LaunchPreflightFailureCode.SignerMismatch
-                        : component.FailureDetail?.StartsWith("版本", StringComparison.Ordinal) == true
-                            ? LaunchPreflightFailureCode.VersionMismatch
-                            : component.FailureDetail?.StartsWith("文件身份", StringComparison.Ordinal) == true
-                                ? LaunchPreflightFailureCode.BinaryIdentityDrift
-                                : component.FailureDetail?.StartsWith("SHA-256", StringComparison.Ordinal) == true
-                                    ? LaunchPreflightFailureCode.ArtifactHashMismatch
-                                    : LaunchPreflightFailureCode.RequiredComponentMissing;
+                var code = component.FailureCode is LaunchPreflightFailureCode.None
+                    ? LaunchPreflightFailureCode.RequiredComponentMissing
+                    : component.FailureCode;
                 return Failed(
                     code,
                     component.FailureDetail ?? "组件身份检查失败。",
@@ -190,14 +261,36 @@ public sealed class WindowsLaunchPreflightVerifier : ILaunchPreflightVerifier
         };
     }
 
-    private static async Task<PreflightComponentResult> VerifyComponentAsync(
+    internal static string? TryGetVersionDirectoryName(string? backendExecutablePath)
+    {
+        if (string.IsNullOrWhiteSpace(backendExecutablePath))
+        {
+            return null;
+        }
+
+        try
+        {
+            var name = Path.GetFileName(Path.GetDirectoryName(backendExecutablePath));
+            return LaunchProviderCatalog.IsCnVersionDirectoryName(name) ? name : null;
+        }
+        catch (Exception ex) when (ex is ArgumentException or PathTooLongException)
+        {
+            return null;
+        }
+    }
+
+    private async Task<PreflightComponentResult> VerifyComponentAsync(
         BinaryIdentityRequirement requirement,
         string filePath,
         CancellationToken cancellationToken)
     {
         if (!File.Exists(filePath))
         {
-            return FailedComponent(requirement, filePath, "必需文件不存在。");
+            return FailedComponent(
+                requirement,
+                filePath,
+                LaunchPreflightFailureCode.RequiredComponentMissing,
+                "必需文件不存在。");
         }
 
         try
@@ -216,38 +309,27 @@ public sealed class WindowsLaunchPreflightVerifier : ILaunchPreflightVerifier
             var after = new FileInfo(filePath);
             if (beforeLength != after.Length || beforeWrite != after.LastWriteTimeUtc)
             {
-                return FailedComponent(requirement, filePath, "文件身份在读取前后发生变化。");
+                return FailedComponent(
+                    requirement,
+                    filePath,
+                    LaunchPreflightFailureCode.BinaryIdentityDrift,
+                    "文件身份在读取前后发生变化。");
             }
 
+            // Recorded for diagnostics only; content pinning is gone on purpose
+            // so a game update no longer disables launching.
             var sha256 = Convert.ToHexString(digest);
-            if (!string.Equals(sha256, requirement.ExpectedSha256, StringComparison.OrdinalIgnoreCase))
-            {
-                return FailedComponent(requirement, filePath, $"SHA-256 不匹配（实际 {sha256}）。", sha256);
-            }
-
             var version = FileVersionInfo.GetVersionInfo(filePath);
             var fileVersion = NullIfWhiteSpace(version.FileVersion);
             var productVersion = NullIfWhiteSpace(version.ProductVersion);
-            if (requirement.ExpectedFileVersion is not null &&
-                !string.Equals(fileVersion, requirement.ExpectedFileVersion, StringComparison.OrdinalIgnoreCase))
-            {
-                return FailedComponent(requirement, filePath, "版本不匹配。", sha256, fileVersion, productVersion);
-            }
 
-            if (requirement.ExpectedProductVersion is not null &&
-                !string.Equals(productVersion, requirement.ExpectedProductVersion, StringComparison.OrdinalIgnoreCase))
-            {
-                return FailedComponent(requirement, filePath, "版本不匹配。", sha256, fileVersion, productVersion);
-            }
-
-            var signature = OperatingSystem.IsWindows()
-                ? WindowsAuthenticodeVerifier.Verify(filePath)
-                : new AuthenticodeVerification(AuthenticodeSignatureStatus.Error, "non-windows");
+            var signature = _identityProbe.VerifySignature(filePath);
             if (signature.Status is not AuthenticodeSignatureStatus.Valid)
             {
                 return FailedComponent(
                     requirement,
                     filePath,
+                    LaunchPreflightFailureCode.SignatureInvalid,
                     $"签名状态为 {signature.Status}。",
                     sha256,
                     fileVersion,
@@ -255,22 +337,56 @@ public sealed class WindowsLaunchPreflightVerifier : ILaunchPreflightVerifier
                     signature.Status);
             }
 
-            var signerThumbprint = SignerIdentityReader.TryGetThumbprint(filePath);
-            if (requirement.ExpectedSignerThumbprint is not null &&
-                !string.Equals(
-                    signerThumbprint,
-                    requirement.ExpectedSignerThumbprint,
-                    StringComparison.OrdinalIgnoreCase))
+            var identity = _identityProbe.ReadSignerIdentity(filePath);
+            if (identity is not { } signer || string.IsNullOrWhiteSpace(signer.Thumbprint))
             {
                 return FailedComponent(
                     requirement,
                     filePath,
-                    "签名者身份不匹配。",
+                    LaunchPreflightFailureCode.SignerMismatch,
+                    "无法读取签名者证书身份。",
+                    sha256,
+                    fileVersion,
+                    productVersion,
+                    signature.Status);
+            }
+
+            if (!IsTrustedSigner(requirement.TrustedSigners, signer))
+            {
+                return FailedComponent(
+                    requirement,
+                    filePath,
+                    LaunchPreflightFailureCode.SignerMismatch,
+                    $"签名者不在可信列表：指纹 {signer.Thumbprint}，CN={signer.SubjectCommonName ?? "未知"}。",
                     sha256,
                     fileVersion,
                     productVersion,
                     signature.Status,
-                    signerThumbprint);
+                    signer);
+            }
+
+            // Secondary anchor after the publisher gate: stops a *different*
+            // binary from the same trusted publisher being renamed into an
+            // elevated slot. Only launcher-side components pin this.
+            if (requirement.ExpectedOriginalFilename is not null)
+            {
+                var originalFilename = _identityProbe.ReadOriginalFilename(filePath);
+                if (!string.Equals(
+                        originalFilename,
+                        requirement.ExpectedOriginalFilename,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return FailedComponent(
+                        requirement,
+                        filePath,
+                        LaunchPreflightFailureCode.SignerMismatch,
+                        $"组件 OriginalFilename 与契约不符（实际 {originalFilename ?? "空"}）；该槽位放置的不是官方 {requirement.ExpectedOriginalFilename}。",
+                        sha256,
+                        fileVersion,
+                        productVersion,
+                        signature.Status,
+                        signer);
+                }
             }
 
             return new PreflightComponentResult
@@ -282,24 +398,65 @@ public sealed class WindowsLaunchPreflightVerifier : ILaunchPreflightVerifier
                 ActualFileVersion = fileVersion,
                 ActualProductVersion = productVersion,
                 SignatureStatus = signature.Status,
-                ActualSignerThumbprint = signerThumbprint,
+                ActualSignerThumbprint = signer.Thumbprint,
+                ActualSignerSubjectCommonName = signer.SubjectCommonName,
+                ActualSignerSubjectSerialNumber = signer.SubjectSerialNumber,
             };
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException)
         {
-            return FailedComponent(requirement, filePath, $"读取文件失败：{ex.GetType().Name}。");
+            return FailedComponent(
+                requirement,
+                filePath,
+                LaunchPreflightFailureCode.RequiredComponentMissing,
+                $"读取文件失败：{ex.GetType().Name}。");
         }
+    }
+
+    /// <summary>
+    /// Thumbprint hit is the fast path; a whole-value subject match (CN plus
+    /// serialNumber when pinned) keeps installs working across a publisher
+    /// certificate rotation. An empty trusted list fails closed. Shared with
+    /// the --emit-contract signature audit so both report the same verdict.
+    /// </summary>
+    internal static bool IsTrustedSigner(
+        IReadOnlyList<TrustedSignerRequirement> trustedSigners,
+        SignerIdentity signer)
+    {
+        foreach (var trusted in trustedSigners)
+        {
+            if (signer.Thumbprint is not null &&
+                trusted.Thumbprints.Contains(signer.Thumbprint, StringComparer.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (trusted.SubjectCommonName is not null &&
+                string.Equals(trusted.SubjectCommonName, signer.SubjectCommonName, StringComparison.OrdinalIgnoreCase) &&
+                (trusted.SubjectSerialNumber is null ||
+                 string.Equals(trusted.SubjectSerialNumber, signer.SubjectSerialNumber, StringComparison.Ordinal)))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static PreflightComponentResult FailedComponent(
         BinaryIdentityRequirement requirement,
         string filePath,
+        LaunchPreflightFailureCode failureCode,
         string detail,
         string? sha256 = null,
         string? fileVersion = null,
         string? productVersion = null,
         AuthenticodeSignatureStatus signatureStatus = AuthenticodeSignatureStatus.NotChecked,
-        string? signerThumbprint = null) => new()
+        SignerIdentity? signer = null) => new()
         {
             ComponentId = requirement.ComponentId,
             FilePath = filePath,
@@ -308,7 +465,10 @@ public sealed class WindowsLaunchPreflightVerifier : ILaunchPreflightVerifier
             ActualFileVersion = fileVersion,
             ActualProductVersion = productVersion,
             SignatureStatus = signatureStatus,
-            ActualSignerThumbprint = signerThumbprint,
+            ActualSignerThumbprint = signer?.Thumbprint,
+            ActualSignerSubjectCommonName = signer?.SubjectCommonName,
+            ActualSignerSubjectSerialNumber = signer?.SubjectSerialNumber,
+            FailureCode = failureCode,
             FailureDetail = detail,
         };
 
@@ -413,18 +573,59 @@ public sealed class WindowsLaunchPreflightVerifier : ILaunchPreflightVerifier
 
 internal static class SignerIdentityReader
 {
-    public static string? TryGetThumbprint(string filePath)
+    private const string SubjectCommonNameOid = "2.5.4.3";
+    private const string SubjectSerialNumberOid = "2.5.4.5";
+
+    public static SignerIdentity? TryRead(string filePath)
     {
         try
         {
+            // X509CertificateLoader cannot read the Authenticode certificate out
+            // of a PE; CreateFromSignedFile is the only in-box route. It returns
+            // the leaf certificate of the first signature.
 #pragma warning disable SYSLIB0057
             using var certificate = new X509Certificate2(X509Certificate.CreateFromSignedFile(filePath));
 #pragma warning restore SYSLIB0057
-            return certificate.Thumbprint;
+            // The CN is read from the exact 2.5.4.3 RDN rather than
+            // GetNameInfo(SimpleName), whose CN→OU→O→Email fallback would let a
+            // certificate without any CN match a pinned CommonName via its O=.
+            return new SignerIdentity(
+                certificate.Thumbprint,
+                TryGetSubjectRdnValue(certificate, SubjectCommonNameOid),
+                TryGetSubjectRdnValue(certificate, SubjectSerialNumberOid));
         }
         catch (Exception ex) when (ex is CryptographicException or IOException or UnauthorizedAccessException)
         {
             return null;
         }
     }
+
+    public static string? TryGetThumbprint(string filePath) => TryRead(filePath)?.Thumbprint;
+
+    private static string? TryGetSubjectRdnValue(X509Certificate2 certificate, string oid)
+    {
+        try
+        {
+            foreach (var rdn in certificate.SubjectName.EnumerateRelativeDistinguishedNames())
+            {
+                if (rdn.HasMultipleElements)
+                {
+                    continue;
+                }
+
+                if (string.Equals(rdn.GetSingleElementType().Value, oid, StringComparison.Ordinal))
+                {
+                    return NullIfWhiteSpace(rdn.GetSingleElementValue());
+                }
+            }
+        }
+        catch (CryptographicException)
+        {
+        }
+
+        return null;
+    }
+
+    private static string? NullIfWhiteSpace(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value;
 }

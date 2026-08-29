@@ -3,9 +3,9 @@ namespace Nikkiward.ViewModels;
 /// <summary>
 /// Honest projection of the launch gate onto the primary action button.
 /// See LAUNCH_CONTRACT.md §7: the button must never disguise a blocked gate as
-/// launchable, and "contract drift after a game update" must be told apart from
-/// "the launcher is broken" — otherwise users report a bug that is really a
-/// patch day.
+/// launchable, and a security refusal ("this binary cannot be attributed to
+/// the official publisher") must be told apart from "the install is broken" —
+/// otherwise users reinstall a game that was never the problem.
 /// </summary>
 public enum LaunchButtonState
 {
@@ -19,11 +19,18 @@ public enum LaunchButtonState
     ChannelUnsupported,
 
     /// <summary>
-    /// Binary identity no longer matches the frozen contract — almost always
-    /// because the game or launcher was updated. Recoverable by refreshing the
-    /// contract (<c>--emit-contract</c>).
+    /// The product marker no longer matches the selected channel (or a legacy
+    /// drift code surfaced). Since the adaptive contract a routine game update
+    /// no longer reaches this state — the signature gate absorbs it.
     /// </summary>
     ContractDrift,
+
+    /// <summary>
+    /// A component's Authenticode signature is invalid or its signer is not in
+    /// the contract's trusted list. Deliberately fail-closed: Nikkiward never
+    /// elevates a binary it cannot attribute to the official publishers.
+    /// </summary>
+    SignatureUntrusted,
 
     /// <summary>Static identity failed for a reason other than drift.</summary>
     Blocked,

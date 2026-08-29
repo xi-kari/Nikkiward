@@ -40,6 +40,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     private string _lastUpdatedText = "尚未刷新";
     private string _lastErrorText = "尚未刷新";
     private string _settingsStatusText = "尚未读取设置";
+    private string _manualDiscoveryStatusText = "自动发现在启动时运行；也可在此手动定位游戏目录。";
     private string _exportStatusText = "刷新组件后可导出脱敏 JSON 与文本报告。";
     private string _providerValidationStatusText = "验证事务工件尚未读取。";
     private string _providerValidationReceiptText = "验证事务工件尚未读取。";
@@ -176,7 +177,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 $"点击后提交 {SelectedChannelLaunchRoute}；不会打开 Bilibili launcher.exe。首次使用 Store B服需要在游戏内登录。",
             DistributionChannel.Steam =>
                 $"点击后提交 {SelectedChannelLaunchRoute}；不会打开 Steam URI 或 launcher.exe。",
-            _ => "点击后自动重新核对 CN frozen contract、构建瞬时 plan 并请求 Windows UAC；不代表登录已验证。",
+            _ => "点击后自动重新核对启动契约与组件签名、构建瞬时 plan 并请求 Windows UAC；不代表登录已验证。",
         };
 
     public bool CanCloseGame =>
@@ -251,7 +252,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     {
         { StaticIdentityPassed: true } => "已验证 · 静态身份通过",
         null => "NotVerified · 尚未执行静态 preflight",
-        _ => $"NotVerified · {_preflightResult.FailureCode}",
+        _ => $"NotVerified · {FormatPreflightFailure(_preflightResult.FailureCode)}",
     };
 
     public string ExecutionGateText => _preflightResult switch
@@ -341,6 +342,17 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     {
         get => _settingsStatusText;
         private set => SetField(ref _settingsStatusText, value);
+    }
+
+    /// <summary>
+    /// Feedback for the manual "定位游戏" flow, shown next to the picker
+    /// button. Kept separate from <see cref="SettingsStatusText"/> so settings
+    /// file chatter never buries a rejected directory selection.
+    /// </summary>
+    public string ManualDiscoveryStatusText
+    {
+        get => _manualDiscoveryStatusText;
+        private set => SetField(ref _manualDiscoveryStatusText, value);
     }
 
     public string ExportStatusText
@@ -622,6 +634,27 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             return;
         }
 
+        if (!string.Equals(selectedProfileId, _profile.ProfileId, StringComparison.Ordinal))
+        {
+            // The stored id predates an update (it embeds the version
+            // directory). Persist the fallback so the mismatch note does not
+            // recur on every launch.
+            try
+            {
+                await PersistSelectedSeedAsync(_profile.ProfileId, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _settingsErrorText = CombineErrors(
+                    _settingsErrorText,
+                    RedactUiText($"回写 SelectedProfileId 失败：{ex.GetType().Name}: {ex.Message}"));
+            }
+        }
+
         await RefreshAsync(cancellationToken);
     }
 
@@ -687,19 +720,22 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         }
     }
 
-    public async Task DiscoverFromManualRootAsync(
+    public async Task<ManualDiscoveryOutcome> DiscoverFromManualRootAsync(
         string gameRootPath,
         string? launcherRootPath,
         CancellationToken cancellationToken = default)
     {
         if (IsBusy)
         {
-            return;
+            return ManualDiscoveryOutcome.Failure(
+                "操作尚未完成",
+                "另一个检查正在进行，请稍候几秒再重新选择目录。");
         }
 
         IsBusy = true;
         ActivityText = "正在验证手动选择的安装根";
         var shouldRefresh = false;
+        ManualDiscoveryOutcome outcome;
         try
         {
             var result = await _installationDiscovery.DiscoverFromManualGameRootAsync(
@@ -707,10 +743,22 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 launcherRootPath,
                 cancellationToken);
             await ApplyDiscoveryResultAsync(result, null, cancellationToken);
+            outcome = BuildDiscoveryOutcome(result);
             if (_profile is not null)
             {
                 await PersistSelectedSeedAsync(_profile.ProfileId, cancellationToken);
                 shouldRefresh = true;
+            }
+
+            // Every manual selection must leave a visible trace; a silently
+            // discarded pick is indistinguishable from a broken button.
+            SettingsStatusText = outcome.Succeeded
+                ? $"已使用所选目录：{outcome.Detail}"
+                : $"所选目录未通过校验：{outcome.Detail}";
+            ManualDiscoveryStatusText = SettingsStatusText;
+            if (!outcome.Succeeded)
+            {
+                LastErrorText = CombineErrors(_settingsErrorText, outcome.Detail)!;
             }
         }
         catch (OperationCanceledException)
@@ -720,10 +768,11 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            LastErrorText = CombineErrors(
-                _settingsErrorText,
-                RedactUiText($"手动安装发现失败：{ex.GetType().Name}: {ex.Message}"))!;
+            var detail = RedactUiText($"手动安装发现失败：{ex.GetType().Name}: {ex.Message}");
+            LastErrorText = CombineErrors(_settingsErrorText, detail)!;
+            ManualDiscoveryStatusText = detail;
             ActivityText = "空闲";
+            outcome = ManualDiscoveryOutcome.Failure("目录校验出错", detail);
         }
         finally
         {
@@ -734,6 +783,70 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         {
             await RefreshAsync(cancellationToken);
         }
+
+        return outcome;
+    }
+
+    /// <summary>
+    /// Summarizes why a manual selection produced no usable profile, in words a
+    /// player can act on. The raw candidate evidence stays on the status page.
+    /// </summary>
+    private ManualDiscoveryOutcome BuildDiscoveryOutcome(ProfileBuildResult result)
+    {
+        if (_profile is not null && _selectedCandidate is not null)
+        {
+            return ManualDiscoveryOutcome.Success(
+                $"{_selectedCandidate.DisplayName}（{_selectedCandidate.GameRootPath}）");
+        }
+
+        var selectable = result.Candidates
+            .Where(candidate =>
+                candidate.Profile is not null &&
+                (candidate.State is InstallationCandidateState.Candidate or
+                    InstallationCandidateState.ReadyForStaticVerification))
+            .ToArray();
+        if (selectable.Length > 1)
+        {
+            return ManualDiscoveryOutcome.Failure(
+                "发现多个可用安装",
+                "所选目录同时匹配多个渠道候选（例如国服与 B 服并存）。请在 Profile 页的候选列表中选择要使用的一项。");
+        }
+
+        var primary = result.Candidates
+            .Where(candidate => candidate.FailureCode is not ProfileBuildFailureCode.None)
+            .OrderByDescending(candidate => candidate.DiscoverySource is ProfileDiscoverySource.ManualSelection)
+            .ThenByDescending(candidate => candidate.Identity.DistributionChannel is DistributionChannel.Official)
+            .FirstOrDefault();
+        if (primary is null)
+        {
+            return ManualDiscoveryOutcome.Failure(
+                "未能使用所选目录",
+                "本次发现没有产生可用候选；请打开状态页查看平台证据。");
+        }
+
+        var guidance = primary.FailureCode switch
+        {
+            ProfileBuildFailureCode.LauncherRootNotFound =>
+                "没有找到官方启动器（InfinityNikki Launcher）目录。请点击「选择 launcher 根目录」，指定包含 launcher.exe 的文件夹。",
+            ProfileBuildFailureCode.GameRootNotFound =>
+                "所选目录里没有找到游戏本体。请选择包含 product.db 与 InfinityNikki.exe 的游戏目录。",
+            ProfileBuildFailureCode.ChannelMarkerMissing =>
+                "所选目录缺少 product.db，无法确认渠道身份。请确认选择的是游戏根目录本身。",
+            ProfileBuildFailureCode.ChannelMarkerMismatch =>
+                "所选目录的 product.db 渠道标识与检测到的渠道不一致。请确认没有把 B 服或国际服目录当作国服目录。",
+            ProfileBuildFailureCode.LayoutMismatch =>
+                "所选目录缺少启动所需的特征文件（如 X6Game-Win64-Shipping.exe）。游戏可能未安装完整。",
+            ProfileBuildFailureCode.BackendRootNotFound =>
+                "launcher 目录下没有数字版本的 xstarter 目录。请先运行一次官方启动器完成自更新。",
+            ProfileBuildFailureCode.AmbiguousLauncherRoot or ProfileBuildFailureCode.AmbiguousGameRoot =>
+                "发现多个候选目录，无法自动取舍。请分别手动指定游戏目录与 launcher 根目录。",
+            _ => primary.Detail ?? "目录校验未通过。",
+        };
+        var detail = string.IsNullOrWhiteSpace(primary.Detail) ||
+                     guidance.Contains(primary.Detail!, StringComparison.Ordinal)
+            ? guidance
+            : $"{guidance}（{primary.Detail}）";
+        return ManualDiscoveryOutcome.Failure("未能使用所选目录", RedactUiText(detail));
     }
 
     public async Task<bool> SelectProfileAsync(
@@ -1099,6 +1212,19 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                     _settingsErrorText,
                     "SelectedProfileId 对应多个候选；未自动猜测渠道。");
             }
+            else if (_selectedCandidate is null &&
+                     selectable.Length == 1 &&
+                     ProfileIdsDifferOnlyByVersion(selectedProfileId!, selectable[0].ProfileId))
+            {
+                // ProfileId 携带版本目录名（如 infinity-nikki-cn-1.3.1），游戏或
+                // 启动器更新后持久化的 id 永不匹配新候选；同渠道且仅版本段不同
+                // 时回落选择，否则每逢更新应用都会卡在“未选择”态。跨渠道失配
+                // （如持久化 Steam id、本机只剩国服）不回落，交还用户确认。
+                _selectedCandidate = selectable[0];
+                _settingsErrorText = CombineErrors(
+                    _settingsErrorText,
+                    "SelectedProfileId 未精确匹配（安装已更新）；已回落到同渠道唯一候选。");
+            }
             else if (_selectedCandidate is null)
             {
                 _settingsErrorText = CombineErrors(
@@ -1143,7 +1269,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             {
                 { StaticIdentityPassed: true } =>
                     "静态身份已验证 · catalog gate closed · 点击后自动构建 session-only attempt",
-                { FailureCode: var code } => $"静态身份未通过 · {code}",
+                { FailureCode: var code } => $"静态身份未通过 · {FormatPreflightFailure(code)}",
                 _ => $"候选已发现 · {FormatCandidateState(_selectedCandidate.State)}",
             };
         LastUpdatedText = DateTimeOffset.UtcNow.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss zzz");
@@ -1199,6 +1325,36 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             ? candidate.ProfileId
             : candidate.DisplayName;
 
+    /// <summary>
+    /// True when the two profile ids identify the same channel and differ only
+    /// by the trailing launcher version directory segment — the shape a
+    /// launcher/game update produces.
+    /// </summary>
+    private static bool ProfileIdsDifferOnlyByVersion(string persistedId, string candidateId)
+    {
+        static string StripVersion(string id) =>
+            System.Text.RegularExpressions.Regex.Replace(id, @"-\d+\.\d+\.\d+$", string.Empty);
+        return string.Equals(StripVersion(persistedId), StripVersion(candidateId), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Player-readable phrase for a preflight failure; the raw enum name stays
+    /// in parentheses for diagnostics and bug reports.
+    /// </summary>
+    private static string FormatPreflightFailure(LaunchPreflightFailureCode code) => code switch
+    {
+        LaunchPreflightFailureCode.SignatureInvalid => "组件签名无效（SignatureInvalid）",
+        LaunchPreflightFailureCode.SignerMismatch => "签名者不在可信列表（SignerMismatch）",
+        LaunchPreflightFailureCode.RequiredComponentMissing => "组件缺失或不可读（RequiredComponentMissing）",
+        LaunchPreflightFailureCode.MarkerMissing => "product.db 缺失（MarkerMissing）",
+        LaunchPreflightFailureCode.MarkerMismatch => "渠道身份不符（MarkerMismatch）",
+        LaunchPreflightFailureCode.BinaryIdentityDrift => "文件在读取期间被修改（BinaryIdentityDrift）",
+        LaunchPreflightFailureCode.InvalidContract => "启动契约不可用（InvalidContract）",
+        LaunchPreflightFailureCode.PathOutsideExpectedRoot => "组件路径越出安装根（PathOutsideExpectedRoot）",
+        LaunchPreflightFailureCode.ReparsePointRejected => "路径包含 junction/symlink（ReparsePointRejected）",
+        _ => code.ToString(),
+    };
+
     private static string FormatCandidateState(InstallationCandidateState state) => state switch
     {
         InstallationCandidateState.Downloading => "Downloading / NotInstalled / NotVerified / NotReady",
@@ -1253,6 +1409,16 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
 
             var readinessState = ResolveReadinessState(results);
             var failureReason = BuildFailureReason(results);
+            if (_preflightResult is { StaticIdentityPassed: false } failedPreflight)
+            {
+                // Fold the preflight verdict (incl. signer identity detail) into
+                // the snapshot so exported diagnostics show why launching is
+                // blocked — the inspector alone cannot tell.
+                failureReason = CombineErrors(
+                    failureReason,
+                    $"预检未通过：{FormatPreflightFailure(failedPreflight.FailureCode)} — {failedPreflight.FailureDetail}");
+            }
+
             var capturedAtUtc = DateTimeOffset.UtcNow;
 
             _snapshot = new LaunchSnapshot
@@ -1272,7 +1438,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             StaticReadinessText = _preflightResult switch
             {
                 { StaticIdentityPassed: true } => $"静态身份已验证 · {results.Count} 个组件（ExecutionGateClosed）",
-                { FailureCode: var code } => $"静态身份未通过 · {code}",
+                { FailureCode: var code } => $"静态身份未通过 · {FormatPreflightFailure(code)}",
                 _ => readinessState switch
                 {
                     LaunchState.Ready => $"静态身份已验证 · {results.Count} 个组件（非启动就绪）",
@@ -1398,7 +1564,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
 
         _isLaunchAttemptInProgress = true;
         IsBusy = true;
-        ActivityText = "正在重新验证 CN frozen contract";
+        ActivityText = "正在重新验证启动契约与组件签名";
         _launchLifecycleText = "PreparingBackend · 正在执行静态身份与 clean-baseline 检查";
         NotifyLaunchAttemptChanged();
         var keepLaunchState = false;
@@ -1417,6 +1583,18 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             }
             else
             {
+                if (preparation.Preflight is { StaticIdentityPassed: false } failedPreflight)
+                {
+                    // Reflect the fresh verdict on the launch button immediately;
+                    // otherwise a just-updated or tampered install keeps showing
+                    // “启动游戏” until the next full rediscovery.
+                    _preflightResult = failedPreflight;
+                    StaticReadinessText =
+                        $"静态身份未通过 · {FormatPreflightFailure(failedPreflight.FailureCode)}";
+                    NotifyProfileChanged();
+                    NotifyLaunchStateChanged();
+                }
+
                 _launchAttemptStatusText =
                     $"{preparation.FailureCode} · 未创建 provider";
                 _launchLifecycleText =
@@ -1932,4 +2110,18 @@ public sealed class PlatformEvidenceItemViewModel
     public string Detail { get; }
 
     public string Capability { get; }
+}
+
+/// <summary>
+/// User-facing verdict of a manual game/launcher directory selection. The view
+/// shows <see cref="Detail"/> in a dialog on failure so a rejected pick is
+/// never silent.
+/// </summary>
+public sealed record ManualDiscoveryOutcome(bool Succeeded, string Title, string Detail)
+{
+    public static ManualDiscoveryOutcome Success(string detail) =>
+        new(true, "已使用所选目录", detail);
+
+    public static ManualDiscoveryOutcome Failure(string title, string detail) =>
+        new(false, title, detail);
 }

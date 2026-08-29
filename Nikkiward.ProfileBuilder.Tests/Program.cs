@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Nikkiward.Models;
 using Nikkiward.Services;
 
@@ -10,6 +11,17 @@ internal static class Program
             return await ContractRefreshTool.RunAsync().ConfigureAwait(false);
         }
 
+        if (args.Contains("--launch-contract", StringComparer.Ordinal))
+        {
+            if (args.Contains("--current-machine", StringComparer.Ordinal))
+            {
+                Console.WriteLine(
+                    "NOTE --launch-contract 只运行特征测试子集；--current-machine 的真机集成测试请单独运行。");
+            }
+
+            return await RunAsync(LaunchContractTests.All).ConfigureAwait(false);
+        }
+
         var tests = new (string Name, Func<Task> Run)[]
         {
             ("config reader accepts only gameDir", TestConfigReader),
@@ -18,14 +30,18 @@ internal static class Program
             ("Steam manifest parser records install state and depots", TestSteamManifestReader),
             ("CN automatic discovery builds the frozen provider binding", TestChinaAutomaticBuild),
             ("CN manual parent selection resolves the nested game root", TestChinaManualBuild),
-            ("unsupported CN version cannot create a provider", TestUnsupportedVersion),
+            ("a malformed CN version directory stays fail-closed", TestMalformedVersionDirectory),
+            ("an updated CN version directory binds adaptively", TestUpdatedVersionBinds),
+            ("stale CN version directories converge to the highest", TestStaleVersionConvergence),
+            ("a manually selected game root recovers its parent launcher root", TestManualGameRootRecoversParentLauncher),
+            ("a parent without launcher layout is never recovered as launcher root", TestManualGameRootParentWithoutLayoutNotRecovered),
             ("channel marker mismatch fails closed", TestChannelMarkerMismatch),
             ("Steam downloading state never creates a provider", TestSteamDownloading),
             ("complete Steam Windows install still has no unverified provider", TestSteamComplete),
             ("Steam manual nested game root resolves its library manifest", TestSteamManualNestedGameRoot),
             ("provider catalog never contains the SteamOS _SD argument", TestNoSdArgument),
             ("preflight rejects an invalid provider contract", TestPreflightInvalidContract),
-            ("preflight rejects artifact hash drift", TestPreflightHashDrift),
+            ("preflight rejects an unsigned artifact", TestPreflightUnsignedArtifact),
         };
 
         tests = tests
@@ -65,6 +81,11 @@ internal static class Program
                 .ToArray();
         }
 
+        return await RunAsync(tests).ConfigureAwait(false);
+    }
+
+    private static async Task<int> RunAsync((string Name, Func<Task> Run)[] tests)
+    {
         var failures = new List<string>();
         foreach (var test in tests)
         {
@@ -253,9 +274,10 @@ internal static class Program
         AssertEqual(ProfileDiscoverySource.ManualSelection, candidate.DiscoverySource, "manual source");
     }
 
-    private static async Task TestUnsupportedVersion()
+    private static async Task TestMalformedVersionDirectory()
     {
-        using var fixture = CreateChinaFixture("1.3.2", "InfinityNikki Launcher");
+        // "1.3" is not a three-part version, so no backend directory resolves.
+        using var fixture = CreateChinaFixture("1.3", "InfinityNikki Launcher");
         var builder = new WindowsInstallationProfileBuilder(
             new FakePathSource([fixture.LauncherRoot], []),
             fixture.LocalAppData);
@@ -265,9 +287,124 @@ internal static class Program
         });
 
         var candidate = result.Candidates.Single();
-        AssertEqual(InstallationCandidateState.Unsupported, candidate.State, "unsupported version state");
-        AssertEqual(ProfileBuildFailureCode.UnsupportedVersion, candidate.FailureCode, "unsupported version code");
-        Assert(candidate.Provider is null, "unsupported version must not create provider");
+        AssertEqual(ProfileBuildFailureCode.BackendRootNotFound, candidate.FailureCode, "malformed version code");
+        Assert(candidate.Provider is null, "malformed version must not create provider");
+        Assert(result.SelectableCandidate is null, "malformed version must not be selectable");
+    }
+
+    private static async Task TestUpdatedVersionBinds()
+    {
+        // The adaptive catalog: a launcher self-update to a new version
+        // directory must keep producing a launchable provider binding.
+        using var fixture = CreateChinaFixture("1.4.0", "InfinityNikki Launcher");
+        var builder = new WindowsInstallationProfileBuilder(
+            new FakePathSource([fixture.LauncherRoot], []),
+            fixture.LocalAppData);
+        var result = await builder.BuildAsync(new ProfileBuildRequest
+        {
+            Channel = DistributionChannel.Official,
+        });
+
+        var candidate = result.SelectableCandidate;
+        Assert(candidate is not null, "updated version should stay selectable");
+        AssertEqual(InstallationCandidateState.ReadyForStaticVerification, candidate!.State, "updated version state");
+        Assert(candidate.Provider is not null, "updated version must create a provider binding");
+        AssertEqual(
+            Path.Combine(fixture.LauncherRoot, "1.4.0", "xstarter.exe"),
+            candidate.Provider!.BackendExecutablePath,
+            "updated backend path");
+        Assert(
+            candidate.Provider.ArgumentList.SequenceEqual(["-skiplauncher"]),
+            "updated version must keep the frozen argument list");
+        Assert(!candidate.Provider.ExecutionEnabled, "updated version must keep the execution gate closed");
+    }
+
+    private static async Task TestStaleVersionConvergence()
+    {
+        // A launcher self-update can leave the old version directory behind;
+        // only the highest version may produce a candidate, or auto-selection
+        // breaks on ambiguity right after every update. The 1.9.0/1.10.0 pair
+        // is chosen on purpose: ordinal string ordering would pick 1.9.0, so
+        // this also locks the numeric System.Version ordering semantics.
+        using var fixture = CreateChinaFixture("1.10.0", "InfinityNikki Launcher");
+        Touch(Path.Combine(fixture.LauncherRoot, "1.9.0", "xstarter.exe"));
+        var builder = new WindowsInstallationProfileBuilder(
+            new FakePathSource([fixture.LauncherRoot], []),
+            fixture.LocalAppData);
+        var result = await builder.BuildAsync(new ProfileBuildRequest
+        {
+            Channel = DistributionChannel.Official,
+        });
+
+        var cnCandidates = result.Candidates
+            .Where(candidate => candidate.Provider is not null)
+            .ToArray();
+        AssertEqual(1, cnCandidates.Length, "exactly one CN provider candidate");
+        AssertEqual(
+            Path.Combine(fixture.LauncherRoot, "1.10.0", "xstarter.exe"),
+            cnCandidates[0].Provider!.BackendExecutablePath,
+            "the numerically highest version wins");
+    }
+
+    private static async Task TestManualGameRootRecoversParentLauncher()
+    {
+        // The user picks only the game directory; the launcher root is not in
+        // the registry or the fixed locations. The nested default layout
+        // (game under the launcher root) must still be recovered.
+        using var fixture = new TempFixture();
+        var launcherRoot = Path.Combine(fixture.Root, "InfinityNikki Launcher");
+        var gameRoot = Path.Combine(launcherRoot, "InfinityNikki");
+        Touch(Path.Combine(launcherRoot, "launcher.exe"));
+        Touch(Path.Combine(launcherRoot, "1.4.0", "xstarter.exe"));
+        Touch(Path.Combine(gameRoot, "InfinityNikki.exe"));
+        Touch(Path.Combine(gameRoot, "X6Game", "Binaries", "Win64", "X6Game-Win64-Shipping.exe"));
+        Touch(Path.Combine(gameRoot, "X6Game", "Binaries", "Win64", "AntiCheatExpert", "ACE-Service64.exe"));
+        File.WriteAllText(
+            Path.Combine(gameRoot, "product.db"),
+            "{\"name\":\"InfinityNikki Launcher\",\"version\":2828}");
+
+        var builder = new WindowsInstallationProfileBuilder(
+            new FakePathSource([], []),
+            fixture.LocalAppData);
+        var result = await builder.DiscoverFromManualGameRootAsync(gameRoot);
+
+        var candidate = result.Candidates.FirstOrDefault(item => item.Provider is not null);
+        Assert(candidate is not null, "the parent launcher root should be recovered from the manual game root");
+        AssertEqual(launcherRoot, candidate!.LauncherRootPath, "recovered launcher root");
+        AssertEqual(ProfileDiscoverySource.ManualSelection, candidate.DiscoverySource, "manual discovery source");
+    }
+
+    private static async Task TestManualGameRootParentWithoutLayoutNotRecovered()
+    {
+        // The HasLauncherLayout guard: a stray parent directory that merely
+        // contains the game (no launcher.exe, no versioned xstarter) must not
+        // be promoted to launcher root, or a hand-picked directory could steer
+        // the elevated working directory.
+        using var fixture = new TempFixture();
+        var parent = Path.Combine(fixture.Root, "just-a-folder");
+        var gameRoot = Path.Combine(parent, "InfinityNikki");
+        Touch(Path.Combine(gameRoot, "InfinityNikki.exe"));
+        Touch(Path.Combine(gameRoot, "X6Game", "Binaries", "Win64", "X6Game-Win64-Shipping.exe"));
+        Touch(Path.Combine(gameRoot, "X6Game", "Binaries", "Win64", "AntiCheatExpert", "ACE-Service64.exe"));
+        File.WriteAllText(
+            Path.Combine(gameRoot, "product.db"),
+            "{\"name\":\"InfinityNikki Launcher\",\"version\":2828}");
+
+        var builder = new WindowsInstallationProfileBuilder(
+            new FakePathSource([], []),
+            fixture.LocalAppData);
+        var result = await builder.DiscoverFromManualGameRootAsync(gameRoot);
+
+        Assert(
+            result.Candidates.All(item => item.Provider is null),
+            "no provider candidate may be built from a layout-less parent");
+        var cnFailure = result.Candidates.FirstOrDefault(item =>
+            item.Identity.DistributionChannel is DistributionChannel.Official);
+        Assert(cnFailure is not null, "the CN branch should report an explicit failure");
+        AssertEqual(
+            ProfileBuildFailureCode.LauncherRootNotFound,
+            cnFailure!.FailureCode,
+            "layout-less parent failure code");
     }
 
     private static async Task TestChannelMarkerMismatch()
@@ -385,8 +522,11 @@ internal static class Program
         Assert(result.Plan is null, "invalid contract must not expose a launch plan");
     }
 
-    private static async Task TestPreflightHashDrift()
+    private static async Task TestPreflightUnsignedArtifact()
     {
+        // Stub files carry no Authenticode signature. Under the adaptive trust
+        // policy this is the fail-closed negative: tampered or unsigned
+        // components must never launch, even though their hashes are ignored.
         using var fixture = CreateChinaFixture("1.3.1", "InfinityNikki Launcher");
         var verifier = new WindowsLaunchPreflightVerifier();
         var result = await verifier.VerifyAsync(
@@ -394,13 +534,13 @@ internal static class Program
             fixture.GameRoot,
             LaunchProviderCatalog.CnWindows131ContractId);
 
-        Assert(!result.StaticIdentityPassed, "fixture artifact identity must fail against the frozen hash");
-        Assert(!result.ExecutionAllowed, "hash drift must close execution");
+        Assert(!result.StaticIdentityPassed, "an unsigned artifact must fail static preflight");
+        Assert(!result.ExecutionAllowed, "an unsigned artifact must close execution");
         AssertEqual(
-            LaunchPreflightFailureCode.ArtifactHashMismatch,
+            LaunchPreflightFailureCode.SignatureInvalid,
             result.FailureCode,
-            "hash drift failure code");
-        Assert(result.Plan is null, "hash drift must not expose a launch plan");
+            "unsigned artifact failure code");
+        Assert(result.Plan is null, "an unsigned artifact must not expose a launch plan");
     }
 
     private static async Task TestCurrentMachine()
@@ -413,15 +553,16 @@ internal static class Program
 
         Assert(result.Candidates.Count > 0, "current machine should produce a diagnostic candidate or an explicit failure");
         var cn = result.Candidates.FirstOrDefault(candidate => candidate.Provider is not null);
-        Assert(cn is not null, "current CN installation should produce the known 1.3.1 provider candidate");
+        Assert(cn is not null, "current CN installation should produce a provider candidate");
         AssertEqual(
             @"C:\InfinityNikki Launcher",
             cn!.Provider!.WorkingDirectory,
             "current CN working directory");
-        AssertEqual(
-            @"C:\InfinityNikki Launcher\1.3.1\xstarter.exe",
-            cn.Provider.BackendExecutablePath,
-            "current CN backend path");
+        Assert(
+            Regex.IsMatch(
+                cn.Provider.BackendExecutablePath,
+                @"^C:\\InfinityNikki Launcher\\\d+\.\d+\.\d+\\xstarter\.exe$"),
+            $"current CN backend path must be a versioned xstarter under the launcher root, got {cn.Provider.BackendExecutablePath}");
         Assert(
             result.Candidates.All(candidate => candidate.Provider is null ||
                 candidate.Provider.ArgumentList.SequenceEqual(["-skiplauncher"])),

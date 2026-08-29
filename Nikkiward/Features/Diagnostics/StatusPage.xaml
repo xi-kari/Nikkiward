@@ -4,7 +4,8 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:automation="using:Microsoft.UI.Xaml.Automation"
-    xmlns:shell="using:Nikkiward.Features.Shell">
+    xmlns:shell="using:Nikkiward.Features.Shell"
+    x:DefaultBindMode="OneWay">
     <Grid Background="Transparent">
         <Grid.RowDefinitions>
             <RowDefinition Height="48" />
