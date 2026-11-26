@@ -67,6 +67,8 @@ public sealed partial class MainPageViewModel
                 LaunchPreflightFailureCode.InvalidContract =>
                     LaunchButtonState.ChannelUnsupported,
 
+                LaunchPreflightFailureCode.RequiredComponentMissing when IsExternalChannelSelected =>
+                    LaunchButtonState.Blocked,
                 LaunchPreflightFailureCode.RequiredComponentMissing or
                 LaunchPreflightFailureCode.MarkerMissing =>
                     LaunchButtonState.NotInstalled,
@@ -110,6 +112,13 @@ public sealed partial class MainPageViewModel
                 : "当前渠道或区服没有对应的启动契约，暂不支持辅助启动。",
         LaunchButtonState.ContractDrift =>
             "游戏目录的 product.db 渠道标识与所选渠道不一致，请确认选择的是国服目录。",
+        LaunchButtonState.Blocked when IsExternalChannelSelected &&
+            _preflightResult?.FailureCode is LaunchPreflightFailureCode.BinaryIdentityDrift =>
+            "安装文件正在变化或被占用。请等待更新完成，在当前档案中点「刷新服务器列表」后重试。",
+        LaunchButtonState.SignatureUntrusted or LaunchButtonState.Blocked when IsExternalChannelSelected =>
+            _selectedCandidate?.Identity.DistributionChannel is DistributionChannel.Steam
+                ? "请在 Steam 中验证当前安装的游戏文件或重新安装，再打开当前档案，点「刷新服务器列表」。"
+                : "请用 B 服官方启动器校验当前安装的文件或重新安装，再打开当前档案，点「刷新服务器列表」。",
         LaunchButtonState.SignatureUntrusted =>
             "游戏组件的数字签名无效或签名者不受信任，为安全起见已拒绝启动。请用官方启动器校验游戏文件或重新安装后重试。",
         LaunchButtonState.Blocked =>
@@ -117,12 +126,13 @@ public sealed partial class MainPageViewModel
         LaunchButtonState.CleanupRequired =>
             "启动入口或 bootstrap 仍在运行，请先使用右侧关闭按钮清理。",
         LaunchButtonState.Ready =>
-            _selectedCandidate?.Identity.DistributionChannel is
-                DistributionChannel.Bilibili or DistributionChannel.Steam
-                ? $"点击后提交 {SelectedChannelLaunchRoute}。"
+            IsExternalChannelSelected
+                ? $"{SelectedChannelLaunchRoute}。点击后重新验签并请求管理员权限。"
                 : SelectedLauncherVersionName is { } version
                     ? $"检测到启动器版本 {version}，组件签名验证通过；点击后构建瞬时 plan 并请求 UAC 提权。"
                     : "点击后重新核对组件签名、构建瞬时 plan 并请求 UAC 提权。",
+        LaunchButtonState.Launching when _activeProcessBinding is null && IsExternalChannelSelected =>
+            "正在核对组件签名并等待 Windows 管理员确认。",
         LaunchButtonState.Launching =>
             "已提交 xstarter，等待游戏进程建立。",
         LaunchButtonState.Running =>

@@ -19,6 +19,29 @@ internal static class ChannelSwitchTests
         ("Bilibili direct launch binds only the current game processes", BilibiliDirectLaunchCreatesProcessBinding),
         ("Steam launch plan binds the selected xstarter", SteamLaunchPlanBindsSelectedXStarter),
         ("Steam launch submits only the direct xstarter plan", SteamLaunchSubmitsDirectXStarterPlan),
+        ("direct launch treats a cancelled UAC prompt as a single cancellation", DirectLaunchHandlesCancelledElevation),
+        ("direct launch rejects an unsigned xstarter", () => DirectLaunchRejectsIdentity(
+            new ChannelIdentityProbe { Signature = path => Path.GetFileName(path) == "xstarter.exe"
+                ? AuthenticodeSignatureStatus.NotSigned : AuthenticodeSignatureStatus.Valid },
+            ChannelLaunchFailureCode.SignatureInvalid)),
+        ("direct launch rejects an invalid game signature", () => DirectLaunchRejectsIdentity(
+            new ChannelIdentityProbe { Signature = path => Path.GetFileName(path) == "InfinityNikki.exe"
+                ? AuthenticodeSignatureStatus.Invalid : AuthenticodeSignatureStatus.Valid },
+            ChannelLaunchFailureCode.SignatureInvalid)),
+        ("direct launch rejects an untrusted anti-cheat signer", () => DirectLaunchRejectsIdentity(
+            new ChannelIdentityProbe { Signer = _ => ChannelIdentityProbe.Identity(LaunchProviderCatalog.PapergamesSigner) },
+            ChannelLaunchFailureCode.SignerMismatch)),
+        ("direct launch rejects an unreadable signer identity", () => DirectLaunchRejectsIdentity(
+            new ChannelIdentityProbe { Signer = path => Path.GetFileName(path) == "X6Game-Win64-Shipping.exe"
+                ? null : ChannelIdentityProbe.TrustedIdentity(path) },
+            ChannelLaunchFailureCode.SignerMismatch)),
+        ("direct launch pins the original filenames of both launcher components", DirectLaunchPinsLauncherFilenames),
+        ("direct launch requires the anti-cheat file", DirectLaunchRequiresAntiCheat),
+        ("direct launch binds the game root approved for verification", DirectLaunchBindsGameRoot),
+        ("channel refresh rechecks repaired files without elevation", ChannelRefreshRechecksIdentity),
+        ("direct launch refuses a replaced xstarter before elevation", () => DirectLaunchRejectsReplacedBackend(AuthenticodeSignatureStatus.Invalid)),
+        ("direct launch refuses a trusted replacement within the same attempt", () => DirectLaunchRejectsReplacedBackend(AuthenticodeSignatureStatus.Valid)),
+        ("direct launch holds the verified xstarter through process start", DirectLaunchHoldsBackendDuringStart),
         ("Steam direct launch binds only its current game processes", SteamDirectLaunchCreatesProcessBinding),
         ("external process binding rejects a mismatched receipt", ExternalProcessBindingRejectsMismatch),
     ];
@@ -288,17 +311,20 @@ internal static class ChannelSwitchTests
         var gameRoot = fixture.CreateGameRoot("bilibili-submit", "InfinityNikkiBili Launcher");
         var candidate = fixture.CreateCandidate(DistributionChannel.Bilibili, gameRoot);
         var processStarter = new RecordingChannelProcessStarter(4242);
-        var launcher = new WindowsChannelEntryLauncher(processStarter);
+        var probe = new ChannelIdentityProbe();
+        var launcher = new WindowsChannelEntryLauncher(processStarter, probe);
         var plan = launcher.CreatePlan(candidate);
 
         var changedReceipt = await launcher.LaunchAsync(candidate, new string('0', 64));
         Assert(!changedReceipt.Succeeded, "changed Bilibili plan must not launch");
         AssertEqual(ChannelLaunchFailureCode.PlanChanged, changedReceipt.FailureCode, "changed Bilibili plan code");
         AssertEqual(0, processStarter.CallCount, "changed plan process count");
+        AssertEqual(0, probe.SignaturePaths.Count, "changed plan must stop before preflight");
 
         var receipt = await launcher.LaunchAsync(candidate, plan.PlanSha256);
         Assert(receipt.Succeeded, $"Bilibili direct submission should succeed: {receipt.FailureDetail}");
         AssertEqual(1, processStarter.CallCount, "Bilibili process count");
+        AssertVerifiedComponents(candidate.Profile!, probe);
         AssertEqual(4242, receipt.SubmittedProcessId, "Bilibili submitted process id");
         Assert(receipt.AttemptId != Guid.Empty, "Bilibili receipt attempt id");
         AssertEqual(processStarter.StartTimeUtc, receipt.SubmittedProcessStartTimeUtc, "Bilibili process start time");
@@ -318,7 +344,7 @@ internal static class ChannelSwitchTests
         var gameRoot = fixture.CreateGameRoot("bilibili-binding", "InfinityNikkiBili Launcher");
         var candidate = fixture.CreateCandidate(DistributionChannel.Bilibili, gameRoot);
         var processStarter = new RecordingChannelProcessStarter(4242);
-        var launcher = new WindowsChannelEntryLauncher(processStarter);
+        var launcher = new WindowsChannelEntryLauncher(processStarter, new ChannelIdentityProbe());
         var plan = launcher.CreatePlan(candidate);
         var receipt = await launcher.LaunchAsync(candidate, plan.PlanSha256);
 
@@ -378,7 +404,8 @@ internal static class ChannelSwitchTests
         var steamRoot = fixture.CreateGameRoot("steam-submit", "InfinityNikkiSteam Launcher");
         var steamCandidate = fixture.CreateCandidate(DistributionChannel.Steam, steamRoot);
         var processStarter = new RecordingChannelProcessStarter(4242);
-        var launcher = new WindowsChannelEntryLauncher(processStarter);
+        var probe = new ChannelIdentityProbe();
+        var launcher = new WindowsChannelEntryLauncher(processStarter, probe);
         var steamPlan = launcher.CreatePlan(steamCandidate);
 
         var changedReceipt = await launcher.LaunchAsync(steamCandidate, new string('0', 64));
@@ -389,6 +416,7 @@ internal static class ChannelSwitchTests
         var receipt = await launcher.LaunchAsync(steamCandidate, steamPlan.PlanSha256);
         Assert(receipt.Succeeded, $"Steam direct submission should succeed: {receipt.FailureDetail}");
         AssertEqual(1, processStarter.CallCount, "Steam process count");
+        AssertVerifiedComponents(steamCandidate.Profile!, probe);
         AssertEqual(4242, receipt.SubmittedProcessId, "Steam submitted process id");
         Assert(receipt.AttemptId != Guid.Empty, "Steam receipt attempt id");
         AssertEqual(processStarter.StartTimeUtc, receipt.SubmittedProcessStartTimeUtc, "Steam process start time");
@@ -402,13 +430,178 @@ internal static class ChannelSwitchTests
         AssertEqual("-skiplauncher", startInfo.ArgumentList[0], "submitted Steam argument");
     }
 
+    private static void AssertVerifiedComponents(LaunchProfile profile, ChannelIdentityProbe probe)
+    {
+        string[] expected = [profile.LauncherPath, profile.XStarterPath, profile.GameExecutablePath,
+            profile.ShippingExecutablePath, profile.AntiCheatExecutablePath, profile.XStarterPath];
+        Assert(expected.Order().SequenceEqual(probe.SignaturePaths.Order()), "all five selected files and the locked backend must pass");
+    }
+
+    private static async Task DirectLaunchRejectsIdentity(ChannelIdentityProbe probe, ChannelLaunchFailureCode expected)
+    {
+        using var fixture = new ActivationFixture();
+        foreach (var channel in new[] { DistributionChannel.Bilibili, DistributionChannel.Steam })
+        {
+            var candidate = fixture.CreateChannelInstall(channel);
+            var starter = new RecordingChannelProcessStarter(4242);
+            var launcher = new WindowsChannelEntryLauncher(starter, probe);
+            var receipt = await launcher.LaunchAsync(candidate, launcher.CreatePlan(candidate).PlanSha256);
+
+            AssertEqual(expected, receipt.FailureCode, $"{channel} trust refusal");
+            Assert(!receipt.Succeeded, $"{channel} rejected identity cannot succeed");
+            AssertEqual(0, starter.CallCount, $"{channel} must not request elevation");
+        }
+    }
+
+    private static async Task DirectLaunchPinsLauncherFilenames()
+    {
+        foreach (var file in new[] { "launcher.exe", "xstarter.exe" })
+        {
+            await DirectLaunchRejectsIdentity(new ChannelIdentityProbe
+            {
+                OriginalFilename = path => Path.GetFileName(path) == file ? "other.exe" : Path.GetFileName(path),
+            }, ChannelLaunchFailureCode.SignerMismatch);
+        }
+    }
+
+    private static async Task DirectLaunchRequiresAntiCheat()
+    {
+        using var fixture = new ActivationFixture();
+        foreach (var channel in new[] { DistributionChannel.Bilibili, DistributionChannel.Steam })
+        {
+            var candidate = fixture.CreateChannelInstall(channel);
+            var starter = new RecordingChannelProcessStarter(4242);
+            var launcher = new WindowsChannelEntryLauncher(starter, new ChannelIdentityProbe());
+            var plan = launcher.CreatePlan(candidate);
+            File.Delete(candidate.Profile!.AntiCheatExecutablePath);
+            var receipt = await launcher.LaunchAsync(candidate, plan.PlanSha256);
+
+            AssertEqual(ChannelLaunchFailureCode.ComponentUnavailable, receipt.FailureCode, $"{channel} missing ACE");
+            AssertEqual(0, starter.CallCount, "missing ACE must stop before elevation");
+        }
+    }
+
+    private static async Task DirectLaunchBindsGameRoot()
+    {
+        using var fixture = new ActivationFixture();
+        var candidate = fixture.CreateChannelInstall(DistributionChannel.Steam);
+        var other = fixture.CreateCandidate(DistributionChannel.Steam,
+            fixture.CreateGameRoot("other-steam", "InfinityNikkiSteam Launcher"));
+        var starter = new RecordingChannelProcessStarter(4242);
+        var launcher = new WindowsChannelEntryLauncher(starter, new ChannelIdentityProbe());
+        var receipt = await launcher.LaunchAsync(other, launcher.CreatePlan(candidate).PlanSha256);
+        AssertEqual(ChannelLaunchFailureCode.PlanChanged, receipt.FailureCode, "another game root needs its own plan");
+        AssertEqual(0, starter.CallCount, "another game root must not use the approved plan");
+    }
+
+    private static async Task ChannelRefreshRechecksIdentity()
+    {
+        using var fixture = new ActivationFixture();
+        var candidate = fixture.CreateChannelInstall(DistributionChannel.Bilibili);
+        var signed = false;
+        var probe = new ChannelIdentityProbe
+        {
+            Signature = path => path == candidate.Profile!.XStarterPath && !signed
+                ? AuthenticodeSignatureStatus.NotSigned : AuthenticodeSignatureStatus.Valid,
+        };
+        var starter = new RecordingChannelProcessStarter(4242);
+        var launcher = new WindowsChannelEntryLauncher(starter, probe);
+        var plan = launcher.CreatePlan(candidate);
+        var failed = await launcher.VerifyIdentityAsync(candidate);
+        Assert(!failed.StaticIdentityPassed, "refresh must keep the unsigned installation blocked");
+        AssertEqual(LaunchPreflightFailureCode.SignatureInvalid, failed.FailureCode, "refresh refusal");
+        signed = true;
+        Assert((await launcher.VerifyIdentityAsync(candidate)).StaticIdentityPassed, "refresh must recognize the repair");
+        signed = false;
+        var receipt = await launcher.LaunchAsync(candidate, plan.PlanSha256);
+        AssertEqual(ChannelLaunchFailureCode.SignatureInvalid, receipt.FailureCode, "a click must not reuse the last refresh");
+        AssertEqual(0, starter.CallCount, "refresh and a rejected click cannot elevate");
+    }
+
+    private static async Task DirectLaunchRejectsReplacedBackend(AuthenticodeSignatureStatus replacementSignature)
+    {
+        using var fixture = new ActivationFixture();
+        var candidate = fixture.CreateChannelInstall(DistributionChannel.Steam);
+        var backend = candidate.Profile!.XStarterPath;
+        var replaced = false;
+        var probe = new ChannelIdentityProbe
+        {
+            Signature = path =>
+            {
+                if (!replaced && path == candidate.Profile.AntiCheatExecutablePath)
+                {
+                    var replacement = backend + ".new";
+                    File.WriteAllText(replacement, "replacement");
+                    File.Move(replacement, backend, overwrite: true);
+                    replaced = true;
+                }
+                return path == backend && replaced ? replacementSignature : AuthenticodeSignatureStatus.Valid;
+            },
+        };
+        var starter = new RecordingChannelProcessStarter(4242);
+        var launcher = new WindowsChannelEntryLauncher(starter, probe);
+        var receipt = await launcher.LaunchAsync(candidate, launcher.CreatePlan(candidate).PlanSha256);
+
+        AssertEqual(ChannelLaunchFailureCode.BackendIdentityDrift, receipt.FailureCode, "runtime identity drift");
+        AssertEqual<LaunchPreflightFailureCode?>(
+            replacementSignature is AuthenticodeSignatureStatus.Valid
+                ? LaunchPreflightFailureCode.BinaryIdentityDrift
+                : LaunchPreflightFailureCode.SignatureInvalid,
+            receipt.IdentityFailureCode, "distinguish an update from a broken signature");
+        Assert(replaced && probe.SignaturePaths.Count(path => path == backend) == 2, "the replacement must be reverified");
+        AssertEqual(0, starter.CallCount, "replaced backend must not request elevation");
+        if (replacementSignature is AuthenticodeSignatureStatus.Valid)
+        {
+            var nextClick = await launcher.LaunchAsync(candidate, launcher.CreatePlan(candidate).PlanSha256);
+            Assert(nextClick.Succeeded, "a fresh attempt must accept the stable trusted update");
+            AssertEqual(1, starter.CallCount, "only the new attempt may start");
+        }
+    }
+
+    private static async Task DirectLaunchHoldsBackendDuringStart()
+    {
+        using var fixture = new ActivationFixture();
+        var candidate = fixture.CreateChannelInstall(DistributionChannel.Bilibili);
+        var starter = new RecordingChannelProcessStarter(4242, info =>
+        {
+            try
+            {
+                using var writer = File.Open(info.FileName, FileMode.Open, FileAccess.Write, FileShare.ReadWrite);
+            }
+            catch (IOException)
+            {
+                return;
+            }
+            throw new InvalidOperationException("backend was writable during process start");
+        });
+        var launcher = new WindowsChannelEntryLauncher(starter, new ChannelIdentityProbe());
+        var receipt = await launcher.LaunchAsync(candidate, launcher.CreatePlan(candidate).PlanSha256);
+        Assert(receipt.Succeeded, $"trusted backend should remain locked during start: {receipt.FailureDetail}");
+        using var released = File.Open(candidate.Profile!.XStarterPath, FileMode.Open, FileAccess.Write, FileShare.None);
+    }
+
+    private static async Task DirectLaunchHandlesCancelledElevation()
+    {
+        using var fixture = new ActivationFixture();
+        var root = fixture.CreateGameRoot("steam-cancel", "InfinityNikkiSteam Launcher");
+        var candidate = fixture.CreateCandidate(DistributionChannel.Steam, root);
+        var starter = new RecordingChannelProcessStarter(null, _ => throw new System.ComponentModel.Win32Exception(1223));
+        var launcher = new WindowsChannelEntryLauncher(starter, new ChannelIdentityProbe());
+        var receipt = await launcher.LaunchAsync(candidate, launcher.CreatePlan(candidate).PlanSha256);
+
+        AssertEqual(ChannelLaunchFailureCode.UserCancelledElevation, receipt.FailureCode, "UAC outcome");
+        Assert(!receipt.IsError, "a cancelled UAC prompt is a normal outcome");
+        Assert(!receipt.Succeeded && receipt.SubmittedProcessId is null, "cancelled UAC must not create a process");
+        AssertEqual(1, starter.CallCount, "cancelled UAC must not retry");
+    }
+
     private static async Task SteamDirectLaunchCreatesProcessBinding()
     {
         using var fixture = new ActivationFixture();
         var gameRoot = fixture.CreateGameRoot("steam-binding", "InfinityNikkiSteam Launcher");
         var candidate = fixture.CreateCandidate(DistributionChannel.Steam, gameRoot);
         var processStarter = new RecordingChannelProcessStarter(4242);
-        var launcher = new WindowsChannelEntryLauncher(processStarter);
+        var launcher = new WindowsChannelEntryLauncher(processStarter, new ChannelIdentityProbe());
         var plan = launcher.CreatePlan(candidate);
         var receipt = await launcher.LaunchAsync(candidate, plan.PlanSha256);
 
@@ -531,6 +724,7 @@ internal static class ChannelSwitchTests
             var root = Path.Combine(Root, name);
             Touch(Path.Combine(root, "InfinityNikki.exe"));
             Touch(Path.Combine(root, "X6Game", "Binaries", "Win64", "X6Game-Win64-Shipping.exe"));
+            Touch(Path.Combine(root, "X6Game", "Binaries", "Win64", "AntiCheatExpert", "ACE-Service64.exe"));
             if (string.Equals(markerName, "InfinityNikkiBili Launcher", StringComparison.Ordinal))
             {
                 var platformRoot = Path.Combine(
@@ -562,6 +756,10 @@ internal static class ChannelSwitchTests
                 $"PaperLauncherToken=preserve-me\r\ngameDir={gameRoot.Replace('\\', '/')}\r\nother=value\r\n");
             return path;
         }
+
+        public InstallationProfileCandidate CreateChannelInstall(DistributionChannel channel) =>
+            CreateCandidate(channel, CreateGameRoot(channel.ToString(), channel == DistributionChannel.Bilibili
+                ? "InfinityNikkiBili Launcher" : "InfinityNikkiSteam Launcher"));
 
         public InstallationProfileCandidate CreateCandidate(
             DistributionChannel channel,
@@ -605,6 +803,7 @@ internal static class ChannelSwitchTests
                 XStarterPath = xstarterPath,
                 GameExecutablePath = Path.Combine(gameRoot, "InfinityNikki.exe"),
                 ShippingExecutablePath = Path.Combine(gameRoot, "X6Game", "Binaries", "Win64", "X6Game-Win64-Shipping.exe"),
+                AntiCheatExecutablePath = Path.Combine(gameRoot, "X6Game", "Binaries", "Win64", "AntiCheatExpert", "ACE-Service64.exe"),
             };
             return new InstallationProfileCandidate
             {
@@ -653,7 +852,28 @@ internal static class ChannelSwitchTests
         }
     }
 
-    private sealed class RecordingChannelProcessStarter(int? processId) : IChannelProcessStarter
+    private sealed class ChannelIdentityProbe : IAuthenticodeIdentityProbe
+    {
+        public Func<string, AuthenticodeSignatureStatus> Signature { get; init; } = _ => AuthenticodeSignatureStatus.Valid;
+        public Func<string, SignerIdentity?> Signer { get; init; } = TrustedIdentity;
+        public Func<string, string?> OriginalFilename { get; init; } = Path.GetFileName;
+        public List<string> SignaturePaths { get; } = [];
+
+        public AuthenticodeVerification VerifySignature(string filePath)
+        {
+            SignaturePaths.Add(filePath);
+            return new AuthenticodeVerification(Signature(filePath), "test");
+        }
+
+        public SignerIdentity? ReadSignerIdentity(string filePath) => Signer(filePath);
+        public string? ReadOriginalFilename(string filePath) => OriginalFilename(filePath);
+        public static SignerIdentity? TrustedIdentity(string path) => Identity(Path.GetFileName(path) == "ACE-Service64.exe"
+            ? LaunchProviderCatalog.AntiCheatExpertSigner : LaunchProviderCatalog.PapergamesSigner);
+        public static SignerIdentity Identity(TrustedSignerRequirement signer) =>
+            new(signer.Thumbprints[0], signer.SubjectCommonName, signer.SubjectSerialNumber);
+    }
+
+    private sealed class RecordingChannelProcessStarter(int? processId, Action<ProcessStartInfo>? onStart = null) : IChannelProcessStarter
     {
         public DateTimeOffset StartTimeUtc { get; } =
             new(2026, 8, 17, 0, 0, 0, TimeSpan.Zero);
@@ -666,6 +886,7 @@ internal static class ChannelSwitchTests
         {
             CallCount++;
             LastStartInfo = startInfo;
+            onStart?.Invoke(startInfo);
             return processId is int id
                 ? new ChannelProcessStartResult(id, StartTimeUtc)
                 : null;

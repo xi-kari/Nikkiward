@@ -184,53 +184,7 @@ public static class LaunchProviderCatalog
             ArgumentList = new[] { "-skiplauncher" },
             MaximumCapability = LaunchCapability.OfficialAssisted,
             ExecutionEnabled = false,
-            RequiredComponents = new[]
-            {
-                new BinaryIdentityRequirement
-                {
-                    ComponentId = "official-launcher",
-                    RelativePath = "launcher.exe",
-                    TrustedSigners = [PapergamesSigner],
-                    ExpectedOriginalFilename = "launcher.exe",
-                },
-                new BinaryIdentityRequirement
-                {
-                    ComponentId = "official-backend",
-                    RelativePath = backendRelativePath,
-                    TrustedSigners = [PapergamesSigner],
-                    ExpectedOriginalFilename = "xstarter.exe",
-                },
-                new BinaryIdentityRequirement
-                {
-                    ComponentId = "game-bootstrap",
-                    RootRole = "GameRoot",
-                    RelativePath = "InfinityNikki.exe",
-                    TrustedSigners = [PapergamesSigner],
-                },
-                new BinaryIdentityRequirement
-                {
-                    ComponentId = "game-client",
-                    RootRole = "GameRoot",
-                    RelativePath = Path.Combine(
-                        "X6Game",
-                        "Binaries",
-                        "Win64",
-                        "X6Game-Win64-Shipping.exe"),
-                    TrustedSigners = [PapergamesSigner],
-                },
-                new BinaryIdentityRequirement
-                {
-                    ComponentId = "anti-cheat-artifact",
-                    RootRole = "GameRoot",
-                    RelativePath = Path.Combine(
-                        "X6Game",
-                        "Binaries",
-                        "Win64",
-                        "AntiCheatExpert",
-                        "ACE-Service64.exe"),
-                    TrustedSigners = [AntiCheatExpertSigner],
-                },
-            },
+            RequiredComponents = CreateComponentRequirements(backendRelativePath),
             ProductMarker = new ProductMarkerRequirement
             {
                 RootRole = "GameRoot",
@@ -239,6 +193,55 @@ public static class LaunchProviderCatalog
             },
         };
     }
+
+    internal static IReadOnlyList<BinaryIdentityRequirement> CreateComponentRequirements(string backendRelativePath) =>
+        new[]
+        {
+            new BinaryIdentityRequirement
+            {
+                ComponentId = "official-launcher",
+                RelativePath = "launcher.exe",
+                TrustedSigners = [PapergamesSigner],
+                ExpectedOriginalFilename = "launcher.exe",
+            },
+            new BinaryIdentityRequirement
+            {
+                ComponentId = "official-backend",
+                RelativePath = backendRelativePath,
+                TrustedSigners = [PapergamesSigner],
+                ExpectedOriginalFilename = "xstarter.exe",
+            },
+            new BinaryIdentityRequirement
+            {
+                ComponentId = "game-bootstrap",
+                RootRole = "GameRoot",
+                RelativePath = "InfinityNikki.exe",
+                TrustedSigners = [PapergamesSigner],
+            },
+            new BinaryIdentityRequirement
+            {
+                ComponentId = "game-client",
+                RootRole = "GameRoot",
+                RelativePath = Path.Combine(
+                    "X6Game",
+                    "Binaries",
+                    "Win64",
+                    "X6Game-Win64-Shipping.exe"),
+                TrustedSigners = [PapergamesSigner],
+            },
+            new BinaryIdentityRequirement
+            {
+                ComponentId = "anti-cheat-artifact",
+                RootRole = "GameRoot",
+                RelativePath = Path.Combine(
+                    "X6Game",
+                    "Binaries",
+                    "Win64",
+                    "AntiCheatExpert",
+                    "ACE-Service64.exe"),
+                TrustedSigners = [AntiCheatExpertSigner],
+            },
+        };
 
     public static bool TryGet(
         DistributionChannel channel,

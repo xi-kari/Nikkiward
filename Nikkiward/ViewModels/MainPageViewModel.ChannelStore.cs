@@ -90,6 +90,7 @@ public sealed partial class MainPageViewModel
 
     public bool CanAttemptExternalChannelLaunch =>
         !IsBusy &&
+        _preflightResult is { StaticIdentityPassed: true } &&
         !_isLaunchAttemptInProgress &&
         !_isOfficialAssistedRunning &&
         _activeProcessBinding is null &&
@@ -102,11 +103,14 @@ public sealed partial class MainPageViewModel
     public bool SelectedChannelUsesOfficialAssisted =>
         _selectedCandidate?.Identity.DistributionChannel is DistributionChannel.Official;
 
+    private bool IsExternalChannelSelected =>
+        _selectedCandidate?.Identity.DistributionChannel is DistributionChannel.Bilibili or DistributionChannel.Steam;
+
     public string SelectedChannelLaunchRoute => _selectedCandidate?.Identity.DistributionChannel switch
     {
         DistributionChannel.Official => "官方国服 xstarter",
-        DistributionChannel.Bilibili => "Bilibili xstarter 直启",
-        DistributionChannel.Steam => "Steam xstarter 直启",
+        DistributionChannel.Bilibili => "B 服 xstarter 直启（实验）",
+        DistributionChannel.Steam => "Steam xstarter 直启（实验，尚未验证）",
         _ => "未选择",
     };
 
@@ -225,6 +229,10 @@ public sealed partial class MainPageViewModel
             await _settingsStore.SaveAsync(updatedSettings, cancellationToken);
             _persistedSettings = updatedSettings;
             await ApplyDiscoveryResultAsync(materialized, selectedProfileId, cancellationToken);
+            if (IsExternalChannelSelected)
+            {
+                await RefreshAsync(cancellationToken);
+            }
             ChannelStoreStatusText =
                 $"单本体已创建：receipt={_channelStoreReceipt.ReceiptId}；" +
                 "三个源安装仍保留，完成逐渠道启动验证后可手动卸载。";
@@ -338,7 +346,7 @@ public sealed partial class MainPageViewModel
         _isLaunchAttemptInProgress = true;
         _isLaunchCleanupRequired = false;
         IsBusy = true;
-        ActivityText = $"正在提交 {SelectedChannelLaunchRoute}";
+        ActivityText = "正在核对渠道组件签名";
         NotifyLaunchAttemptChanged();
         try
         {
@@ -346,11 +354,27 @@ public sealed partial class MainPageViewModel
                 _selectedCandidate,
                 plan.PlanSha256,
                 cancellationToken);
-            if (!receipt.Succeeded)
+            if (receipt.FailureCode is ChannelLaunchFailureCode.UserCancelledElevation)
             {
-                _launchAttemptStatusText =
-                    $"渠道入口提交失败：{receipt.FailureCode} · {receipt.FailureDetail}";
-                NotifyLaunchAttemptChanged();
+                _launchAttemptStatusText = "已取消 Windows 管理员确认。";
+                _launchLifecycleText = "NotRunning · UserCancelledElevation · RootPid=null";
+                return receipt;
+            }
+
+            if (receipt.IsError)
+            {
+                if (receipt.IdentityFailureCode is { } identityFailure)
+                {
+                    _preflightResult = new LaunchPreflightResult
+                    {
+                        FailureCode = identityFailure,
+                        FailureDetail = receipt.FailureDetail,
+                    };
+                    StaticReadinessText = $"静态身份未通过 · {FormatPreflightFailure(identityFailure)}";
+                    NotifyProfileChanged();
+                }
+                _launchAttemptStatusText = $"渠道启动未完成 · {receipt.FailureDetail}";
+                _launchLifecycleText = $"NotRunning · {receipt.FailureCode}";
                 return receipt;
             }
 

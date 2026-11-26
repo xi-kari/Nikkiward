@@ -114,10 +114,13 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     public string XStarterPath => _selectedCandidate?.Provider?.BackendExecutablePath
         ?? "未绑定 provider";
 
-    public string LaunchCapabilityText => _preflightResult is
-        { StaticIdentityPassed: true, Contract.MaximumCapability: LaunchCapability.OfficialAssisted }
-        ? "OfficialAssisted · contract 能力上限（非当前执行能力）"
-        : "NotVerified · profile 尚未验证";
+    public string LaunchCapabilityText => _preflightResult switch
+    {
+        { StaticIdentityPassed: true, Contract.MaximumCapability: LaunchCapability.OfficialAssisted } =>
+            "OfficialAssisted · contract 能力上限（非当前执行能力）",
+        { StaticIdentityPassed: true } when IsExternalChannelSelected => "实验直启 · 渠道组件签名已验证",
+        _ => "NotVerified · profile 尚未验证",
+    };
 
     public string CapabilityDetailText =>
         "VerifiedOneClick=false · 固定 A 已有一次 ObservedSuccess，但 B/Pair、重启恢复、10/10 零重试与登录界面人工验收尚未完成；应用初始化不自动执行，每次点击都会重新 preflight。";
@@ -231,7 +234,9 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     public string ProviderPreflightText =>
         _preflightResult is null
             ? "尚未执行静态 preflight；需从当前候选 roots + frozen catalog 重新派生路径。"
-            : $"StaticIdentityPassed={_preflightResult.StaticIdentityPassed} · FailureCode={_preflightResult.FailureCode} · verifier Plan={(_preflightResult.Plan is null ? "null" : "present")}；每次点击时从 fresh roots + frozen contract 派生瞬时 plan。";
+            : IsExternalChannelSelected
+                ? $"{StaticIdentityText} · 点击启动时重新核对五个组件并复核 xstarter.exe。"
+                : $"StaticIdentityPassed={_preflightResult.StaticIdentityPassed} · FailureCode={_preflightResult.FailureCode} · verifier Plan={(_preflightResult.Plan is null ? "null" : "present")}；每次点击时从 fresh roots + frozen contract 派生瞬时 plan。";
 
     public string ProviderObservationPolicyText =>
         "只允许本次 attempt 的 PID/父 PID、路径、退出码、窗口句柄、响应性、cleanup 与覆盖记录；不读取命令行、环境、token、内存或网络载荷。";
@@ -257,6 +262,8 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
 
     public string ExecutionGateText => _preflightResult switch
     {
+        { StaticIdentityPassed: true } when IsExternalChannelSelected =>
+            "渠道组件身份通过 · 每次直启重新验证并请求管理员权限",
         {
             FailureCode: LaunchPreflightFailureCode.ExecutionGateClosed,
             ExecutionAllowed: false,
@@ -1400,6 +1407,10 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                     _selectedCandidate,
                     cancellationToken);
             }
+            else if (IsExternalChannelSelected)
+            {
+                _preflightResult = await _channelEntryLauncher.VerifyIdentityAsync(_selectedCandidate!, cancellationToken);
+            }
 
             Components.Clear();
             foreach (var component in results)
@@ -1420,23 +1431,25 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             }
 
             var capturedAtUtc = DateTimeOffset.UtcNow;
+            var externalIdentityPassed = IsExternalChannelSelected && _preflightResult is { StaticIdentityPassed: true };
 
             _snapshot = new LaunchSnapshot
             {
                 ProfileId = _profile.ProfileId,
-                State = readinessState is LaunchState.Ready
+                State = readinessState is LaunchState.Ready && !externalIdentityPassed
                     ? LaunchState.Failed
                     : readinessState,
                 Capability = _profile.Capability,
                 CapturedAtUtc = capturedAtUtc,
                 Components = results,
-                LastFailureReason = readinessState is LaunchState.Ready
+                LastFailureReason = readinessState is LaunchState.Ready && !IsExternalChannelSelected
                     ? "静态身份检查完成，但 Nikkiward 当前执行能力仍未启用。"
                     : failureReason,
             };
 
             StaticReadinessText = _preflightResult switch
             {
+                { StaticIdentityPassed: true } when IsExternalChannelSelected => "渠道组件签名验证通过",
                 { StaticIdentityPassed: true } => $"静态身份已验证 · {results.Count} 个组件（ExecutionGateClosed）",
                 { FailureCode: var code } => $"静态身份未通过 · {FormatPreflightFailure(code)}",
                 _ => readinessState switch

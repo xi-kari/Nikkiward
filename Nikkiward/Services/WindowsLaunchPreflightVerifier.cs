@@ -156,44 +156,14 @@ public sealed class WindowsLaunchPreflightVerifier : ILaunchPreflightVerifier
                 "provider contract 的工作目录或参数 preset 不是冻结值。");
         }
 
-        var componentResults = new List<PreflightComponentResult>();
-        foreach (var requirement in contract.RequiredComponents)
+        var identity = await VerifyComponentsAsync(contract.RequiredComponents, launcherRoot, gameRoot, cancellationToken)
+            .ConfigureAwait(false);
+        if (!identity.StaticIdentityPassed)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var root = string.Equals(requirement.RootRole, "GameRoot", StringComparison.Ordinal)
-                ? gameRoot
-                : launcherRoot;
-            if (!TryResolveWithinRoot(root, requirement.RelativePath, out var filePath))
-            {
-                return Failed(
-                    LaunchPreflightFailureCode.PathOutsideExpectedRoot,
-                    $"{requirement.ComponentId} 的派生路径越出 {requirement.RootRole}。",
-                    componentResults);
-            }
-
-            if (ContainsReparsePointBetween(root, filePath))
-            {
-                return Failed(
-                    LaunchPreflightFailureCode.ReparsePointRejected,
-                    $"{requirement.ComponentId} 的路径链包含 junction/symlink。",
-                    componentResults);
-            }
-
-            var component = await VerifyComponentAsync(requirement, filePath, cancellationToken)
-                .ConfigureAwait(false);
-            componentResults.Add(component);
-            if (!component.Passed)
-            {
-                var code = component.FailureCode is LaunchPreflightFailureCode.None
-                    ? LaunchPreflightFailureCode.RequiredComponentMissing
-                    : component.FailureCode;
-                return Failed(
-                    code,
-                    component.FailureDetail ?? "组件身份检查失败。",
-                    componentResults);
-            }
+            return identity;
         }
 
+        var componentResults = identity.Components;
         if (contract.ProductMarker is not null)
         {
             var markerRoot = string.Equals(contract.ProductMarker.RootRole, "GameRoot", StringComparison.Ordinal)
@@ -261,6 +231,53 @@ public sealed class WindowsLaunchPreflightVerifier : ILaunchPreflightVerifier
         };
     }
 
+    internal async Task<LaunchPreflightResult> VerifyComponentsAsync(
+        IReadOnlyList<BinaryIdentityRequirement> requirements,
+        string launcherRoot,
+        string gameRoot,
+        CancellationToken cancellationToken)
+    {
+        var componentResults = new List<PreflightComponentResult>();
+        foreach (var requirement in requirements)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var root = string.Equals(requirement.RootRole, "GameRoot", StringComparison.Ordinal)
+                ? gameRoot
+                : launcherRoot;
+            if (!TryResolveWithinRoot(root, requirement.RelativePath, out var filePath))
+            {
+                return Failed(
+                    LaunchPreflightFailureCode.PathOutsideExpectedRoot,
+                    $"{requirement.ComponentId} 的派生路径越出 {requirement.RootRole}。",
+                    componentResults);
+            }
+
+            if (ContainsReparsePointBetween(root, filePath))
+            {
+                return Failed(
+                    LaunchPreflightFailureCode.ReparsePointRejected,
+                    $"{requirement.ComponentId} 的路径链包含 junction/symlink。",
+                    componentResults);
+            }
+
+            var component = await VerifyComponentAsync(requirement, filePath, cancellationToken)
+                .ConfigureAwait(false);
+            componentResults.Add(component);
+            if (!component.Passed)
+            {
+                var code = component.FailureCode is LaunchPreflightFailureCode.None
+                    ? LaunchPreflightFailureCode.RequiredComponentMissing
+                    : component.FailureCode;
+                return Failed(
+                    code,
+                    component.FailureDetail ?? "组件身份检查失败。",
+                    componentResults);
+            }
+        }
+
+        return new LaunchPreflightResult { StaticIdentityPassed = true, Components = componentResults };
+    }
+
     internal static string? TryGetVersionDirectoryName(string? backendExecutablePath)
     {
         if (string.IsNullOrWhiteSpace(backendExecutablePath))
@@ -279,7 +296,7 @@ public sealed class WindowsLaunchPreflightVerifier : ILaunchPreflightVerifier
         }
     }
 
-    private async Task<PreflightComponentResult> VerifyComponentAsync(
+    internal async Task<PreflightComponentResult> VerifyComponentAsync(
         BinaryIdentityRequirement requirement,
         string filePath,
         CancellationToken cancellationToken)
@@ -534,7 +551,7 @@ public sealed class WindowsLaunchPreflightVerifier : ILaunchPreflightVerifier
         }
     }
 
-    private static bool ContainsReparsePointBetween(string root, string fullPath)
+    internal static bool ContainsReparsePointBetween(string root, string fullPath)
     {
         try
         {
