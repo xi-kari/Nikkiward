@@ -17,6 +17,12 @@ public enum ChannelLaunchFailureCode
     PlanChanged,
     StartFailed,
     ProcessIdentityUnavailable,
+    UserCancelledElevation,
+    SignatureInvalid,
+    SignerMismatch,
+    ComponentUnavailable,
+    BinaryIdentityDrift,
+    BackendIdentityDrift,
 }
 
 public sealed record ChannelLaunchPlan
@@ -37,6 +43,8 @@ public sealed record ChannelLaunchPlan
 
     public string? WorkingDirectory { get; init; }
 
+    public string GameRootPath { get; init; } = string.Empty;
+
     public IReadOnlyList<string> ArgumentList { get; init; } = Array.Empty<string>();
 
     public bool RequiresElevation { get; init; }
@@ -50,7 +58,11 @@ public sealed record ChannelLaunchReceipt
 
     public bool Succeeded { get; init; }
 
+    public bool IsError => !Succeeded && FailureCode is not ChannelLaunchFailureCode.UserCancelledElevation;
+
     public ChannelLaunchFailureCode FailureCode { get; init; }
+
+    public LaunchPreflightFailureCode? IdentityFailureCode { get; init; }
 
     public string? FailureDetail { get; init; }
 

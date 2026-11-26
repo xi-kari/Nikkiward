@@ -11,6 +11,10 @@ public interface IChannelEntryLauncher
 {
     ChannelLaunchPlan CreatePlan(InstallationProfileCandidate candidate);
 
+    Task<LaunchPreflightResult> VerifyIdentityAsync(
+        InstallationProfileCandidate candidate,
+        CancellationToken cancellationToken = default);
+
     Task<ChannelLaunchReceipt> LaunchAsync(
         InstallationProfileCandidate candidate,
         string expectedPlanSha256,
@@ -59,21 +63,24 @@ public sealed class WindowsChannelEntryLauncher : IChannelEntryLauncher
         "^\\d+\\.\\d+\\.\\d+$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private readonly IChannelProcessStarter _processStarter;
+    private readonly WindowsLaunchPreflightVerifier _preflightVerifier;
 
     public WindowsChannelEntryLauncher()
-        : this(new WindowsChannelProcessStarter())
+        : this(new WindowsChannelProcessStarter(), WindowsAuthenticodeIdentityProbe.Instance)
     {
     }
 
-    internal WindowsChannelEntryLauncher(IChannelProcessStarter processStarter)
+    internal WindowsChannelEntryLauncher(IChannelProcessStarter processStarter, IAuthenticodeIdentityProbe identityProbe)
     {
         _processStarter = processStarter ?? throw new ArgumentNullException(nameof(processStarter));
+        _preflightVerifier = new WindowsLaunchPreflightVerifier(identityProbe);
     }
 
     public ChannelLaunchPlan CreatePlan(InstallationProfileCandidate candidate)
     {
         ArgumentNullException.ThrowIfNull(candidate);
-        if (candidate.Profile is null || candidate.State is not (
+        if (candidate.Profile is null || string.IsNullOrWhiteSpace(candidate.GameRootPath) ||
+            !Path.IsPathFullyQualified(candidate.GameRootPath) || candidate.State is not (
                 InstallationCandidateState.Candidate or
                 InstallationCandidateState.ReadyForStaticVerification))
         {
@@ -110,6 +117,7 @@ public sealed class WindowsChannelEntryLauncher : IChannelEntryLauncher
                     ProfileId = candidate.ProfileId,
                     FileName = xstarterPath,
                     WorkingDirectory = NormalizeDirectory(candidate.LauncherRootPath!),
+                    GameRootPath = candidate.GameRootPath,
                     ArgumentList = ["-skiplauncher"],
                     RequiresElevation = true,
                 };
@@ -146,6 +154,7 @@ public sealed class WindowsChannelEntryLauncher : IChannelEntryLauncher
                     ProfileId = candidate.ProfileId,
                     FileName = steamXStarterPath,
                     WorkingDirectory = NormalizeDirectory(candidate.LauncherRootPath!),
+                    GameRootPath = candidate.GameRootPath,
                     ArgumentList = ["-skiplauncher"],
                     RequiresElevation = true,
                 };
@@ -161,7 +170,39 @@ public sealed class WindowsChannelEntryLauncher : IChannelEntryLauncher
         return plan with { PlanSha256 = ComputePlanSha256(plan) };
     }
 
-    public Task<ChannelLaunchReceipt> LaunchAsync(
+    public async Task<LaunchPreflightResult> VerifyIdentityAsync(
+        InstallationProfileCandidate candidate,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var plan = CreatePlan(candidate);
+        if (!plan.CanLaunch)
+        {
+            return new LaunchPreflightResult
+            {
+                FailureCode = plan.FailureCode is ChannelLaunchFailureCode.LauncherMissing
+                    ? LaunchPreflightFailureCode.RequiredComponentMissing
+                    : LaunchPreflightFailureCode.InvalidContract,
+                FailureDetail = plan.FailureDetail,
+            };
+        }
+
+        var (identity, _) = await VerifyPlanComponentsAsync(plan, cancellationToken).ConfigureAwait(false);
+        return identity;
+    }
+
+    private async Task<(LaunchPreflightResult Identity, BinaryIdentityRequirement Backend)> VerifyPlanComponentsAsync(
+        ChannelLaunchPlan plan,
+        CancellationToken cancellationToken)
+    {
+        var launcherRoot = plan.WorkingDirectory!;
+        var requirements = LaunchProviderCatalog.CreateComponentRequirements(Path.GetRelativePath(launcherRoot, plan.FileName));
+        var identity = await _preflightVerifier.VerifyComponentsAsync(
+            requirements, launcherRoot, plan.GameRootPath, cancellationToken).ConfigureAwait(false);
+        return (identity, requirements.Single(component => component.ComponentId == "official-backend"));
+    }
+
+    public async Task<ChannelLaunchReceipt> LaunchAsync(
         InstallationProfileCandidate candidate,
         string expectedPlanSha256,
         CancellationToken cancellationToken = default)
@@ -170,28 +211,81 @@ public sealed class WindowsChannelEntryLauncher : IChannelEntryLauncher
         var plan = CreatePlan(candidate);
         if (!plan.CanLaunch)
         {
-            return Task.FromResult(Failure(plan, plan.FailureCode, plan.FailureDetail));
+            return Failure(plan, plan.FailureCode, plan.FailureDetail);
         }
 
         if (!VariantHash.IsSha256(expectedPlanSha256) ||
             !string.Equals(plan.PlanSha256, expectedPlanSha256, StringComparison.OrdinalIgnoreCase))
         {
-            return Task.FromResult(Failure(
+            return Failure(
                 plan,
                 ChannelLaunchFailureCode.PlanChanged,
-                "The fresh launch plan does not match the approved plan digest."));
+                "The fresh launch plan does not match the approved plan digest.");
         }
 
         if (plan.EntryKind is not (
                 ChannelLaunchEntryKind.BilibiliXStarterDirect or
                 ChannelLaunchEntryKind.SteamXStarterDirect))
         {
-            return Task.FromResult(Failure(
+            return Failure(
                 plan,
                 ChannelLaunchFailureCode.DirectLaunchUnavailable,
-                "The selected entry is not an approved direct executable."));
+                "The selected entry is not an approved direct executable.");
         }
 
+        var (identity, backend) = await VerifyPlanComponentsAsync(plan, cancellationToken).ConfigureAwait(false);
+        if (!identity.StaticIdentityPassed)
+        {
+            var code = identity.FailureCode switch
+            {
+                LaunchPreflightFailureCode.SignatureInvalid => ChannelLaunchFailureCode.SignatureInvalid,
+                LaunchPreflightFailureCode.SignerMismatch => ChannelLaunchFailureCode.SignerMismatch,
+                LaunchPreflightFailureCode.BinaryIdentityDrift => ChannelLaunchFailureCode.BinaryIdentityDrift,
+                _ => ChannelLaunchFailureCode.ComponentUnavailable,
+            };
+            var failed = identity.Components.LastOrDefault(component => !component.Passed);
+            var detail = failed is null
+                ? "安装组件缺失、不可读或路径不在可信目录内。"
+                : $"{Path.GetFileName(failed.FilePath)}：{failed.FailureDetail}";
+            return Failure(plan, code, detail, identity.FailureCode);
+        }
+
+        FileStream backendGuard;
+        try
+        {
+            backendGuard = File.Open(plan.FileName, FileMode.Open, FileAccess.Read, FileShare.Read);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return Failure(plan, ChannelLaunchFailureCode.BackendIdentityDrift,
+                "无法锁定 xstarter.exe 以复核身份。", LaunchPreflightFailureCode.BinaryIdentityDrift);
+        }
+
+        using (backendGuard)
+        {
+            if (WindowsLaunchPreflightVerifier.ContainsReparsePointBetween(plan.WorkingDirectory!, plan.FileName))
+            {
+                return Failure(plan, ChannelLaunchFailureCode.BackendIdentityDrift,
+                    "无法确认 xstarter.exe 的安装路径。", LaunchPreflightFailureCode.ReparsePointRejected);
+            }
+
+            var first = identity.Components.Single(component => component.ComponentId == backend.ComponentId);
+            var current = await _preflightVerifier.VerifyComponentAsync(backend, plan.FileName, cancellationToken)
+                .ConfigureAwait(false);
+            if (!current.Passed || current.ActualSha256 != first.ActualSha256)
+            {
+                return Failure(plan, ChannelLaunchFailureCode.BackendIdentityDrift,
+                    current.FailureDetail ?? "xstarter.exe 在本次预检后发生变化。",
+                    current.Passed ? LaunchPreflightFailureCode.BinaryIdentityDrift : current.FailureCode);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            return StartVerifiedBackend(plan);
+        }
+    }
+
+    private ChannelLaunchReceipt StartVerifiedBackend(ChannelLaunchPlan plan)
+    {
         try
         {
             var attemptId = Guid.NewGuid();
@@ -210,7 +304,7 @@ public sealed class WindowsChannelEntryLauncher : IChannelEntryLauncher
             }
 
             var processStart = _processStarter.Start(startInfo);
-            return Task.FromResult(new ChannelLaunchReceipt
+            return new ChannelLaunchReceipt
             {
                 AttemptId = attemptId,
                 Succeeded = processStart?.StartTimeUtc is not null,
@@ -233,14 +327,18 @@ public sealed class WindowsChannelEntryLauncher : IChannelEntryLauncher
                 SubmittedProcessId = processStart?.ProcessId,
                 SubmittedProcessStartTimeUtc = processStart?.StartTimeUtc,
                 SubmittedAtUtc = submittedAtUtc,
-            });
+            };
+        }
+        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            return Failure(plan, ChannelLaunchFailureCode.UserCancelledElevation, "已取消 Windows 管理员确认。");
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
         {
-            return Task.FromResult(Failure(
+            return Failure(
                 plan,
                 ChannelLaunchFailureCode.StartFailed,
-                $"Direct entry submission failed: {ex.GetType().Name}."));
+                $"Direct entry submission failed: {ex.GetType().Name}.");
         }
     }
 
@@ -298,6 +396,7 @@ public sealed class WindowsChannelEntryLauncher : IChannelEntryLauncher
         AppendCanonical(canonical, plan.ProfileId);
         AppendCanonical(canonical, plan.FileName);
         AppendCanonical(canonical, plan.WorkingDirectory ?? string.Empty);
+        AppendCanonical(canonical, plan.GameRootPath);
         AppendCanonical(canonical, plan.RequiresElevation ? "1" : "0");
         AppendCanonical(canonical, plan.ArgumentList.Count.ToString(CultureInfo.InvariantCulture));
         foreach (var argument in plan.ArgumentList)
@@ -330,10 +429,12 @@ public sealed class WindowsChannelEntryLauncher : IChannelEntryLauncher
     private static ChannelLaunchReceipt Failure(
         ChannelLaunchPlan plan,
         ChannelLaunchFailureCode code,
-        string? detail) => new()
+        string? detail,
+        LaunchPreflightFailureCode? identityFailureCode = null) => new()
         {
             FailureCode = code,
             FailureDetail = detail,
+            IdentityFailureCode = identityFailureCode,
             EntryKind = plan.EntryKind,
             DistributionChannel = plan.DistributionChannel,
             ProfileId = plan.ProfileId,
