@@ -441,6 +441,11 @@ public sealed partial class MainPage
             await LoadResonanceHistoryAsync(currentCancellation.Token);
             await LoadWishHistoryAsync(currentCancellation.Token);
             await ViewModel.InitializeAsync(currentCancellation.Token);
+            try { PhotoDirectoryPolicy.ScreenshotFolder(ResolveScreenshotFolderPath(), ViewModel.GalleryReadOnlyRoots); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+            {
+                ViewModel.ReportUiError($"截图目录不可用：{ex.Message}");
+            }
             StartPlanner();
             await InitializePlayTimeAsync(currentCancellation.Token);
             var hotkeyRegistration = App.MainWindow.ApplyHotkeys(

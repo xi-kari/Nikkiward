@@ -241,7 +241,7 @@ public sealed partial class MainPage
     {
         if (e.Action is ScreenshotFolderAction.Open && !string.IsNullOrWhiteSpace(e.Path))
         {
-            await OpenFolderAsync(e.Path, "截图文件夹打开失败");
+            if (Directory.Exists(e.Path)) await OpenFolderAsync(e.Path, "截图文件夹打开失败");
             return;
         }
 
@@ -274,6 +274,7 @@ public sealed partial class MainPage
                 WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow),
                 ViewModel.ScreenshotSettings,
                 ResolveScreenshotFolderPath(),
+                () => ViewModel.GalleryReadOnlyRoots,
                 _lifetimeCancellation?.Token ?? CancellationToken.None);
             _hostedSettingsPage?.ApplyScreenshotStatus(result.Message);
             if (!result.Succeeded)
@@ -298,7 +299,7 @@ public sealed partial class MainPage
     {
         try
         {
-            _ = await GalleryThumbnailCache.ClearAsync(
+            await ClearGalleryThumbnailsAsync(
                 _lifetimeCancellation?.Token ?? CancellationToken.None);
             await TryShowDialogAsync("缩略图缓存已清除", "相册缩略图缓存已删除。 ");
         }
@@ -364,6 +365,7 @@ public sealed partial class MainPage
             var result = await _gameScreenshotService.CaptureGameAsync(
                 ViewModel.ScreenshotSettings,
                 ResolveScreenshotFolderPath(),
+                () => ViewModel.GalleryReadOnlyRoots,
                 _lifetimeCancellation?.Token ?? CancellationToken.None);
             _hostedSettingsPage?.ApplyScreenshotStatus(result.Message);
             if (!result.Succeeded)

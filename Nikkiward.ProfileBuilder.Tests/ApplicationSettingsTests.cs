@@ -487,7 +487,7 @@ internal static class ApplicationSettingsTests
         var thumbnailCache = Path.Combine(dataRoot, "GalleryCache", "Thumbnails");
         var backgroundCache = Path.Combine(dataRoot, "ArtCache");
         WriteBytes(Path.Combine(dataRoot, "Logs", "current.log"), 7);
-        WriteBytes(Path.Combine(thumbnailCache, "thumb.jpg"), 11);
+        WriteBytes(Path.Combine(thumbnailCache, "nikkiward-thumb-0123456789abcdef0123456789abcdef.jpg"), 11);
         WriteBytes(Path.Combine(browserCache, "data.bin"), 13);
         WriteBytes(browserCookies, 17);
         WriteBytes(Path.Combine(backgroundCache, "plate.jpg"), 19);
@@ -499,12 +499,12 @@ internal static class ApplicationSettingsTests
         AssertEqual(13L, before.BrowserBytes, "browser bytes");
         AssertEqual(19L, before.LauncherBackgroundBytes, "background bytes");
 
-        var first = await service.ClearCachesAsync(false);
+        var first = await service.ClearCachesAsync(false, []);
         Assert(first.DeletedFileCount >= 3, "cleared file count");
         Assert(File.Exists(browserCookies), "browser cookies must remain");
         Assert(File.Exists(Path.Combine(backgroundCache, "plate.jpg")), "background must remain");
 
-        _ = await service.ClearCachesAsync(true);
+        _ = await service.ClearCachesAsync(true, []);
         Assert(!Directory.Exists(backgroundCache), "background cache must be optional");
     }
 

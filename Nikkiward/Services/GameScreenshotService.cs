@@ -46,6 +46,7 @@ public sealed class GameScreenshotService
     public async Task<ScreenshotCaptureResult> CaptureGameAsync(
         ScreenshotSettings settings,
         string destinationFolder,
+        Func<IReadOnlyList<string>> readOnlyRoots,
         CancellationToken cancellationToken = default)
     {
         var target = FindGameWindow();
@@ -61,6 +62,7 @@ public sealed class GameScreenshotService
             target.Value.FilePrefix,
             settings,
             destinationFolder,
+            readOnlyRoots,
             cancellationToken);
     }
 
@@ -68,6 +70,7 @@ public sealed class GameScreenshotService
         IntPtr ownerWindowHandle,
         ScreenshotSettings settings,
         string destinationFolder,
+        Func<IReadOnlyList<string>> readOnlyRoots,
         CancellationToken cancellationToken = default)
     {
         if (!TryGetDisplayId(ownerWindowHandle, out var displayId))
@@ -100,6 +103,7 @@ public sealed class GameScreenshotService
                 "Nikkiward_Test",
                 settings,
                 destinationFolder,
+                readOnlyRoots,
                 (float)Math.Max(80, colorInfo.MaxLuminanceInNits),
                 cancellationToken);
         }
@@ -118,6 +122,7 @@ public sealed class GameScreenshotService
         string filePrefix,
         ScreenshotSettings settings,
         string destinationFolder,
+        Func<IReadOnlyList<string>> readOnlyRoots,
         CancellationToken cancellationToken)
     {
         if (IsIconic(windowHandle))
@@ -155,6 +160,7 @@ public sealed class GameScreenshotService
                 filePrefix,
                 settings,
                 destinationFolder,
+                readOnlyRoots,
                 (float)Math.Max(80, colorInfo.MaxLuminanceInNits),
                 cancellationToken);
         }
@@ -259,11 +265,11 @@ public sealed class GameScreenshotService
         string filePrefix,
         ScreenshotSettings settings,
         string destinationFolder,
+        Func<IReadOnlyList<string>> readOnlyRoots,
         float maxLuminance,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        Directory.CreateDirectory(destinationFolder);
         var frameTime = DateTimeOffset.Now;
         var capturedHdr = bitmap.Format is DirectXPixelFormat.R16G16B16A16Float;
         var extension = capturedHdr
@@ -286,7 +292,7 @@ public sealed class GameScreenshotService
             filePrefix,
             frameTime,
             extension);
-        using var output = new ScreenshotOutput();
+        using var output = new ScreenshotOutput(readOnlyRoots);
         await output.StageAsync(primaryPath, async stream =>
         {
             if (!capturedHdr)

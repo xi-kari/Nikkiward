@@ -91,10 +91,15 @@ public sealed partial class MainPage
                     var backgrounds = ViewModel.FileManagementSettings.ClearLauncherBackgroundFiles;
                     var message = "将删除日志、图片、浏览器及游戏资源缓存。" + (backgrounds ? "启动器背景缓存也会删除。" : "");
                     if (!await ConfirmSettingsActionAsync("清理缓存", message, "清理")) break;
-                    var cleared = await SettingsMaintenance.ClearCachesAsync(backgrounds, token);
+                    var failedCount = 0;
+                    await GalleryProtection.ChangeGalleryDirectoriesAsync(async () =>
+                    {
+                        var cleared = await SettingsMaintenance.ClearCachesAsync(backgrounds, await ThumbnailProtectedRootsAsync(token), token);
+                        failedCount = cleared.FailedPaths.Count;
+                    }, token);
                     _settingsCacheStatistics = await SettingsMaintenance.GetCacheStatisticsAsync(token);
                     _webCacheStatisticsReady = true;
-                    if (cleared.FailedPaths.Count > 0) throw new IOException($"有 {cleared.FailedPaths.Count} 项未能清理，可能仍在使用。");
+                    if (failedCount > 0) throw new IOException($"有 {failedCount} 项未能清理，目录可能受保护或仍在使用。");
                     break;
                 default: throw SettingsValues.Invalid();
             }
