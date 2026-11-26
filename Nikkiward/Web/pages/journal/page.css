@@ -1,6 +1,6 @@
 #journal .cols{grid-template-columns:330px minmax(0,1fr) 380px}
 #journal .mod{min-width:0;overflow-wrap:anywhere}
-#journal .webph{margin-top:22px;width:100%;height:214px;border:1px solid var(--line2);border-radius:min(var(--nk-panel-radius-s),10px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;font-size:13px;color:var(--ink2);background:var(--journal-card,var(--wall3))}
+#journal .webph{margin-top:22px;width:100%;height:214px;border:1px solid var(--line2);border-radius:var(--r-box);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;font-size:13px;color:var(--ink2);background:var(--journal-card,var(--wall3))}
 [data-skin=cinema][data-tone=dark] #journal{--journal-card:#10141d;--accent:#a8d1ff}
 [data-skin=cinema][data-tone=light] #journal{--journal-card:white}
 #journal .webph:hover,#journal .links button:hover{border-color:var(--ink2);color:var(--ink)}

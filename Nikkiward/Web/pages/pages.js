@@ -14,6 +14,7 @@ function asset(tag, url) {
     document.head.append(node);
   });
 }
+function navigate(to) { bridge?.postMessage({action:'navigate', to}); }
 function send(action, args = {}) {
   if (active) bridge?.postMessage({...args, page:active.page, action});
 }
@@ -21,11 +22,11 @@ for (const [to, label] of Object.entries(destinations)) {
   const b = document.createElement('button');
   b.textContent = label;
   b.dataset.route = to;
-  b.onclick = () => send('navigate',{to});
+  b.onclick = () => navigate(to);
   document.querySelector('.nav').append(b);
 }
 const palette = createCommandPanel(document.querySelector('#cmdBtn'), () => [
-  ...Object.entries(destinations).map(([to,label]) => ['前往',label,() => send('navigate',{to})]),
+  ...Object.entries(destinations).map(([to,label]) => ['前往',label,() => navigate(to)]),
   ...(active?.commands ?? [])
 ]);
 function leave() {

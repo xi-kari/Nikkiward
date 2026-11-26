@@ -26,12 +26,15 @@ public sealed partial class MainPage
 
     internal Task NavigateWebPageAsync(string route) => ExecuteShellNavigationAsync(PageRoutes.NavigationTag(route)!);
 
-    internal async Task WebPageFailedAsync(WebPagesView view, string page, string reason)
+    internal void WebPageFailed(WebPagesView view, string page, string reason)
     {
-        if (view != CurrentWebPage) return;
+        if (view != CurrentWebPage || _webPagesFailed) return;
         _webPagesFailed = true;
-        ViewModel.WebPageFallback = $"功能页面已回退到原生界面（{page}）：{reason}";
-        await NavigateWebPageAsync(page);
+        ViewModel.ReportWebPageFallback(page, reason);
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            if (view == CurrentWebPage) await NavigateWebPageAsync(page);
+        });
     }
 }
 

@@ -79,8 +79,7 @@ public sealed partial class WebPagesView : Page
         if (_ready && !_closed && _page != null)
         {
             _appearance = (_shell.StudioSkin, _shell.StudioTone);
-            Post(new { type = "state", page = _page, module = _adapter.Module, skin = _shell.StudioSkin,
-                tone = _shell.StudioTone, state = _adapter.State() });
+            _adapter.PostState(_page, _appearance.Skin, _appearance.Tone, json => Web.CoreWebView2.PostWebMessageAsJson(json), Fail);
         }
     }
 
@@ -94,10 +93,7 @@ public sealed partial class WebPagesView : Page
     {
         _ready = false;
         _failure = reason;
-        DispatcherQueue.TryEnqueue(async () =>
-        {
-            if (!_closed && _page != null) await _shell.WebPageFailedAsync(this, _page, reason);
-        });
+        if (!_closed && _page is { } page) _shell.WebPageFailed(this, page, reason);
     }
 
     private async void Start(object sender, RoutedEventArgs args)
@@ -145,16 +141,21 @@ public sealed partial class WebPagesView : Page
 
     private async void Message(CoreWebView2 core, CoreWebView2WebMessageReceivedEventArgs args)
     {
-        if (!_ready || _closed || _page == null || args.Source != Address || !IsEnabled) return;
+        if (_closed || _page == null || args.Source != Address || !IsEnabled) return;
         using var doc = JsonDocument.Parse(args.WebMessageAsJson);
         var m = doc.RootElement;
         string Field(string key) => m.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString()! : "";
-        if (m.ValueKind != JsonValueKind.Object || Field("page") != _page) return;
+        if (m.ValueKind != JsonValueKind.Object) return;
         var action = Field("action");
+        if (action == "navigate")
+        {
+            if (PageRoutes.NavigationDestination(m, _page, _ready) is { } destination)
+                await _shell.NavigateWebPageAsync(destination);
+            return;
+        }
+        if (!_ready || Field("page") != _page) return;
         var page = _page;
         if (action == "module-error") { Fail("页面模块未加载：" + page); return; }
-        if (action == "navigate" && PageRoutes.NavigationTag(Field("to")) != null)
-        { await _shell.NavigateWebPageAsync(Field("to")); return; }
         if (!PageRoutes.Allows(page, Field("page"), _adapter, action)) return;
         try { await _adapter.Execute(action, m); }
         catch (Exception ex) when (ex is COMException or IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
