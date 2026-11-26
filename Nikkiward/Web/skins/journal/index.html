@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'self' file:; font-src 'self' file:; img-src 'self' https://still.nikkiward.invalid data: file:; media-src https://motion.nikkiward.invalid; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>搭配师的手账</title>
+<link rel="stylesheet" href="../../fonts/lxgw-wenkai-tc.css">
+<link rel="stylesheet" href="../../fonts/caveat.css">
+<link rel="stylesheet" href="../../fonts/jetbrains-mono.css">
+<link rel="stylesheet" href="home.css">
+<script defer src="../../shared/home.js"></script>
+<script defer src="home.js"></script>
+</head><body data-screen="home">
+<svg class="symbols" width="0" height="0" aria-hidden="true">
+  <symbol id="i-refresh" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.5-3.6"/><path d="M13 2.6v2.6h-2.6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 16 16"><path d="M4 6.2l4 4 4-4"/></symbol>
+  <symbol id="i-right" viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"/></symbol>
+</svg>
+<div id="win" class="pending">
+  <div class="art"><img id="coverImg" alt=""><video id="coverVideo" muted loop playsinline hidden></video></div>
+  <div class="scrim"></div>
+  <div class="titlebar"></div>
+  <!-- index tabs -->
+  <nav class="tabs" aria-label="主导航">
+    <button class="tab" data-action="nav-launcher" aria-current="page">启动</button>
+    <button class="tab" data-action="nav-library">手账</button>
+    <button class="tab" data-action="nav-gallery">相册</button>
+    <button class="tab" data-action="nav-gallery-favorites">收藏</button>
+    <button class="tab" data-action="nav-resonance">共鸣</button>
+    <button class="tab last" data-action="nav-settings">设置</button>
+  </nav>
+
+  <!-- ================= HOME ================= -->
+  <section class="home" aria-label="启动页">
+    <div class="masthead paper">
+      <span class="tape"></span>
+      <div class="en">Nikkiward</div>
+      <h1>无限暖暖</h1>
+      <div class="meta"><span class="datestamp"></span><span>今日封面 · <span id="artName"></span></span></div>
+    </div>
+
+    <div class="recent" hidden>
+      <div class="label"><span>最近拍摄</span><button data-action="gallery">打开相册<svg class="i"><use href="#i-right"/></svg></button></div>
+    </div>
+
+    <div class="dock">
+      <div class="dock-top">
+        <button class="note" data-action="status" aria-label="后台任务，打开诊断"><em></em><span class="bar"><u></u></span></button>
+        <div class="tags">
+          <button class="tag" data-action="settings">游戏设置</button>
+          <button class="tag" data-action="journal">奇想手账</button>
+          <button class="tag" data-action="reset">默认背景</button>
+        </div>
+      </div>
+
+      <div class="ticket" id="ticket">
+        <button class="go" id="go" data-action="launch" disabled>
+          <span class="main"><span class="ttl" id="goTtl"></span><span class="sub" id="goSub"></span><span class="sub" id="readyDetail" hidden></span></span>
+          <span class="stub">
+            <svg class="stamp" viewBox="0 0 100 100" aria-hidden="true">
+              <circle cx="50" cy="50" r="45" stroke-width="3.2"/>
+              <circle class="ring2" cx="50" cy="50" r="37.5" stroke-width="1.2" stroke-dasharray="3 3.6"/>
+              <path d="M50 15.5l1.3 2.9 3.1.3-2.3 2.1.7 3-2.8-1.6-2.8 1.6.7-3-2.3-2.1 3.1-.3zM50 76l1.1 2.5 2.7.3-2 1.8.6 2.6-2.4-1.4-2.4 1.4.6-2.6-2-1.8 2.7-.3z" fill="currentColor" stroke="none"/>
+              <text id="stampTxt" x="50" y="59.5" font-size="27"></text>
+            </svg>
+            <small id="stubNote"></small>
+          </span>
+        </button>
+        <div class="fields">
+          <button class="field" id="profBtn" aria-controls="switcher" aria-haspopup="dialog" aria-expanded="false"><s>档案 · 点此切换</s><b><span id="profName"></span><svg class="i"><use href="#i-down"/></svg></b></button>
+          <button class="field" data-action="status"><s>启动检查</s><b><i class="ok"></i><span id="chkTxt"></span></b></button>
+          <div class="field"><s>官方手账时长</s><b></b></div>
+        </div>
+        <span class="prog"><u></u></span>
+        <div class="acts" id="acts"><button class="btn" data-action="close"></button><button class="btn" data-action="status">查看诊断</button><button class="btn" data-action="locate">定位游戏</button><button class="btn" data-action="recheck">重新检查</button><button class="btn" data-action="rediscover">重新发现</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 档案切换（改签） -->
+  <div id="veil" hidden></div>
+  <div class="pop switcher paper" id="switcher" aria-modal="true" role="dialog" inert aria-label="切换档案">
+    <span class="tape b"></span>
+    <h2>切换档案</h2>
+    <p class="lead"></p>
+    <div role="radiogroup" id="profs">
+    </div>
+    <div class="foot"><span></span><button class="btn" data-action="rediscover"><svg class="i"><use href="#i-refresh"/></svg>刷新（重新发现安装）</button></div>
+  </div>
+</div>
+</body></html>
