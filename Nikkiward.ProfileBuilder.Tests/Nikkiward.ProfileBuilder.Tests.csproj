@@ -35,6 +35,9 @@
     <Compile Include="..\Nikkiward\Services\IDiagnosticReportExporter.cs" Link="Services\IDiagnosticReportExporter.cs" />
     <Compile Include="..\Nikkiward\Services\JsonUserSettingsStore.cs" Link="Services\JsonUserSettingsStore.cs" />
     <Compile Include="..\Nikkiward\Services\SettingsMaintenanceService.cs" Link="Services\SettingsMaintenanceService.cs" />
+    <Compile Include="..\Nikkiward\Services\AtomicFile.cs" Link="Services\AtomicFile.cs" />
+    <Compile Include="..\Nikkiward\Features\GamepadControl\GameBarGuideOverride.cs" Link="Features\GamepadControl\GameBarGuideOverride.cs" />
+    <Compile Include="..\Nikkiward\Features\GamepadControl\GameBarGuideRegistry.cs" Link="Features\GamepadControl\GameBarGuideRegistry.cs" />
     <Compile Include="..\Nikkiward\Services\ApplicationDataPaths.cs" Link="Services\ApplicationDataPaths.cs" />
     <Compile Include="..\Nikkiward\Services\ApplicationLanguageRuntime.cs" Link="Services\ApplicationLanguageRuntime.cs" />
     <Compile Include="..\Nikkiward\Services\InstallationMetadataReaders.cs" Link="Services\InstallationMetadataReaders.cs" />
@@ -96,6 +99,7 @@
     <Compile Include="UserSettingsTests.cs" />
     <Compile Include="AppearanceSettingsTests.cs" />
     <Compile Include="ApplicationSettingsTests.cs" />
+    <Compile Include="GameBarGuideTests.cs" />
     <Compile Include="AppearanceRuntimeContractTests.cs" />
     <Compile Include="CardBorderGlowProjectionTests.cs" />
     <Compile Include="HolographicBackdropProjectionTests.cs" />

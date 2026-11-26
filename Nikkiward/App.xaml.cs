@@ -14,6 +14,7 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        GamepadController.RecoverGameBarGuideButton();
         MainWindow = new MainWindow();
 
         // The Guide button is taken from the Xbox Game Bar through a registry
