@@ -1,4 +1,5 @@
 using Nikkiward.Features.Pages;
+using Nikkiward.Services;
 using Nikkiward.ViewModels;
 using Windows.Storage.Pickers;
 
@@ -57,19 +58,8 @@ public sealed partial class MainPage
             var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
             if (action == "export")
             {
-                var picker = new FileSavePicker { SuggestedFileName = "Nikkiward-心愿共鸣" };
-                picker.FileTypeChoices.Add("JSON", [".json"]);
-                WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-                var target = await picker.PickSaveFileAsync();
-                if (target == null) return;
-                if (string.Equals(target.Path, _wishHistoryStore.HistoryPath, StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidDataException("请选择历史数据库以外的导出位置。");
-                using var transaction = await target.OpenTransactedWriteAsync();
-                using var output = transaction.Stream.AsStreamForWrite();
-                output.SetLength(0);
-                await _wishHistoryStore.ExportAsync(output);
-                await output.FlushAsync();
-                await transaction.CommitAsync();
+                var path = Win32FolderDialog.PickJsonSavePath(hwnd, "Nikkiward-心愿共鸣.json");
+                if (path != null) await _wishHistoryStore.ExportFileAsync(path, ViewModel.GalleryReadOnlyRoots);
                 return;
             }
             var open = new FileOpenPicker();

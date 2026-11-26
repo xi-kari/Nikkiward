@@ -140,6 +140,13 @@ public sealed partial class MainPage
 
             return false;
         }
+        catch (InvalidDataException ex)
+        {
+            ViewModel.ReportUiError($"共鸣历史同步失败：{ex.Message}");
+            journalPage.SetBrowserStatus(ex.Message);
+            ScheduleResonanceRetry(attemptedAtUtc);
+            return false;
+        }
         catch (JsonException)
         {
             journalPage.SetBrowserStatus(
