@@ -5,6 +5,8 @@
     'home-tide':['tide','ready'], 'home-blossom':['blossom','ready'],
     'home-tide-running':['tide','running'], 'home-blossom-blocked':['blossom','blocked'],
     'home-tide-launching':['tide','launching'], 'home-photo05-notfound':['photo05','notfound'],
+    'real-ready':['tide','ready'], 'real-blocked':['blossom','blocked'],
+    'real-notfound':['tide','notfound'], 'real-running':['tide','running'], 'real-long':['photo05','blocked'],
     'home-tide-idle':['tide','ready'], switcher:['tide','ready'], palette:['tide','ready']
   };
   const key = new URLSearchParams(location.search).get('mock');
@@ -36,6 +38,43 @@
     ['photo-05.jpg','20261126_211140.jpg','2026.11.26 21:11:40'],
     ['photo-04.jpg','20261124_224107.jpg','2026.11.24 22:41:07']
   ].map(([id,fileName,time]) => ({id,fileName,time,thumbnail:assets+id}));
+  if (key.startsWith('real-')) {
+    const long = key === 'real-long';
+    const ready = visual === 'ready';
+    const absent = visual === 'notfound';
+    const running = visual === 'running';
+    const times = ['今天 19:00','昨天 23:40','11-21 19:00','11-03 04:45'];
+    const files = ['2026-11-26_19-00-08.png','2026-11-25_23-40-18.png','2026-11-21_19-00-08.png','2026-11-03_04-45-07.png'];
+    const recent = photos.map((p,i) => ({...p,time:times[i],fileName:files[i]}));
+    const options = profiles.map(p => {
+      const current = !absent && p.id === (long ? 'steam' : 'cn');
+      return {...p,current,available:current,reason:current ? '已发现安装' : '未发现安装'};
+    });
+    const reasons = {
+      'real-ready':'检测到启动器版本 1.3.2，组件签名验证通过；点击后构建瞬时 plan 并请求 UAC 提权。',
+      'real-blocked':'游戏组件的数字签名无效或签名者不受信任，为安全起见已拒绝启动。请用官方启动器校验游戏文件或重新安装后重试。',
+      'real-notfound':'请在游戏设置的「基本信息」中点「定位游戏」。',
+      'real-running':'目标进程已在运行，启动按钮已锁定。',
+      'real-long':'请在游戏设置的「基本信息」中点「定位游戏」，选择要使用的安装目录。'
+    };
+    const label = long ? '需要选择安装' : launchLabel;
+    show({
+      state:long ? 'SelectionRequired' : state, visual, launchLabel:label, detail:reasons[key],
+      enabled:ready, busy:false, closeVisible:running, closeEnabled:running, closeLabel:'关闭游戏',
+      readySummary:ready ? '官方启动器 1.3.2 · 签名已核对' : null, check:ready ? '检查通过' : label,
+      checkTime:key === 'real-blocked' ? '今天 06:45' : '今天 06:43', checkCount:null,
+      nextActions:absent ? ['locate','rediscover'] : visual === 'blocked' ? ['status','recheck'] : [],
+      profile:options.find(p => p.current)?.name ?? null, profiles:options, channel:long ? '国际服' : '国服',
+      platform:'Windows', discoveryTime:null, profileOpen:false, running, sessionMinutes:running ? 42 : null,
+      officialDuration:running || long ? '1284 小时' : null, localDuration:running || long ? '96.5 小时' : null,
+      journalSnapshotDate:null, taskText:running ? '正在导入共享对象 · 1024/2048' : long ? '正在计算 SHA-256 · 20480/40960' : null,
+      progress:running || long ? 50 : null, checklist:null, tools:null, photoTotal:null, lastSessionPhotos:null,
+      photos:long ? recent.slice(-1) : recent, artName:long ? '2026-11-26_21-14-08_花愿镇的黄昏与晚风' : artName,
+      artSource:long ? '自定义背景' : artSource, theme, accent, contrastPassed:true, palette:['#1d5a78','#a6e3ee'],
+      background:{type:'image',url:assets+src}, still:true
+    });
+    return;
+  }
   if (key === 'palette') commands.find(([, , action]) => action === 'photo')[1] = '照片工坊 · 最近一张';
   show({
     state,visual,launchLabel,detail,readySummary,check,checkTime:'今天 14:02',
