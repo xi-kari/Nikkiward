@@ -57,6 +57,7 @@ internal static class Program
             .Concat(UserSettingsTests.All)
             .Concat(AppearanceSettingsTests.All)
             .Concat(ApplicationSettingsTests.All)
+            .Concat(WindowLifecycleTests.All)
             .Concat(AppearanceRuntimeContractTests.All)
             .Concat(CardBorderGlowProjectionTests.All)
             .Concat(HolographicBackdropProjectionTests.All)

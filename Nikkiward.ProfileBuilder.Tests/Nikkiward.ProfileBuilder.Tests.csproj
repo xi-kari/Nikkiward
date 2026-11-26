@@ -96,6 +96,11 @@
     <Compile Include="UserSettingsTests.cs" />
     <Compile Include="AppearanceSettingsTests.cs" />
     <Compile Include="ApplicationSettingsTests.cs" />
+    <Compile Include="WindowLifecycleTests.cs" />
+    <Compile Include="..\Nikkiward\Services\InstanceActivation.cs" Link="Services\InstanceActivation.cs" />
+    <Compile Include="..\Nikkiward\Services\NativeWindowRuntime.cs" Link="Services\NativeWindowRuntime.cs" />
+    <Compile Include="..\Nikkiward\Services\WindowPlacement.cs" Link="Services\WindowPlacement.cs" />
+    <Compile Include="..\Nikkiward\Services\WindowSettingsSession.cs" Link="Services\WindowSettingsSession.cs" />
     <Compile Include="AppearanceRuntimeContractTests.cs" />
     <Compile Include="CardBorderGlowProjectionTests.cs" />
     <Compile Include="HolographicBackdropProjectionTests.cs" />

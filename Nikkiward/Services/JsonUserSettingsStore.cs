@@ -40,6 +40,7 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
         Schema7MigrationRollbackFilePath = Path.Combine(
             Path.GetDirectoryName(SettingsFilePath)!,
             "settings.pre-schema7.rollback.json");
+        Schema8MigrationRollbackFilePath = Path.Combine(applicationRoot, "settings.pre-schema8.rollback.json");
     }
 
     public string SettingsFilePath { get; }
@@ -47,6 +48,8 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
     public string MigrationRollbackFilePath { get; }
 
     public string Schema7MigrationRollbackFilePath { get; }
+
+    public string Schema8MigrationRollbackFilePath { get; }
 
     public async Task<UserSettings> LoadAsync(CancellationToken cancellationToken = default)
     {
@@ -118,6 +121,16 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
                     Schema7MigrationRollbackFilePath,
                     cancellationToken).ConfigureAwait(false);
                 root = ApplicationSettingsMigration.MigrateSchema6To7(root);
+                migrated = true;
+                version = UserSettings.ApplicationSettingsSchemaVersion;
+            }
+
+            if (version == UserSettings.ApplicationSettingsSchemaVersion)
+            {
+                await PreserveMigrationRollbackAsync(
+                    Schema8MigrationRollbackFilePath,
+                    cancellationToken).ConfigureAwait(false);
+                root = ApplicationSettingsMigration.MigrateSchema7To8(root);
                 migrated = true;
                 version = UserSettings.CurrentSchemaVersion;
             }

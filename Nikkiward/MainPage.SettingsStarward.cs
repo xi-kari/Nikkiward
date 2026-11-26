@@ -1,6 +1,5 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using System.Diagnostics;
 using Nikkiward.Features.Gallery;
 using Nikkiward.Features.Settings;
 using Nikkiward.Models;
@@ -214,16 +213,8 @@ public sealed partial class MainPage
                 return;
             }
 
-            ApplicationDataPaths.ConfigureRoot(normalized);
-            var executablePath = Environment.ProcessPath
-                ?? throw new InvalidOperationException("The Nikkiward executable path is unavailable.");
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = executablePath,
-                WorkingDirectory = AppContext.BaseDirectory,
-                UseShellExecute = true,
-            });
-            App.MainWindow.ExitApplication();
+            await App.MainWindow.ExitApplicationAsync(
+                () => ApplicationDataPaths.ConfigureRoot(normalized, App.StartSuccessor));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -279,11 +270,11 @@ public sealed partial class MainPage
         await RunSettingsMaintenanceOperationAsync(
             async cancellationToken =>
             {
-                await SettingsMaintenance.DeleteSettingsAsync(cancellationToken);
+                await App.Settings.DeleteAsync(SettingsMaintenance.DeleteSettingsAsync, cancellationToken);
                 await TryShowDialogAsync(
                     "设置已删除",
                     "设置文件已删除，应用将关闭。下次启动时会使用默认设置。 ");
-                App.MainWindow.ExitApplication();
+                await App.MainWindow.ExitApplicationAsync();
             },
             "设置删除失败");
     }

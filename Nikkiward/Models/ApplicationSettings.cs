@@ -221,6 +221,22 @@ public static class ApplicationSettingsMigration
         migrated.TryAdd("download", SerializeDefaults(new DownloadSettings()));
         migrated.TryAdd("fileManagement", SerializeDefaults(new FileManagementSettings()));
         migrated.TryAdd("screenshot", SerializeDefaults(new ScreenshotSettings()));
+        migrated["schemaVersion"] = UserSettings.ApplicationSettingsSchemaVersion;
+        return migrated;
+    }
+
+    public static JsonObject MigrateSchema7To8(JsonObject schema7Settings)
+    {
+        ArgumentNullException.ThrowIfNull(schema7Settings);
+        if (schema7Settings["schemaVersion"] is not JsonValue versionValue ||
+            !versionValue.TryGetValue<int>(out var version) ||
+            version != UserSettings.ApplicationSettingsSchemaVersion)
+        {
+            throw new JsonException($"Window placement migration requires schema {UserSettings.ApplicationSettingsSchemaVersion}.");
+        }
+
+        var migrated = (JsonObject)schema7Settings.DeepClone();
+        migrated.Remove("windowPlacement");
         migrated["schemaVersion"] = UserSettings.CurrentSchemaVersion;
         return migrated;
     }

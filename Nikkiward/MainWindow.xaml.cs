@@ -26,6 +26,8 @@ public sealed partial class MainWindow : Window
     private MainPage? _mainPage;
     private CloseWindowBehavior _closeWindowBehavior = CloseWindowBehavior.Exit;
     private bool _allowClose;
+    private bool _exitPending;
+    private Task _placementSave = Task.CompletedTask;
 
     public event EventHandler<NativeWindowActivationChangedEventArgs>? ForegroundActivationChanged
     {
@@ -70,7 +72,6 @@ public sealed partial class MainWindow : Window
         }
 
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "NikkiwardIcon.ico"));
-        CenterAtDesignSize();
 
         var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         _nativeWindowRuntime = new NativeWindowRuntime(windowHandle);
@@ -128,29 +129,59 @@ public sealed partial class MainWindow : Window
         string screenshotHotkey) =>
         _nativeWindowRuntime.ApplyHotkeys(showWindowHotkey, screenshotHotkey);
 
-    public void ExitApplication()
+    internal async Task ExitApplicationAsync(Action? beforeClose = null)
     {
-        _allowClose = true;
-        Close();
+        if (_exitPending)
+        {
+            return;
+        }
+
+        _exitPending = true;
+        try
+        {
+            await SaveWindowPlacementAsync();
+            beforeClose?.Invoke();
+            _allowClose = true;
+            Close();
+        }
+        finally
+        {
+            _exitPending = false;
+        }
     }
 
-    private void OnAppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
+    private async void OnAppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
-        if (_allowClose || _closeWindowBehavior is CloseWindowBehavior.Exit)
+        if (_allowClose)
         {
             return;
         }
 
         args.Cancel = true;
+        if (_exitPending)
+        {
+            return;
+        }
+
+        if (_closeWindowBehavior is CloseWindowBehavior.Exit)
+        {
+            // Finish the cancelled native close before calling Window.Close().
+            await Task.Yield();
+            await ExitApplicationAsync();
+            return;
+        }
+
+        var save = SaveWindowPlacementAsync();
         _nativeWindowRuntime.SetTrayEnabled(true);
         AppWindow.Hide();
+        await save;
     }
 
     private void OnNativeShowWindowRequested(object? sender, EventArgs e) =>
         ShowWindowCore();
 
-    private void OnNativeExitRequested(object? sender, EventArgs e) =>
-        ExitApplication();
+    private async void OnNativeExitRequested(object? sender, EventArgs e) =>
+        await ExitApplicationAsync();
 
     private void OnNativeScreenshotRequested(object? sender, EventArgs e) =>
         _mainPage?.CaptureGameScreenshotFromHotkey();
@@ -275,20 +306,6 @@ public sealed partial class MainWindow : Window
             caption.Count == 0 ? null : [.. caption]);
     }
 
-    private void CenterAtDesignSize()
-    {
-        var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
-        var scale = Math.Max(1d, GetDpiForWindow(windowHandle) / 96d);
-        var width = checked((int)Math.Round(DesignWidth * scale));
-        var height = checked((int)Math.Round(DesignHeight * scale));
-        var displayArea = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest);
-        var workArea = displayArea.WorkArea;
-        var x = workArea.X + (workArea.Width - width) / 2;
-        var y = workArea.Y + (workArea.Height - height) / 2;
-
-        AppWindow.MoveAndResize(new RectInt32(x, y, width, height));
-    }
-
     /// <summary>
     /// Brings the shell forward in response to a gamepad gesture. Called on the
     /// UI thread from the gamepad controller.
@@ -298,7 +315,7 @@ public sealed partial class MainWindow : Window
         ShowWindowCore();
     }
 
-    private void ShowWindowCore()
+    internal void ShowWindowCore()
     {
         try
         {
@@ -320,9 +337,6 @@ public sealed partial class MainWindow : Window
             // the window shown but behind the game; nothing to recover.
         }
     }
-
-    [DllImport("user32.dll")]
-    private static extern uint GetDpiForWindow(IntPtr windowHandle);
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr windowHandle);
