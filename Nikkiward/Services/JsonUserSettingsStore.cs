@@ -29,7 +29,7 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
         },
     };
 
-    private static readonly JsonTypeInfo<UserSettings> UserSettingsJsonTypeInfo =
+    internal static readonly JsonTypeInfo<UserSettings> UserSettingsJsonTypeInfo =
         new NikkiwardJsonContext(SerializerOptions).UserSettings;
 
     public JsonUserSettingsStore(string? localApplicationDataPath = null)

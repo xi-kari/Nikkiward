@@ -381,7 +381,7 @@ internal static class ApplicationSettingsTests
         var receipt = await service.CreateBackupAsync();
         using var archive = ZipFile.OpenRead(receipt.FilePath);
         Assert(archive.Entries.Select(entry => entry.FullName).ToHashSet(StringComparer.Ordinal)
-            .SetEquals(["Gallery/protection-settings.json", "MyFavorites/manifest.json"]), "registered local manifest only");
+            .SetEquals(["settings.json", "Gallery/protection-settings.json", "MyFavorites/manifest.json"]), "registered local manifest only");
         File.Delete(protection.SettingsFilePath);
         File.Delete(Path.Combine(local, "manifest.json"));
         File.Delete(Path.Combine(local, ".store.lock"));

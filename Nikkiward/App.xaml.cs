@@ -80,20 +80,8 @@ public partial class App : Application
             GamepadController.Shutdown();
             current.UnregisterKey();
         };
-        if (settings is not null)
-        {
-            MainWindow.ApplyCloseBehavior(settings.General.CloseWindowBehavior);
-        }
-
         MainWindow.RestorePlacement(settings?.WindowPlacement);
-        if (showWhenReady)
-        {
-            MainWindow.ShowWindowCore();
-        }
-        else
-        {
-            MainWindow.Activate();
-        }
+        MainWindow.Open(settings?.General.CloseWindowBehavior ?? CloseWindowBehavior.Exit, showWhenReady);
     }
 
     private static async Task<bool> OwnsWindowAsync(AppInstance current)

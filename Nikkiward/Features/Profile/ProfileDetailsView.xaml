@@ -42,7 +42,7 @@
             <AppBarButton Click="OnPlanChannelStoreClicked" IsEnabled="{x:Bind ViewModel.CanPlanChannelStore}" Label="Dry-run">
                 <AppBarButton.Icon><FontIcon Glyph="&#xE9D2;" /></AppBarButton.Icon>
             </AppBarButton>
-            <AppBarButton Click="OnBuildChannelStoreClicked" IsEnabled="{x:Bind ViewModel.CanBuildChannelStore}" Label="创建单本体">
+            <AppBarButton Click="OnBuildChannelStoreClicked" IsEnabled="{x:Bind ViewModel.CanBuildChannelStore}" Label="{x:Bind ViewModel.ChannelStoreBuildLabel}">
                 <AppBarButton.Icon><FontIcon Glyph="&#xE8F4;" /></AppBarButton.Icon>
             </AppBarButton>
             <AppBarButton Click="OnActivateChannelClicked" IsEnabled="{x:Bind ViewModel.CanActivateSelectedChannel}" Label="激活渠道">

@@ -2,4 +2,5 @@ namespace Nikkiward.Features.Settings;
 
 public sealed record GamepadRuntimeViewState(
     string StatusText,
-    bool RuntimeMissing);
+    bool RuntimeMissing,
+    bool CanEdit);

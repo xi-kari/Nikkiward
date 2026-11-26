@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text.Json;
 using Nikkiward.Features.Gallery;
 using Nikkiward.Serialization;
+using Nikkiward.Models;
 
 namespace Nikkiward.Services;
 
@@ -80,10 +81,10 @@ public sealed class SettingsMaintenanceService
         CancellationToken cancellationToken = default) =>
         Task.Run(() => GetCacheStatistics(cancellationToken), cancellationToken);
 
-    public Task<SettingsBackupReceipt> CreateBackupAsync(CancellationToken cancellationToken = default) =>
-        CreateBackupAsync(cancellationToken, progress: null);
+    public Task<SettingsBackupReceipt> CreateBackupAsync(CancellationToken cancellationToken = default, UserSettings? snapshot = null) =>
+        CreateBackupAsync(cancellationToken, progress: null, snapshot);
 
-    internal async Task<SettingsBackupReceipt> CreateBackupAsync(CancellationToken cancellationToken, IProgress<int>? progress)
+    internal async Task<SettingsBackupReceipt> CreateBackupAsync(CancellationToken cancellationToken, IProgress<int>? progress, UserSettings? snapshot = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (!IsBackupPathAllowed(BackupFolder))
@@ -100,8 +101,42 @@ public sealed class SettingsMaintenanceService
         var added = 0;
         using (var archive = new ZipArchive(target.Stream, ZipArchiveMode.Create, leaveOpen: true))
         {
+            if (!IsBackupPathAllowed(SettingsFilePath))
+            {
+                throw new IOException("设置文件与浏览器数据重合或包含重解析点。");
+            }
+
+            var settingsEntry = archive.CreateEntry("settings.json", CompressionLevel.Optimal);
+            await using (var output = settingsEntry.Open())
+            {
+                FileStream? input;
+                try
+                {
+                    input = File.Open(SettingsFilePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
+                }
+                catch (FileNotFoundException)
+                {
+                    input = null;
+                }
+
+                if (input is null)
+                {
+                    await JsonSerializer.SerializeAsync(output, snapshot ?? new UserSettings(),
+                        JsonUserSettingsStore.UserSettingsJsonTypeInfo, cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    using (input)
+                    {
+                        await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
+                    }
+                }
+            }
+            added++;
+            progress?.Report(added);
+
             var records = new Queue<(string Name, bool CheckManifest)>(
-                BackupRecords.Prepend(Path.GetFileName(SettingsFilePath)).Select(name => (name, false)));
+                BackupRecords.Select(name => (name, false)));
             var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             while (records.TryDequeue(out var candidate))
             {

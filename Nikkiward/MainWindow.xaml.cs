@@ -24,7 +24,7 @@ public sealed partial class MainWindow : Window
     private InputNonClientPointerSource? _nonClientPointerSource;
     private readonly NativeWindowRuntime _nativeWindowRuntime;
     private MainPage? _mainPage;
-    private CloseWindowBehavior _closeWindowBehavior = CloseWindowBehavior.Exit;
+    private readonly WindowTray _tray;
     private bool _allowClose;
     private bool _exitPending;
     private Task _placementSave = Task.CompletedTask;
@@ -75,6 +75,18 @@ public sealed partial class MainWindow : Window
 
         var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         _nativeWindowRuntime = new NativeWindowRuntime(windowHandle);
+        _tray = new WindowTray(enabled =>
+        {
+            _nativeWindowRuntime.SetTrayEnabled(enabled);
+            if (enabled)
+            {
+                TrayError.IsOpen = false;
+            }
+        }, message =>
+        {
+            TrayError.Message = message;
+            TrayError.IsOpen = true;
+        });
         _nativeWindowRuntime.ShowWindowRequested += OnNativeShowWindowRequested;
         _nativeWindowRuntime.ExitRequested += OnNativeExitRequested;
         _nativeWindowRuntime.ScreenshotRequested += OnNativeScreenshotRequested;
@@ -118,14 +130,11 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.ButtonPressedForegroundColor = foreground;
     }
 
-    public void ApplyCloseBehavior(CloseWindowBehavior behavior)
-    {
-        _closeWindowBehavior = behavior;
-        if (AppWindow.IsVisible || behavior is CloseWindowBehavior.MinimizeToTray)
-        {
-            _nativeWindowRuntime.SetTrayEnabled(behavior is CloseWindowBehavior.MinimizeToTray);
-        }
-    }
+    internal void Open(CloseWindowBehavior behavior, bool bringToFront) =>
+        _tray.Open(behavior, bringToFront ? ShowWindowCore : Activate);
+
+    public void ApplyCloseBehavior(CloseWindowBehavior behavior) =>
+        _tray.ApplyCloseBehavior(behavior, AppWindow.IsVisible);
 
     public HotkeyRegistrationResult ApplyHotkeys(
         string showWindowHotkey,
@@ -166,7 +175,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (_closeWindowBehavior is CloseWindowBehavior.Exit)
+        if (_tray.CloseBehavior is CloseWindowBehavior.Exit)
         {
             // Finish the cancelled native close before calling Window.Close().
             await Task.Yield();
@@ -203,8 +212,11 @@ public sealed partial class MainWindow : Window
 
     private Task HideToTrayAsync()
     {
+        if (!_tray.TrySetEnabled(true))
+        {
+            return Task.CompletedTask;
+        }
         var save = SaveWindowPlacementAsync();
-        _nativeWindowRuntime.SetTrayEnabled(true);
         AppWindow.Hide();
         return save;
     }
@@ -364,7 +376,7 @@ public sealed partial class MainWindow : Window
             }
 
             Activate();
-            _nativeWindowRuntime.SetTrayEnabled(_closeWindowBehavior is CloseWindowBehavior.MinimizeToTray);
+            _tray.TrySetEnabled(_tray.CloseBehavior is CloseWindowBehavior.MinimizeToTray);
 
             // Activate alone does not steal focus from a full-screen game.
             SetForegroundWindow(WinRT.Interop.WindowNative.GetWindowHandle(this));
