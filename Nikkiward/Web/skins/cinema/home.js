@@ -5,7 +5,7 @@ const builtInColors = {
   '花信':['#fbeef0','#f2a8b3','#b3355d','#9db3dc']
 };
 const kinds = {ready:'go', launching:'busy', running:'live', checking:'wait', blocked:'stop', notfound:'stop'};
-const actions = {status:'查看检查明细', recheck:'重新检查', locate:'定位游戏', rediscover:'重新发现'};
+const actions = {status:'查看检查明细', recheck:'重新检查', locate:'定位游戏', rediscover:'重新发现安装'};
 const cta = $('#cta');
 const note = $('#note');
 const overlayButtons = {switcher:$('#profileBtn'), palette:$('#cmdBtn')};
@@ -49,26 +49,34 @@ function renderLaunch(s) {
   cta.setAttribute('aria-label',s.launchLabel);
   cta.setAttribute('aria-busy',s.busy);
   cta.title = s.detail;
+  cta.setAttribute('aria-description',s.detail);
   const stop = $('#stopBtn');
   stop.hidden = !s.closeVisible;
   stop.disabled = !s.closeEnabled;
   stop.lastChild.textContent = s.closeLabel;
   win.dataset.state = s.visual;
   win.classList.toggle('hasnote',kind !== 'go');
-  if (kind === 'go') return;
   const lines = s.detail.split('\n');
+  const prose = lines.length === 1;
+  note.classList.toggle('prose',kind !== 'go' && prose);
+  if (kind === 'go') return;
   const heading = element('b');
+  const title = prose ? (kind === 'live' && s.sessionMinutes != null ? '本次游玩 ' + s.sessionMinutes + ' 分钟' : '') : lines.shift();
+  heading.hidden = !title || title === s.launchLabel;
   if (kind === 'stop') heading.append(icon('shield'));
-  const session = s.sessionMinutes != null && kind === 'live' ? '本次游玩 ' + s.sessionMinutes + ' 分钟' : s.launchLabel;
-  heading.append(...withNumbers(lines.length > 1 ? lines.shift() : session));
+  heading.append(...withNumbers(title));
   const reason = element('p',lines.join('\n'));
-  for (const action of s.nextActions) {
+  reason.title = reason.textContent;
+  const links = prose ? element('div',null,'note-actions') : reason;
+  const next = s.state === 'SelectionRequired' && !s.nextActions.includes('locate') ? ['locate', ...s.nextActions] : s.nextActions;
+  for (const action of next) {
     const button = element('button',actions[action],'lnk');
     button.dataset.action = action;
-    reason.append(button);
+    links.append(button);
   }
   const focused = note.contains(document.activeElement) && document.activeElement.dataset.action;
   note.replaceChildren(heading,reason);
+  if (prose && links.childElementCount) note.append(links);
   if (focused) note.querySelector('[data-action="'+focused+'"]')?.focus({preventScroll:true});
 }
 
@@ -140,9 +148,11 @@ function render(s) {
   win.dataset.theme = s.theme;
   win.classList.toggle('still',s.still || s.running);
   win.style.setProperty('--accent',preset ? preset[2] : s.accent);
+  $('.col.title').classList.toggle('custom-art',s.artSource === '自定义背景');
   $('#artSrc').textContent = s.artSource;
   for (const id of ['#artName','#plName']) {
-    $(id).textContent = s.artName;
+    $(id).textContent = id === '#artName' && s.artSource === '自定义背景'
+      ? s.artName.replace(/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_(?=\S)/,'') : s.artName;
     $(id).title = s.artName;
     $(id).classList.toggle('m',!preset);
   }
@@ -153,15 +163,23 @@ function render(s) {
   }));
   $('#artTone').textContent = (s.theme === 'light' ? '亮调' : '暗调') + (s.contrastPassed ? ' · 取色已过对比度闸门' : '');
   renderPlate();
-  $('#pfName').textContent = s.profile;
+  $('#pfName').textContent = s.profile || '未选择档案';
+  $('#pfName').title = s.profile || '';
   $('#pfSub').replaceChildren(...withNumbers(s.readySummary || s.profiles.find(p => p.current)?.reason));
-  $('#ckVal').textContent = s.check;
+  const sameCheck = s.check === s.launchLabel;
+  $('#ckVal').replaceChildren(...(sameCheck ? withNumbers(s.checkTime) : [s.check]));
   $('#ckDot').className = 'dot ' + ({blocked:'warn',notfound:'idle',checking:'idle'}[s.visual] || '');
-  $('#ckSub').replaceChildren(...withNumbers(s.checkTime + ' · 看明细'));
+  $('#ckSub').hidden = sameCheck && s.nextActions.includes('status');
+  $('#ckSub').replaceChildren(...withNumbers(sameCheck ? '看明细' : s.checkTime + ' · 看明细'));
   $('#official').replaceChildren(...withNumbers(s.officialDuration?.replace(/^(\d+(?:\.\d+)?)h$/,'$1 小时') || '未同步'));
   $('#durationSub').replaceChildren(...withNumbers([s.journalSnapshotDate && s.journalSnapshotDate.slice(5)+' 快照',s.localDuration].filter(Boolean).join(' · ')));
   $('.col.task').hidden = !s.taskText;
-  $('#taskValue').replaceChildren(...withNumbers([s.taskText,s.progress == null ? '' : Math.round(s.progress)+'%'].filter(Boolean).join(' ')));
+  const counts = s.taskText?.match(/^(.+?)\s*·\s*(\d+\/\d+)$/);
+  const percent = s.progress == null ? '' : Math.round(s.progress)+'%';
+  const fullTask = [s.taskText,percent].filter(Boolean).join(' ');
+  $('#taskValue').replaceChildren(...withNumbers(counts ? counts[1] : fullTask));
+  $('#taskValue').title = fullTask;
+  $('#taskSub').replaceChildren(...(counts ? [element('span',[counts[2],percent].filter(Boolean).join(' · '),'m')] : []));
   $('.bar').hidden = s.progress == null;
   if (s.progress != null) $('.bar b').style.width = s.progress+'%';
   renderLaunch(s);

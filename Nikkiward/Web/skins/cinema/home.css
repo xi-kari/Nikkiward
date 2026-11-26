@@ -191,3 +191,23 @@ button.col[aria-expanded=true] .val svg{transform:rotate(180deg)}
 @media(max-width:620px){.band .col.title{display:none}.band{padding-inline:12px}.cta,.cta[data-kind=live]{min-width:0}.note{min-width:0}.top{padding-left:4px}.nav button{padding-inline:5px}}
 body:not(.bare) #plist button:disabled,.pf:disabled{cursor:not-allowed}
 body:not(.bare) #plist button:disabled{color:var(--ink3)}
+.col:not(.title),.col.title.custom-art{grid-template-columns:minmax(0,1fr)}
+.col:not(.title) .val,.col.title.custom-art .val{min-width:0}
+.col .val svg{flex:none}
+.note.prose{min-width:0;flex:1 1 0;margin-left:auto}
+.note.prose p{white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+.note.prose+.launch{flex:none;margin-left:auto}
+.note-actions{display:flex;justify-content:flex-end;gap:4px 10px;flex-wrap:wrap;margin-top:5px}
+.note-actions .lnk{margin-left:0}
+.plate{max-width:calc(100% - 64px)}
+.plate h3{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(min-width:1201px){
+  #win[data-state=running] .band:has(.note.prose) .col.task:not([hidden]){display:grid}
+  #win[data-state=running] .band:has(.note.prose):has(.col.task:not([hidden])) .col.check{display:none}
+}
+@media(max-width:720px){
+  .band:has(.note.prose){display:grid;height:auto;min-height:116px;grid-template-columns:minmax(0,1fr) auto;align-content:center;gap:8px 12px;padding-block:12px}
+  .band:has(.note.prose)>.col{display:none}
+  .note.prose{margin:0}
+  .note.prose+.launch{margin:0}
+}
