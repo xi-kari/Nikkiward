@@ -219,14 +219,19 @@ public sealed partial class MainWindow : Window
         return save;
     }
 
-    private void OnNativeShowWindowRequested(object? sender, EventArgs e) =>
-        ShowWindowCore();
+    private void OnNativeShowWindowRequested(object? sender, EventArgs e)
+    {
+        if (_mainPage?.CaptureRegisteredSettingsHotkey(screenshot: false) != true) ShowWindowCore();
+    }
 
     private async void OnNativeExitRequested(object? sender, EventArgs e) =>
         await ExitApplicationAsync();
 
-    private void OnNativeScreenshotRequested(object? sender, EventArgs e) =>
-        _mainPage?.CaptureGameScreenshotFromHotkey();
+    private void OnNativeScreenshotRequested(object? sender, EventArgs e)
+    {
+        if (_mainPage?.CaptureRegisteredSettingsHotkey(screenshot: true) != true)
+            _mainPage?.CaptureGameScreenshotFromHotkey();
+    }
 
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {

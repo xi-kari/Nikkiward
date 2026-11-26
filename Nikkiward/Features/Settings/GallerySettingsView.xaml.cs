@@ -3,31 +3,6 @@ using Microsoft.UI.Xaml.Controls;
 
 namespace Nikkiward.Features.Settings;
 
-public sealed record GallerySettingsViewState(
-    string ProfileText,
-    string GalleryRootText,
-    string RootModeText,
-    bool CanChooseRoot,
-    bool CanResetRoot,
-    bool CanOpenGallery,
-    bool ProtectionEnabled,
-    string ProtectionStatusText,
-    string ProtectionPathText,
-    bool CanChangeProtection,
-    bool CanOpenProtectionRoot,
-    bool CanVerifyProtection,
-    bool CanCleanProtection,
-    string CacheStatusText,
-    string CachePathText,
-    bool CanRefreshCache,
-    bool CanClearCache,
-    string NikkiGalleryStatusText,
-    string NikkiGalleryPathText,
-    bool CanRegisterNikkiGallery,
-    bool CanOpenNikkiGallery,
-    bool CanDisconnectNikkiGallery,
-    bool IsBusy);
-
 public sealed class GalleryProtectionEnabledChangedEventArgs : EventArgs
 {
     public GalleryProtectionEnabledChangedEventArgs(bool enabled)

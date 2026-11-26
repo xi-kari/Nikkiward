@@ -11,9 +11,11 @@ public sealed partial class MainPage
     {
         PageAdapter[] adapters = [AppearancePageSection(), GeneralPageSection(), AboutPageSection(),
             DownloadPageSection(), FileManagementPageSection(), AdvancedPageSection(), JournalStoragePageSection(),
-            LocalFilesPageSection(), RuntimeStatusPageSection(), ComponentsPageSection(), DiagnosticsPageSection(), ContractPageSection()];
+            LocalFilesPageSection(), RuntimeStatusPageSection(), ComponentsPageSection(), DiagnosticsPageSection(), ContractPageSection(),
+            ScreenshotPageSection(), GalleryPageSection(), PluginsPageSection(), HotkeysPageSection(), GamepadPageSection()];
         var sections = adapters.ToDictionary(adapter => adapter.Module, StringComparer.Ordinal);
         return new("settings", ["section", "native"], () => new {
+            gamepadConnectionChanged = _publishingGamepadConnection,
             sections = SettingsSections.All.Where(s => (!s.Developer || ViewModel.DeveloperModeEnabled) && sections.ContainsKey(s.Id))
                 .ToDictionary(s => s.Id, s => sections[s.Id].State()),
             navigation = SettingsSections.All.Where(s => !s.Developer || ViewModel.DeveloperModeEnabled).Select(s => new { id = s.Id, label = s.Label }),

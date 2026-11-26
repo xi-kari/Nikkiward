@@ -23,7 +23,7 @@
     view.id = 'settings';
     view.innerHTML = '<header class="ph"><h1>设置</h1><div class="meta">Nikkiward <span class="m"></span> · 非官方 · 社区项目 · MIT</div></header><div class="cols"><nav class="slist" aria-label="设置分类"></nav><section class="mod content"></section><aside class="mod"></aside></div>';
     root.append(view);
-    let state, active, revision = 0, awaitingReply = false;
+    let state, active, renderedSection, revision = 0, awaitingReply = false;
     const nav = view.querySelector('nav'), content = view.querySelector('.content'), aside = view.querySelector('aside');
     function action(section,op,data = {}) { awaitingReply = true; send('section',{section,op,...data}); }
     function button(label,click) {
@@ -92,7 +92,7 @@
         }
         function save(field,value,section = active) { action(section,'change',{field,value:String(value)}); }
         const ui = {
-          element, row, button, action, check, save, go,
+          element, row, button, action, check, save, go, entering: renderedSection !== active,
           command(label,caption,op,description,disabled = false) {
             const control = button(caption,() => action(active,op));
             control.disabled = disabled;
@@ -137,6 +137,7 @@
             return row(label,input);
           }
         };
+        renderedSection = active;
         renderers.get(active)(ui,state.sections[active],state);
         if (focus) view.querySelector('[data-focus="'+CSS.escape(focus)+'"]')?.focus({preventScroll:true});
       }
@@ -161,6 +162,11 @@
     return next => {
       const previous = state;
       state = next;
+      if (active && next.gamepadConnectionChanged) {
+        const status = content.querySelector('[data-gamepad-status]');
+        if (status) status.textContent = next.sections.Gamepad.status;
+        return;
+      }
       active ??= next.initial ?? 'appearance';
       if (!(active in state.sections)) active = 'Advanced';
       if (!awaitingReply && previous && visibleState(previous) === visibleState(next)) return;

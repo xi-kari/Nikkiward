@@ -163,20 +163,8 @@ public sealed class NativeWindowRuntime : IDisposable
         string screenshotHotkey)
     {
         ThrowIfDisposed();
-        if (!HotkeyGesture.TryParse(showWindowHotkey, out var showGesture, out var showError))
-        {
-            return HotkeyRegistrationResult.Failure($"显示主窗口快捷键无效：{showError}");
-        }
-
-        if (!HotkeyGesture.TryParse(screenshotHotkey, out var screenshotGesture, out var screenshotError))
-        {
-            return HotkeyRegistrationResult.Failure($"游戏截图快捷键无效：{screenshotError}");
-        }
-
-        if (showGesture == screenshotGesture)
-        {
-            return HotkeyRegistrationResult.Failure("显示主窗口与游戏截图不能使用同一个快捷键。");
-        }
+        var validation = ParseHotkeys(showWindowHotkey, screenshotHotkey, out var showGesture, out var screenshotGesture);
+        if (!validation.Succeeded) return validation;
 
         var previousShowGesture = _showWindowGesture;
         var previousScreenshotGesture = _screenshotGesture;
@@ -206,6 +194,28 @@ public sealed class NativeWindowRuntime : IDisposable
         _screenshotGesture = screenshotGesture;
         return HotkeyRegistrationResult.Success(
             $"快捷键已注册：显示主窗口 {showGesture.DisplayText}；游戏截图 {screenshotGesture.DisplayText}");
+    }
+
+    internal static HotkeyRegistrationResult ParseHotkeys(string showWindowHotkey, string screenshotHotkey,
+        out HotkeyGesture showGesture, out HotkeyGesture screenshotGesture)
+    {
+        screenshotGesture = null!;
+        if (!HotkeyGesture.TryParse(showWindowHotkey, out showGesture, out var showError))
+        {
+            return HotkeyRegistrationResult.Failure($"显示主窗口快捷键无效：{showError}");
+        }
+
+        if (!HotkeyGesture.TryParse(screenshotHotkey, out screenshotGesture, out var screenshotError))
+        {
+            return HotkeyRegistrationResult.Failure($"游戏截图快捷键无效：{screenshotError}");
+        }
+
+        if (showGesture == screenshotGesture)
+        {
+            return HotkeyRegistrationResult.Failure("显示主窗口与游戏截图不能使用同一个快捷键。");
+        }
+
+        return HotkeyRegistrationResult.Success(string.Empty);
     }
 
     public void SetTrayEnabled(bool enabled)
@@ -522,7 +532,7 @@ public sealed class NativeWindowRuntime : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
     }
 
-    private sealed record HotkeyGesture(uint Modifiers, uint VirtualKey, string DisplayText)
+    internal sealed record HotkeyGesture(uint Modifiers, uint VirtualKey, string DisplayText)
     {
         public static bool TryParse(
             string? value,
