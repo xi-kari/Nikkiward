@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'self' file:; font-src 'self' file:; img-src 'self' https://still.nikkiward.invalid data: file:; media-src https://motion.nikkiward.invalid; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>心愿星</title>
+<link rel="stylesheet" href="../../fonts/zcool-xiaowei.css">
+<link rel="stylesheet" href="../../fonts/cormorant.css">
+<link rel="stylesheet" href="../../fonts/manrope.css">
+<link rel="stylesheet" href="home.css">
+<script defer src="../../shared/home.js"></script>
+<script defer src="home.js"></script>
+</head>
+<body>
+<svg width="0" height="0" aria-hidden="true">
+<defs>
+<linearGradient id="gIris" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffc9e2"/><stop offset=".25" stop-color="#fff0bd"/><stop offset=".5" stop-color="#bff3df"/><stop offset=".75" stop-color="#b6dcff"/><stop offset="1" stop-color="#dcc6ff"/></linearGradient>
+<symbol id="i-star4" viewBox="0 0 24 24"><path d="M12 3c.7 5.2 3.8 8.3 9 9-5.2.7-8.3 3.8-9 9-.7-5.2-3.8-8.3-9-9 5.2-.7 8.3-3.8 9-9z"/></symbol>
+<symbol id="i-book" viewBox="0 0 24 24"><path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H19v15H7.5A2.5 2.5 0 0 0 5 20.5v-15zM5 20.5A2.5 2.5 0 0 0 7.5 21H19M9.5 8h5"/></symbol>
+<symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="3.5"/><circle cx="9" cy="10" r="1.4"/><path d="M4.5 17l4.6-4.2 3.4 2.9 2.9-2.4 4.4 3.7"/></symbol>
+<symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.2"/><circle cx="12" cy="12" r="2.3"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M5.5 18.5l2.1-2.1M16.4 7.6l2.1-2.1"/></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 2.8v5.4c0 4.3-2.9 7.6-7 9.3-4.1-1.7-7-5-7-9.3V5.8z"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M5.5 12.5l4.2 4.2 8.800-9.200"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7.500V12l3 2"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s6.500-5.600 6.500-10.500a6.500 6.500 0 1 0-13 0C5.500 15.400 12 21 12 21z"/><circle cx="12" cy="10.500" r="2.200"/></symbol>
+<symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3.500v8M6.600 6.800a7.500 7.500 0 1 0 10.800 0"/></symbol>
+<symbol id="i-planet" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5.200"/><path d="M7.300 9.600C4.300 10.500 2.500 11.700 2.800 12.800c.4 1.500 4.800 1.700 9.800.400s8.900-3.600 8.500-5.100c-.2-.9-1.900-1.300-4.300-1.200"/></symbol>
+</defs>
+</svg>
+
+<div id="win" class="pending">
+  <div class="bg" aria-hidden="true"><img id="coverImg" alt=""><video id="coverVideo" muted loop playsinline hidden></video></div>
+  <div class="shade"></div>
+
+  <!-- 顶部 -->
+  <header class="top">
+    <div class="brand" title="Nikkiward · 非官方社区启动器"><svg class="ic"><use href="#i-star4"/></svg><b>Nikkiward</b></div>
+    <nav class="nav glass" id="nav" aria-label="主导航">
+      <span class="nav-ind" id="navInd"></span>
+      <button data-action="nav-launcher" aria-current="page">启动</button>
+      <button data-action="nav-library">奇想手账</button>
+      <button data-action="nav-gallery">相册</button>
+      <button data-action="nav-resonance">心愿共鸣</button>
+      <span class="gap"></span>
+      <button data-action="nav-settings" aria-label="设置"><svg class="ic"><use href="#i-gear"/></svg>设置</button>
+    </nav>
+  </header>
+
+
+  <!-- ================= 首页 ================= -->
+  <section class="screen s-home on" id="s-home" aria-label="启动">
+    <div class="fxl" aria-hidden="true">
+      <i class="bubble d2"></i>
+      <i class="bubble d3"></i>
+      <i class="bubble d2"></i>
+      <i class="mote"></i>
+      <i class="mote"></i>
+      <i class="mote"></i>
+      <i class="mote"></i>
+      <i class="mote"></i>
+      <i class="mote"></i>
+      <i class="mote"></i>
+      <i class="mote"></i>
+    </div>
+
+    <div class="lead d1">
+      <p class="cap rise"><span id="bgCap"></span><i class="dotsep"></i><button class="link" id="bgSwap">换一张</button></p>
+      <h1 class="art rise"><span id="artName"></span><em id="artEn"></em></h1>
+      <div class="recent rise" hidden>
+        <div class="recent-h"><b>最近拍摄</b><span class="tag"><svg viewBox="0 0 24 24"><use href="#i-star4"/></svg><span id="sessionCount"></span></span></div>
+        <div class="thumbs" id="thumbs"><button class="thumb more glass" data-action="gallery" aria-label="打开相册"><span><svg class="ic"><use href="#i-image"/></svg>相册</span></button></div>
+      </div>
+    </div>
+
+    <div id="backdrop" hidden></div>
+    <div class="tailwrap d3 rise">
+      <!-- 档案切换器 -->
+      <div class="pop glass sheet" id="switcher" role="dialog" aria-label="切换档案" aria-modal="true" inert>
+        <h3>档案<small></small></h3>
+        <div id="profList" aria-label="档案" role="radiogroup"></div>
+        <p id="noProfiles" hidden>未发现档案</p>
+        <div class="pop-foot"><span></span><button class="pill" id="rediscover" data-action="rediscover"><svg class="ic sm"><use href="#i-refresh"/></svg>重新发现安装</button></div>
+      </div>
+      <button class="strip glass" id="strip" data-action="status" aria-label="状态详情，打开诊断">
+        <span><svg class="ic sm"><use href="#i-clock"/></svg>检查于 <b class="num" id="checked"></b></span>
+        <i class="s"></i><span>手账时长 <b class="num" id="official"></b></span>
+        <i class="s" hidden></i><span hidden>本机时长 <b class="num" id="local"></b></span>
+        <i class="s" hidden></i><span hidden><i class="miniring"></i> <b class="num" id="progress"></b></span>
+      </button>
+      <div class="tail glass" id="tail">
+        <button class="prof" id="profBtn" aria-controls="switcher" aria-haspopup="dialog" aria-expanded="false">
+          <span class="prof-ic"><svg class="ic lg"><use href="#i-planet"/></svg></span>
+          <span><small>当前档案</small><b id="profName"></b></span>
+          <svg class="ic sm"><use href="#i-chev"/></svg>
+        </button>
+        <i class="sep"></i>
+        <div class="stat" id="stat" role="status" aria-live="polite"><b><i class="dot"></i><span id="statT"></span></b><span id="statS"></span></div>
+        <button class="pill" id="tailAct" hidden></button>
+        <button class="pill" id="retry" hidden></button>
+      </div>
+    </div>
+
+    <div class="launch d3 rise">
+      <svg class="ring" viewBox="0 0 216 216"><circle class="track" cx="108" cy="108" r="96"/><circle class="arc" cx="108" cy="108" r="96"/></svg>
+      <div class="orbit" aria-hidden="true"><i></i></div>
+      <i class="ripple" id="rip1"></i><i class="ripple b" id="rip2"></i>
+      <button class="sat glass" data-action="settings" aria-label="游戏设置"><svg class="ic"><use href="#i-gear"/></svg><span class="tip">游戏设置</span></button>
+      <button class="sat glass" data-action="background" aria-label="更换启动页背景"><svg class="ic"><use href="#i-image"/></svg><span class="tip">启动页背景</span></button>
+      <button class="sat glass" data-action="journal" aria-label="打开奇想手账"><svg class="ic"><use href="#i-book"/></svg><span class="tip">奇想手账</span></button>
+      <button class="orb" id="orb" data-action="launch" aria-describedby="stat">
+        <span class="orb-glow"></span><span class="orb-live"></span><span class="orb-calm"></span><span class="orb-swirl"></span><span class="orb-iris"></span><span class="orb-spec"></span>
+        <span class="orb-label" id="orbLabel"></span>
+      </button>
+    </div>
+  </section>
+</div>
+</body>
+</html>
