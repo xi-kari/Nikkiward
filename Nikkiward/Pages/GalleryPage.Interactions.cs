@@ -370,9 +370,12 @@ public sealed partial class GalleryPage
 
     private async Task ToggleGalleryStarAsync(GalleryPhotoItemViewModel photo)
     {
-        var scopeId = string.IsNullOrWhiteSpace(photo.AnnotationScopeId)
-            ? _annotationScopeId
-            : photo.AnnotationScopeId;
+        var scopeId = photo.AnnotationScopeId;
+        var isDefault = scopeId == GalleryDefaultFavoriteSeedService.ScopeId;
+        if (!isDefault && scopeId != _annotationScopeId)
+        {
+            return;
+        }
         var operationKey = $"{scopeId}\0{photo.StarKey}";
         var isStarred = _favoriteDesiredStates.AddOrUpdate(
             operationKey,
@@ -403,11 +406,43 @@ public sealed partial class GalleryPage
                 operationCancellation,
                 pageScopeId,
                 generation);
-            await _annotationStore.SetStarredAsync(
-                scopeId,
-                photo.RelativePath,
-                isStarred,
-                operationCancellation.Token);
+            if (isStarred || isDefault)
+            {
+                await _annotationStore.SetStarredAsync(scopeId, photo.RelativePath, isStarred, operationCancellation.Token);
+            }
+            else
+            {
+                var approved = new List<GalleryFavoriteProtectionService.UnstarConfirmation>();
+                while (true)
+                {
+                    var pending = await _favoriteProtectionService.TryUnstarAsync(scopeId, photo.RelativePath,
+                        operationCancellation.Token, approved);
+                    if (pending.Count == 0)
+                    {
+                        break;
+                    }
+                    var messages = pending.Select(copy =>
+                    {
+                        var reason = copy.Reason switch
+                        {
+                            GalleryOriginalIssue.Missing => "原图已不存在",
+                            GalleryOriginalIssue.Changed => "原图已被修改",
+                            _ => "无法读取原图以核对内容",
+                        };
+                        var consequence = copy.Paused ? "保护已暂停，此副本将保留至清理时。"
+                            : "取消收藏会删除此版本仅存的本地保护副本。";
+                        return (pending.Count > 1 ? copy.RootPath + "\n" : "") + reason + "。" + consequence;
+                    });
+                    var answer = await ShowDialogAsync("取消这张照片的收藏？", string.Join("\n\n", messages),
+                        pending.Any(copy => !copy.Paused) ? "取消收藏并删除副本" : "取消收藏", operationCancellation.Token);
+                    EnsureCurrentFavoriteOperation(operationKey, operationCancellation, pageScopeId, generation);
+                    if (answer != ContentDialogResult.Primary)
+                    {
+                        return;
+                    }
+                    approved.AddRange(pending);
+                }
+            }
             EnsureCurrentFavoriteOperation(
                 operationKey,
                 operationCancellation,
@@ -418,10 +453,7 @@ public sealed partial class GalleryPage
 
             if (isStarred)
             {
-                if (string.Equals(
-                        photo.AnnotationScopeId,
-                        GalleryDefaultFavoriteSeedService.ScopeId,
-                        StringComparison.Ordinal))
+                if (isDefault)
                 {
                     GalleryPreview.SetStatus("已收藏");
                 }
@@ -452,36 +484,18 @@ public sealed partial class GalleryPage
                     }
                     else
                     {
-                        GalleryPreview.SetStatus("已收藏 · 本地保护已关闭");
+                        GalleryPreview.SetStatus(protection.IsPausedForOverlap
+                            ? GalleryFavoriteProtectionService.OverlapMessage : "已收藏 · 本地保护已关闭");
                     }
                 }
             }
             else
             {
-                if (string.IsNullOrWhiteSpace(photo.AnnotationScopeId))
-                {
-                    var remainingStarredPaths = ViewModel.Photos
-                        .Where(item =>
-                            item.IsStarred &&
-                            string.IsNullOrWhiteSpace(item.AnnotationScopeId))
-                        .Select(item => item.RelativePath)
-                        .ToArray();
-                    await _favoriteProtectionService.CleanUnstarredAsync(
-                        scopeId,
-                        remainingStarredPaths,
-                        operationCancellation.Token);
-                }
-
-                EnsureCurrentFavoriteOperation(
-                    operationKey,
-                    operationCancellation,
-                    pageScopeId,
-                    generation);
-                photo.SetProtectedCopy(null, isUsingProtectedCopy: false);
-                if (_viewMode == GalleryViewMode.Favorites)
+                if (_viewMode == GalleryViewMode.Favorites || photo.IsUsingProtectedCopy)
                 {
                     CloseGalleryPreview();
                 }
+                photo.SetProtectedCopy(null, isUsingProtectedCopy: false);
             }
         }
         catch (OperationCanceledException)

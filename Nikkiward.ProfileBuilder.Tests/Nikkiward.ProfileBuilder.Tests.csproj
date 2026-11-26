@@ -35,6 +35,11 @@
     <Compile Include="..\Nikkiward\Services\IDiagnosticReportExporter.cs" Link="Services\IDiagnosticReportExporter.cs" />
     <Compile Include="..\Nikkiward\Services\JsonUserSettingsStore.cs" Link="Services\JsonUserSettingsStore.cs" />
     <Compile Include="..\Nikkiward\Services\SettingsMaintenanceService.cs" Link="Services\SettingsMaintenanceService.cs" />
+    <Compile Include="..\Nikkiward\Services\AtomicFile.cs" Link="Services\AtomicFile.cs" />
+    <Compile Include="..\Nikkiward\Services\PlayTimeLedger.cs" Link="Services\PlayTimeLedger.cs" />
+    <Compile Include="..\Nikkiward\Services\PlayTimeStore.cs" Link="Services\PlayTimeStore.cs" />
+    <Compile Include="..\Nikkiward\Features\GamepadControl\GameBarGuideOverride.cs" Link="Features\GamepadControl\GameBarGuideOverride.cs" />
+    <Compile Include="..\Nikkiward\Features\GamepadControl\GameBarGuideRegistry.cs" Link="Features\GamepadControl\GameBarGuideRegistry.cs" />
     <Compile Include="..\Nikkiward\Services\ApplicationDataPaths.cs" Link="Services\ApplicationDataPaths.cs" />
     <Compile Include="..\Nikkiward\Services\ApplicationLanguageRuntime.cs" Link="Services\ApplicationLanguageRuntime.cs" />
     <Compile Include="..\Nikkiward\Services\InstallationMetadataReaders.cs" Link="Services\InstallationMetadataReaders.cs" />
@@ -50,6 +55,7 @@
     <Compile Include="..\Nikkiward\Services\IInstallationInspector.cs" Link="Services\IInstallationInspector.cs" />
     <Compile Include="..\Nikkiward\Services\WindowsInstallationInspector.cs" Link="Services\WindowsInstallationInspector.cs" />
     <Compile Include="..\Nikkiward\Services\WindowsLaunchPreflightVerifier.cs" Link="Services\WindowsLaunchPreflightVerifier.cs" />
+    <Compile Include="..\Nikkiward\ViewModels\LaunchButtonState.cs" Link="ViewModels\LaunchButtonState.cs" />
     <Compile Include="..\Nikkiward\ViewModels\OfficialAssistedLaunchCoordinator.cs" Link="ViewModels\OfficialAssistedLaunchCoordinator.cs" />
     <Compile Include="..\Nikkiward\ViewModels\ExternalChannelProcessBindingFactory.cs" Link="ViewModels\ExternalChannelProcessBindingFactory.cs" />
     <!-- The backdrop analysis path is deliberately free of WinUI and WinRT types
@@ -60,6 +66,7 @@
     <Compile Include="..\Nikkiward\Features\Background\ArtBlurBaker.cs" Link="Features\Background\ArtBlurBaker.cs" />
     <Compile Include="..\Nikkiward\Features\Background\ArtAnalysisCache.cs" Link="Features\Background\ArtAnalysisCache.cs" />
     <Compile Include="..\Nikkiward\Features\Background\MotionSourceRules.cs" Link="Features\Background\MotionSourceRules.cs" />
+    <Compile Include="..\Nikkiward\Features\Background\MotionPlaybackSampling.cs" Link="Features\Background\MotionPlaybackSampling.cs" />
     <Compile Include="..\Nikkiward\Features\Background\MotionImportFileCopier.cs" Link="Features\Background\MotionImportFileCopier.cs" />
     <Compile Include="..\Nikkiward\Features\Background\WallpaperImportSupport.cs" Link="Features\Background\WallpaperImportSupport.cs" />
     <Compile Include="..\Nikkiward\Features\Background\HolographicBackdropProjection.cs" Link="Features\Background\HolographicBackdropProjection.cs" />
@@ -94,15 +101,29 @@
     <Compile Include="MotionRuntimeHardeningContractTests.cs" />
     <Compile Include="DiagnosticTests.cs" />
     <Compile Include="UserSettingsTests.cs" />
+    <Compile Include="TestVisibility.cs" />
+    <Compile Include="..\Nikkiward\ViewModels\MainPageViewModel*.cs" LinkBase="ViewModels" />
     <Compile Include="AppearanceSettingsTests.cs" />
     <Compile Include="ApplicationSettingsTests.cs" />
+    <Compile Include="WindowLifecycleTests.cs" />
+    <Compile Include="..\Nikkiward\Services\WindowTray.cs" Link="Services\WindowTray.cs" />
+    <Compile Include="..\Nikkiward\Services\InstanceActivation.cs" Link="Services\InstanceActivation.cs" />
+    <Compile Include="..\Nikkiward\Services\NativeWindowRuntime.cs" Link="Services\NativeWindowRuntime.cs" />
+    <Compile Include="..\Nikkiward\Services\WindowPlacement.cs" Link="Services\WindowPlacement.cs" />
+    <Compile Include="..\Nikkiward\Services\WindowSettingsSession.cs" Link="Services\WindowSettingsSession.cs" />
+    <Compile Include="GameBarGuideTests.cs" />
     <Compile Include="AppearanceRuntimeContractTests.cs" />
     <Compile Include="CardBorderGlowProjectionTests.cs" />
     <Compile Include="HolographicBackdropProjectionTests.cs" />
     <Compile Include="AuthorProfileDepthProjectionTests.cs" />
+    <Compile Include="..\Nikkiward\Features\Gallery\GalleryFileTypes.cs" />
+    <Compile Include="..\Nikkiward\Features\Gallery\GalleryScreenshotDecoder.cs" />
+    <Compile Include="..\Nikkiward\Features\Gallery\GalleryThumbnailFile.cs" />
     <Compile Include="GalleryIntegrationTests.cs" />
     <Compile Include="GalleryFavoriteCardLayoutTests.cs" />
     <Compile Include="GalleryMetadataTests.cs" />
+    <Compile Include="..\Nikkiward\Services\ScreenshotFrameHandoff.cs" />
+    <Compile Include="..\Nikkiward\Services\ScreenshotOutput.cs" />
     <Compile Include="ScreenshotRuntimeContractTests.cs" />
     <Compile Include="JournalDomainTests.cs" />
     <Compile Include="JournalSnapshotTests.cs" />

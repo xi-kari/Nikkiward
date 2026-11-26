@@ -1,13 +1,25 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Nikkiward.Models;
+using Nikkiward.ViewModels;
 using Nikkiward.Services;
 
 internal static class UserSettingsTests
 {
     public static (string Name, Func<Task> Run)[] All =>
     [
-        ("new settings use the single appearance authority in schema 7", NewSettingsUseAppearanceSchema6),
+        ("old general settings keep the window and after-launch choices round trip", AfterLaunchSettingsRoundTrip),
+        ("damaged settings survive profile discovery and window close", () => DiscoverWithSettingsAsync("{broken")),
+        ("future settings survive profile discovery and window close", () => DiscoverWithSettingsAsync("{\"schemaVersion\":999}")),
+        ("first run saves the discovered profile", () => DiscoverWithSettingsAsync(null)),
+        ("overlapping preference saves retain both sections", OverlappingPreferenceSaves),
+        ("queued preference changes preserve both hotkeys", QueuedPreferencesPreserveHotkeys),
+        ("failed hotkey save restores registration and display", () => HotkeysRollBack(new IOException())),
+        ("cancelled hotkey save restores registration and display", () => HotkeysRollBack(new OperationCanceledException())),
+        ("first-run backup restores defaults", () => FirstRunBackupRestoresSettings(false)),
+        ("missing settings backup restores current session snapshot", () => FirstRunBackupRestoresSettings(true)),
+        ("protected settings restore only a validated backup", RestoreProtectedSettings),
+        ("new settings use the single appearance authority", NewSettingsUseAppearance),
         ("appearance settings round trip through settings json", AppearanceRoundTripsThroughSettingsJson),
         ("Wallpaper Engine presentation settings round trip through settings json", WallpaperEnginePresentationRoundTripsThroughSettingsJson),
         ("current schema settings default absent Wallpaper Engine fields", CurrentSchemaDefaultsAbsentWallpaperEngineFields),
@@ -16,7 +28,7 @@ internal static class UserSettingsTests
         ("schema 5 without channel store migrates to empty defaults", Schema5WithoutChannelStoreLoadsDefaults),
         ("channel store settings round trip through settings json", ChannelStoreSettingsRoundTrip),
         ("settings schema 3 migrates profiles gallery gamepad and theme", SettingsSchema3MigratesEverySection),
-        ("settings migration is persisted atomically as schema 7", MigratedSettingsPersistAsSchema6),
+        ("settings migration is persisted atomically in the current schema", MigratedSettingsPersist),
         ("unsupported settings schemas fail closed", UnsupportedSettingsSchemasFailClosed),
         ("damaged settings documents fail closed", DamagedSettingsDocumentsFailClosed),
         ("settings save rejects invalid schema and appearance", SaveRejectsInvalidSettings),
@@ -24,10 +36,223 @@ internal static class UserSettingsTests
         ("application paths preserve Windows drive roots", ApplicationPathsPreserveDriveRoots),
     ];
 
-    private static Task NewSettingsUseAppearanceSchema6()
+    private static async Task AfterLaunchSettingsRoundTrip()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var store = new JsonUserSettingsStore(root);
+            await store.SaveAsync(new UserSettings());
+            var document = JsonNode.Parse(await File.ReadAllTextAsync(store.SettingsFilePath))!;
+            document["general"]!.AsObject().Remove("afterLaunchBehavior");
+            await File.WriteAllTextAsync(store.SettingsFilePath, document.ToJsonString());
+            AssertEqual(AfterLaunchBehavior.KeepWindow, (await store.LoadAsync()).General.AfterLaunchBehavior, "old settings default");
+            var page = CreatePage(new WindowSettingsSession(store));
+            foreach (var choice in Enum.GetValues<AfterLaunchBehavior>())
+            {
+                await page.SaveGeneralSettingsAsync(page.GeneralSettings with { AfterLaunchBehavior = choice });
+                AssertEqual(choice, (await store.LoadAsync()).General.AfterLaunchBehavior, "persisted choice");
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private sealed class SingleInstall : IInstallationDiscoveryService
+    {
+        public Task<ProfileBuildResult> DiscoverAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ProfileBuildResult
+            {
+                Candidates = [new InstallationProfileCandidate
+                {
+                    ProfileId = "test", Profile = new LaunchProfile { ProfileId = "test" },
+                    State = InstallationCandidateState.Candidate,
+                }],
+            });
+
+        public Task<ProfileBuildResult> DiscoverFromManualGameRootAsync(string selectedDirectory,
+            string? selectedLauncherRoot = null, CancellationToken cancellationToken = default) =>
+            DiscoverAsync(cancellationToken);
+    }
+
+    private static MainPageViewModel CreatePage(WindowSettingsSession session) =>
+        new(session, new WindowsInstallationInspector(), new RedactedDiagnosticReportExporter(), new SingleInstall());
+
+    private static async Task DiscoverWithSettingsAsync(string? original)
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var store = new JsonUserSettingsStore(root);
+            var directory = Path.GetDirectoryName(store.SettingsFilePath)!;
+            Directory.CreateDirectory(directory);
+            var bytes = System.Text.Encoding.UTF8.GetBytes(original ?? "");
+            if (original is not null)
+            {
+                await File.WriteAllBytesAsync(store.SettingsFilePath, bytes);
+            }
+
+            var session = new WindowSettingsSession(store);
+            var page = CreatePage(session);
+            await page.InitializeAsync();
+            AssertEqual("test", page.SelectedProfileId, "unique install selected");
+            await page.DiscoverAsync();
+            var manual = await page.DiscoverFromManualRootAsync(root, null);
+            Assert(manual.Succeeded, "manual discovery remains usable");
+            Assert(await page.SelectProfileAsync("test"), "profile remains selectable");
+            await session.SaveWindowPlacementAsync(new(50, 60, 800, 600, 0, 0, 96, false));
+            if (original is null)
+            {
+                AssertEqual("test", (await store.LoadAsync()).SelectedProfileId, "first run persisted");
+                return;
+            }
+            Assert(File.ReadAllBytes(store.SettingsFilePath).SequenceEqual(bytes), "original bytes changed");
+            Assert(page.SettingsStatusText.Contains("只读保护"), "protection is visible");
+            await AssertThrowsAsync<UserSettingsStoreException>(() => page.SaveDeveloperModeAsync(true));
+            await session.RecoverUnreadableAsync(null, CancellationToken.None);
+            var preserved = Directory.GetFiles(directory, "settings.unreadable-*.json").Single();
+            Assert(File.ReadAllBytes(preserved).SequenceEqual(bytes), "archived original bytes changed");
+            AssertEqual(null, (await store.LoadAsync()).SelectedProfileId, "reset writes defaults");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private sealed class PausedStore(IUserSettingsStore store) : IUserSettingsStore
+    {
+        public TaskCompletionSource Saving { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Resume { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public string SettingsFilePath => store.SettingsFilePath;
+        public Task<UserSettings> LoadAsync(CancellationToken cancellationToken = default) => store.LoadAsync(cancellationToken);
+
+        public async Task SaveAsync(UserSettings settings, CancellationToken cancellationToken = default)
+        {
+            Saving.TrySetResult();
+            await Resume.Task.WaitAsync(cancellationToken);
+            await store.SaveAsync(settings, cancellationToken);
+        }
+    }
+
+    private static async Task OverlappingPreferenceSaves()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var store = new PausedStore(new JsonUserSettingsStore(root));
+            var page = CreatePage(new WindowSettingsSession(store));
+            var appearance = page.SaveThemeModeAsync(ThemeMode.WarmLight);
+            await store.Saving.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var developer = page.SaveDeveloperModeAsync(true);
+            store.Resume.SetResult();
+            await Task.WhenAll(appearance, developer);
+            var saved = await store.LoadAsync();
+            Assert(saved.DeveloperModeEnabled, "developer setting lost");
+            AssertEqual(ThemeMode.WarmLight, saved.Appearance.ThemeMode, "appearance lost");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static async Task QueuedPreferencesPreserveHotkeys()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var store = new PausedStore(new JsonUserSettingsStore(root));
+            var page = CreatePage(new WindowSettingsSession(store));
+            var hotkeys = page.SaveHotkeySettingsAsync("F9", "F10");
+            await store.Saving.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var general = page.SaveGeneralSettingsAsync(page.GeneralSettings with { LanguageTag = "zh-CN" });
+            var screenshot = page.SaveScreenshotSettingsAsync(page.ScreenshotSettings with { FolderPath = root });
+            store.Resume.SetResult();
+            await Task.WhenAll(hotkeys, general, screenshot);
+            var saved = await store.LoadAsync();
+            AssertEqual("F9", saved.General.MainWindowHotkey, "general preferences preserve main shortcut");
+            AssertEqual("F10", saved.Screenshot.Hotkey, "screenshot preferences preserve capture shortcut");
+            AssertEqual(root, saved.Screenshot.FolderPath, "capture folder persisted");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static async Task HotkeysRollBack(Exception failure)
+    {
+        var registered = "Alt+D";
+        var displayed = "F10";
+        var error = await AssertThrowsAsync<Exception>(() => HotkeySettingsChange.ApplyAsync(
+            () =>
+            {
+                registered = displayed;
+                return HotkeyRegistrationResult.Success("");
+            },
+            () => Task.FromException(failure),
+            () => registered = displayed = "Alt+D"));
+        Assert(ReferenceEquals(failure, error), "save outcome reaches the event boundary");
+        AssertEqual("Alt+D", registered, "registration restored");
+        AssertEqual("Alt+D", displayed, "display restored");
+    }
+
+    private static async Task FirstRunBackupRestoresSettings(bool useSnapshot)
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var store = new JsonUserSettingsStore(root);
+            var maintenance = new SettingsMaintenanceService(store.SettingsFilePath, Path.Combine(root, "browser"));
+            var backup = useSnapshot
+                ? await maintenance.CreateBackupAsync(snapshot: new UserSettings { DeveloperModeEnabled = true })
+                : await maintenance.CreateBackupAsync();
+            Assert(!File.Exists(store.SettingsFilePath), "backup created live settings");
+            await File.WriteAllTextAsync(store.SettingsFilePath, "{broken");
+            var session = new WindowSettingsSession(store);
+            await AssertThrowsAsync<UserSettingsStoreException>(() => session.LoadAsync());
+            await session.RecoverUnreadableAsync(backup.FilePath, CancellationToken.None);
+            var restored = await store.LoadAsync();
+            AssertEqual(UserSettings.CurrentSchemaVersion, restored.SchemaVersion, "restored schema");
+            AssertEqual(useSnapshot, restored.DeveloperModeEnabled, "restored effective setting");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static async Task RestoreProtectedSettings()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var store = new JsonUserSettingsStore(root);
+            await store.SaveAsync(new UserSettings { DeveloperModeEnabled = true });
+            var maintenance = new SettingsMaintenanceService(store.SettingsFilePath, Path.Combine(root, "browser"));
+            var good = await maintenance.CreateBackupAsync();
+            await File.WriteAllTextAsync(store.SettingsFilePath, "{broken");
+            var bad = await maintenance.CreateBackupAsync();
+            var session = new WindowSettingsSession(store);
+            await AssertThrowsAsync<UserSettingsStoreException>(() => session.LoadAsync());
+            await AssertThrowsAsync<JsonException>(() => session.RecoverUnreadableAsync(bad.FilePath, CancellationToken.None));
+            AssertEqual("{broken", await File.ReadAllTextAsync(store.SettingsFilePath), "bad backup preserved original");
+            await session.RecoverUnreadableAsync(good.FilePath, CancellationToken.None);
+            Assert((await store.LoadAsync()).DeveloperModeEnabled, "restored preference");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static Task NewSettingsUseAppearance()
     {
         var settings = new UserSettings();
-        AssertEqual(7, settings.SchemaVersion, "schema version");
+        AssertEqual(UserSettings.CurrentSchemaVersion, settings.SchemaVersion, "schema version");
         AssertEqual(ThemeMode.WarmDark, settings.Appearance.ThemeMode, "theme mode");
         AssertEqual(
             LauncherCapsuleStyle.Ocean,
@@ -145,7 +370,7 @@ internal static class UserSettingsTests
 
             var loaded = await store.LoadAsync();
 
-            AssertEqual(7, loaded.SchemaVersion, "migrated schema");
+            AssertEqual(UserSettings.CurrentSchemaVersion, loaded.SchemaVersion, "migrated schema");
             Assert(
                 loaded.Appearance.Background.HolographicCardEnabled,
                 "missing holographic card setting should default enabled");
@@ -310,7 +535,7 @@ internal static class UserSettingsTests
 
                 var loaded = await store.LoadAsync();
 
-                AssertEqual(7, loaded.SchemaVersion, "schema version");
+                AssertEqual(UserSettings.CurrentSchemaVersion, loaded.SchemaVersion, "schema version");
                 AssertEqual<string?>(null, loaded.ChannelStore.StoreRootPath, "store root");
                 AssertEqual<string?>(null, loaded.ChannelStore.LastReceiptId, "receipt id");
                 AssertEqual<string?>(null, loaded.ChannelStore.LastPlanSha256, "plan hash");
@@ -442,7 +667,7 @@ internal static class UserSettingsTests
 
             var loaded = await store.LoadAsync();
 
-            AssertEqual(7, loaded.SchemaVersion, "schema version");
+            AssertEqual(UserSettings.CurrentSchemaVersion, loaded.SchemaVersion, "schema version");
             AssertEqual("profile-a", loaded.SelectedProfileId, "selected profile");
             AssertEqual(ThemeMode.WarmDark, loaded.Appearance.ThemeMode, "migrated theme");
             AssertEqual(1, loaded.Profiles.Count, "profile count");
@@ -467,7 +692,7 @@ internal static class UserSettingsTests
         }
     }
 
-    private static async Task MigratedSettingsPersistAsSchema6()
+    private static async Task MigratedSettingsPersist()
     {
         var root = CreateTemporaryRoot();
         try
@@ -490,7 +715,7 @@ internal static class UserSettingsTests
             var migrated = await store.LoadAsync();
             var json = await File.ReadAllTextAsync(store.SettingsFilePath);
 
-            Assert(json.Contains("\"schemaVersion\": 7", StringComparison.Ordinal), "schema 7 output");
+            Assert(json.Contains($"\"schemaVersion\": {UserSettings.CurrentSchemaVersion}", StringComparison.Ordinal), "current schema output");
             Assert(json.Contains("\"appearance\"", StringComparison.Ordinal), "appearance output");
             Assert(
                 json.Contains("\"launcherCapsuleStyle\": \"ocean\"", StringComparison.Ordinal),
@@ -506,7 +731,7 @@ internal static class UserSettingsTests
 
     private static async Task UnsupportedSettingsSchemasFailClosed()
     {
-        foreach (var version in new[] { 2, 8 })
+        foreach (var version in new[] { 2, UserSettings.CurrentSchemaVersion + 1 })
         {
             var root = CreateTemporaryRoot();
             try
@@ -521,7 +746,7 @@ internal static class UserSettingsTests
                     () => store.LoadAsync());
                 Assert(exception.InnerException is JsonException, "inner exception must be JSON failure");
                 Assert(
-                    exception.InnerException!.Message.Contains("expected 7", StringComparison.Ordinal),
+                    exception.InnerException!.Message.Contains($"expected {UserSettings.CurrentSchemaVersion}", StringComparison.Ordinal),
                     "schema mismatch must identify current version");
             }
             finally

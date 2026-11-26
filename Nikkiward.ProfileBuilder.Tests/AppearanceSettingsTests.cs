@@ -6,7 +6,7 @@ internal static class AppearanceSettingsTests
 {
     public static (string Name, Func<Task> Run)[] All =>
     [
-        ("appearance defaults target schema 7", DefaultsTargetSchema6),
+        ("appearance defaults target the current schema", DefaultsTargetCurrentSchema),
         ("launcher masthead defaults are customizable", LauncherMastheadDefaultsAreCustomizable),
         ("launcher masthead text normalization restores safe defaults", LauncherMastheadTextNormalizationRestoresDefaults),
         ("appearance choices expose the planned mode counts", ChoicesExposePlannedModeCounts),
@@ -30,12 +30,12 @@ internal static class AppearanceSettingsTests
         ("built-in background sources remain selectable", BuiltInBackgroundSourcesRemainSelectable),
     ];
 
-    private static Task DefaultsTargetSchema6()
+    private static Task DefaultsTargetCurrentSchema()
     {
         var userSettings = new UserSettings();
         var settings = userSettings.Appearance;
 
-        AssertEqual(7, UserSettings.CurrentSchemaVersion, "schema version");
+        AssertEqual(8, UserSettings.CurrentSchemaVersion, "schema version");
         AssertEqual(ThemeMode.WarmDark, settings.ThemeMode, "theme mode");
         AssertEqual(AccentColorMode.Adaptive, settings.AccentMode, "accent mode");
         AssertEqual(FixedAccentColor.Blush, settings.FixedAccent, "fixed accent");

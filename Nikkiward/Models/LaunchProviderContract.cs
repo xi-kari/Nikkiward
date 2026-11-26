@@ -137,7 +137,9 @@ public static class LaunchProviderCatalog
     public static TrustedSignerRequirement PapergamesSigner { get; } = new()
     {
         DisplayName = "Suzhou Nikki Co.,Ltd.",
-        Thumbprints = ["6A57615C8DBED53A8BE5FF2533535AAEEAA1015A"],
+        // 6850080C… is the 2026-10 renewal (valid to 2028-01) that signs launcher 1.3.2;
+        // same subject, serial number and DigiCert G4 code-signing CA as 6A57615C….
+        Thumbprints = ["6A57615C8DBED53A8BE5FF2533535AAEEAA1015A", "6850080CB455A1BEF3462DA49073B6D3A25E6D86"],
         SubjectCommonName = "Suzhou Nikki Co.,Ltd.",
         SubjectSerialNumber = "91320594076301379M",
     };
@@ -184,53 +186,7 @@ public static class LaunchProviderCatalog
             ArgumentList = new[] { "-skiplauncher" },
             MaximumCapability = LaunchCapability.OfficialAssisted,
             ExecutionEnabled = false,
-            RequiredComponents = new[]
-            {
-                new BinaryIdentityRequirement
-                {
-                    ComponentId = "official-launcher",
-                    RelativePath = "launcher.exe",
-                    TrustedSigners = [PapergamesSigner],
-                    ExpectedOriginalFilename = "launcher.exe",
-                },
-                new BinaryIdentityRequirement
-                {
-                    ComponentId = "official-backend",
-                    RelativePath = backendRelativePath,
-                    TrustedSigners = [PapergamesSigner],
-                    ExpectedOriginalFilename = "xstarter.exe",
-                },
-                new BinaryIdentityRequirement
-                {
-                    ComponentId = "game-bootstrap",
-                    RootRole = "GameRoot",
-                    RelativePath = "InfinityNikki.exe",
-                    TrustedSigners = [PapergamesSigner],
-                },
-                new BinaryIdentityRequirement
-                {
-                    ComponentId = "game-client",
-                    RootRole = "GameRoot",
-                    RelativePath = Path.Combine(
-                        "X6Game",
-                        "Binaries",
-                        "Win64",
-                        "X6Game-Win64-Shipping.exe"),
-                    TrustedSigners = [PapergamesSigner],
-                },
-                new BinaryIdentityRequirement
-                {
-                    ComponentId = "anti-cheat-artifact",
-                    RootRole = "GameRoot",
-                    RelativePath = Path.Combine(
-                        "X6Game",
-                        "Binaries",
-                        "Win64",
-                        "AntiCheatExpert",
-                        "ACE-Service64.exe"),
-                    TrustedSigners = [AntiCheatExpertSigner],
-                },
-            },
+            RequiredComponents = CreateComponentRequirements(backendRelativePath),
             ProductMarker = new ProductMarkerRequirement
             {
                 RootRole = "GameRoot",
@@ -239,6 +195,55 @@ public static class LaunchProviderCatalog
             },
         };
     }
+
+    internal static IReadOnlyList<BinaryIdentityRequirement> CreateComponentRequirements(string backendRelativePath) =>
+        new[]
+        {
+            new BinaryIdentityRequirement
+            {
+                ComponentId = "official-launcher",
+                RelativePath = "launcher.exe",
+                TrustedSigners = [PapergamesSigner],
+                ExpectedOriginalFilename = "launcher.exe",
+            },
+            new BinaryIdentityRequirement
+            {
+                ComponentId = "official-backend",
+                RelativePath = backendRelativePath,
+                TrustedSigners = [PapergamesSigner],
+                ExpectedOriginalFilename = "xstarter.exe",
+            },
+            new BinaryIdentityRequirement
+            {
+                ComponentId = "game-bootstrap",
+                RootRole = "GameRoot",
+                RelativePath = "InfinityNikki.exe",
+                TrustedSigners = [PapergamesSigner],
+            },
+            new BinaryIdentityRequirement
+            {
+                ComponentId = "game-client",
+                RootRole = "GameRoot",
+                RelativePath = Path.Combine(
+                    "X6Game",
+                    "Binaries",
+                    "Win64",
+                    "X6Game-Win64-Shipping.exe"),
+                TrustedSigners = [PapergamesSigner],
+            },
+            new BinaryIdentityRequirement
+            {
+                ComponentId = "anti-cheat-artifact",
+                RootRole = "GameRoot",
+                RelativePath = Path.Combine(
+                    "X6Game",
+                    "Binaries",
+                    "Win64",
+                    "AntiCheatExpert",
+                    "ACE-Service64.exe"),
+                TrustedSigners = [AntiCheatExpertSigner],
+            },
+        };
 
     public static bool TryGet(
         DistributionChannel channel,

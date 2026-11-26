@@ -38,6 +38,8 @@ public sealed class FileManagementSettingsViewState
 
     public bool IsBusy { get; init; }
 
+    public string? ProtectionMessage { get; init; }
+
     public string? StatusText { get; init; }
 }
 
@@ -104,10 +106,19 @@ public sealed partial class FileManagementSettingsView : UserControl
                 : "尚无备份";
             OpenBackupButton.IsEnabled = !string.IsNullOrWhiteSpace(state.LastBackupPath) &&
                                           File.Exists(state.LastBackupPath);
-            BackupButton.IsEnabled = !state.IsBusy;
+            var readOnly = state.ProtectionMessage is not null;
+            if (readOnly)
+            {
+                LastBackupText.Text = "从备份恢复";
+                OpenBackupButton.IsEnabled = !state.IsBusy;
+            }
+            DeleteSettingsText.Text = readOnly ? "重置为默认设置" : "删除所有设置";
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(DeleteAllSettingsButton, DeleteSettingsText.Text);
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(OpenBackupButton, readOnly ? "从备份恢复" : "打开最近备份");
+            BackupButton.IsEnabled = !state.IsBusy && !readOnly;
             ClearCacheButton.IsEnabled = !state.IsBusy;
             DeleteAllSettingsButton.IsEnabled = !state.IsBusy;
-            ClearLauncherBackgroundCheckBox.IsEnabled = !state.IsBusy;
+            ClearLauncherBackgroundCheckBox.IsEnabled = !state.IsBusy && !readOnly;
             BackupProgressRing.Visibility = state.IsBusy ? Visibility.Visible : Visibility.Collapsed;
             BackupProgressRing.IsActive = state.IsBusy;
             ClearCacheProgressRing.Visibility = state.IsBusy ? Visibility.Visible : Visibility.Collapsed;

@@ -20,6 +20,7 @@ namespace Nikkiward.Serialization;
 [JsonSerializable(typeof(FileManagementSettings))]
 [JsonSerializable(typeof(ScreenshotSettings))]
 [JsonSerializable(typeof(UserSettings))]
+[JsonSerializable(typeof(PlayTimeDocument))]
 [JsonSerializable(typeof(JournalSnapshot))]
 [JsonSerializable(typeof(ResonanceHistorySnapshot))]
 [JsonSerializable(typeof(WishHistoryStoreSnapshot))]

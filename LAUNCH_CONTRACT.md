@@ -81,11 +81,13 @@ ContractVersion 1 曾把 5 个二进制的 SHA-256、文件版本与签名指纹
 SHA-256 与文件版本**仍会计算并写入预检组件回执**，用于诊断显示；预检失败原因（含签名者
 指纹与 CN）会并入诊断快照的 LastFailureReason，随脱敏报告导出，但都不再阻断启动。
 
+B 服与 Steam 的实验直启沿用这五个组件及其签名者要求。两个渠道激活后按本次计划的启动器根和游戏根验签。Steam 的安装发现只检查四个 EXE，直启预检还要求游戏根内的 `ACE-Service64.exe` 通过验证。请求提权前，渠道入口在只读共享句柄下复核 `xstarter.exe` 的签名、签名者和原始文件名，并比较同一次点击内两次读取的 SHA-256。文件发生变化会返回 `BackendIdentityDrift`，下一次点击会重新采样。两个渠道的实物签名者尚待确认。
+
 当前可信签名者（`LaunchProviderCatalog`）：
 
 | 签名者 | 适用组件 | 锚点 |
 |---|---|---|
-| Suzhou Nikki Co.,Ltd.（叠纸/苏州暖暖） | launcher.exe、xstarter.exe、InfinityNikki.exe、Shipping | 指纹 `6A57…015A`；CN + 统一社会信用代码 `91320594076301379M` |
+| Suzhou Nikki Co.,Ltd.（叠纸/苏州暖暖） | launcher.exe、xstarter.exe、InfinityNikki.exe、Shipping | 指纹 `6A57…015A`、`6850…6D86`（2026-10 续签，启动器 1.3.2 起使用）；CN + 统一社会信用代码 `91320594076301379M` |
 | ACEVILLE PTE LTD（ACE 反作弊） | ACE-Service64.exe | 指纹 `30D5…1466`；CN |
 
 失效场景，按发生频率排：
@@ -162,7 +164,8 @@ dotnet run --project Nikkiward.ProfileBuilder.Tests -- --emit-contract
 | 内部状态 | 按钮 |
 |---|---|
 | 未检测 | 禁用 + 骨架，「检查安装中…」 |
-| 无安装 / 渠道不支持 | 禁用 + 说明原因 |
+| 未发现安装 / 等待手动选择安装 | 禁用，分别显示「未发现安装」「需要选择安装」，提示前往「定位游戏」 |
+| 渠道不支持 | 禁用 + 说明原因 |
 | 签名无效或签名者不可信 | 禁用 + 「签名验证未通过」+ 提示用官方启动器校验或重装 |
 | 渠道身份不符（product.db 与所选渠道不一致） | 禁用 + 「渠道身份不符」 |
 | 执行门关闭（正常可启动态） | **可点击**，「启动游戏」，detail 回显检测到的启动器版本 |

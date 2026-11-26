@@ -207,21 +207,28 @@ public sealed partial class MainPage
     {
         try
         {
-            if (e.ChangeKind is GamepadSettingsChangeKind.Enabled && e.Settings.Enabled)
+            await ViewModel.SaveAndApplyGamepadAsync(e.Settings, settings =>
             {
-                StartGamepadController(e.Settings);
-            }
-            else
-            {
-                GamepadController.Apply(e.Settings);
-            }
-
-            await ViewModel.SaveGamepadSettingsAsync(e.Settings);
-            ApplySettingsPageState(_hostedSettingsPage);
+                if (settings.Enabled && e.ChangeKind is GamepadSettingsChangeKind.Enabled)
+                {
+                    StartGamepadController(settings);
+                }
+                else
+                {
+                    GamepadController.Apply(settings);
+                }
+            }, _lifetimeCancellation?.Token ?? CancellationToken.None);
+        }
+        catch (OperationCanceledException)
+        {
         }
         catch (Exception ex)
         {
             ViewModel.ReportUiError($"手柄设置保存失败：{ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            ApplySettingsPageState(_hostedSettingsPage);
         }
     }
 

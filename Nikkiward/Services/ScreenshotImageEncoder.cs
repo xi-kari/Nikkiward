@@ -161,9 +161,17 @@ internal static class ScreenshotImageEncoder
             96,
             DirectXPixelFormat.R8G8B8A8UIntNormalized,
             CanvasAlphaMode.Premultiplied);
-        using var drawingSession = target.CreateDrawingSession();
-        drawingSession.DrawImage(source);
-        return target;
+        try
+        {
+            using var drawingSession = target.CreateDrawingSession();
+            drawingSession.DrawImage(source);
+            return target;
+        }
+        catch
+        {
+            target.Dispose();
+            throw;
+        }
     }
 
     private static async Task EncodePngAsync(
@@ -397,7 +405,7 @@ internal static class ScreenshotImageEncoder
         return checked((ushort)Math.Round(Math.Clamp(encoded, 0, 1) * ushort.MaxValue));
     }
 
-    private static byte LinearToSrgbByte(float scRgb)
+    internal static byte LinearToSrgbByte(float scRgb)
     {
         var normalized = Math.Max(0, scRgb);
         normalized /= 1 + normalized;

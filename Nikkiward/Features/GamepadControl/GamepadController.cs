@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using System.Threading;
 using Microsoft.UI.Dispatching;
-using Microsoft.Win32;
 using Nikkiward.Models;
+using Nikkiward.Services;
 using SharpGameInput.V0;
 using WindowsInput;
 
@@ -37,7 +37,8 @@ internal static class GamepadController
     private static Action? _showMainWindow;
 
     private static bool _enabled;
-    private static GamepadButtonAction _guideAction;
+    private static readonly GameBarGuideOverride GameBarGuide = new(
+        Path.Combine(ApplicationDataPaths.DefaultRoot, "game-bar-guide-state.json"), new GameBarGuideRegistry());
     private static (VirtualKeyCode[] Modifiers, VirtualKeyCode[] Keys) _guideKeys;
     private static (VirtualKeyCode[] Modifiers, VirtualKeyCode[] Keys) _shareKeys;
 
@@ -71,15 +72,9 @@ internal static class GamepadController
 
     public static GamepadButtonAction ShareAction { get; set; }
 
-    public static GamepadButtonAction GuideAction
-    {
-        get => _guideAction;
-        set
-        {
-            _guideAction = value;
-            SyncXboxGameBarGuideButton();
-        }
-    }
+    public static GamepadButtonAction GuideAction { get; private set; }
+
+    public static void RecoverGameBarGuideButton() => GameBarGuide.Release();
 
     /// <summary>
     /// Creates the GameInput instance and registers the device and system
@@ -129,13 +124,20 @@ internal static class GamepadController
                 out _,
                 out _);
 
-            _gameInput.RegisterSystemButtonCallback(
+            if (!_gameInput.RegisterSystemButtonCallback(
                 null,
                 GameInputSystemButtons.Guide | GameInputSystemButtons.Share,
                 null,
                 OnSystemButtonChanged,
                 out _,
-                out _);
+                out _))
+            {
+                _gameInput.Dispose();
+                _gameInput = null;
+                _inputSimulator = null;
+                InitializationError = "GameInput 未能注册手柄系统键，手柄增强不可用。";
+                return false;
+            }
 
             // Without a background focus policy the Guide and Share presses only
             // arrive while Nikkiward itself is foreground, which defeats the point.
@@ -200,15 +202,14 @@ internal static class GamepadController
     {
         ArgumentNullException.ThrowIfNull(settings);
 
-        _enabled = settings.Enabled;
+        _enabled = settings.Enabled && Initialized;
         GuideLongPressOpensMainWindow = settings.GuideLongPressOpensMainWindow;
         ShareAction = settings.ShareAction;
         _guideKeys = ParseOrEmpty(settings.GuideMapKeys);
         _shareKeys = ParseOrEmpty(settings.ShareMapKeys);
 
-        // Assigned last: its setter reconciles the Xbox Game Bar registry value,
-        // which depends on _enabled above.
         GuideAction = settings.GuideAction;
+        GameBarGuide.Apply(settings, Initialized, _guideKeys.Modifiers.Length > 0 || _guideKeys.Keys.Length > 0);
     }
 
     private static (VirtualKeyCode[] Modifiers, VirtualKeyCode[] Keys) ParseOrEmpty(string? value) =>
@@ -216,35 +217,13 @@ internal static class GamepadController
             ? (modifiers, keys)
             : ([], []);
 
-    public static bool TrySetGuideMapKeys(string? value, out string? normalizedTextOrBadKey)
-    {
-        if (!GamepadKeyNames.TryParse(value, out normalizedTextOrBadKey, out var modifiers, out var keys))
-        {
-            return false;
-        }
-
-        _guideKeys = (modifiers, keys);
-        return true;
-    }
-
-    public static bool TrySetShareMapKeys(string? value, out string? normalizedTextOrBadKey)
-    {
-        if (!GamepadKeyNames.TryParse(value, out normalizedTextOrBadKey, out var modifiers, out var keys))
-        {
-            return false;
-        }
-
-        _shareKeys = (modifiers, keys);
-        return true;
-    }
-
     /// <summary>
     /// Releases GameInput and hands the Guide button back to the Xbox Game Bar.
     /// Call on app exit; the original leaked both.
     /// </summary>
     public static void Shutdown()
     {
-        RestoreXboxGameBarGuideButton();
+        GameBarGuide.Release();
 
         try
         {
@@ -401,41 +380,5 @@ internal static class GamepadController
         }
 
         _inputSimulator.Keyboard.ModifiedKeyStroke(mapping.Modifiers, mapping.Keys);
-    }
-
-    /// <summary>
-    /// Mapping the Guide button only works if the Xbox Game Bar stops answering
-    /// it first. Both values live under HKCU, so no elevation is involved, and
-    /// the Game Bar value is restored as soon as the mapping is cleared.
-    /// </summary>
-    private static void SyncXboxGameBarGuideButton()
-    {
-        if (_enabled && GuideAction is not GamepadButtonAction.None)
-        {
-            SetGameBarGuideButtonEnabled(false);
-        }
-        else
-        {
-            SetGameBarGuideButtonEnabled(true);
-        }
-    }
-
-    private static void RestoreXboxGameBarGuideButton() => SetGameBarGuideButtonEnabled(true);
-
-    private static void SetGameBarGuideButtonEnabled(bool enabled)
-    {
-        try
-        {
-            Registry.SetValue(
-                @"HKEY_CURRENT_USER\Software\Microsoft\GameBar",
-                "UseNexusForGameBarEnabled",
-                enabled ? 1 : 0,
-                RegistryValueKind.DWord);
-        }
-        catch
-        {
-            // Policy or a locked hive can block this; the mapping still works,
-            // the Game Bar just answers the Guide button as well.
-        }
     }
 }

@@ -24,8 +24,10 @@ public sealed partial class MainWindow : Window
     private InputNonClientPointerSource? _nonClientPointerSource;
     private readonly NativeWindowRuntime _nativeWindowRuntime;
     private MainPage? _mainPage;
-    private CloseWindowBehavior _closeWindowBehavior = CloseWindowBehavior.Exit;
+    private readonly WindowTray _tray;
     private bool _allowClose;
+    private bool _exitPending;
+    private Task _placementSave = Task.CompletedTask;
 
     public event EventHandler<NativeWindowActivationChangedEventArgs>? ForegroundActivationChanged
     {
@@ -70,10 +72,21 @@ public sealed partial class MainWindow : Window
         }
 
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "NikkiwardIcon.ico"));
-        CenterAtDesignSize();
 
         var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         _nativeWindowRuntime = new NativeWindowRuntime(windowHandle);
+        _tray = new WindowTray(enabled =>
+        {
+            _nativeWindowRuntime.SetTrayEnabled(enabled);
+            if (enabled)
+            {
+                TrayError.IsOpen = false;
+            }
+        }, message =>
+        {
+            TrayError.Message = message;
+            TrayError.IsOpen = true;
+        });
         _nativeWindowRuntime.ShowWindowRequested += OnNativeShowWindowRequested;
         _nativeWindowRuntime.ExitRequested += OnNativeExitRequested;
         _nativeWindowRuntime.ScreenshotRequested += OnNativeScreenshotRequested;
@@ -89,6 +102,7 @@ public sealed partial class MainWindow : Window
         if (RootFrame.Content is MainPage mainPage)
         {
             _mainPage = mainPage;
+            mainPage.ViewModel.AfterLaunchWindowRequested += OnAfterLaunchWindowRequested;
             mainPage.TitleBarPassthroughChanged += OnTitleBarPassthroughChanged;
             RootFrame.SizeChanged += OnRootFrameSizeChanged;
         }
@@ -116,47 +130,113 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.ButtonPressedForegroundColor = foreground;
     }
 
-    public void ApplyCloseBehavior(CloseWindowBehavior behavior)
-    {
-        _closeWindowBehavior = behavior;
-        _nativeWindowRuntime.SetTrayEnabled(
-            behavior is CloseWindowBehavior.MinimizeToTray);
-    }
+    internal void Open(CloseWindowBehavior behavior, bool bringToFront) =>
+        _tray.Open(behavior, bringToFront ? ShowWindowCore : Activate);
+
+    public void ApplyCloseBehavior(CloseWindowBehavior behavior) =>
+        _tray.ApplyCloseBehavior(behavior, AppWindow.IsVisible);
 
     public HotkeyRegistrationResult ApplyHotkeys(
         string showWindowHotkey,
         string screenshotHotkey) =>
         _nativeWindowRuntime.ApplyHotkeys(showWindowHotkey, screenshotHotkey);
 
-    public void ExitApplication()
+    internal async Task ExitApplicationAsync(Action? beforeClose = null)
     {
-        _allowClose = true;
-        Close();
+        if (_exitPending)
+        {
+            return;
+        }
+
+        _exitPending = true;
+        try
+        {
+            await SaveWindowPlacementAsync();
+            beforeClose?.Invoke();
+            _allowClose = true;
+            Close();
+        }
+        finally
+        {
+            _exitPending = false;
+        }
     }
 
-    private void OnAppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
+    private async void OnAppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
-        if (_allowClose || _closeWindowBehavior is CloseWindowBehavior.Exit)
+        if (_allowClose)
         {
             return;
         }
 
         args.Cancel = true;
-        _nativeWindowRuntime.SetTrayEnabled(true);
+        if (_exitPending)
+        {
+            return;
+        }
+
+        if (_tray.CloseBehavior is CloseWindowBehavior.Exit)
+        {
+            // Finish the cancelled native close before calling Window.Close().
+            await Task.Yield();
+            await ExitApplicationAsync();
+            return;
+        }
+
+        await HideToTrayAsync();
+    }
+
+    private async void OnAfterLaunchWindowRequested(AfterLaunchBehavior behavior)
+    {
+        if (_exitPending || !AppWindow.IsVisible)
+        {
+            return;
+        }
+
+        try
+        {
+            if (behavior == AfterLaunchBehavior.HideToTray)
+            {
+                await HideToTrayAsync();
+            }
+            else if (behavior == AfterLaunchBehavior.Minimize && AppWindow.Presenter is OverlappedPresenter presenter)
+            {
+                presenter.Minimize();
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or COMException)
+        {
+            _mainPage?.ViewModel.ReportUiError($"游戏已运行，收起窗口失败：{ex.Message}");
+        }
+    }
+
+    private Task HideToTrayAsync()
+    {
+        if (!_tray.TrySetEnabled(true))
+        {
+            return Task.CompletedTask;
+        }
+        var save = SaveWindowPlacementAsync();
         AppWindow.Hide();
+        return save;
     }
 
     private void OnNativeShowWindowRequested(object? sender, EventArgs e) =>
         ShowWindowCore();
 
-    private void OnNativeExitRequested(object? sender, EventArgs e) =>
-        ExitApplication();
+    private async void OnNativeExitRequested(object? sender, EventArgs e) =>
+        await ExitApplicationAsync();
 
     private void OnNativeScreenshotRequested(object? sender, EventArgs e) =>
         _mainPage?.CaptureGameScreenshotFromHotkey();
 
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
+        if (_mainPage is not null)
+        {
+            _mainPage.ViewModel.AfterLaunchWindowRequested -= OnAfterLaunchWindowRequested;
+        }
+
         _nativeWindowRuntime.ShowWindowRequested -= OnNativeShowWindowRequested;
         _nativeWindowRuntime.ExitRequested -= OnNativeExitRequested;
         _nativeWindowRuntime.ScreenshotRequested -= OnNativeScreenshotRequested;
@@ -275,20 +355,6 @@ public sealed partial class MainWindow : Window
             caption.Count == 0 ? null : [.. caption]);
     }
 
-    private void CenterAtDesignSize()
-    {
-        var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
-        var scale = Math.Max(1d, GetDpiForWindow(windowHandle) / 96d);
-        var width = checked((int)Math.Round(DesignWidth * scale));
-        var height = checked((int)Math.Round(DesignHeight * scale));
-        var displayArea = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest);
-        var workArea = displayArea.WorkArea;
-        var x = workArea.X + (workArea.Width - width) / 2;
-        var y = workArea.Y + (workArea.Height - height) / 2;
-
-        AppWindow.MoveAndResize(new RectInt32(x, y, width, height));
-    }
-
     /// <summary>
     /// Brings the shell forward in response to a gamepad gesture. Called on the
     /// UI thread from the gamepad controller.
@@ -298,7 +364,7 @@ public sealed partial class MainWindow : Window
         ShowWindowCore();
     }
 
-    private void ShowWindowCore()
+    internal void ShowWindowCore()
     {
         try
         {
@@ -310,6 +376,7 @@ public sealed partial class MainWindow : Window
             }
 
             Activate();
+            _tray.TrySetEnabled(_tray.CloseBehavior is CloseWindowBehavior.MinimizeToTray);
 
             // Activate alone does not steal focus from a full-screen game.
             SetForegroundWindow(WinRT.Interop.WindowNative.GetWindowHandle(this));
@@ -320,9 +387,6 @@ public sealed partial class MainWindow : Window
             // the window shown but behind the game; nothing to recover.
         }
     }
-
-    [DllImport("user32.dll")]
-    private static extern uint GetDpiForWindow(IntPtr windowHandle);
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr windowHandle);

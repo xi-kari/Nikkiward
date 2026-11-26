@@ -37,15 +37,50 @@
                     Content="最小化到系统托盘"
                     GroupName="CloseWindowBehavior"
                     Tag="tray"
-                    Checked="OnCloseBehaviorChecked" />
+                    Checked="OnWindowBehaviorChecked" />
                 <RadioButton
                     x:Name="ExitRadio"
                     automation:AutomationProperties.Name="完全退出"
                     Content="完全退出"
                     GroupName="CloseWindowBehavior"
                     Tag="exit"
-                    Checked="OnCloseBehaviorChecked" />
+                    Checked="OnWindowBehaviorChecked" />
             </StackPanel>
+        </StackPanel>
+
+        <StackPanel Spacing="8">
+            <TextBlock
+                automation:AutomationProperties.HeadingLevel="Level2"
+                Style="{StaticResource OnArtSectionTitleTextStyle}"
+                Text="启动游戏后" />
+            <StackPanel Orientation="Horizontal" Spacing="24">
+                <RadioButton
+                    x:Name="KeepWindowRadio"
+                    Content="保持窗口"
+                    GroupName="AfterLaunchBehavior"
+                    Checked="OnWindowBehaviorChecked" />
+                <RadioButton
+                    x:Name="MinimizeRadio"
+                    Content="最小化"
+                    GroupName="AfterLaunchBehavior"
+                    Checked="OnWindowBehaviorChecked" />
+                <RadioButton
+                    x:Name="HideToTrayRadio"
+                    Content="隐藏到托盘"
+                    GroupName="AfterLaunchBehavior"
+                    Checked="OnWindowBehaviorChecked" />
+            </StackPanel>
+        </StackPanel>
+
+        <StackPanel Spacing="6">
+            <StackPanel Orientation="Horizontal" Spacing="16">
+                <ToggleSwitch x:Name="PlayTimeToggle" Header="记录本机游玩时长"
+                    automation:AutomationProperties.Name="记录本机游玩时长"
+                    Toggled="OnGeneralToggleChanged" />
+                <Button x:Name="ClearPlayTimeButton" Content="清除记录" VerticalAlignment="Bottom"
+                    IsEnabled="False" Style="{StaticResource OnArtGlassButtonStyle}" Click="OnClearPlayTimeClicked" />
+            </StackPanel>
+            <TextBlock x:Name="PlayTimeError" TextWrapping="Wrap" Style="{StaticResource CaptionUI}" Visibility="Collapsed" />
         </StackPanel>
 
         <ToggleSwitch
@@ -53,7 +88,7 @@
             automation:AutomationProperties.Name="启用 Profile 快速切换"
             OffContent="关闭 Profile 快速切换"
             OnContent="启用 Profile 快速切换"
-            Toggled="OnProfileSwitcherToggled" />
+            Toggled="OnGeneralToggleChanged" />
 
         <StackPanel Spacing="6">
             <TextBlock

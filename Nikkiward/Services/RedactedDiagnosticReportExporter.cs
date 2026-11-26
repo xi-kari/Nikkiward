@@ -24,14 +24,18 @@ public sealed class RedactedDiagnosticReportExporter : IDiagnosticReportExporter
 
     private static readonly UTF8Encoding Utf8WithoutBom = new(encoderShouldEmitUTF8Identifier: false);
 
-    private static readonly Regex TokenAssignmentPattern = new(
-        @"\b(?<key>[a-z0-9_.-]*token[a-z0-9_.-]*|authorization|cookie)\b" +
-        @"(?<separator>\s*[:=]\s*)(?<value>""[^""]*""|'[^']*'|[^\s,;&]+)",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
-
-    private static readonly Regex BearerPattern = new(
-        @"\bBearer\s+[^\s,;&]+",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private const RegexOptions CredentialOptions =
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled;
+    private const string SensitiveKey =
+        @"[a-z0-9_.-]*(?:token|ticket|session)[a-z0-9_.-]*|(?:proxy-)?authorization|(?:set-)?cookie|bearer|sid|password|api[_-]?key|client[_-]?secret|command[ _-]?line";
+    private static readonly Regex CredentialStartPattern = new(
+        @"(?<line>\b(?:(?:proxy-)?authorization|(?:set-)?cookie|command[ _-]?line)[ \t]*[:=][ \t]*)" +
+        @"|[?&#;](?<queryKey>[a-z0-9_.%~-]+)=" +
+        $$"""|(?<![\w.-])(?:\\?["'])?(?:{{SensitiveKey}})(?:\\?["'])?\s*[:=]\s*""" +
+        @"|(?<bearer>\bBearer[ \t]+)", CredentialOptions);
+    private static readonly Regex SensitiveKeyPattern = new($@"\A(?:{SensitiveKey})\z", CredentialOptions);
+    private static readonly Regex LineValuePattern = new(@"\G[^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*", CredentialOptions);
+    private static readonly Regex QuotedValuePattern = new("""\G(?:"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*')""", CredentialOptions);
 
     public async Task<DiagnosticReportExportResult> ExportAsync(
         LaunchProfile profile,
@@ -50,7 +54,7 @@ public sealed class RedactedDiagnosticReportExporter : IDiagnosticReportExporter
 
         var generatedAtUtc = DateTimeOffset.UtcNow;
         var mappings = BuildPathMappings(profile, snapshot, destinationDirectory);
-        var safeProfileId = SanitizeFileName(profile.ProfileId);
+        var safeProfileId = SanitizeFileName(RedactText(profile.ProfileId, mappings) ?? string.Empty);
         var prefix = $"nikkiward-diagnostic-{generatedAtUtc:yyyyMMdd-HHmmssfff}Z-{safeProfileId}";
         var jsonPath = Path.Combine(destinationDirectory, $"{prefix}.json");
         var textPath = Path.Combine(destinationDirectory, $"{prefix}.txt");
@@ -126,9 +130,9 @@ public sealed class RedactedDiagnosticReportExporter : IDiagnosticReportExporter
             component.LastWriteTimeUtc,
             RedactText(component.FileVersion, mappings),
             RedactText(component.ProductVersion, mappings),
-            component.Sha256,
+            RedactText(component.Sha256, mappings),
             component.SignatureStatus,
-            component.SignatureStatusCode,
+            RedactText(component.SignatureStatusCode, mappings),
             RedactText(component.Error, mappings),
             component.InspectedAtUtc)).ToArray();
 
@@ -332,7 +336,7 @@ public sealed class RedactedDiagnosticReportExporter : IDiagnosticReportExporter
             if (fullPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
                 var relativePath = fullPath[prefix.Length..];
-                return $"{mapping.Replacement}\\{relativePath}";
+                return RedactText($"{mapping.Replacement}\\{relativePath}", mappings);
             }
         }
 
@@ -348,7 +352,7 @@ public sealed class RedactedDiagnosticReportExporter : IDiagnosticReportExporter
             return value;
         }
 
-        var result = value;
+        var result = RedactCredentials(value);
         foreach (var mapping in mappings)
         {
             result = result.Replace(
@@ -369,11 +373,75 @@ public sealed class RedactedDiagnosticReportExporter : IDiagnosticReportExporter
             result = result.Replace(machineName, "[HOST]", StringComparison.OrdinalIgnoreCase);
         }
 
-        result = TokenAssignmentPattern.Replace(
-            result,
-            "${key}${separator}[REDACTED]");
-        result = BearerPattern.Replace(result, "Bearer [REDACTED]");
         return result;
+    }
+
+    private static string RedactCredentials(string value)
+    {
+        StringBuilder? result = null;
+        var copied = 0;
+        for (var field = CredentialStartPattern.Match(value); field.Success;)
+        {
+            var queryKey = field.Groups["queryKey"];
+            if (queryKey.Success && !SensitiveKeyPattern.IsMatch(Uri.UnescapeDataString(queryKey.Value)))
+            {
+                field = field.NextMatch();
+                continue;
+            }
+
+            var start = field.Index + field.Length;
+            result ??= new StringBuilder(value.Length);
+            result.Append(value, copied, start - copied).Append("[REDACTED]");
+            copied = CredentialValueEnd(value, start, field);
+            field = CredentialStartPattern.Match(value, copied);
+        }
+        return result is null ? value : result.Append(value, copied, value.Length - copied).ToString();
+    }
+
+    private static int CredentialValueEnd(string value, int start, Match field)
+    {
+        if (start == value.Length || field.Groups["line"].Success)
+        {
+            return start + LineValuePattern.Match(value, start).Length;
+        }
+
+        var quoted = value[start] is '"' or '\'' ? QuotedValuePattern.Match(value, start) : Match.Empty;
+        if (field.Groups["queryKey"].Success)
+        {
+            // Quotes and punctuation are legal inside a URL value. Only its parameter/fragment boundary ends it.
+            var delimiter = value.IndexOfAny(['&', '#', '\r', '\n'], start + quoted.Length);
+            return delimiter < 0 ? value.Length : delimiter;
+        }
+        if (quoted.Success)
+        {
+            return start + quoted.Length;
+        }
+        if (field.Groups["bearer"].Success)
+        {
+            var end = start;
+            while (end < value.Length && !char.IsWhiteSpace(value[end]))
+            {
+                end++;
+            }
+            return end;
+        }
+        if (value[start] is '{' or '[')
+        {
+            // A JSON credential member can itself contain an array or object spanning multiple lines.
+            var bytes = Encoding.UTF8.GetBytes(value[start..]);
+            var reader = new Utf8JsonReader(bytes);
+            try
+            {
+                reader.Read();
+                reader.Skip();
+                return start + Encoding.UTF8.GetCharCount(bytes.AsSpan(0, checked((int)reader.BytesConsumed)));
+            }
+            catch (JsonException)
+            {
+                return value.Length;
+            }
+        }
+        return start + LineValuePattern.Match(value, start).Length;
     }
 
     private static string SanitizeFileName(string value)

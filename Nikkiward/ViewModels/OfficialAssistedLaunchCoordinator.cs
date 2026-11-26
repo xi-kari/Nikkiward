@@ -850,8 +850,7 @@ public sealed class OfficialAssistedLaunchCoordinator
         identity = new OfficialAssistedProcessIdentity();
         try
         {
-            if (!TryQueryProcessPath(process.Id, out var path) ||
-                !TryGetProcessCreationTime(process.Id, out var startTimeUtc))
+            if (!TryQueryProcessPath(process.Id, out var path, out var startTimeUtc))
             {
                 return false;
             }
@@ -1002,8 +1001,13 @@ public sealed class OfficialAssistedLaunchCoordinator
 
     private const uint ProcessQueryLimitedInformation = 0x1000;
 
-    private static bool TryQueryProcessPath(int processId, out string path)
+    internal static bool TryQueryProcessPath(int processId, out string path) =>
+        TryQueryProcessPath(processId, out path, out _, includeCreationTime: false);
+
+    internal static bool TryQueryProcessPath(int processId, out string path, out DateTimeOffset createdUtc,
+        bool includeCreationTime = true)
     {
+        createdUtc = default;
         path = string.Empty;
         var processHandle = OpenProcess(
             ProcessQueryLimitedInformation,
@@ -1024,7 +1028,8 @@ public sealed class OfficialAssistedLaunchCoordinator
             }
 
             path = buffer.ToString();
-            return !string.IsNullOrWhiteSpace(path);
+            return !string.IsNullOrWhiteSpace(path) &&
+                (!includeCreationTime || TryGetProcessCreationTime(processHandle, out createdUtc));
         }
         finally
         {
@@ -1048,26 +1053,32 @@ public sealed class OfficialAssistedLaunchCoordinator
 
         try
         {
-            if (!GetProcessTimes(
-                    processHandle,
-                    out var creationTime,
-                    out _,
-                    out _,
-                    out _))
-            {
-                return false;
-            }
-
-            var fileTime = ((long)creationTime.dwHighDateTime << 32) |
-                (uint)creationTime.dwLowDateTime;
-            startTimeUtc = new DateTimeOffset(
-                DateTime.FromFileTimeUtc(fileTime));
-            return true;
+            return TryGetProcessCreationTime(processHandle, out startTimeUtc);
         }
         finally
         {
             CloseHandle(processHandle);
         }
+    }
+
+    private static bool TryGetProcessCreationTime(IntPtr processHandle, out DateTimeOffset startTimeUtc)
+    {
+        startTimeUtc = default;
+        if (!GetProcessTimes(
+                processHandle,
+                out var creationTime,
+                out _,
+                out _,
+                out _))
+        {
+            return false;
+        }
+
+        var fileTime = ((long)creationTime.dwHighDateTime << 32) |
+            (uint)creationTime.dwLowDateTime;
+        startTimeUtc = new DateTimeOffset(
+            DateTime.FromFileTimeUtc(fileTime));
+        return true;
     }
 
     [StructLayout(LayoutKind.Sequential)]

@@ -9,6 +9,28 @@ public sealed record HotkeyRegistrationResult(bool Succeeded, string Message)
     public static HotkeyRegistrationResult Failure(string message) => new(false, message);
 }
 
+internal static class HotkeySettingsChange
+{
+    internal static async Task<HotkeyRegistrationResult> ApplyAsync(
+        Func<HotkeyRegistrationResult> register, Func<Task> save, Action rollback)
+    {
+        var registration = register();
+        if (registration.Succeeded)
+        {
+            try
+            {
+                await save();
+            }
+            catch
+            {
+                rollback();
+                throw;
+            }
+        }
+        return registration;
+    }
+}
+
 public sealed class NativeWindowActivationChangedEventArgs(bool isActive) : EventArgs
 {
     public bool IsActive { get; } = isActive;
@@ -19,6 +41,7 @@ public sealed class NativeWindowRuntime : IDisposable
     private const int ShowWindowHotkeyId = 0x4E11;
     private const int ScreenshotHotkeyId = 0x4E12;
     private const uint EventSystemForeground = 0x0003;
+    private const uint WmSize = 0x0005;
     private const uint WmActivateApp = 0x001C;
     private const uint WmHotkey = 0x0312;
     private const uint WmAppTray = 0x8000 + 0x42;
@@ -82,6 +105,8 @@ public sealed class NativeWindowRuntime : IDisposable
         }
     }
 
+    internal bool LastNonMinimizedWasMaximized { get; private set; }
+
     public NativeWindowRuntime(IntPtr windowHandle)
     {
         if (windowHandle == IntPtr.Zero)
@@ -119,6 +144,17 @@ public sealed class NativeWindowRuntime : IDisposable
         }
 
         _applicationActive = IsCurrentProcessForeground();
+    }
+
+    internal static bool TrackMaximizedState(bool wasMaximized, nuint sizeType)
+    {
+        const nuint sizeRestored = 0, sizeMaximized = 2;
+        return sizeType switch
+        {
+            sizeRestored => false,
+            sizeMaximized => true,
+            _ => wasMaximized,
+        };
     }
 
     public HotkeyRegistrationResult ApplyHotkeys(
@@ -217,7 +253,11 @@ public sealed class NativeWindowRuntime : IDisposable
         UIntPtr subclassId,
         UIntPtr referenceData)
     {
-        if (message is WmActivateApp or WmAppForegroundSync)
+        if (message == WmSize)
+        {
+            LastNonMinimizedWasMaximized = TrackMaximizedState(LastNonMinimizedWasMaximized, wParam);
+        }
+        else if (message is WmActivateApp or WmAppForegroundSync)
         {
             SetApplicationActive(IsCurrentProcessForeground());
         }
@@ -318,9 +358,9 @@ public sealed class NativeWindowRuntime : IDisposable
         var data = CreateTrayData();
         if (!ShellNotifyIcon(NimAdd, ref data))
         {
+            var error = Marshal.GetLastWin32Error();
             DestroyLoadedTrayIcon();
-            throw new InvalidOperationException(
-                $"System tray icon registration failed with Win32 error {Marshal.GetLastWin32Error()}.");
+            throw new InvalidOperationException($"Windows 错误码 {error}。");
         }
 
         data.UnionTimeoutOrVersion = NotifyIconVersion4;

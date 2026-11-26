@@ -1,4 +1,5 @@
 using System.Text;
+using Nikkiward.ViewModels;
 using Nikkiward.Models;
 using Nikkiward.Services;
 
@@ -6,9 +7,151 @@ internal static class ChannelStoreBuilderTests
 {
     public static (string Name, Func<Task> Run)[] All =>
     [
+        (nameof(StoreRootsSurviveRegistration), StoreRootsSurviveRegistration),
+        (nameof(ProtectedStorePlanCannotWrite), ProtectedStorePlanCannotWrite),
+        (nameof(RetryRegistersExistingReceipt), RetryRegistersExistingReceipt),
+        ("rejected store plan shows only its reason", RejectedCapacity),
+        ("copied shared objects survive rebuild and reject changed content", RebuildCopiedObjects),
         ("channel store dry-run requires all three channels", MissingChannelIsRejected),
         ("channel store materializes three roots from one shared object layer", BuildsAndRollsBackThreeChannelStore),
     ];
+
+    private sealed class Discovery(StoreFixture fixture) : IInstallationDiscoveryService
+    {
+        public InstallationProfileCandidate Official { get; init; } = fixture.OfficialCandidate;
+
+        public Task<ProfileBuildResult> DiscoverAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ProfileBuildResult
+            {
+                Candidates = [Official, fixture.BilibiliCandidate, fixture.SteamCandidate],
+            });
+
+        public Task<ProfileBuildResult> DiscoverFromManualGameRootAsync(string selectedDirectory,
+            string? selectedLauncherRoot = null, CancellationToken cancellationToken = default) => DiscoverAsync(cancellationToken);
+    }
+
+    private static MainPageViewModel Page(StoreFixture fixture, IUserSettingsStore store, Discovery? discovery = null) =>
+        new(store, new WindowsInstallationInspector(), new RedactedDiagnosticReportExporter(), discovery ?? new Discovery(fixture));
+
+    private static async Task StoreRootsSurviveRegistration()
+    {
+        using var fixture = new StoreFixture();
+        var store = new JsonUserSettingsStore(fixture.Root);
+        var page = Page(fixture, store);
+        await page.InitializeAsync();
+        await page.PlanChannelStoreAsync(fixture.StoreRoot);
+        await page.BuildChannelStoreAsync();
+        var targets = (await store.LoadAsync()).ChannelStore.Profiles;
+        AssertEqual(3, targets.Count, "registered targets");
+        var moved = Path.Combine(fixture.Root, "moved-official");
+        Directory.Move(fixture.OfficialRoot, moved);
+        var restarted = Page(fixture, store, new Discovery(fixture)
+        {
+            Official = fixture.OfficialCandidate with
+            {
+                GameRootPath = moved,
+                Profile = fixture.OfficialCandidate.Profile! with { GameRootPath = moved },
+            },
+        });
+        await restarted.InitializeAsync();
+        Assert(await restarted.SelectProfileAsync(fixture.BilibiliCandidate.ProfileId), "switch profile");
+        Assert(restarted.GalleryReadOnlyRoots.Contains(moved), "newly discovered source lost on profile switch");
+        foreach (var view in new[] { page, restarted })
+        {
+            foreach (var root in targets.Select(target => target.GameRootPath)
+                .Concat([fixture.OfficialRoot, fixture.BilibiliRoot, fixture.SteamRoot]))
+            {
+                Assert(view.GalleryReadOnlyRoots.Contains(root, StringComparer.OrdinalIgnoreCase), $"missing root {root}");
+            }
+        }
+    }
+
+    private static async Task ProtectedStorePlanCannotWrite()
+    {
+        using var fixture = new StoreFixture();
+        var store = new JsonUserSettingsStore(fixture.Root);
+        Directory.CreateDirectory(Path.GetDirectoryName(store.SettingsFilePath)!);
+        await File.WriteAllTextAsync(store.SettingsFilePath, "{broken");
+        var page = Page(fixture, store);
+        await page.InitializeAsync();
+        Assert(page.CanPlanChannelStore, "dry-run available");
+        await page.PlanChannelStoreAsync(fixture.StoreRoot);
+        Assert(!page.CanBuildChannelStore, "create disabled");
+        await page.BuildChannelStoreAsync();
+        Assert(page.ChannelStoreStatusText.Contains("只读保护"), "protection visible");
+        Assert(!Directory.Exists(fixture.StoreRoot), "no store written");
+        AssertEqual("{broken", await File.ReadAllTextAsync(store.SettingsFilePath), "settings preserved");
+    }
+
+    private sealed class RegistrationStore(IUserSettingsStore store) : IUserSettingsStore
+    {
+        public bool Reject { get; set; } = true;
+        public string SettingsFilePath => store.SettingsFilePath;
+        public Task<UserSettings> LoadAsync(CancellationToken token = default) => store.LoadAsync(token);
+        public Task SaveAsync(UserSettings settings, CancellationToken token = default) =>
+            Reject && settings.ChannelStore.Profiles.Count > 0
+                ? throw new IOException("test save failure") : store.SaveAsync(settings, token);
+    }
+
+    private static async Task RetryRegistersExistingReceipt()
+    {
+        using var fixture = new StoreFixture();
+        var store = new RegistrationStore(new JsonUserSettingsStore(fixture.Root));
+        var page = Page(fixture, store);
+        await page.InitializeAsync();
+        await page.PlanChannelStoreAsync(fixture.StoreRoot);
+        await page.BuildChannelStoreAsync();
+        Assert(page.ChannelStoreStatusText.Contains("重试登记"), "registration retry available");
+        var receipts = Path.Combine(fixture.StoreRoot, "receipts");
+        var receipt = Directory.GetFiles(receipts, "*.json").Single();
+        foreach (var target in Directory.GetDirectories(Path.Combine(fixture.StoreRoot, "profiles")).SelectMany(path => Directory.GetDirectories(path)))
+        {
+            Assert(page.GalleryReadOnlyRoots.Contains(target, StringComparer.OrdinalIgnoreCase), "pending target unprotected");
+        }
+        store.Reject = false;
+        File.Move(receipt, receipt + ".bak");
+        await page.BuildChannelStoreAsync();
+        AssertEqual(0, (await store.LoadAsync()).ChannelStore.Profiles.Count, "missing receipt cannot register");
+        File.Move(receipt + ".bak", receipt);
+        await page.BuildChannelStoreAsync();
+        AssertEqual(receipt, Directory.GetFiles(receipts, "*.json").Single(), "no second build");
+        AssertEqual(Path.GetFileNameWithoutExtension(receipt), (await store.LoadAsync()).ChannelStore.LastReceiptId, "registered receipt");
+    }
+
+    private static Task RejectedCapacity()
+    {
+        var plan = new ChannelStoreBuildPlan
+        {
+            FailureCode = ChannelStoreFailureCode.InvalidStoreRoot,
+            FailureDetail = "存储位置必须位于 NTFS 卷上。",
+        };
+        AssertEqual(plan.FailureDetail, plan.GetCapacityText(), "rejected capacity");
+        return Task.CompletedTask;
+    }
+
+    private static async Task RebuildCopiedObjects()
+    {
+        using var fixture = new StoreFixture();
+        var builder = new WindowsChannelStoreBuilder();
+        var request = new ChannelStoreBuildRequest
+        {
+            Candidates = [fixture.OfficialCandidate, fixture.BilibiliCandidate, fixture.SteamCandidate],
+            StoreRootPath = fixture.StoreRoot,
+            EnableHardLinks = false,
+        };
+        var plan = await builder.CreatePlanAsync(request);
+        var first = await builder.BuildAsync(plan, plan.PlanSha256);
+        Assert(first.Succeeded, first.FailureDetail ?? "first build failed");
+        var secondPlan = await builder.CreatePlanAsync(request);
+        var second = await builder.BuildAsync(secondPlan, secondPlan.PlanSha256);
+        Assert(second.Succeeded, second.FailureDetail ?? "rebuild failed");
+        var shared = plan.Imports.First(item => item.SharedContent);
+        var bytes = File.ReadAllBytes(shared.DestinationPath);
+        bytes[0] ^= 1;
+        File.WriteAllBytes(shared.DestinationPath, bytes);
+        var conflict = await builder.BuildAsync(secondPlan, secondPlan.PlanSha256);
+        AssertEqual(ChannelStoreFailureCode.ImportConflict, conflict.FailureCode, "changed shared object");
+    }
 
     private static async Task MissingChannelIsRejected()
     {

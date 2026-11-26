@@ -58,6 +58,14 @@ public sealed partial class SettingsPage : PageBase
     public event EventHandler? JournalCacheClearRequested;
     public event EventHandler<AppearanceSettingsChangedEventArgs>? AppearanceSettingsChanged;
     public event EventHandler<GeneralSettingsChangedEventArgs>? GeneralSettingsChanged;
+    internal event EventHandler? ClearPlayTimeRequested
+    {
+        add => _commonView.ClearPlayTimeRequested += value;
+        remove => _commonView.ClearPlayTimeRequested -= value;
+    }
+
+    internal void ApplyPlayTimeState(bool canClear, string? error) => _commonView.ApplyPlayTimeState(canClear, error);
+
     public event EventHandler? VisualEffectsRequested;
     public event EventHandler<DownloadSettingsChangedEventArgs>? DownloadSettingsChanged;
     public event EventHandler<DownloadPathRequestedEventArgs>? DownloadPathRequested;

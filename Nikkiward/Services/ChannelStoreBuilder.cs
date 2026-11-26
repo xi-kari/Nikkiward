@@ -832,10 +832,7 @@ public sealed class WindowsChannelStoreBuilder : IChannelStoreBuilder
                     item.Sha256,
                     cancellationToken)
                 .ConfigureAwait(false);
-            if (!destinationVerified ||
-                item.SharedContent && !WindowsHardLinkIdentity.AreSameFile(
-                    item.SourcePath,
-                    item.DestinationPath))
+            if (!destinationVerified)
             {
                 throw new ChannelStoreException(
                     ChannelStoreFailureCode.ImportConflict,
@@ -921,20 +918,10 @@ public sealed class WindowsChannelStoreBuilder : IChannelStoreBuilder
         T value,
         CancellationToken cancellationToken)
     {
-        var temporaryPath = path + ".tmp-" + Guid.NewGuid().ToString("N");
-        try
-        {
-            var bytes = JsonSerializer.SerializeToUtf8Bytes(value, ReceiptJsonOptions);
-            await File.WriteAllBytesAsync(temporaryPath, bytes, cancellationToken).ConfigureAwait(false);
-            File.Move(temporaryPath, path, overwrite: true);
-        }
-        finally
-        {
-            if (File.Exists(temporaryPath))
-            {
-                File.Delete(temporaryPath);
-            }
-        }
+        using var file = new AtomicFile(path);
+        await JsonSerializer.SerializeAsync(file.Stream, value, ReceiptJsonOptions, cancellationToken)
+            .ConfigureAwait(false);
+        file.Commit(overwrite: true, cancellationToken);
     }
 
     private async Task<bool> RollbackCreatedStateAsync(
@@ -1127,7 +1114,7 @@ public sealed class WindowsChannelStoreBuilder : IChannelStoreBuilder
             var drive = new DriveInfo(Path.GetPathRoot(normalized)!);
             if (!string.Equals(drive.DriveFormat, "NTFS", StringComparison.OrdinalIgnoreCase))
             {
-                error = "Store root must be on NTFS.";
+                error = "存储位置必须位于 NTFS 卷上。";
                 return false;
             }
 

@@ -6,7 +6,13 @@ public static class ApplicationDataPaths
 {
     private const string RegistryPath = @"Software\Nikkiward";
     private const string RegistryValueName = "UserDataFolder";
-    private static readonly Lazy<string> RootPath = new(ResolveRoot);
+    private static readonly Lazy<string?> ConfiguredRoot = new(ReadConfiguredRoot);
+    private static readonly Lazy<string?> RootPath = new(() => ResolveRoot(ConfiguredRoot.Value, DefaultRoot));
+    private static bool useDefaultForSession;
+
+    internal static string? UnavailableRoot => RootPath.Value is null ? ConfiguredRoot.Value : null;
+
+    internal static void UseDefaultForSession() => useDefaultForSession = true;
 
     public static string DefaultRoot
     {
@@ -26,13 +32,30 @@ public static class ApplicationDataPaths
         }
     }
 
-    public static string Root => RootPath.Value;
+    public static string Root => RootPath.Value ?? (useDefaultForSession
+        ? DefaultRoot
+        : throw new DirectoryNotFoundException("选定的数据目录不可用。"));
 
     public static string SettingsFilePath => Path.Combine(Root, "settings.json");
 
-    public static void ConfigureRoot(string folderPath)
+    public static void ConfigureRoot(string folderPath, Action? startSuccessor = null)
     {
         var normalized = ValidateExistingRoot(folderPath, requireSettings: true);
+        var previous = ConfiguredRoot.Value ?? DefaultRoot;
+        WriteConfiguredRoot(normalized);
+        try
+        {
+            startSuccessor?.Invoke();
+        }
+        catch
+        {
+            WriteConfiguredRoot(previous);
+            throw;
+        }
+    }
+
+    private static void WriteConfiguredRoot(string normalized)
+    {
         using var key = Registry.CurrentUser.CreateSubKey(RegistryPath, writable: true)
             ?? throw new InvalidOperationException("The Nikkiward registry key could not be opened.");
         if (string.Equals(normalized, DefaultRoot, StringComparison.OrdinalIgnoreCase))
@@ -45,7 +68,7 @@ public static class ApplicationDataPaths
         }
     }
 
-    public static string ResolveRoot(string? configuredRoot, string defaultRoot)
+    public static string? ResolveRoot(string? configuredRoot, string defaultRoot)
     {
         var normalizedDefault = Path.GetFullPath(defaultRoot);
         if (string.IsNullOrWhiteSpace(configuredRoot))
@@ -56,14 +79,11 @@ public static class ApplicationDataPaths
         try
         {
             var normalized = Path.GetFullPath(configuredRoot.Trim());
-            return Directory.Exists(normalized) &&
-                   File.Exists(Path.Combine(normalized, "settings.json"))
-                ? normalized
-                : normalizedDefault;
+            return Directory.Exists(normalized) ? normalized : null;
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
         {
-            return normalizedDefault;
+            return null;
         }
     }
 
@@ -124,18 +144,9 @@ public static class ApplicationDataPaths
         return normalized;
     }
 
-    private static string ResolveRoot()
+    private static string? ReadConfiguredRoot()
     {
-        string? configuredRoot = null;
-        try
-        {
-            using var key = Registry.CurrentUser.OpenSubKey(RegistryPath, writable: false);
-            configuredRoot = key?.GetValue(RegistryValueName) as string;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-        }
-
-        return ResolveRoot(configuredRoot, DefaultRoot);
+        using var key = Registry.CurrentUser.OpenSubKey(RegistryPath, writable: false);
+        return key?.GetValue(RegistryValueName) as string;
     }
 }

@@ -28,5 +28,11 @@
                 Background="Transparent"
                 IsHitTestVisible="True" />
         </Grid>
+        <InfoBar
+            x:Name="TrayError"
+            Margin="16,0,16,16"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Bottom"
+            Severity="Warning" />
     </Grid>
 </Window>

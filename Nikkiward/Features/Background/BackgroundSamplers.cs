@@ -80,7 +80,7 @@ public sealed class NoneSampler : IBackgroundSampler
         BackgroundSourceDescriptor.Still(AppearanceProjector.BuiltInBackgroundSource);
 }
 
-public sealed class MotionSampler : IBackgroundSampler
+public sealed class MotionSampler : IBackgroundSampler, IMotionFrameSource
 {
     public BackgroundSourceKind Kind => BackgroundSourceKind.Motion;
 
@@ -91,80 +91,61 @@ public sealed class MotionSampler : IBackgroundSampler
         CancellationToken cancellationToken) =>
         ArtDecoder.TryComputeHashAsync(descriptor.Source, cancellationToken);
 
-    public async Task<ArtPixelBuffer?> SampleAsync(
-        BackgroundSourceDescriptor descriptor,
-        int targetWidth,
-        TimeSpan position,
-        CancellationToken cancellationToken)
-    {
-        var validation = await ValidateAsync(descriptor, cancellationToken);
-        if (!validation.IsUsable)
-        {
-            return null;
-        }
+    private sealed record VideoInspection(BackgroundSourceValidation Validation, MotionFrameReader? ReadFrame = null);
 
-        try
+    private sealed class VideoFrames(string path, uint width, uint height)
+    {
+        private TimeSpan? _duration;
+
+        public async Task<ArtPixelBuffer?> SampleAsync(
+            int targetWidth, TimeSpan position, CancellationToken cancellationToken)
         {
-            var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(
-                Path.GetFullPath(descriptor.Source));
-            var profile = await MediaEncodingProfile.CreateFromFileAsync(file);
-            cancellationToken.ThrowIfCancellationRequested();
-            if (profile.Video is null)
+            try
+            {
+                var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(path);
+                var clip = await MediaClip.CreateFromFileAsync(file);
+                cancellationToken.ThrowIfCancellationRequested();
+                var composition = new MediaComposition();
+                composition.Clips.Add(clip);
+                var duration = _duration ??= clip.OriginalDuration;
+                var safePosition = position < TimeSpan.Zero || position >= duration ? TimeSpan.Zero : position;
+                var targetHeight = Math.Max(1, (int)Math.Round(targetWidth * (double)height / width));
+                using var stream = await composition.GetThumbnailAsync(
+                    safePosition, targetWidth, targetHeight, VideoFramePrecision.NearestFrame);
+                cancellationToken.ThrowIfCancellationRequested();
+                return await ArtDecoder.DecodeScaledAsync(stream, targetWidth, cancellationToken);
+            }
+            catch (Exception ex) when (ex is
+                FileNotFoundException or
+                UnauthorizedAccessException or
+                IOException or
+                ArgumentException or
+                NotSupportedException or
+                InvalidOperationException or
+                COMException)
             {
                 return null;
             }
-
-            var clip = await MediaClip.CreateFromFileAsync(file);
-            var composition = new MediaComposition();
-            composition.Clips.Add(clip);
-            var safePosition = position < TimeSpan.Zero
-                ? TimeSpan.Zero
-                : position >= clip.OriginalDuration
-                    ? TimeSpan.Zero
-                    : position;
-            var targetHeight = Math.Max(
-                1,
-                (int)Math.Round(targetWidth * profile.Video.Height / (double)profile.Video.Width));
-            using var stream = await composition.GetThumbnailAsync(
-                safePosition,
-                targetWidth,
-                targetHeight,
-                VideoFramePrecision.NearestFrame);
-            cancellationToken.ThrowIfCancellationRequested();
-            return await ArtDecoder.DecodeScaledAsync(stream, targetWidth, cancellationToken);
-        }
-        catch (Exception ex) when (ex is
-            FileNotFoundException or
-            UnauthorizedAccessException or
-            IOException or
-            ArgumentException or
-            NotSupportedException or
-            InvalidOperationException or
-            COMException)
-        {
-            return null;
         }
     }
 
-    public async Task<BackgroundSourceValidation> ValidateAsync(
-        BackgroundSourceDescriptor descriptor,
-        CancellationToken cancellationToken)
+    private static async Task<VideoInspection> ValidateAsync(string? source, CancellationToken cancellationToken)
     {
-        if (descriptor.Kind != Kind || string.IsNullOrWhiteSpace(descriptor.Source))
+        if (string.IsNullOrWhiteSpace(source))
         {
-            return new(false, "没有可用的视频背景文件。");
+            return new(new(false, "没有可用的视频背景文件。"));
         }
 
         try
         {
-            var path = Path.GetFullPath(descriptor.Source);
+            var path = Path.GetFullPath(source);
             var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(path);
             var properties = await file.GetBasicPropertiesAsync();
             var profile = await MediaEncodingProfile.CreateFromFileAsync(file);
             cancellationToken.ThrowIfCancellationRequested();
             if (profile.Video is null)
             {
-                return new(false, "所选文件不包含可播放的视频轨道。");
+                return new(new(false, "所选文件不包含可播放的视频轨道。"));
             }
 
             var rate = profile.Video.FrameRate;
@@ -182,7 +163,7 @@ public sealed class MotionSampler : IBackgroundSampler
                     profile.Audio?.Subtype));
             if (!rules.IsUsable)
             {
-                return rules;
+                return new(rules);
             }
 
             var codecs = new CodecQuery();
@@ -193,12 +174,11 @@ public sealed class MotionSampler : IBackgroundSampler
             cancellationToken.ThrowIfCancellationRequested();
             if (videoDecoders.Count == 0)
             {
-                return new(
-                    false,
-                    $"系统没有可用于视频编码 {profile.Video.Subtype} 的解码器。");
+                return new(new(false, $"系统没有可用于视频编码 {profile.Video.Subtype} 的解码器。"));
             }
 
-            return BackgroundSourceValidation.Accepted;
+            var frames = new VideoFrames(path, profile.Video.Width, profile.Video.Height);
+            return new(BackgroundSourceValidation.Accepted, frames.SampleAsync);
         }
         catch (Exception ex) when (ex is
             FileNotFoundException or
@@ -209,8 +189,23 @@ public sealed class MotionSampler : IBackgroundSampler
             InvalidOperationException or
             COMException)
         {
-            return new(false, "视频文件不存在、不可读取、容器不受支持或缺少系统解码器。");
+            return new(new(false, "视频文件不存在、不可读取、容器不受支持或缺少系统解码器。"));
         }
+    }
+
+    public async Task<BackgroundSourceValidation> ValidateAsync(
+        BackgroundSourceDescriptor descriptor, CancellationToken cancellationToken) =>
+        (await ValidateAsync(CanServe(descriptor) ? descriptor.Source : null, cancellationToken)).Validation;
+
+    async Task<MotionFrameReader?> IMotionFrameSource.OpenFrameReaderAsync(
+        BackgroundSourceDescriptor descriptor, CancellationToken cancellationToken) =>
+        (await ValidateAsync(CanServe(descriptor) ? descriptor.Source : null, cancellationToken)).ReadFrame;
+
+    public async Task<ArtPixelBuffer?> SampleAsync(
+        BackgroundSourceDescriptor descriptor, int targetWidth, TimeSpan position, CancellationToken cancellationToken)
+    {
+        var video = await ValidateAsync(CanServe(descriptor) ? descriptor.Source : null, cancellationToken);
+        return video.ReadFrame is null ? null : await video.ReadFrame(targetWidth, position, cancellationToken);
     }
 }
 

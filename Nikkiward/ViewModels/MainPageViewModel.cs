@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Microsoft.UI.Xaml;
 using Nikkiward.Features.Background;
+using Nikkiward.Features.Gallery;
 using Nikkiward.Models;
 using Nikkiward.Services;
 using Nikkiward.Serialization;
@@ -12,7 +13,7 @@ namespace Nikkiward.ViewModels;
 public sealed partial class MainPageViewModel : INotifyPropertyChanged
 {
     private const string DiagnosticProfileId = "infinity-nikki-active";
-    private readonly IUserSettingsStore _settingsStore;
+    private readonly WindowSettingsSession _settingsStore;
     private readonly IInstallationInspector _installationInspector;
     private readonly IDiagnosticReportExporter _diagnosticExporter;
     private readonly IInstallationDiscoveryService _installationDiscovery;
@@ -25,9 +26,10 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     private ProfileBuildResult? _profileBuildResult;
     private LaunchPreflightResult? _preflightResult;
     private LaunchSnapshot? _snapshot;
+    private bool _checkingInstallation = true;
     private bool _initialized;
     private Task? _initializationTask;
-    private UserSettings _persistedSettings = new();
+    private UserSettings PersistedSettings => _settingsStore.Current;
     private bool _isBusy;
     private bool _isLaunchAttemptInProgress;
     private bool _isOfficialAssistedRunning;
@@ -56,7 +58,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         IInstallationDiscoveryService? installationDiscovery = null,
         ILaunchPreflightVerifier? preflightVerifier = null)
     {
-        _settingsStore = settingsStore;
+        _settingsStore = settingsStore as WindowSettingsSession ?? new WindowSettingsSession(settingsStore);
         _installationInspector = installationInspector;
         _diagnosticExporter = diagnosticExporter;
         _installationDiscovery = installationDiscovery ?? new WindowsInstallationProfileBuilder();
@@ -76,19 +78,19 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     /// Last loaded or saved gamepad section. Unlike the launch surfaces this is
     /// a plain application preference, not verification evidence.
     /// </summary>
-    public GamepadSettings GamepadSettings { get; private set; } = new();
+    public GamepadSettings GamepadSettings => PersistedSettings.Gamepad;
 
-    public AppearanceSettings AppearanceSettings { get; private set; } = new();
+    public AppearanceSettings AppearanceSettings => PersistedSettings.Appearance;
 
-    public GeneralSettings GeneralSettings { get; private set; } = new();
+    public GeneralSettings GeneralSettings => PersistedSettings.General;
 
-    public DownloadSettings DownloadSettings { get; private set; } = new();
+    public DownloadSettings DownloadSettings => PersistedSettings.Download;
 
-    public FileManagementSettings FileManagementSettings { get; private set; } = new();
+    public FileManagementSettings FileManagementSettings => PersistedSettings.FileManagement;
 
-    public ScreenshotSettings ScreenshotSettings { get; private set; } = new();
+    public ScreenshotSettings ScreenshotSettings => PersistedSettings.Screenshot;
 
-    public bool DeveloperModeEnabled { get; private set; }
+    public bool DeveloperModeEnabled => PersistedSettings.DeveloperModeEnabled;
 
     public ThemeMode ThemeMode => AppearanceSettings.ThemeMode;
 
@@ -111,13 +113,24 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
 
     public string? GalleryRootPath => FindGalleryRoot(_profile?.ProfileId);
 
+    public IReadOnlyList<string> GalleryReadOnlyRoots => PersistedSettings.GalleryProfiles
+        .Select(item => GalleryAnnotationStore.NormalizeGalleryRoot(item.RootPath))
+        .Concat(PersistedSettings.Profiles.Select(item => item.GameRootPath))
+        .Concat(_channelStoreReadOnlyRoots)
+        .Concat(PersistedSettings.ChannelStore.Profiles.Select(item => item.GameRootPath))
+        .Concat(_profileBuildResult?.Candidates.Select(item => item.GameRootPath) ?? [])
+        .OfType<string>().Where(Path.IsPathFullyQualified).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+
     public string XStarterPath => _selectedCandidate?.Provider?.BackendExecutablePath
         ?? "未绑定 provider";
 
-    public string LaunchCapabilityText => _preflightResult is
-        { StaticIdentityPassed: true, Contract.MaximumCapability: LaunchCapability.OfficialAssisted }
-        ? "OfficialAssisted · contract 能力上限（非当前执行能力）"
-        : "NotVerified · profile 尚未验证";
+    public string LaunchCapabilityText => _preflightResult switch
+    {
+        { StaticIdentityPassed: true, Contract.MaximumCapability: LaunchCapability.OfficialAssisted } =>
+            "OfficialAssisted · contract 能力上限（非当前执行能力）",
+        { StaticIdentityPassed: true } when IsExternalChannelSelected => "实验直启 · 渠道组件签名已验证",
+        _ => "NotVerified · profile 尚未验证",
+    };
 
     public string CapabilityDetailText =>
         "VerifiedOneClick=false · 固定 A 已有一次 ObservedSuccess，但 B/Pair、重启恢复、10/10 零重试与登录界面人工验收尚未完成；应用初始化不自动执行，每次点击都会重新 preflight。";
@@ -159,7 +172,16 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
 
     public string PlayTimeText => "奇想手账未同步";
 
-    public string PlayTimeDetailText => "当前应用不统计目标进程时长";
+    public string PlayTimeDetailText => "游戏时长来自官方奇想手账快照";
+
+    internal Dictionary<string, string> GetPlayTimeInstallations() =>
+        (_profileBuildResult?.Candidates ?? [])
+            .Where(c => c.State is InstallationCandidateState.Candidate or InstallationCandidateState.ReadyForStaticVerification &&
+                !string.IsNullOrEmpty(c.Profile?.ShippingExecutablePath))
+            .GroupBy(c => c.Profile!.ShippingExecutablePath, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Select(c => c.Identity.DistributionChannel).Distinct().Count() == 1)
+            .ToDictionary(group => group.Key, group => FormatDistribution(group.First().Identity.DistributionChannel),
+                StringComparer.OrdinalIgnoreCase);
 
     public string PrimaryActionText => _isLaunchAttemptInProgress
         ? "正在启动"
@@ -195,7 +217,12 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     public string ServiceShortcutText =>
         "奇想手账 · 内置网页登录与本地只读快照";
 
-    public string LifecycleText => _launchLifecycleText;
+    public string LifecycleText => SelectedRuntimeRefusal?.Block switch
+    {
+        ("Preflight.BaselineDirty", var detail) => $"Running · {detail}",
+        ({ } code, var detail) => $"Blocked · {code} · {detail}",
+        _ => _launchLifecycleText,
+    };
 
     public string ExecutionSummaryTitle =>
         _isOfficialAssistedRunning
@@ -231,7 +258,9 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     public string ProviderPreflightText =>
         _preflightResult is null
             ? "尚未执行静态 preflight；需从当前候选 roots + frozen catalog 重新派生路径。"
-            : $"StaticIdentityPassed={_preflightResult.StaticIdentityPassed} · FailureCode={_preflightResult.FailureCode} · verifier Plan={(_preflightResult.Plan is null ? "null" : "present")}；每次点击时从 fresh roots + frozen contract 派生瞬时 plan。";
+            : IsExternalChannelSelected
+                ? $"{StaticIdentityText} · 点击启动时重新核对五个组件并复核 xstarter.exe。"
+                : $"StaticIdentityPassed={_preflightResult.StaticIdentityPassed} · FailureCode={_preflightResult.FailureCode} · verifier Plan={(_preflightResult.Plan is null ? "null" : "present")}；每次点击时从 fresh roots + frozen contract 派生瞬时 plan。";
 
     public string ProviderObservationPolicyText =>
         "只允许本次 attempt 的 PID/父 PID、路径、退出码、窗口句柄、响应性、cleanup 与覆盖记录；不读取命令行、环境、token、内存或网络载荷。";
@@ -257,6 +286,8 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
 
     public string ExecutionGateText => _preflightResult switch
     {
+        { StaticIdentityPassed: true } when IsExternalChannelSelected =>
+            "渠道组件身份通过 · 每次直启重新验证并请求管理员权限",
         {
             FailureCode: LaunchPreflightFailureCode.ExecutionGateClosed,
             ExecutionAllowed: false,
@@ -340,7 +371,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
 
     public string SettingsStatusText
     {
-        get => _settingsStatusText;
+        get => _settingsStore.ProtectionMessage ?? _settingsStatusText;
         private set => SetField(ref _settingsStatusText, value);
     }
 
@@ -390,6 +421,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     public bool CanDiscover => !IsBusy;
 
     public bool CanAttemptOfficialAssistedLaunch =>
+        RuntimeBlockCode is null &&
         !IsBusy &&
         !_isLaunchAttemptInProgress &&
         !_isOfficialAssistedRunning &&
@@ -414,7 +446,13 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         CancellationToken cancellationToken = default)
     {
         var binding = _activeProcessBinding;
-        if (binding is null || _isCloseGameInProgress)
+        if (binding is null)
+        {
+            await RefreshRefusedBaselineAsync(cancellationToken);
+            return;
+        }
+
+        if (_isCloseGameInProgress)
         {
             return;
         }
@@ -424,6 +462,11 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 () => _launchCoordinator.Observe(binding),
                 cancellationToken)
             .ConfigureAwait(true);
+        if (_activeProcessBinding != binding || _isCloseGameInProgress)
+        {
+            return;
+        }
+
         if (observation.RunningProcessAlive)
         {
             _lastObservedGameAtUtc = DateTimeOffset.UtcNow;
@@ -439,7 +482,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         }
 
         var now = DateTimeOffset.UtcNow;
-        var startupGracePeriod = binding.RootProcessStartTimeUtc.AddSeconds(45);
+        var startupGracePeriod = binding.RootProcessStartTimeUtc + AfterLaunchWindowPolicy.ObservationTimeout;
         if (observation.RootProcessAlive ||
             observation.GameProcesses.Count > 0 ||
             observation.AuxiliaryProcesses.Count > 0)
@@ -486,6 +529,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         }
 
         _isCloseGameInProgress = true;
+        _afterLaunchWindow.Cancel();
         IsBusy = true;
         ActivityText = "正在关闭当前 profile 的游戏";
         NotifyLaunchAttemptChanged();
@@ -574,22 +618,12 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             _settingsErrorText = RedactUiText($"设置读取失败：{ex.GetType().Name}: {ex.Message}");
-            SettingsStatusText = "设置读取失败；本次不把设置内容当作安装或能力认证来源。";
+            SettingsStatusText = _settingsStore.ProtectionMessage ?? "设置读取失败。";
         }
 
         var selectedProfileId = settings?.SelectedProfileId;
         if (settings is not null)
         {
-            // Retained so a later profile save round-trips the sections this
-            // view model does not otherwise touch, such as gamepad mappings.
-            _persistedSettings = settings;
-            GamepadSettings = settings.Gamepad;
-            AppearanceSettings = settings.Appearance;
-            GeneralSettings = settings.General;
-            DownloadSettings = settings.Download;
-            FileManagementSettings = settings.FileManagement;
-            ScreenshotSettings = settings.Screenshot;
-            DeveloperModeEnabled = settings.DeveloperModeEnabled;
             InitializeChannelStoreSettings(settings.ChannelStore);
 
             var unknownCapability = settings.Profiles.Any(profile =>
@@ -612,7 +646,10 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
+            _checkingInstallation = false;
             _profileBuildResult = null;
+            _unselectedState = LaunchButtonState.Blocked;
+            _discoveryFailure = null;
             _selectedCandidate = null;
             _preflightResult = null;
             _profile = null;
@@ -684,6 +721,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             return;
         }
 
+        _checkingInstallation = true;
         IsBusy = true;
         ActivityText = "正在只读发现安装候选";
         var shouldRefresh = false;
@@ -711,6 +749,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         }
         finally
         {
+            _checkingInstallation = false;
             IsBusy = false;
         }
 
@@ -732,6 +771,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 "另一个检查正在进行，请稍候几秒再重新选择目录。");
         }
 
+        _checkingInstallation = true;
         IsBusy = true;
         ActivityText = "正在验证手动选择的安装根";
         var shouldRefresh = false;
@@ -752,10 +792,10 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
 
             // Every manual selection must leave a visible trace; a silently
             // discarded pick is indistinguishable from a broken button.
-            SettingsStatusText = outcome.Succeeded
+            ManualDiscoveryStatusText = outcome.Succeeded
                 ? $"已使用所选目录：{outcome.Detail}"
                 : $"所选目录未通过校验：{outcome.Detail}";
-            ManualDiscoveryStatusText = SettingsStatusText;
+            SettingsStatusText = ManualDiscoveryStatusText;
             if (!outcome.Succeeded)
             {
                 LastErrorText = CombineErrors(_settingsErrorText, outcome.Detail)!;
@@ -776,6 +816,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         }
         finally
         {
+            _checkingInstallation = false;
             IsBusy = false;
         }
 
@@ -954,13 +995,11 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             .GroupBy(profile => profile.ProfileId, StringComparer.Ordinal)
             .Select(group => group.First())
             .ToArray();
-        var updated = _persistedSettings with
+        await _settingsStore.UpdateAsync(current => current with
         {
             SelectedProfileId = selectedProfileId,
             Profiles = profiles,
-        };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
+        }, cancellationToken, automatic: true);
         SettingsStatusText = $"已保存 SelectedProfileId 与非权威 profile seed · {_settingsStore.SettingsFilePath}";
     }
 
@@ -974,10 +1013,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     {
         ArgumentNullException.ThrowIfNull(gamepad);
 
-        var updated = _persistedSettings with { Gamepad = gamepad };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
-        GamepadSettings = gamepad;
+        await _settingsStore.UpdateAsync(current => current with { Gamepad = gamepad }, cancellationToken);
     }
 
     public async Task SaveGeneralSettingsAsync(
@@ -985,10 +1021,10 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         CancellationToken cancellationToken = default)
     {
         var normalized = ApplicationSettingsValidator.Normalize(general);
-        var updated = _persistedSettings with { General = normalized };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
-        GeneralSettings = normalized;
+        await _settingsStore.UpdateAsync(current => current with
+        {
+            General = normalized with { MainWindowHotkey = current.General.MainWindowHotkey },
+        }, cancellationToken);
         OnPropertyChanged(nameof(GeneralSettings));
     }
 
@@ -997,10 +1033,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         CancellationToken cancellationToken = default)
     {
         var normalized = ApplicationSettingsValidator.Normalize(download);
-        var updated = _persistedSettings with { Download = normalized };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
-        DownloadSettings = normalized;
+        await _settingsStore.UpdateAsync(current => current with { Download = normalized }, cancellationToken);
         OnPropertyChanged(nameof(DownloadSettings));
         OnPropertyChanged(nameof(ChannelStoreRootPath));
     }
@@ -1010,10 +1043,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         CancellationToken cancellationToken = default)
     {
         var normalized = ApplicationSettingsValidator.Normalize(fileManagement);
-        var updated = _persistedSettings with { FileManagement = normalized };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
-        FileManagementSettings = normalized;
+        await _settingsStore.UpdateAsync(current => current with { FileManagement = normalized }, cancellationToken);
         OnPropertyChanged(nameof(FileManagementSettings));
     }
 
@@ -1022,10 +1052,11 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         CancellationToken cancellationToken = default)
     {
         var normalized = ApplicationSettingsValidator.Normalize(screenshot);
-        var updated = _persistedSettings with { Screenshot = normalized };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
-        ScreenshotSettings = normalized;
+        var changesHotkey = normalized.Hotkey != ScreenshotSettings.Hotkey;
+        await _settingsStore.UpdateAsync(current => current with
+        {
+            Screenshot = changesHotkey ? normalized : normalized with { Hotkey = current.Screenshot.Hotkey },
+        }, cancellationToken);
         OnPropertyChanged(nameof(ScreenshotSettings));
     }
 
@@ -1034,19 +1065,11 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         string screenshotHotkey,
         CancellationToken cancellationToken = default)
     {
-        var general = ApplicationSettingsValidator.Normalize(
-            GeneralSettings with { MainWindowHotkey = mainWindowHotkey });
-        var screenshot = ApplicationSettingsValidator.Normalize(
-            ScreenshotSettings with { Hotkey = screenshotHotkey });
-        var updated = _persistedSettings with
+        await _settingsStore.UpdateAsync(current => current with
         {
-            General = general,
-            Screenshot = screenshot,
-        };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
-        GeneralSettings = general;
-        ScreenshotSettings = screenshot;
+            General = ApplicationSettingsValidator.Normalize(current.General with { MainWindowHotkey = mainWindowHotkey }),
+            Screenshot = ApplicationSettingsValidator.Normalize(current.Screenshot with { Hotkey = screenshotHotkey }),
+        }, cancellationToken);
         OnPropertyChanged(nameof(GeneralSettings));
         OnPropertyChanged(nameof(ScreenshotSettings));
     }
@@ -1055,10 +1078,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         bool enabled,
         CancellationToken cancellationToken = default)
     {
-        var updated = _persistedSettings with { DeveloperModeEnabled = enabled };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
-        DeveloperModeEnabled = enabled;
+        await _settingsStore.UpdateAsync(current => current with { DeveloperModeEnabled = enabled }, cancellationToken);
         OnPropertyChanged(nameof(DeveloperModeEnabled));
     }
 
@@ -1071,9 +1091,12 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             throw new ArgumentOutOfRangeException(nameof(themeMode));
         }
 
-        await SaveAppearanceSettingsAsync(
-            AppearanceSettings with { ThemeMode = themeMode },
-            cancellationToken);
+        await _settingsStore.UpdateAsync(current => current with
+        {
+            Appearance = current.Appearance with { ThemeMode = themeMode },
+        }, cancellationToken);
+        OnPropertyChanged(nameof(AppearanceSettings));
+        OnPropertyChanged(nameof(ThemeMode));
     }
 
     public async Task SaveAppearanceSettingsAsync(
@@ -1083,10 +1106,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         ArgumentNullException.ThrowIfNull(appearance);
 
         var normalized = AppearanceSettingsValidator.Normalize(appearance);
-        var updated = _persistedSettings with { Appearance = normalized };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
-        AppearanceSettings = normalized;
+        await _settingsStore.UpdateAsync(current => current with { Appearance = normalized }, cancellationToken);
         OnPropertyChanged(nameof(AppearanceSettings));
         OnPropertyChanged(nameof(ThemeMode));
     }
@@ -1106,23 +1126,22 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             throw new ArgumentException("Gallery root is required.", nameof(rootPath));
         }
 
-        var normalizedRoot = Path.GetFullPath(rootPath)
-            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        var galleryProfiles = _persistedSettings.GalleryProfiles
-            .Where(item => !string.Equals(
-                item.ProfileId,
-                profileId,
-                StringComparison.Ordinal))
-            .Append(new GalleryProfileSettings
-            {
-                ProfileId = profileId,
-                RootPath = normalizedRoot,
-            })
-            .OrderBy(item => item.ProfileId, StringComparer.Ordinal)
-            .ToArray();
-        var updated = _persistedSettings with { GalleryProfiles = galleryProfiles };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
+        var normalizedRoot = GalleryAnnotationStore.NormalizeGalleryRoot(rootPath);
+        await _settingsStore.UpdateAsync(current => current with
+        {
+            GalleryProfiles = current.GalleryProfiles
+                .Where(item => !string.Equals(
+                    item.ProfileId,
+                    profileId,
+                    StringComparison.Ordinal))
+                .Append(new GalleryProfileSettings
+                {
+                    ProfileId = profileId,
+                    RootPath = normalizedRoot,
+                })
+                .OrderBy(item => item.ProfileId, StringComparer.Ordinal)
+                .ToArray(),
+        }, cancellationToken);
 
         if (string.Equals(_profile?.ProfileId, profileId, StringComparison.Ordinal))
         {
@@ -1139,20 +1158,11 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             throw new ArgumentException("ProfileId is required.", nameof(profileId));
         }
 
-        var galleryProfiles = _persistedSettings.GalleryProfiles
-            .Where(item => !string.Equals(
-                item.ProfileId,
-                profileId,
-                StringComparison.Ordinal))
-            .ToArray();
-        if (galleryProfiles.Length == _persistedSettings.GalleryProfiles.Count)
+        await _settingsStore.UpdateAsync(current =>
         {
-            return;
-        }
-
-        var updated = _persistedSettings with { GalleryProfiles = galleryProfiles };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
+            var roots = current.GalleryProfiles.Where(item => item.ProfileId != profileId).ToArray();
+            return roots.Length == current.GalleryProfiles.Count ? current : current with { GalleryProfiles = roots };
+        }, cancellationToken);
 
         if (string.Equals(_profile?.ProfileId, profileId, StringComparison.Ordinal))
         {
@@ -1167,7 +1177,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             return null;
         }
 
-        var matches = _persistedSettings.GalleryProfiles
+        var matches = PersistedSettings.GalleryProfiles
             .Where(item => string.Equals(
                 item.ProfileId,
                 profileId,
@@ -1176,7 +1186,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        return matches.Length == 1 ? matches[0] : null;
+        return matches.Length == 1 ? GalleryAnnotationStore.NormalizeGalleryRoot(matches[0]) : null;
     }
 
     private async Task ApplyDiscoveryResultAsync(
@@ -1185,7 +1195,9 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         CancellationToken cancellationToken)
     {
         result = ApplyPersistedChannelStoreTargets(result);
+        _snapshot = null;
         _profileBuildResult = result;
+        _unselectedState = LaunchDiscoveryDisplay.WithoutSelection(false, result, out _discoveryFailure);
         _selectedCandidate = null;
         _preflightResult = null;
         _profile = null;
@@ -1261,6 +1273,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 cancellationToken);
         }
 
+        _checkingInstallation = false;
         RebuildPlatformEvidence(result.Candidates);
         NotifyProfileChanged();
         StaticReadinessText = _selectedCandidate is null
@@ -1400,6 +1413,10 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                     _selectedCandidate,
                     cancellationToken);
             }
+            else if (IsExternalChannelSelected)
+            {
+                _preflightResult = await _channelEntryLauncher.VerifyIdentityAsync(_selectedCandidate!, cancellationToken);
+            }
 
             Components.Clear();
             foreach (var component in results)
@@ -1407,36 +1424,33 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 Components.Add(new ComponentItemViewModel(component));
             }
 
-            var readinessState = ResolveReadinessState(results);
-            var failureReason = BuildFailureReason(results);
-            if (_preflightResult is { StaticIdentityPassed: false } failedPreflight)
+            if (SelectedRuntimeRefusal is { Block.Code: not null and not ("Preflight.BaselineDirty" or "Preflight.ObserverUnavailable") } refusal)
             {
-                // Fold the preflight verdict (incl. signer identity detail) into
-                // the snapshot so exported diagnostics show why launching is
-                // blocked — the inspector alone cannot tell.
-                failureReason = CombineErrors(
-                    failureReason,
-                    $"预检未通过：{FormatPreflightFailure(failedPreflight.FailureCode)} — {failedPreflight.FailureDetail}");
+                refusal.Block = default;
             }
 
+            var readinessState = ResolveReadinessState(results);
+            var componentFailure = BuildFailureReason(results);
+            var failureReason = LaunchSnapshot.ResolveFailureReason(
+                _preflightResult, readinessState, IsExternalChannelSelected, componentFailure);
             var capturedAtUtc = DateTimeOffset.UtcNow;
+            var externalIdentityPassed = IsExternalChannelSelected && _preflightResult is { StaticIdentityPassed: true };
 
             _snapshot = new LaunchSnapshot
             {
                 ProfileId = _profile.ProfileId,
-                State = readinessState is LaunchState.Ready
+                State = readinessState is LaunchState.Ready && !externalIdentityPassed
                     ? LaunchState.Failed
                     : readinessState,
                 Capability = _profile.Capability,
                 CapturedAtUtc = capturedAtUtc,
                 Components = results,
-                LastFailureReason = readinessState is LaunchState.Ready
-                    ? "静态身份检查完成，但 Nikkiward 当前执行能力仍未启用。"
-                    : failureReason,
+                LastFailureReason = failureReason,
             };
 
             StaticReadinessText = _preflightResult switch
             {
+                { StaticIdentityPassed: true } when IsExternalChannelSelected => "渠道组件签名验证通过",
                 { StaticIdentityPassed: true } => $"静态身份已验证 · {results.Count} 个组件（ExecutionGateClosed）",
                 { FailureCode: var code } => $"静态身份未通过 · {FormatPreflightFailure(code)}",
                 _ => readinessState switch
@@ -1447,7 +1461,9 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 },
             };
             LastUpdatedText = capturedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss zzz");
-            LastErrorText = CombineErrors(_settingsErrorText, failureReason) ?? "无（本次只读检查）";
+            LastErrorText = CombineErrors(_settingsErrorText,
+                _preflightResult is { StaticIdentityPassed: false } ? failureReason : componentFailure)
+                ?? "无（本次只读检查）";
             ExportStatusText = "当前快照可导出；报告会脱敏路径并排除命令行、token、进程内存与网络载荷。";
             ActivityText = "空闲";
             OnPropertyChanged(nameof(CanExport));
@@ -1496,6 +1512,14 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         {
             var diagnosticProfile = _profile with { ProfileId = DiagnosticProfileId };
             var diagnosticSnapshot = _snapshot with { ProfileId = DiagnosticProfileId };
+            if (SelectedRuntimeRefusal is { } failure)
+            {
+                diagnosticSnapshot = diagnosticSnapshot with
+                {
+                    LastFailureReason = CombineErrors(_snapshot.LastFailureReason,
+                        $"最近运行检查拒绝（{failure.Time:O}）：{failure.Code} · {failure.Detail}"),
+                };
+            }
             var result = await _diagnosticExporter.ExportAsync(
                 diagnosticProfile,
                 diagnosticSnapshot,
@@ -1585,14 +1609,12 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             {
                 if (preparation.Preflight is { StaticIdentityPassed: false } failedPreflight)
                 {
-                    // Reflect the fresh verdict on the launch button immediately;
-                    // otherwise a just-updated or tampered install keeps showing
-                    // “启动游戏” until the next full rediscovery.
-                    _preflightResult = failedPreflight;
-                    StaticReadinessText =
-                        $"静态身份未通过 · {FormatPreflightFailure(failedPreflight.FailureCode)}";
-                    NotifyProfileChanged();
-                    NotifyLaunchStateChanged();
+                    ApplyPreflightFailure(failedPreflight);
+                }
+                else if (_selectedCandidate is not null)
+                {
+                    var paths = preparation.Preflight?.Components.Select(component => component.FilePath).ToArray() ?? [];
+                    RecordRuntimeRefusal(preparation.FailureCode, preparation.Detail, paths);
                 }
 
                 _launchAttemptStatusText =
@@ -1663,6 +1685,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 }
 
                 _activeProcessBinding = binding;
+                _afterLaunchWindow.Begin(binding.AttemptId);
                 _lastObservedGameAtUtc = null;
                 _isLaunchCleanupRequired = false;
                 _launchLifecycleText =
@@ -1681,6 +1704,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             }
             else
             {
+                RecordRuntimeRefusal(receipt.FailureCode, receipt.Detail, preparation.ObservedProcessPaths);
                 _launchAttemptStatusText =
                     $"{receipt.FailureCode} · RootPid=null · 未创建 provider";
                 _launchLifecycleText =
@@ -1764,6 +1788,14 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                     selectedProfileId,
                     StringComparison.Ordinal)));
         }
+    }
+
+    private void ApplyPreflightFailure(LaunchPreflightResult failure)
+    {
+        _preflightResult = failure;
+        _snapshot = _snapshot?.WithPreflightFailure(failure);
+        StaticReadinessText = $"静态身份未通过 · {FormatPreflightFailure(failure.FailureCode)}";
+        NotifyProfileChanged();
     }
 
     private static LaunchState ResolveReadinessState(IReadOnlyList<ComponentVerification> components)

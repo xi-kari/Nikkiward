@@ -1,15 +1,29 @@
+using System.Security.Cryptography;
 using Nikkiward.Features.Background;
 using Nikkiward.Features.Shell;
 using Nikkiward.Models;
 
 internal static class MotionBackgroundTests
 {
+    private const string SampleHash = "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81";
+
     public static (string Name, Func<Task> Run)[] All =>
     [
         ("motion source rules accept common codecs and containers", MotionSourceRulesAcceptCommonMedia),
         ("motion source rules accept every positive finite frame rate", MotionSourceRulesAcceptUncappedFrameRates),
         ("motion source rules reject unsupported media", MotionSourceRulesRejectUnsupportedMedia),
         ("motion import retries a transient source lock", MotionImportRetriesTransientSourceLock),
+        ("motion sampling reuses identity for 30 frames", MotionSamplingReusesIdentity),
+        ("motion sampling reidentifies switched sources", MotionSamplingSwitchesSources),
+        ("motion sampling invalidates a changed length", () => MotionSamplingInvalidatesReplacement(true)),
+        ("motion sampling invalidates a changed write time", () => MotionSamplingInvalidatesReplacement(false)),
+        ("stopped playback does not sample", StoppedPlaybackDoesNotSample),
+        ("cancelled motion identification retries the file hash", () => CancelledMotionSamplingRetries(true)),
+        ("cancelled motion frames discard pending identity", () => CancelledMotionSamplingRetries(false)),
+        ("motion sampling rejects replacement during identification", MotionSamplingRejectsUnstableIdentity),
+        ("a replaced frame never reaches palette analysis", ReplacedFrameDoesNotReachAnalysis),
+        ("a cached palette shares identity with playback", CachedPaletteSharesMotionIdentity),
+        ("unidentified dynamic frames wait for a readable hash", UnidentifiedMotionRetries),
         ("glass tier resolver covers the degradation matrix", GlassTierResolverCoversMatrix),
         ("motion requests never resolve to motion blur", MotionNeverResolvesToMotionBlur),
         ("motion scrim floor and local factor remain bounded", ReadabilityRuntimeContractsStayBounded),
@@ -181,6 +195,248 @@ internal static class MotionBackgroundTests
 
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    private static async Task MotionSamplingReusesIdentity()
+    {
+        using var fixture = new SamplingFixture();
+        var path = fixture.Write(new string('a', 64) + ".mp4", [1, 2, 3]);
+        AssertEqual(SampleHash, (await fixture.SampleAsync(path))?.ArtHash, "initial analysis");
+        for (var index = 1; index <= 30; index++)
+        {
+            var analysis = await fixture.SampleAsync(path, index);
+            AssertEqual(SampleHash, analysis?.ArtHash, "palette key must identify the file contents");
+        }
+
+        AssertEqual(31, fixture.AnalyzedFrames, "initial analysis and every subsequent tick must analyze a frame");
+        Assert(fixture.Sampler.Frames.SequenceEqual(Enumerable.Range(0, 31).Select(i => TimeSpan.FromSeconds(i))),
+            "resampling must use the requested playback positions");
+        AssertEqual(1, fixture.Sampler.HashCalls, "whole-file hashes");
+        AssertEqual(1, fixture.Sampler.MediaReads, "media property reads");
+    }
+
+    private static async Task MotionSamplingSwitchesSources()
+    {
+        using var fixture = new SamplingFixture();
+        var first = fixture.Write("first.mp4", [1]);
+        var second = fixture.Write("second.mp4", [2]);
+        File.SetLastWriteTimeUtc(second, File.GetLastWriteTimeUtc(first));
+        var initial = await fixture.SampleAsync(first);
+        var switched = await fixture.SampleAsync(second);
+        Assert(initial is not null && switched is not null && initial.ArtHash != switched.ArtHash,
+            "a new path must identify its own contents even with identical file properties");
+        await fixture.SampleAsync(second);
+        AssertEqual(2, fixture.Sampler.HashCalls, "one hash per source");
+        AssertEqual(2, fixture.Sampler.MediaReads, "one media inspection per source");
+        await fixture.SampleAsync(first);
+        AssertEqual(3, fixture.Sampler.HashCalls, "returning to a previous source starts fresh");
+    }
+
+    private static async Task MotionSamplingInvalidatesReplacement(bool changeLength)
+    {
+        using var fixture = new SamplingFixture();
+        var path = fixture.Write("video.mp4", [1]);
+        var originalTime = File.GetLastWriteTimeUtc(path);
+        var original = await fixture.SampleAsync(path);
+        fixture.Write("video.mp4", changeLength ? [2, 3] : [2]);
+        File.SetLastWriteTimeUtc(path, changeLength ? originalTime : originalTime.AddMinutes(1));
+        var replacement = await fixture.SampleAsync(path);
+        Assert(original is not null && replacement is not null && original.ArtHash != replacement.ArtHash,
+            "a replacement must use its own content hash");
+        await fixture.SampleAsync(path);
+        AssertEqual(2, fixture.Sampler.HashCalls, "one additional hash for the replacement");
+        AssertEqual(2, fixture.Sampler.MediaReads, "refresh the replacement's media properties once");
+        AssertEqual(3, fixture.Sampler.Frames.Count, "all three positions must reach the sampler");
+    }
+
+    private static async Task StoppedPlaybackDoesNotSample()
+    {
+        using var lifetime = new CancellationTokenSource();
+        using var fixture = new SamplingFixture(lifetime.Token);
+        var path = fixture.Write("video.mp4", [1]);
+        await fixture.SampleAsync(path);
+        lifetime.Cancel();
+        await AssertCancelledAsync(fixture.SampleAsync(path), "a tick queued before stop");
+        AssertEqual(1, fixture.Sampler.HashCalls, "hashes after stop");
+        AssertEqual(1, fixture.Sampler.MediaReads, "media reads after stop");
+        AssertEqual(1, fixture.Sampler.Frames.Count, "frames after stop");
+        fixture.Playback = new MotionPlaybackSampling();
+        await fixture.SampleAsync(path);
+        AssertEqual(2, fixture.Sampler.HashCalls, "replaying the same path starts a new identity");
+    }
+
+    private static async Task CancelledMotionSamplingRetries(bool cancelDuringHash)
+    {
+        using var fixture = new SamplingFixture();
+        using var cancellation = new CancellationTokenSource();
+        var path = fixture.Write("video.mp4", [1]);
+        if (cancelDuringHash)
+        {
+            fixture.Sampler.AfterHash = cancellation.Cancel;
+        }
+        else
+        {
+            fixture.Sampler.OnFrame = cancellation.Cancel;
+        }
+        await AssertCancelledAsync(fixture.SampleAsync(path, token: cancellation.Token), "cancelled sample");
+        fixture.Sampler.AfterHash = null;
+        fixture.Sampler.OnFrame = null;
+        Assert(await fixture.SampleAsync(path) is not null, "retry must succeed");
+        await fixture.SampleAsync(path);
+        AssertEqual(2, fixture.Sampler.HashCalls, "only the completed retry can supply a cached hash");
+        AssertEqual(cancelDuringHash ? 1 : 2, fixture.Sampler.MediaReads, "only stable media preparation is reused");
+    }
+
+    private static async Task MotionSamplingRejectsUnstableIdentity()
+    {
+        using var fixture = new SamplingFixture();
+        var path = fixture.Write("video.mp4", [1]);
+        fixture.Sampler.AfterHash = () => fixture.Write("video.mp4", [1, 2, 3]);
+        Assert(await fixture.SampleAsync(path) is null, "do not analyze a replacement under the old hash");
+        AssertEqual(0, fixture.Sampler.Frames.Count, "reject the obsolete identity before decoding");
+        fixture.Sampler.AfterHash = null;
+        var retry = await fixture.SampleAsync(path);
+        AssertEqual(SampleHash, retry?.ArtHash, "retry must identify the replacement");
+        await fixture.SampleAsync(path);
+        AssertEqual(2, fixture.Sampler.HashCalls, "only the stable hash is reused");
+    }
+
+    private static async Task ReplacedFrameDoesNotReachAnalysis()
+    {
+        using var fixture = new SamplingFixture();
+        var path = fixture.Write("video.mp4", [1]);
+        fixture.Sampler.OnFrame = () => fixture.Write("video.mp4", [1, 2, 3]);
+        Assert(await fixture.SampleAsync(path) is null, "discard a frame read across two revisions");
+        AssertEqual(0, fixture.AnalyzedFrames, "a mixed frame must never feed the palette cache");
+        fixture.Sampler.OnFrame = null;
+        AssertEqual(SampleHash, (await fixture.SampleAsync(path))?.ArtHash, "retry uses the replacement");
+        AssertEqual(2, fixture.Sampler.HashCalls, "identify the stable file again");
+    }
+
+    private static async Task UnidentifiedMotionRetries()
+    {
+        using var fixture = new SamplingFixture();
+        var path = fixture.Write("video.mp4", [1, 2, 3]);
+        fixture.Sampler.HashUnavailable = true;
+        Assert(await fixture.SampleAsync(path) is null, "unidentified ticks must leave the published palette alone");
+        AssertEqual(0, fixture.Sampler.Frames.Count, "skip decoding until the file can be identified");
+        fixture.Sampler.HashUnavailable = false;
+        AssertEqual(SampleHash, (await fixture.SampleAsync(path))?.ArtHash, "retry the actual content hash");
+        await fixture.SampleAsync(path);
+        AssertEqual(2, fixture.Sampler.HashCalls, "only the successful hash can be reused");
+        AssertEqual(2, fixture.AnalyzedFrames, "both identified ticks must analyze a frame");
+    }
+
+    private static async Task CachedPaletteSharesMotionIdentity()
+    {
+        using var fixture = new SamplingFixture();
+        var path = fixture.Write("video.mp4", [1, 2, 3]);
+        var cache = new ArtAnalysisCache(Path.GetDirectoryName(path));
+        var plate = cache.GetBlurFilePath(SampleHash);
+        Directory.CreateDirectory(cache.BlurCachePath);
+        File.WriteAllBytes(plate, [1]);
+        await cache.SaveAsync(new() { ArtHash = SampleHash, SourceKind = BackgroundSourceKind.Motion, BlurredArtPath = plate });
+        var cached = await fixture.Playback.AnalyzeAsync(BackgroundSourceDescriptor.Motion(path, "display name"),
+            fixture.Sampler, (hash, _, token) => cache.LoadAsync(hash!, token), default);
+        AssertEqual(plate, cached?.BlurredArtPath, "initial analysis must find the content-addressed palette and plate");
+        AssertEqual(0, fixture.Sampler.MediaReads, "a palette cache hit needs no media inspection");
+        var sampled = await fixture.SampleAsync(path);
+        Assert(sampled is not null && sampled.ArtHash == cached?.ArtHash, "both paths must use the same cache key");
+        AssertEqual(1, fixture.Sampler.HashCalls, "a cache hit supplies the first tick's identity");
+        AssertEqual(1, fixture.Sampler.MediaReads, "the first tick still prepares the video");
+        AssertEqual(1, fixture.Sampler.Frames.Count, "the first tick still decodes its frame");
+    }
+
+    private static async Task AssertCancelledAsync(Task operation, string message)
+    {
+        try
+        {
+            await operation;
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        throw new InvalidOperationException($"{message}: cancellation was not observed");
+    }
+
+    private sealed class SamplingFixture(CancellationToken lifetime = default) : IDisposable
+    {
+        private readonly string _root = Directory.CreateTempSubdirectory("nikkiward-motion-").FullName;
+        public CountingSampler Sampler { get; } = new();
+        public MotionPlaybackSampling Playback { get; set; } = new(lifetime);
+        public int AnalyzedFrames { get; private set; }
+
+        public string Write(string name, byte[] bytes)
+        {
+            var path = Path.Combine(_root, name);
+            File.WriteAllBytes(path, bytes);
+            return path;
+        }
+
+        public Task<ArtAnalysis?> SampleAsync(string path, int seconds = 0, CancellationToken token = default) =>
+            Playback.AnalyzeAsync(BackgroundSourceDescriptor.Motion(path), Sampler,
+                async (hash, readFrame, cancellationToken) =>
+                {
+                    var frame = await readFrame(1, TimeSpan.FromSeconds(seconds), cancellationToken);
+                    if (frame is null)
+                    {
+                        return null;
+                    }
+                    AnalyzedFrames++;
+                    return new ArtPaletteAnalyzer().Analyze(frame, hash!);
+                }, token);
+
+        public void Dispose() => Directory.Delete(_root, recursive: true);
+    }
+
+    private sealed class CountingSampler : IBackgroundSampler, IMotionFrameSource
+    {
+        public int HashCalls { get; private set; }
+        public int MediaReads { get; private set; }
+        public List<TimeSpan> Frames { get; } = [];
+        public Action? AfterHash { get; set; }
+        public Action? OnFrame { get; set; }
+        public bool HashUnavailable { get; set; }
+        public BackgroundSourceKind Kind => BackgroundSourceKind.Motion;
+        public bool CanServe(BackgroundSourceDescriptor descriptor) => descriptor.Kind == Kind;
+
+        public async Task<string?> TryIdentifyAsync(BackgroundSourceDescriptor descriptor, CancellationToken token)
+        {
+            HashCalls++;
+            if (HashUnavailable)
+            {
+                return null;
+            }
+            string hash;
+            using (var stream = File.OpenRead(descriptor.Source))
+            {
+                hash = Convert.ToHexStringLower(await SHA256.HashDataAsync(stream, token));
+            }
+            AfterHash?.Invoke();
+            return hash;
+        }
+
+        public Task<MotionFrameReader?> OpenFrameReaderAsync(BackgroundSourceDescriptor descriptor, CancellationToken token)
+        {
+            MediaReads++;
+            return Task.FromResult<MotionFrameReader?>((width, position, cancellationToken) =>
+            {
+                Frames.Add(position);
+                OnFrame?.Invoke();
+                return Task.FromResult<ArtPixelBuffer?>(new ArtPixelBuffer([0, 0, 0, 255], 1, 1));
+            });
+        }
+
+        public async Task<ArtPixelBuffer?> SampleAsync(
+            BackgroundSourceDescriptor descriptor, int width, TimeSpan position, CancellationToken token)
+        {
+            var reader = await OpenFrameReaderAsync(descriptor, token);
+            return await reader!(width, position, token);
+        }
+
+        public Task<BackgroundSourceValidation> ValidateAsync(BackgroundSourceDescriptor descriptor, CancellationToken token) =>
+            Task.FromResult(BackgroundSourceValidation.Accepted);
     }
 
     private static Task GlassTierResolverCoversMatrix()

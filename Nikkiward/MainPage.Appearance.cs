@@ -882,9 +882,11 @@ public sealed partial class MainPage
         BackgroundSourceDescriptor descriptor,
         CancellationToken cancellationToken)
     {
-        if (!await AnalyzeBackdropAsync(descriptor, cancellationToken))
+        using var sampling = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, LauncherBackground.GetMotionPlaybackToken(descriptor.Source));
+        if (!await AnalyzeBackdropAsync(descriptor, sampling.Token) && !sampling.IsCancellationRequested)
         {
-            await AnalyzeBackdropAsync(DefaultBackgroundSource, cancellationToken);
+            await AnalyzeBackdropAsync(DefaultBackgroundSource, sampling.Token);
         }
     }
 

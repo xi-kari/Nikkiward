@@ -104,7 +104,7 @@ public sealed partial class MainPage : Page
     private int _backgroundCarouselIndex;
 
     public MainPageViewModel ViewModel { get; } = new(
-        new JsonUserSettingsStore(),
+        App.Settings,
         new WindowsInstallationInspector(),
         new RedactedDiagnosticReportExporter());
 

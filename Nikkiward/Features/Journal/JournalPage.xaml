@@ -53,6 +53,15 @@
 
                 <local:JournalSummaryPanel x:Name="SummaryPanel" Visibility="Collapsed" />
 
+                <controls:GlassIsland x:Name="PlayTimeIsland" Visibility="Collapsed"
+                    automation:AutomationProperties.Name="本机游玩记录">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="本机记录" Style="{StaticResource SectionTitleDisplay}" />
+                        <TextBlock x:Name="PlayTimeTotals" TextWrapping="Wrap" Style="{StaticResource BodyUI}" />
+                        <TextBlock x:Name="RecentPlayTime" TextWrapping="Wrap" Style="{StaticResource CaptionUI}" />
+                    </StackPanel>
+                </controls:GlassIsland>
+
                 <InfoBar
                     x:Name="SyncStatusBar"
                     IsClosable="False"

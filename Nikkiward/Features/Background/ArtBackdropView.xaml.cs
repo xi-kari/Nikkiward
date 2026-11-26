@@ -296,6 +296,11 @@ public sealed partial class ArtBackdropView : UserControl
 
     public string? MotionSource => _motionDescriptor?.Source;
 
+    internal CancellationToken GetMotionPlaybackToken(string source) =>
+        string.Equals(MotionSource, source, StringComparison.OrdinalIgnoreCase) && _motionLifetimeCancellation is { } lifetime
+            ? lifetime.Token
+            : new CancellationToken(canceled: true);
+
     public event EventHandler<MotionPlaybackFailedEventArgs>? MotionPlaybackFailed;
 
     public async Task<WallpaperEngineRuntimeResult> ShowWallpaperEngineAsync(
@@ -779,6 +784,7 @@ public sealed partial class ArtBackdropView : UserControl
             _motionDescriptor = BackgroundSourceDescriptor.Motion(source, Path.GetFileName(source));
             _motionRequested = true;
             _motionLifetimeCancellation = pendingLifetimeCancellation;
+            _service?.BeginMotionSampling(pendingLifetimeCancellation.Token);
             _motionOpenCompletion = openCompletion;
             _mediaPlayer = pendingPlayer;
             _motionPlaylist = pendingPlaylist;
@@ -1694,6 +1700,7 @@ public sealed partial class ArtBackdropView : UserControl
         _motionPauseCancellation?.Dispose();
         _motionPauseCancellation = null;
         _motionLifetimeCancellation?.Cancel();
+        _service?.EndMotionSampling();
         _motionLifetimeCancellation?.Dispose();
         _motionLifetimeCancellation = null;
         _motionOpenCompletion?.TrySetResult(false);

@@ -141,6 +141,12 @@
                         ImageOpened="OnGalleryPreviewImageOpened"
                         Stretch="Uniform" />
                 </ScrollViewer>
+                <TextBlock
+                    x:Name="GalleryPreviewErrorText"
+                    Margin="48,0"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    TextWrapping="Wrap" />
                 <Button
                     x:Name="GalleryPreviewPreviousButton"
                     HorizontalAlignment="Left"
@@ -282,6 +288,14 @@
                     VerticalAlignment="Center"
                     Orientation="Horizontal"
                     Spacing="4">
+                    <TextBlock
+                        x:Name="GallerySdrPreviewLabel"
+                        Margin="0,0,4,0"
+                        VerticalAlignment="Center"
+                        FontSize="11"
+                        Foreground="{ThemeResource OnArtSecondaryTextBrush}"
+                        Text="SDR 预览"
+                        Visibility="Collapsed" />
                     <Button
                         Click="OnGalleryPreviewFitClicked"
                         Style="{StaticResource GalleryPreviewOnArtIconButtonStyle}"

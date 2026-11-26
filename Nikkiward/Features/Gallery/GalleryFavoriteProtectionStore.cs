@@ -75,8 +75,48 @@ public sealed record GalleryFavoriteProtectionStatistics
     public long ProtectedBytes { get; init; }
 }
 
+public enum GalleryOriginalIssue { Missing, Changed, Unreadable }
+
+internal sealed class GalleryOriginalReadLocks : IDisposable
+{
+    private readonly List<FileStream> _originals = [];
+
+    public async Task<GalleryOriginalIssue?> CheckAsync(GalleryFavoriteProtectionEntry entry, CancellationToken token)
+    {
+        try
+        {
+            var original = new FileStream(entry.OriginalPath, FileMode.Open, FileAccess.Read, FileShare.Read,
+                81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            _originals.Add(original);
+            var hash = await SHA256.HashDataAsync(original, token).ConfigureAwait(false);
+            return Convert.ToHexString(hash).Equals(entry.Sha256, StringComparison.OrdinalIgnoreCase)
+                ? null : GalleryOriginalIssue.Changed;
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return GalleryOriginalIssue.Missing;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return GalleryOriginalIssue.Unreadable;
+        }
+    }
+
+    public void Dispose()
+    {
+        foreach (var original in _originals)
+        {
+            original.Dispose();
+        }
+    }
+}
+
+public sealed record GalleryCleanupCopy(string ObjectPath, string DisplayName);
+
 public sealed record GalleryFavoriteProtectionCleanupResult
 {
+    public IReadOnlyList<GalleryCleanupCopy> NeedsConfirmation { get; init; } = [];
+
     public int RemovedEntryCount { get; init; }
 
     public int RemovedObjectCount { get; init; }
@@ -106,15 +146,16 @@ public sealed class GalleryFavoriteProtectionStore
         },
     };
 
-    private static readonly JsonTypeInfo<GalleryFavoriteProtectionManifest> ManifestJsonTypeInfo =
+    internal static readonly JsonTypeInfo<GalleryFavoriteProtectionManifest> ManifestJsonTypeInfo =
         new GalleryFavoriteProtectionJsonContext(SerializerOptions).GalleryFavoriteProtectionManifest;
 
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> RootGates =
         new(StringComparer.OrdinalIgnoreCase);
 
     private readonly SemaphoreSlim _gate;
+    private readonly Func<string, Stream> _openManifest;
 
-    public GalleryFavoriteProtectionStore(string? rootPath = null)
+    public GalleryFavoriteProtectionStore(string? rootPath = null, Func<string, Stream>? openManifest = null)
     {
         if (string.IsNullOrWhiteSpace(rootPath))
         {
@@ -137,6 +178,8 @@ public sealed class GalleryFavoriteProtectionStore
         _gate = RootGates.GetOrAdd(
             RootPath,
             static _ => new SemaphoreSlim(1, 1));
+        _openManifest = openManifest ?? (path => new FileStream(path, FileMode.Open, FileAccess.Read,
+            FileShare.Read | FileShare.Delete, 16 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan));
     }
 
     public string RootPath { get; }
@@ -148,6 +191,8 @@ public sealed class GalleryFavoriteProtectionStore
     public string ObjectsPath { get; }
 
     internal string TemporaryPath { get; }
+
+    internal Action? CheckWriteAccess { private get; set; }
 
     public async Task<GalleryFavoriteProtectionEntry> ProtectAsync(
         string scopeId,
@@ -231,16 +276,6 @@ public sealed class GalleryFavoriteProtectionStore
                     manifest with { Entries = entries },
                     cancellationToken).ConfigureAwait(false);
 
-                if (previous is not null &&
-                    !string.Equals(previous.Sha256, entry.Sha256, StringComparison.OrdinalIgnoreCase) &&
-                    !entries.Any(item => string.Equals(
-                        item.Sha256,
-                        previous.Sha256,
-                        StringComparison.OrdinalIgnoreCase)))
-                {
-                    TryDeleteObject(previous);
-                }
-
                 return entry;
             }
             finally
@@ -254,84 +289,101 @@ public sealed class GalleryFavoriteProtectionStore
         }
     }
 
-    public GalleryFavoriteProtectionEntry? GetEntry(string scopeId, string relativePath)
-    {
-        var normalizedScopeId = NormalizeScopeId(scopeId);
-        var normalizedRelativePath = NormalizeRelativePath(relativePath);
-        if (IsRootAbsentForRead())
-        {
-            return null;
-        }
+    public GalleryFavoriteProtectionEntry? GetEntry(string scopeId, string relativePath) =>
+        FindEntry(GetEntries(), NormalizeScopeId(scopeId), NormalizeRelativePath(relativePath));
 
-        _gate.Wait();
-        try
-        {
-            if (IsRootAbsentForRead())
-            {
-                return null;
-            }
-
-            using var storeLock = AcquireStoreLock();
-            var manifest = LoadManifest();
-            return FindEntry(manifest.Entries, normalizedScopeId, normalizedRelativePath);
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
-
-    public IReadOnlyList<GalleryFavoriteProtectionEntry> GetEntries()
-    {
-        if (IsRootAbsentForRead())
-        {
-            return [];
-        }
-
-        _gate.Wait();
-        try
-        {
-            if (IsRootAbsentForRead())
-            {
-                return [];
-            }
-
-            using var storeLock = AcquireStoreLock();
-            return LoadManifest().Entries.ToArray();
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
+    public IReadOnlyList<GalleryFavoriteProtectionEntry> GetEntries() =>
+        IsRootAbsentForRead() ? [] : LoadManifest().Entries;
 
     public IReadOnlyList<GalleryFavoriteProtectionEntry> GetEntries(string scopeId)
     {
-        var normalizedScopeId = NormalizeScopeId(scopeId);
-        if (IsRootAbsentForRead())
+        var normalizedScope = NormalizeScopeId(scopeId);
+        return GetEntries().Where(entry => entry.ScopeId == normalizedScope).ToArray();
+    }
+
+    internal async Task<ManifestIndex> OpenIndexAsync(
+        bool writable, CancellationToken cancellationToken, bool waitForWriter = false)
+    {
+        if (IsRootAbsentForRead() || !File.Exists(ManifestPath))
         {
-            return [];
+            return new(this, new(), null, hasManifest: false);
         }
 
-        _gate.Wait();
+        if (!writable || (File.GetAttributes(ManifestPath) & FileAttributes.ReadOnly) != 0)
+        {
+            return new(this, await LoadManifestAsync(cancellationToken).ConfigureAwait(false), null);
+        }
+
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        FileStream? storeLock = null;
         try
         {
-            if (IsRootAbsentForRead())
-            {
-                return [];
-            }
-
-            using var storeLock = AcquireStoreLock();
-            return LoadManifest().Entries
-                .Where(entry => string.Equals(
-                    entry.ScopeId,
-                    normalizedScopeId,
-                    StringComparison.Ordinal))
-                .ToArray();
+            storeLock = await AcquireStoreLockAsync(cancellationToken, waitForWriter).ConfigureAwait(false);
+            var manifest = await LoadManifestAsync(cancellationToken).ConfigureAwait(false);
+            return new(this, manifest, storeLock);
         }
-        finally
+        catch (Exception ex) when (storeLock is null && ex is IOException or UnauthorizedAccessException)
         {
             _gate.Release();
+            return new(this, await LoadManifestAsync(cancellationToken).ConfigureAwait(false), null);
+        }
+        catch
+        {
+            storeLock?.Dispose();
+            _gate.Release();
+            throw;
+        }
+    }
+
+    internal sealed class ManifestIndex(
+        GalleryFavoriteProtectionStore store, GalleryFavoriteProtectionManifest manifest, FileStream? storeLock,
+        bool hasManifest = true) : IDisposable
+    {
+        public GalleryFavoriteProtectionStore Store => store;
+        public IReadOnlyList<GalleryFavoriteProtectionEntry> Entries => manifest.Entries;
+        public bool CanWrite => storeLock is not null;
+        public bool HasManifest => hasManifest;
+
+        public async Task MigrateAsync(string legacyScope, string scope, IReadOnlySet<string> paths, CancellationToken token)
+        {
+            if (!CanWrite || !Entries.Any(entry => entry.ScopeId == legacyScope && paths.Contains(entry.RelativePath)))
+            {
+                return;
+            }
+
+            var entries = Entries.Select(entry => entry.ScopeId == legacyScope && paths.Contains(entry.RelativePath)
+                ? entry with { ScopeId = scope } : entry).ToArray();
+            await SaveAsync(entries, token).ConfigureAwait(false);
+        }
+
+        public async Task SaveAsync(IReadOnlyList<GalleryFavoriteProtectionEntry> entries, CancellationToken token)
+        {
+            if (!CanWrite)
+            {
+                throw new InvalidOperationException("The protection index is read-only.");
+            }
+
+            var updated = manifest with { Entries = entries };
+            await store.SaveManifestAsync(updated, token).ConfigureAwait(false);
+            manifest = updated;
+        }
+
+        public void DeleteReleasedObject(GalleryFavoriteProtectionEntry entry)
+        {
+            if (!Entries.Any(item => string.Equals(item.Sha256, entry.Sha256, StringComparison.OrdinalIgnoreCase)))
+            {
+                store.TryDeleteObject(entry);
+            }
+        }
+
+        public void Dispose()
+        {
+            if (storeLock is not null)
+            {
+                storeLock.Dispose();
+                storeLock = null;
+                store._gate.Release();
+            }
         }
     }
 
@@ -437,7 +489,8 @@ public sealed class GalleryFavoriteProtectionStore
     public async Task<GalleryFavoriteProtectionStatistics> GetStatisticsAsync(
         CancellationToken cancellationToken = default)
     {
-        var entries = await VerifyAsync(cancellationToken).ConfigureAwait(false);
+        using var index = await OpenIndexAsync(writable: false, cancellationToken).ConfigureAwait(false);
+        var entries = index.Entries;
         var usableObjects = entries
             .Where(entry => IsProtectedObjectUsable(entry.Status))
             .GroupBy(entry => entry.Sha256, StringComparer.OrdinalIgnoreCase)
@@ -461,70 +514,97 @@ public sealed class GalleryFavoriteProtectionStore
         };
     }
 
-    public async Task<GalleryFavoriteProtectionCleanupResult> CleanUnstarredAsync(
-        string scopeId,
-        IEnumerable<string> starredRelativePaths,
-        CancellationToken cancellationToken = default)
-    {
-        var normalizedScopeId = NormalizeScopeId(scopeId);
-        ArgumentNullException.ThrowIfNull(starredRelativePaths);
-        var starred = starredRelativePaths
-            .Select(NormalizeRelativePath)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        if (IsRootAbsentForRead())
-        {
-            return new GalleryFavoriteProtectionCleanupResult();
-        }
+    public Task<GalleryFavoriteProtectionCleanupResult> CleanUnstarredAsync(
+        string scopeId, GalleryAnnotationStore annotations, CancellationToken cancellationToken = default) =>
+        CleanUnstarredAsync([this], scopeId, annotations, null, cancellationToken);
 
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+    internal static async Task<GalleryFavoriteProtectionCleanupResult> CleanUnstarredAsync(
+        IEnumerable<GalleryFavoriteProtectionStore> stores, string scopeId, GalleryAnnotationStore annotations,
+        IReadOnlyCollection<GalleryCleanupCopy>? confirmed, CancellationToken token)
+    {
+        var scope = NormalizeScopeId(scopeId);
+        var indexes = new List<ManifestIndex>();
+        using var originals = new GalleryOriginalReadLocks();
         try
         {
-            if (IsRootAbsentForRead())
+            foreach (var store in stores.OrderBy(store => GalleryFavoriteProtectionService.ResolveDirectoryLinks(store.RootPath),
+                         StringComparer.OrdinalIgnoreCase))
             {
-                return new GalleryFavoriteProtectionCleanupResult();
+                var index = await store.OpenIndexAsync(true, token, waitForWriter: true).ConfigureAwait(false);
+                indexes.Add(index);
+                if (index.HasManifest && !index.CanWrite)
+                {
+                    throw new IOException("保护目录当前只读，无法清理副本。");
+                }
             }
 
-            await using var storeLock = await AcquireStoreLockAsync(cancellationToken)
-                .ConfigureAwait(false);
-            var manifestExisted = File.Exists(ManifestPath);
-            var manifest = await LoadManifestAsync(cancellationToken).ConfigureAwait(false);
-            var removed = manifest.Entries
-                .Where(entry =>
-                    string.Equals(entry.ScopeId, normalizedScopeId, StringComparison.Ordinal) &&
-                    !starred.Contains(entry.RelativePath))
-                .ToArray();
-            var remaining = manifest.Entries
-                .Except(removed)
-                .OrderBy(entry => entry.ScopeId, StringComparer.Ordinal)
-                .ThenBy(entry => entry.RelativePath, StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            if (removed.Length > 0)
+            var starred = await annotations.LoadStarredAsync(scope, token).ConfigureAwait(false);
+            var pending = new List<GalleryCleanupCopy>();
+            var plans = new List<(ManifestIndex Index, GalleryFavoriteProtectionEntry[] Remaining, string[] Objects)>();
+            foreach (var index in indexes.Where(index => index.HasManifest))
             {
-                await SaveManifestAsync(
-                    manifest with { Entries = remaining },
-                    cancellationToken).ConfigureAwait(false);
+                var remaining = index.Entries.Where(entry => entry.ScopeId != scope || starred.Contains(entry.RelativePath)).ToArray();
+                var hashes = remaining.Select(entry => entry.Sha256).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var objects = index.Store.EnumerateUnreferencedObjects(hashes, token).ToArray();
+                var byHash = index.Entries.ToLookup(entry => entry.Sha256, StringComparer.OrdinalIgnoreCase);
+                foreach (var path in objects)
+                {
+                    var hash = Path.GetFileNameWithoutExtension(path);
+                    var entries = byHash[hash];
+                    var copy = new GalleryCleanupCopy(path, entries.FirstOrDefault()?.RelativePath ?? hash);
+                    if (confirmed?.Contains(copy) == true)
+                    {
+                        continue;
+                    }
+                    var hasOriginal = false;
+                    foreach (var entry in entries)
+                    {
+                        if (await originals.CheckAsync(entry, token).ConfigureAwait(false) is null)
+                        {
+                            hasOriginal = true;
+                            break;
+                        }
+                    }
+                    if (!hasOriginal)
+                    {
+                        pending.Add(copy);
+                    }
+                }
+                plans.Add((index, remaining, objects));
+            }
+            if (pending.Count > 0)
+            {
+                return new() { NeedsConfirmation = pending };
             }
 
-            var referencedHashes = remaining
-                .Select(entry => entry.Sha256)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var cleanupCancellationToken = removed.Length > 0
-                ? CancellationToken.None
-                : cancellationToken;
-            var objectCleanup = manifestExisted || removed.Length > 0
-                ? CleanUnreferencedObjects(referencedHashes, cleanupCancellationToken)
-                : default;
-
-            return new GalleryFavoriteProtectionCleanupResult
+            int removedEntries = 0, removedObjects = 0;
+            long bytes = 0;
+            foreach (var (index, remaining, objects) in plans)
             {
-                RemovedEntryCount = removed.Length,
-                RemovedObjectCount = objectCleanup.Count,
-                ReclaimedBytes = objectCleanup.Bytes,
-            };
+                var removed = index.Entries.Count - remaining.Length;
+                if (removed > 0)
+                {
+                    await index.SaveAsync(remaining, token).ConfigureAwait(false);
+                    removedEntries += removed;
+                }
+                foreach (var path in objects)
+                {
+                    var length = index.Store.TryDeleteObjectPath(path);
+                    if (length >= 0)
+                    {
+                        removedObjects++;
+                        bytes += length;
+                    }
+                }
+            }
+            return new() { RemovedEntryCount = removedEntries, RemovedObjectCount = removedObjects, ReclaimedBytes = bytes };
         }
         finally
         {
-            _gate.Release();
+            foreach (var index in indexes)
+            {
+                index.Dispose();
+            }
         }
     }
 
@@ -533,26 +613,28 @@ public sealed class GalleryFavoriteProtectionStore
         string relativePath,
         out string protectedPath)
     {
-        protectedPath = string.Empty;
         var entry = GetEntry(scopeId, relativePath);
-        if (entry is null)
-        {
-            return false;
-        }
+        protectedPath = entry is null ? string.Empty :
+            ResolveProtectedPathAsync(entry, verifyHash: true, CancellationToken.None).GetAwaiter().GetResult() ?? string.Empty;
+        return protectedPath.Length > 0;
+    }
 
+    internal async Task<string?> ResolveProtectedPathAsync(
+        GalleryFavoriteProtectionEntry entry, bool verifyHash, CancellationToken cancellationToken)
+    {
         try
         {
             var candidate = ResolveObjectPath(entry);
             EnsureObjectPathDirectoriesAreSafe(candidate);
-            var file = new FileInfo(candidate);
-            if (!file.Exists ||
-                !IsObjectValid(
-                    file,
-                    entry.OriginalLength,
-                    entry.Sha256))
+            if (verifyHash)
             {
-                return false;
+                return await IsObjectValidAsync(candidate, entry.OriginalLength, entry.Sha256, cancellationToken)
+                    .ConfigureAwait(false) ? candidate : null;
             }
+
+            var file = new FileInfo(candidate);
+            return IsProtectedObjectUsable(entry.Status) && file.Exists && file.Length == entry.OriginalLength &&
+                (file.Attributes & FileAttributes.ReparsePoint) == 0 ? candidate : null;
         }
         catch (Exception ex) when (ex is IOException
             or InvalidDataException
@@ -560,11 +642,8 @@ public sealed class GalleryFavoriteProtectionStore
             or ArgumentException
             or NotSupportedException)
         {
-            return false;
+            return null;
         }
-
-        protectedPath = ResolveObjectPath(entry);
-        return true;
     }
 
     private GalleryFavoriteProtectionManifest LoadManifest()
@@ -576,8 +655,8 @@ public sealed class GalleryFavoriteProtectionStore
         }
 
         EnsureFileIsNotReparsePoint(ManifestPath);
-        var json = File.ReadAllText(ManifestPath);
-        var manifest = JsonSerializer.Deserialize(json, ManifestJsonTypeInfo);
+        using var stream = _openManifest(ManifestPath);
+        var manifest = JsonSerializer.Deserialize(stream, ManifestJsonTypeInfo);
         return ValidateManifest(manifest);
     }
 
@@ -591,13 +670,7 @@ public sealed class GalleryFavoriteProtectionStore
         }
 
         EnsureFileIsNotReparsePoint(ManifestPath);
-        await using var stream = new FileStream(
-            ManifestPath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            16 * 1024,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        await using var stream = _openManifest(ManifestPath);
         var manifest = await JsonSerializer.DeserializeAsync(
             stream,
             ManifestJsonTypeInfo,
@@ -637,6 +710,7 @@ public sealed class GalleryFavoriteProtectionStore
                 EnsureFileIsNotReparsePoint(ManifestPath);
             }
 
+            CheckWriteAccess?.Invoke();
             File.Move(temporaryManifestPath, ManifestPath, overwrite: true);
         }
         finally
@@ -651,6 +725,7 @@ public sealed class GalleryFavoriteProtectionStore
         long length,
         CancellationToken cancellationToken)
     {
+        CheckWriteAccess?.Invoke();
         var objectRelativePath = BuildObjectRelativePath(sha256);
         var objectPath = ResolveObjectPath(sha256, objectRelativePath);
         var objectDirectory = Path.GetDirectoryName(objectPath)
@@ -673,6 +748,7 @@ public sealed class GalleryFavoriteProtectionStore
             EnsureFileIsNotReparsePoint(objectPath);
         }
 
+        CheckWriteAccess?.Invoke();
         File.Move(temporaryObjectPath, objectPath, overwrite: true);
         if (!await IsObjectValidAsync(
                 objectPath,
@@ -892,29 +968,6 @@ public sealed class GalleryFavoriteProtectionStore
         }
     }
 
-    private static bool IsObjectValid(
-        FileInfo file,
-        long expectedLength,
-        string expectedSha256)
-    {
-        if (!file.Exists ||
-            file.Length != expectedLength ||
-            (file.Attributes & FileAttributes.ReparsePoint) != 0)
-        {
-            return false;
-        }
-
-        using var stream = new FileStream(
-            file.FullName,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            BufferSize,
-            FileOptions.SequentialScan);
-        var actualSha256 = Convert.ToHexString(SHA256.HashData(stream));
-        return string.Equals(actualSha256, expectedSha256, StringComparison.OrdinalIgnoreCase);
-    }
-
     private static OriginalMetadata ReadOriginalMetadata(string originalPath)
     {
         var original = new FileInfo(originalPath);
@@ -1009,6 +1062,7 @@ public sealed class GalleryFavoriteProtectionStore
 
     private void EnsureRootDirectory()
     {
+        CheckWriteAccess?.Invoke();
         Directory.CreateDirectory(RootPath);
         EnsureDirectoryIsNotReparsePoint(RootPath);
     }
@@ -1019,6 +1073,51 @@ public sealed class GalleryFavoriteProtectionStore
         {
             EnsureDirectoryIsNotReparsePoint(RootPath);
         }
+    }
+
+    internal bool IsUnusedRoot()
+    {
+        if (IsRootAbsentForRead())
+        {
+            for (var parent = Directory.GetParent(RootPath); parent is not null; parent = parent.Parent)
+            {
+                FileAttributes attributes;
+                try
+                {
+                    attributes = File.GetAttributes(parent.FullName);
+                }
+                catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+                {
+                    continue;
+                }
+                if ((attributes & FileAttributes.Directory) == 0)
+                {
+                    return false;
+                }
+                // An offline directory mount can still have readable attributes on its host volume.
+                using var siblings = parent.EnumerateFileSystemInfos().GetEnumerator();
+                siblings.MoveNext();
+                return true;
+            }
+            return false;
+        }
+
+        var children = Directory.GetFileSystemEntries(RootPath);
+        if (children.Contains(ManifestPath, StringComparer.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        if (!children.Contains(ObjectsPath, StringComparer.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        EnsureDirectoryIsNotReparsePoint(ObjectsPath);
+        return Directory.EnumerateFileSystemEntries(ObjectsPath).All(directory =>
+        {
+            var attributes = File.GetAttributes(directory);
+            return (attributes & (FileAttributes.Directory | FileAttributes.ReparsePoint)) == FileAttributes.Directory &&
+                !Directory.EnumerateFileSystemEntries(directory).Any();
+        });
     }
 
     private bool IsRootAbsentForRead()
@@ -1040,45 +1139,15 @@ public sealed class GalleryFavoriteProtectionStore
         }
     }
 
-    private FileStream AcquireStoreLock()
-    {
-        EnsureRootDirectory();
-        while (true)
-        {
-            try
-            {
-                var stream = new FileStream(
-                    LockPath,
-                    FileMode.OpenOrCreate,
-                    FileAccess.ReadWrite,
-                    FileShare.None,
-                    1,
-                    FileOptions.None);
-                try
-                {
-                    EnsureFileIsNotReparsePoint(LockPath);
-                    return stream;
-                }
-                catch
-                {
-                    stream.Dispose();
-                    throw;
-                }
-            }
-            catch (IOException ex) when (IsSharingViolation(ex))
-            {
-                Thread.Sleep(25);
-            }
-        }
-    }
-
     private async Task<FileStream> AcquireStoreLockAsync(
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool waitForWriter = true)
     {
         EnsureRootDirectory();
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            CheckWriteAccess?.Invoke();
             try
             {
                 var stream = new FileStream(
@@ -1091,6 +1160,7 @@ public sealed class GalleryFavoriteProtectionStore
                 try
                 {
                     EnsureFileIsNotReparsePoint(LockPath);
+                    CheckWriteAccess?.Invoke();
                     return stream;
                 }
                 catch
@@ -1099,7 +1169,7 @@ public sealed class GalleryFavoriteProtectionStore
                     throw;
                 }
             }
-            catch (IOException ex) when (IsSharingViolation(ex))
+            catch (IOException ex) when (waitForWriter && IsSharingViolation(ex))
             {
                 await Task.Delay(25, cancellationToken).ConfigureAwait(false);
             }
@@ -1216,6 +1286,7 @@ public sealed class GalleryFavoriteProtectionStore
             EnsureObjectPathDirectoriesAreSafe(normalizedPath);
             EnsureFileIsNotReparsePoint(normalizedPath);
             var length = new FileInfo(normalizedPath).Length;
+            CheckWriteAccess?.Invoke();
             File.Delete(normalizedPath);
             return length;
         }
@@ -1228,18 +1299,16 @@ public sealed class GalleryFavoriteProtectionStore
         }
     }
 
-    private ObjectCleanupResult CleanUnreferencedObjects(
+    private IEnumerable<string> EnumerateUnreferencedObjects(
         IReadOnlySet<string> referencedHashes,
         CancellationToken cancellationToken)
     {
         if (!Directory.Exists(ObjectsPath))
         {
-            return default;
+            yield break;
         }
 
         EnsureDirectoryIsNotReparsePoint(ObjectsPath);
-        var removedObjectCount = 0;
-        long reclaimedBytes = 0;
         foreach (var objectDirectory in Directory.EnumerateDirectories(
                      ObjectsPath,
                      "*",
@@ -1278,16 +1347,9 @@ public sealed class GalleryFavoriteProtectionStore
                     continue;
                 }
 
-                var reclaimed = TryDeleteObjectPath(canonicalPath);
-                if (reclaimed >= 0)
-                {
-                    removedObjectCount++;
-                    reclaimedBytes += reclaimed;
-                }
+                yield return canonicalPath;
             }
         }
-
-        return new ObjectCleanupResult(removedObjectCount, reclaimedBytes);
     }
 
     private static void TryDeleteFile(string path)
@@ -1397,6 +1459,4 @@ public sealed class GalleryFavoriteProtectionStore
     private readonly record struct OriginalMetadata(
         long Length,
         DateTimeOffset LastWriteTimeUtc);
-
-    private readonly record struct ObjectCleanupResult(int Count, long Bytes);
 }

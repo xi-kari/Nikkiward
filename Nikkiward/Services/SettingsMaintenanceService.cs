@@ -1,4 +1,8 @@
 using System.IO.Compression;
+using System.Text.Json;
+using Nikkiward.Features.Gallery;
+using Nikkiward.Serialization;
+using Nikkiward.Models;
 
 namespace Nikkiward.Services;
 
@@ -30,6 +34,25 @@ public sealed class SettingsMaintenanceService
     ];
     private static readonly string[] GameResourceDirectories = ["GameCache", "update"];
     private static readonly string[] BackgroundDirectories = ["ArtCache", "PaletteCache"];
+    private const string ProtectionSettingsRecord = "Gallery/protection-settings.json";
+    private static readonly NikkiwardJsonContext BackupJson = new(
+        new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+    private static readonly string[] BackupRecords =
+    [
+        "settings.pre-schema6.rollback.json",
+        "settings.pre-schema7.rollback.json",
+        "settings.pre-schema8.rollback.json",
+        "JournalCache/journal-snapshot.json",
+        "JournalCache/resonance-history.json",
+        PlayTimeStore.RelativePath,
+        "WishHistory/wish-history.json",
+        "Gallery/stars.json",
+        "Gallery/default-favorites-v1.seed",
+        ProtectionSettingsRecord,
+        "Gallery/ProtectedFavorites/manifest.json",
+        "ExternalTools/nikkigallery.json",
+        "Plugins/nikkiward.photo-album-importer/plugin.json",
+    ];
 
     public SettingsMaintenanceService(
         string settingsFilePath,
@@ -59,52 +82,169 @@ public sealed class SettingsMaintenanceService
         CancellationToken cancellationToken = default) =>
         Task.Run(() => GetCacheStatistics(cancellationToken), cancellationToken);
 
-    public async Task<SettingsBackupReceipt> CreateBackupAsync(
-        CancellationToken cancellationToken = default)
+    public Task<SettingsBackupReceipt> CreateBackupAsync(CancellationToken cancellationToken = default, UserSettings? snapshot = null) =>
+        CreateBackupAsync(cancellationToken, progress: null, snapshot);
+
+    internal async Task<SettingsBackupReceipt> CreateBackupAsync(CancellationToken cancellationToken, IProgress<int>? progress, UserSettings? snapshot = null)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!IsBackupPathAllowed(BackupFolder))
+        {
+            throw new IOException("备份目录与浏览器数据重合或包含重解析点。");
+        }
+
         Directory.CreateDirectory(BackupFolder);
         var createdAt = DateTimeOffset.UtcNow;
         var targetPath = Path.Combine(
             BackupFolder,
             $"NikkiwardData_{createdAt.ToLocalTime():yyyyMMdd_HHmmssfff}_{Guid.NewGuid():N}.zip");
-        var candidates = Directory.Exists(DataRoot)
-            ? Directory.EnumerateFiles(DataRoot, "*", SearchOption.AllDirectories)
-                .Where(IsBackupCandidate)
-                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-                .ToArray()
-            : Array.Empty<string>();
-
-        await using var target = new FileStream(
-            targetPath,
-            FileMode.CreateNew,
-            FileAccess.Write,
-            FileShare.None,
-            64 * 1024,
-            FileOptions.Asynchronous | FileOptions.WriteThrough);
-        using var archive = new ZipArchive(target, ZipArchiveMode.Create, leaveOpen: true);
+        using var target = new AtomicFile(targetPath);
         var added = 0;
-        foreach (var path in candidates)
+        using (var archive = new ZipArchive(target.Stream, ZipArchiveMode.Create, leaveOpen: true))
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var entry = archive.CreateEntry(
-                Path.GetRelativePath(DataRoot, path).Replace('\\', '/'),
-                CompressionLevel.Optimal);
-            await using var input = new FileStream(
-                path,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.ReadWrite | FileShare.Delete,
-                64 * 1024,
-                FileOptions.Asynchronous | FileOptions.SequentialScan);
-            await using var output = entry.Open();
-            await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
+            if (!IsBackupPathAllowed(SettingsFilePath))
+            {
+                throw new IOException("设置文件与浏览器数据重合或包含重解析点。");
+            }
+
+            var settingsEntry = archive.CreateEntry("settings.json", CompressionLevel.Optimal);
+            await using (var output = settingsEntry.Open())
+            {
+                FileStream? input;
+                try
+                {
+                    input = File.Open(SettingsFilePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
+                }
+                catch (FileNotFoundException)
+                {
+                    input = null;
+                }
+
+                if (input is null)
+                {
+                    await JsonSerializer.SerializeAsync(output, snapshot ?? new UserSettings(),
+                        JsonUserSettingsStore.UserSettingsJsonTypeInfo, cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    using (input)
+                    {
+                        await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
+                    }
+                }
+            }
             added++;
+            progress?.Report(added);
+
+            var records = new Queue<(string Name, bool CheckManifest)>(
+                BackupRecords.Select(name => (name, false)));
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            while (records.TryDequeue(out var candidate))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var path = Path.GetFullPath(candidate.Name, DataRoot);
+                if (!visited.Add(path) || !IsBackupPathAllowed(path) || !File.Exists(path))
+                {
+                    continue;
+                }
+
+                await using var input = new FileStream(path, FileMode.Open, FileAccess.Read,
+                    FileShare.Read | FileShare.Delete, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                if (candidate.Name == ProtectionSettingsRecord)
+                {
+                    await AddProtectionManifestsAsync(input, records, cancellationToken).ConfigureAwait(false);
+                    input.Position = 0;
+                }
+                else if (candidate.CheckManifest)
+                {
+                    if (!await IsProtectionManifestAsync(input, cancellationToken).ConfigureAwait(false))
+                    {
+                        continue;
+                    }
+                    input.Position = 0;
+                }
+
+                var entry = archive.CreateEntry(candidate.Name, CompressionLevel.Optimal);
+                await using var output = entry.Open();
+                await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
+                added++;
+                progress?.Report(added);
+            }
         }
 
-        archive.Dispose();
-        await target.FlushAsync(cancellationToken).ConfigureAwait(false);
-        target.Flush(flushToDisk: true);
+        target.Commit(overwrite: false, cancellationToken);
         return new SettingsBackupReceipt(targetPath, createdAt, added);
+    }
+
+    private async Task AddProtectionManifestsAsync(
+        Stream input, Queue<(string Name, bool CheckManifest)> records, CancellationToken cancellationToken)
+    {
+        GalleryFavoriteProtectionPreferences? preferences;
+        try
+        {
+            preferences = await JsonSerializer.DeserializeAsync(input, BackupJson.GalleryFavoriteProtectionPreferences, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (JsonException)
+        {
+            // Preserve a damaged preferences file without following any paths from it.
+            return;
+        }
+
+        if (preferences?.SchemaVersion != GalleryFavoriteProtectionPreferences.CurrentSchemaVersion || preferences.KnownRootPaths is null)
+        {
+            return;
+        }
+
+        foreach (var root in preferences.KnownRootPaths.Prepend(preferences.ActiveRootPath).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(root) || !Path.IsPathFullyQualified(root) || !IsUnderRoot(root, DataRoot) ||
+                IsUnderRoot(root, BackupFolder) || !IsBackupPathAllowed(root))
+            {
+                continue;
+            }
+
+            var manifest = Path.Combine(root, "manifest.json");
+            records.Enqueue((Path.GetRelativePath(DataRoot, manifest).Replace('\\', '/'), true));
+        }
+    }
+
+    private static async Task<bool> IsProtectionManifestAsync(Stream input, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var manifest = await JsonSerializer.DeserializeAsync(
+                input, GalleryFavoriteProtectionStore.ManifestJsonTypeInfo, cancellationToken).ConfigureAwait(false);
+            return manifest is { SchemaVersion: GalleryFavoriteProtectionManifest.CurrentSchemaVersion, Entries: not null };
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private bool IsBackupPathAllowed(string path)
+    {
+        if (IsUnderRoot(path, BrowserDataPath))
+        {
+            return false;
+        }
+
+        var parent = Path.GetDirectoryName(path);
+        if (parent is not null && !IsBackupPathAllowed(parent))
+        {
+            return false;
+        }
+
+        try
+        {
+            return (File.GetAttributes(path) & FileAttributes.ReparsePoint) == 0;
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return true;
+        }
     }
 
     public Task<SettingsCacheClearReceipt> ClearCachesAsync(
@@ -222,21 +362,6 @@ public sealed class SettingsMaintenanceService
         }
 
         return (count, bytes);
-    }
-
-    private bool IsBackupCandidate(string path)
-    {
-        var fullPath = Path.GetFullPath(path);
-        if (!IsUnderRoot(fullPath, DataRoot) || IsUnderRoot(fullPath, BackupFolder))
-        {
-            return false;
-        }
-
-        var extension = Path.GetExtension(fullPath);
-        return extension.Equals(".json", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".db", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".sqlite", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".txt", StringComparison.OrdinalIgnoreCase);
     }
 
     private bool IsAllowedExternalDirectory(string path) =>

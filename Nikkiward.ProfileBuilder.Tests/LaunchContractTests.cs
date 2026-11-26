@@ -11,6 +11,16 @@ internal static class LaunchContractTests
 {
     public static (string Name, Func<Task> Run)[] All =>
     [
+        ("manual launch applies the window preference once per confirmed run", AfterLaunchWindowOnce),
+        ("cancelled, failed and timed out launches keep the window", AfterLaunchWindowFailures),
+        ("registry paths preserve spaces and executable boundaries", RegistryPaths),
+        ("discovery distinguishes pending, empty and selection states", DiscoveryStates),
+        ("found installations retain their discovery failure", FoundInstallFailure),
+        ("runtime refusal locks launch and survives diagnostic export", RuntimeRefusal),
+        ("a clean observation releases a refused baseline", RefusedBaselineClears),
+        ("channel probes for one root retain the matching installation failure", MixedChannelDiscovery),
+        ("an empty Steam library is distinct from a partial installation", EmptySteamLibrary),
+        ("game file versions require four numeric parts", GameVersions),
         ("frozen contract keeps the exact -skiplauncher argument list", ArgumentListIsFrozen),
         ("frozen contract runs xstarter from the launcher root", WorkingDirectoryIsLauncherRoot),
         ("frozen contract keeps the static execution gate closed", ExecutionGateStaysClosed),
@@ -38,6 +48,202 @@ internal static class LaunchContractTests
         ("Bilibili marker mismatch fails closed", BilibiliMarkerMismatchFailsClosed),
         ("Bilibili complete installs remain providerless", BilibiliCompleteInstallHasNoProvider),
     ];
+
+    private static Task AfterLaunchWindowOnce()
+    {
+        var policy = new AfterLaunchWindowPolicy();
+        var binding = new OfficialAssistedProcessBinding { AttemptId = Guid.NewGuid(), RootProcessStartTimeUtc = DateTimeOffset.UtcNow };
+        var observed = binding.RootProcessStartTimeUtc.AddSeconds(3);
+        foreach (var preference in Enum.GetValues<AfterLaunchBehavior>())
+        {
+            binding = binding with { AttemptId = Guid.NewGuid() };
+            AssertEqual(AfterLaunchBehavior.KeepWindow, policy.Observe(binding, LaunchButtonState.Running, observed, preference), "no click");
+            policy.Begin(binding.AttemptId);
+            AssertEqual(AfterLaunchBehavior.KeepWindow, policy.Observe(binding, LaunchButtonState.Launching, null, preference), "pending");
+            AssertEqual(preference, policy.Observe(binding, LaunchButtonState.Running, observed, preference), "first confirmation");
+            AssertEqual(AfterLaunchBehavior.KeepWindow, policy.Observe(binding, LaunchButtonState.Running, observed, AfterLaunchBehavior.HideToTray), "already consumed");
+        }
+        return Task.CompletedTask;
+    }
+
+    private static Task AfterLaunchWindowFailures()
+    {
+        var policy = new AfterLaunchWindowPolicy();
+        var binding = new OfficialAssistedProcessBinding { AttemptId = Guid.NewGuid(), RootProcessStartTimeUtc = DateTimeOffset.UtcNow };
+        foreach (var state in new[] { LaunchButtonState.Ready, LaunchButtonState.Blocked, LaunchButtonState.CleanupRequired })
+        {
+            policy.Begin(binding.AttemptId);
+            AssertEqual(AfterLaunchBehavior.KeepWindow, policy.Observe(binding, state, null, AfterLaunchBehavior.HideToTray), "unsuccessful attempt");
+            AssertEqual(AfterLaunchBehavior.KeepWindow, policy.Observe(binding, LaunchButtonState.Running, binding.RootProcessStartTimeUtc, AfterLaunchBehavior.HideToTray), "late notification");
+        }
+        policy.Begin(binding.AttemptId);
+        AssertEqual(AfterLaunchBehavior.KeepWindow, policy.Observe(binding, LaunchButtonState.Running, binding.RootProcessStartTimeUtc.AddSeconds(46), AfterLaunchBehavior.Minimize), "first observation after deadline");
+        policy.Begin(binding.AttemptId);
+        AssertEqual(AfterLaunchBehavior.KeepWindow, policy.Observe(null, LaunchButtonState.Ready, null, AfterLaunchBehavior.Minimize), "no bound process after cancellation");
+        policy.Begin(Guid.NewGuid());
+        AssertEqual(AfterLaunchBehavior.KeepWindow, policy.Observe(binding, LaunchButtonState.Running, binding.RootProcessStartTimeUtc, AfterLaunchBehavior.Minimize), "different attempt");
+        policy.Begin(binding.AttemptId);
+        policy.Cancel();
+        AssertEqual(AfterLaunchBehavior.KeepWindow, policy.Observe(binding, LaunchButtonState.Running, binding.RootProcessStartTimeUtc, AfterLaunchBehavior.Minimize), "close requested during observation");
+        return Task.CompletedTask;
+    }
+
+    private static Task RegistryPaths()
+    {
+        const string launcher = @"C:\Program Files\InfinityNikki Launcher\launcher.exe";
+        AssertEqual(launcher, WindowsInstallationPathSource.ParseDisplayIcon(launcher), "official display icon");
+        const string root = @"C:\Program Files\游戏.exe-cache";
+        const string file = root + @"\launcher.exe";
+        foreach (var value in new[] { root, $"\"{root}\"" })
+            AssertEqual(root, WindowsInstallationPathSource.ParseDirectory(value), "directory");
+        foreach (var value in new[] { file, $"\"{file}\"", file + ",-2", $"\"{file}\",0" })
+            AssertEqual(file, WindowsInstallationPathSource.ParseDisplayIcon(value), "icon");
+        foreach (var value in new[] { file + " /S", $"\"{file}\" /S" })
+            AssertEqual(file, WindowsInstallationPathSource.ParseUninstallCommand(value), "command");
+        AssertEqual(null, WindowsInstallationPathSource.ParseDirectory(" "), "empty directory");
+        AssertEqual(null, WindowsInstallationPathSource.ParseDisplayIcon(null), "empty icon");
+        AssertEqual(null, WindowsInstallationPathSource.ParseUninstallCommand(""), "empty command");
+        return Task.CompletedTask;
+    }
+
+    private sealed class FixedDiscovery(params InstallationProfileCandidate[] candidates) : IInstallationDiscoveryService
+    {
+        public Task<ProfileBuildResult> DiscoverAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ProfileBuildResult { Candidates = candidates });
+
+        public Task<ProfileBuildResult> DiscoverFromManualGameRootAsync(string selectedDirectory,
+            string? selectedLauncherRoot = null, CancellationToken cancellationToken = default) => DiscoverAsync(cancellationToken);
+    }
+
+    private static async Task RuntimeRefusal()
+    {
+        using var layout = FakeInstall.Create();
+        var candidate = layout.BuildCandidate() with { Profile = new() { ProfileId = "fake-cn-official" } };
+        var components = layout.ComponentReceipts();
+        components[3] = components[3] with { FilePath = Environment.ProcessPath! };
+        var page = new MainPageViewModel(new JsonUserSettingsStore(layout.BaseDirectory), new WindowsInstallationInspector(),
+            new RedactedDiagnosticReportExporter(), new FixedDiscovery(candidate),
+            new StubVerifier(ClosedGatePreflight(layout) with { Components = components }));
+        await page.InitializeAsync();
+        AssertEqual("启动游戏", page.LaunchButtonLabel, "ready before refusal");
+        var result = await page.PrepareOfficialAssistedLaunchAsync();
+        AssertEqual("Preflight.BaselineDirty", result.FailureCode, "test host is the observed component");
+        AssertEqual("游戏运行中", page.LaunchButtonLabel, "blocked after refusal");
+        AssertTrue(!page.CanAttemptSelectedChannelLaunch && !page.CanCloseGame, "external process is never owned");
+        await page.RefreshOfficialAssistedRuntimeAsync();
+        AssertEqual("游戏运行中", page.LaunchButtonLabel, "still running");
+        var report = await page.ExportDiagnosticsAsync(layout.BaseDirectory);
+        var content = await File.ReadAllTextAsync(report.TextFilePath!);
+        AssertTrue(content.Contains(result.FailureCode) && content.Contains(result.Detail), "export records code and reason");
+    }
+
+    private static async Task RefusedBaselineClears()
+    {
+        using var layout = FakeInstall.Create();
+        var candidate = layout.BuildCandidate() with { Profile = new() { ProfileId = "fake-cn-official" } };
+        var page = new MainPageViewModel(new JsonUserSettingsStore(layout.BaseDirectory), new WindowsInstallationInspector(),
+            new RedactedDiagnosticReportExporter(), new FixedDiscovery(candidate), new StubVerifier(ClosedGatePreflight(layout)));
+        await page.InitializeAsync();
+        foreach (var code in new[] { "Preflight.BaselineDirty", "Preflight.ObserverUnavailable" })
+        {
+            const string detail = "测试目标组件的运行检查被拒绝。";
+            var before = DateTimeOffset.UtcNow;
+            page.RecordRuntimeRefusal(code, detail, [Path.Combine(layout.GameRoot, "exited-" + Guid.NewGuid() + ".exe")]);
+            AssertEqual(code == "Preflight.BaselineDirty" ? "游戏运行中" : "启动条件不满足", page.LaunchButtonLabel, "refused");
+            AssertEqual(detail, page.LaunchButtonDetail, "refusal detail");
+            await page.RefreshAsync();
+            AssertTrue(!page.CanAttemptSelectedChannelLaunch, "static refresh cannot unlock runtime refusal");
+            await page.RefreshOfficialAssistedRuntimeAsync();
+            AssertEqual("启动游戏", page.LaunchButtonLabel, "clean observation");
+            AssertTrue(page.CanAttemptSelectedChannelLaunch, "click enabled");
+            var report = await page.ExportDiagnosticsAsync(layout.BaseDirectory);
+            var content = await File.ReadAllTextAsync(report.TextFilePath!);
+            var match = System.Text.RegularExpressions.Regex.Match(content, @"最近运行检查拒绝（([^）]+)）：");
+            AssertTrue(match.Success && DateTimeOffset.TryParse(match.Groups[1].Value, out var when) &&
+                when >= before && when <= DateTimeOffset.UtcNow && content.Contains(code) && content.Contains(detail),
+                "last refusal retains its time, code and detail after recovery");
+        }
+    }
+
+    private static async Task FoundInstallFailure()
+    {
+        using var layout = FakeInstall.Create();
+        var incomplete = layout.BuildCandidate() with
+        {
+            State = InstallationCandidateState.Incomplete, FailureCode = ProfileBuildFailureCode.LayoutMismatch,
+            MissingComponents = ["InfinityNikki.exe"],
+        };
+        foreach (var (candidate, label, detail) in new[]
+        {
+            (incomplete with { State = InstallationCandidateState.Unsupported, FailureCode = ProfileBuildFailureCode.ChannelMarkerMismatch },
+                "渠道身份不符", "product.db"),
+            (incomplete, "安装不完整", "InfinityNikki.exe"),
+        })
+        {
+            var page = new MainPageViewModel(new JsonUserSettingsStore(layout.BaseDirectory), new WindowsInstallationInspector(),
+                new RedactedDiagnosticReportExporter(), new FixedDiscovery(candidate));
+            await page.InitializeAsync();
+            AssertEqual(label, page.LaunchButtonLabel, "found installation");
+            AssertTrue(page.LaunchButtonDetail.Contains(detail), "specific discovery reason");
+        }
+    }
+
+    private static async Task MixedChannelDiscovery()
+    {
+        using var layout = FakeInstall.Create();
+        var candidate = layout.BuildCandidate();
+        var wrongChannel = candidate with { State = InstallationCandidateState.Unsupported, FailureCode = ProfileBuildFailureCode.ChannelMarkerMismatch };
+        var incomplete = candidate with { State = InstallationCandidateState.Incomplete, FailureCode = ProfileBuildFailureCode.LayoutMismatch,
+            MissingComponents = ["X6Game-Win64-Shipping.exe"] };
+        var page = new MainPageViewModel(new JsonUserSettingsStore(layout.BaseDirectory), new WindowsInstallationInspector(),
+            new RedactedDiagnosticReportExporter(), new FixedDiscovery(wrongChannel, incomplete));
+        await page.InitializeAsync();
+        AssertEqual("安装不完整", page.LaunchButtonLabel, "same root recognized by its own channel");
+        AssertTrue(page.LaunchButtonDetail.Contains("X6Game-Win64-Shipping.exe"), "matching channel reports the missing file");
+    }
+
+    private static Task EmptySteamLibrary()
+    {
+        using var layout = FakeInstall.Create();
+        var commonRoot = Path.Combine(layout.BaseDirectory, "steamapps", "common", "Infinity Nikki");
+        var candidate = new InstallationProfileCandidate
+        {
+            State = InstallationCandidateState.Incomplete, FailureCode = ProfileBuildFailureCode.SteamManifestMissing,
+            LauncherRootPath = commonRoot,
+        };
+        LaunchButtonState Project(InstallationProfileCandidate item) =>
+            LaunchDiscoveryDisplay.WithoutSelection(false, new() { Candidates = [item] }, out _);
+        AssertEqual(LaunchButtonState.NotInstalled, Project(candidate), "empty Steam library");
+        AssertEqual(LaunchButtonState.Incomplete, Project(candidate with { State = InstallationCandidateState.Downloading }), "staging exists");
+        Directory.CreateDirectory(commonRoot);
+        AssertEqual(LaunchButtonState.Incomplete, Project(candidate), "installation exists without its manifest");
+        return Task.CompletedTask;
+    }
+
+    private static Task DiscoveryStates()
+    {
+        var empty = new ProfileBuildResult();
+        var candidate = new InstallationProfileCandidate { State = InstallationCandidateState.Candidate, Profile = new() };
+        var multiple = empty with { Candidates = [candidate, candidate with { ProfileId = "steam" }] };
+        var ambiguous = empty with { Candidates = [new() { FailureCode = ProfileBuildFailureCode.AmbiguousGameRoot }] };
+        AssertEqual(LaunchButtonState.Checking, LaunchDiscoveryDisplay.WithoutSelection(true, empty, out _), "pending");
+        AssertEqual(LaunchButtonState.NotInstalled, LaunchDiscoveryDisplay.WithoutSelection(false, empty, out _), "empty");
+        AssertEqual(LaunchButtonState.SelectionRequired, LaunchDiscoveryDisplay.WithoutSelection(false, multiple, out _), "multiple");
+        AssertEqual(LaunchButtonState.SelectionRequired, LaunchDiscoveryDisplay.WithoutSelection(false, ambiguous, out _), "ambiguous");
+        AssertEqual(LaunchButtonState.Blocked, LaunchDiscoveryDisplay.WithoutSelection(false, null, out _), "discovery failed");
+        AssertEqual("检查安装中", LaunchButtonState.Checking.Label(), "pending label");
+        AssertEqual("未发现安装", LaunchButtonState.NotInstalled.Label(), "empty label");
+        AssertEqual("需要选择安装", LaunchButtonState.SelectionRequired.Label(), "selection label");
+        return Task.CompletedTask;
+    }
+
+    private static Task GameVersions()
+    {
+        AssertEqual("2.8.1（构建 2828）", LaunchDiscoveryDisplay.FormatGameVersion("2,8,1,2828"), "version");
+        foreach (var value in new[] { null, "", "2.8.1", "2,x,1,2828", "2.8.1.-2", "2,8.1,2828", "2.8.1.+2" })
+            AssertEqual("未知", LaunchDiscoveryDisplay.FormatGameVersion(value), "invalid version");
+        return Task.CompletedTask;
+    }
 
     private const string LauncherVersion = LaunchProviderCatalog.CnLauncherVersion;
 

@@ -10,6 +10,13 @@ public enum CloseWindowBehavior
     Exit,
 }
 
+public enum AfterLaunchBehavior
+{
+    KeepWindow,
+    Minimize,
+    HideToTray,
+}
+
 public sealed record GeneralSettings
 {
     public string LanguageTag { get; init; } = "zh-CN";
@@ -17,6 +24,10 @@ public sealed record GeneralSettings
     public string MainWindowHotkey { get; init; } = "Alt+S";
 
     public CloseWindowBehavior CloseWindowBehavior { get; init; } = CloseWindowBehavior.Exit;
+
+    public bool RecordLocalPlayTime { get; init; }
+
+    public AfterLaunchBehavior AfterLaunchBehavior { get; init; } = AfterLaunchBehavior.KeepWindow;
 
     public bool EnableProfileQuickSwitcher { get; init; } = true;
 }
@@ -82,6 +93,7 @@ public static class ApplicationSettingsValidator
     {
         ArgumentNullException.ThrowIfNull(settings);
         EnsureDefined(settings.CloseWindowBehavior, nameof(settings.CloseWindowBehavior));
+        EnsureDefined(settings.AfterLaunchBehavior, nameof(settings.AfterLaunchBehavior));
         var languageTag = NormalizeLanguageTag(settings.LanguageTag);
 
         var mainWindowHotkey = string.IsNullOrWhiteSpace(settings.MainWindowHotkey)
@@ -221,6 +233,22 @@ public static class ApplicationSettingsMigration
         migrated.TryAdd("download", SerializeDefaults(new DownloadSettings()));
         migrated.TryAdd("fileManagement", SerializeDefaults(new FileManagementSettings()));
         migrated.TryAdd("screenshot", SerializeDefaults(new ScreenshotSettings()));
+        migrated["schemaVersion"] = UserSettings.ApplicationSettingsSchemaVersion;
+        return migrated;
+    }
+
+    public static JsonObject MigrateSchema7To8(JsonObject schema7Settings)
+    {
+        ArgumentNullException.ThrowIfNull(schema7Settings);
+        if (schema7Settings["schemaVersion"] is not JsonValue versionValue ||
+            !versionValue.TryGetValue<int>(out var version) ||
+            version != UserSettings.ApplicationSettingsSchemaVersion)
+        {
+            throw new JsonException($"Window placement migration requires schema {UserSettings.ApplicationSettingsSchemaVersion}.");
+        }
+
+        var migrated = (JsonObject)schema7Settings.DeepClone();
+        migrated.Remove("windowPlacement");
         migrated["schemaVersion"] = UserSettings.CurrentSchemaVersion;
         return migrated;
     }
