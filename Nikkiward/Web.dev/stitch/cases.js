@@ -16,7 +16,9 @@
     'real-running':['tide','running'],
     'real-long':['photo05','blocked']
   };
-  const key = window.panelHomeCase ?? new URLSearchParams(location.search).get('mock');
+  const overlayCase = window.prepareOverlayCase?.({config:'home-tide',diag:'home-blossom-blocked'});
+  const showCase = overlayCase?.show ?? show;
+  const key = overlayCase?.homeCase ?? window.panelHomeCase ?? new URLSearchParams(location.search).get('mock');
   if (!Object.hasOwn(cases,key)) return;
   const [bg,visual] = cases[key];
   const covers = {
@@ -76,7 +78,7 @@
         taskText:'正在计算 SHA-256 · 20480/40960',progress:50,officialDuration:'1284 小时',localDuration:'96.5 小时',
         palette:['#aae8f2','#16677f'],photos:recent.slice(-1)}
     };
-    show({
+    showCase({
       state,visual,launchLabel,readySummary:null,check:launchLabel,checkTime:'今天 06:43',checkCount:null,
       enabled:visual === 'ready',busy:false,running:visual === 'running',closeVisible:visual === 'running',
       closeEnabled:visual === 'running',closeLabel:'关闭游戏',sessionMinutes:null,
@@ -93,7 +95,7 @@
   sheet.href = '../../../Web.dev/stitch/cases.css';
   document.head.append(sheet);
   $('.top').insertAdjacentHTML('beforeend', '<div class="cap" aria-hidden="true"><span><svg viewBox="0 0 11 11"><path d="M0 5.500h11"/></svg></span><span><svg viewBox="0 0 11 11"><rect x=".5" y=".5" width="10" height="10"/></svg></span><span><svg viewBox="0 0 11 11"><path d="M0 0l11 11M11 0L0 11"/></svg></span></div>');
-  show({
+  showCase({
     state,visual,launchLabel,detail:reasons[visual] || subtitle,readySummary:subtitle,
     enabled:visual === 'ready',busy:['launching','checking'].includes(visual),
     running:visual === 'running',closeVisible:visual === 'running',closeEnabled:true,closeLabel:'关闭游戏',

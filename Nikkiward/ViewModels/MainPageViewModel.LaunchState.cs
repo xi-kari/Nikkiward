@@ -266,7 +266,10 @@ public sealed partial class MainPageViewModel
         }
     }
 
-    private string? SelectedLauncherVersionName =>
+    internal IReadOnlyList<ComponentItemViewModel> CurrentComponentRows =>
+        _snapshot is { } snapshot && snapshot.ProfileId == SelectedProfileId ? Components : [];
+
+    internal string? SelectedLauncherVersionName =>
         Services.WindowsLaunchPreflightVerifier.TryGetVersionDirectoryName(
             _selectedCandidate?.Provider?.BackendExecutablePath ?? _profile?.XStarterPath);
 

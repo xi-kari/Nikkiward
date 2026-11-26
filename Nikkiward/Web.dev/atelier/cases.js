@@ -21,7 +21,9 @@
     'home-tide-notfound': ['tide','notfound'],
     'home-blossom-blocked': ['blossom','blocked']
   };
-  const key = window.panelHomeCase ?? new URLSearchParams(location.search).get('mock');
+  const overlayCase = window.prepareOverlayCase?.({config:'home-tide',diag:'home-blossom-blocked'});
+  const showCase = overlayCase?.show ?? show;
+  const key = overlayCase?.homeCase ?? window.panelHomeCase ?? new URLSearchParams(location.search).get('mock');
   if (!Object.hasOwn(cases, key)) return;
   const [cover, visual] = cases[key];
   const [src, artName, artSource, theme, accent, onAccent] = covers[cover];
@@ -96,5 +98,5 @@
     });
   }
   if (key === 'home-tide-running') win.classList.add('quiet-sample');
-  show(sample).then(() => { if (key === 'switcher') switchProfiles(true); });
+  showCase(sample).then(() => { if (key === 'switcher') switchProfiles(true); });
 })();

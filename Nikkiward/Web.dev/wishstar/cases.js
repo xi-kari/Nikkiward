@@ -14,7 +14,9 @@
     'real-running':['tide','running'],
     'real-long':['custom','blocked']
   };
-  const key = window.panelHomeCase ?? new URLSearchParams(location.search).get('mock');
+  const overlayCase = window.prepareOverlayCase?.({config:'home-tide',diag:'home-blossom-blocked'});
+  const showCase = overlayCase?.show ?? show;
+  const key = overlayCase?.homeCase ?? window.panelHomeCase ?? new URLSearchParams(location.search).get('mock');
   if (!Object.hasOwn(cases,key)) return;
   const [art, visual] = cases[key];
   const [state,launchLabel,check,detail] = {
@@ -82,7 +84,7 @@
     else if (visual === 'blocked') sample.detail = '游戏组件的数字签名无效或签名者不受信任，为安全起见已拒绝启动。请用官方启动器校验游戏文件或重新安装后重试。';
     sample.check = ready ? '检查通过' : sample.launchLabel;
   }
-  show(sample).then(() => {
+  showCase(sample).then(() => {
     if (!real && (visual === 'launching' || visual === 'running')) {
       $('#statT').textContent = sample.launchLabel;
       $('#statT').parentElement.hidden = false;

@@ -217,10 +217,16 @@ internal sealed class WebHomeView : UserControl, IDisposable
                 sender.PostWebMessageAsString("open-planner");
                 _web.Focus(FocusState.Programmatic);
             }
+            if (_pendingOverlay is { } name) { _pendingOverlay = null; OpenOverlay(name); }
             MeasureMasthead();
             return;
         }
-        if (Hidden || !_shell.HomeInteractive || WebHomeBridge.Parse(json) is not { } request) return;
+#if DEBUG
+        bool preview = HomePreview.Active;
+#else
+        const bool preview = false;
+#endif
+        if (Hidden || !_shell.HomeInteractive || WebHomeBridge.Parse(json, preview) is not { } request) return;
         if (request.Rect is { } r && request.Action == "profile")
         {
             if (r.X + r.Width > ActualWidth + 1 || r.Y + r.Height > ActualHeight + 1) return;
@@ -229,9 +235,6 @@ internal sealed class WebHomeView : UserControl, IDisposable
             _anchor.Height = r.Height;
             UpdateLayout();
         }
-#if DEBUG
-        if (HomePreview.Active) return;
-#endif
         if (request is { Action: "planner", Planner: { } command })
         {
             try
@@ -249,9 +252,24 @@ internal sealed class WebHomeView : UserControl, IDisposable
             }
             return;
         }
+        if (request.Action is "settings" or "background" or "status")
+        {
+            OpenOverlay(request.Action);
+            return;
+        }
+        if (await _shell.InvokeOverlayActionAsync(request)) return;
         if (_shell.InvokeHomeCommand(request.Action, request.ProfileId)) return;
-        _returnFocus = request.Action is "profile" or "settings" or "background" or "status";
+        _returnFocus = request.Action == "profile";
         _host.InvokeAction(request.Action, _anchor, request.PhotoId is { } id ? _photoItems.GetValueOrDefault(id) : null);
+    }
+
+    private string? _pendingOverlay;
+
+    internal void OpenOverlay(string name)
+    {
+        if (!CoverVisible) { _pendingOverlay = name; return; }
+        _web.CoreWebView2.PostWebMessageAsString("open-" + name);
+        _web.Focus(FocusState.Programmatic);
     }
 
     private void OnInteraction(object? sender, EventArgs e)
@@ -321,8 +339,8 @@ internal sealed class WebHomeView : UserControl, IDisposable
             SessionStarted = model.HomeState == LaunchButtonState.Running ? started : null,
             JournalSnapshotDate = _shell.SnapshotDay, LastSessionPhotos = PlayTimeLedger.CountPhotos(times, previous), CurrentSessionPhotos = PlayTimeLedger.CountPhotos(times, current),
             Background = _cover, Palette = [$"#{backdrop.DerivedAccentLight & 0xffffff:X6}", $"#{backdrop.DerivedAccentDark & 0xffffff:X6}"], ProfileOpen = _shell.HomeProfileOpen };
-        if (_last is { } last && state.Profiles.SequenceEqual(last.Profiles) && state.Palette.SequenceEqual(last.Palette) &&
-            (state with { Profiles = last.Profiles, Palette = last.Palette }) == last) return;
+        if (_last is { } last && state.Profiles.SequenceEqual(last.Profiles) && state.Palette.SequenceEqual(last.Palette) && state.Components.SequenceEqual(last.Components) &&
+            (state with { Profiles = last.Profiles, Palette = last.Palette, Components = last.Components }) == last) return;
         var message = _last?.Photos == state.Photos && _last?.CurrentSessionPhotos.HasValue == state.CurrentSessionPhotos.HasValue ? state with { Photos = null } : state;
         _web.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(message, WebHomeBridge.Json));
         _last = state;

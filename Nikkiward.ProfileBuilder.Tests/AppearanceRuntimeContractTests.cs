@@ -42,6 +42,9 @@ internal static class AppearanceRuntimeContractTests
         (nameof(PlannerCommandsAndPersistence), PlannerCommandsAndPersistence),
         (nameof(SessionPhotosAndHomeFields), SessionPhotosAndHomeFields),
         (nameof(WebHomeStateMatchesLauncher), WebHomeStateMatchesLauncher),
+        (nameof(HomeOverlayShowsNativeChecks), HomeOverlayShowsNativeChecks),
+        (nameof(HomeOverlayActionsAreBounded), HomeOverlayActionsAreBounded),
+        (nameof(HomeOverlayPreviewRejectsActions), HomeOverlayPreviewRejectsActions),
         (nameof(WebHomeActionsAreBounded), WebHomeActionsAreBounded),
         (nameof(AtelierPageUsesBridge), AtelierPageUsesBridge),
         (nameof(WebHomeNavigationIsLocal), WebHomeNavigationIsLocal),
@@ -1022,6 +1025,61 @@ internal static class AppearanceRuntimeContractTests
             };
             Assert(serialized.GetProperty("state").GetString() == kind.ToString() &&
                 serialized.GetProperty("visual").GetString() == visual, kind.ToString());
+        }
+        return Task.CompletedTask;
+    }
+
+    private static Task HomeOverlayShowsNativeChecks()
+    {
+        var vm = new MainPageViewModel(new JsonUserSettingsStore(Path.GetTempPath()),
+            new WindowsInstallationInspector(), new RedactedDiagnosticReportExporter());
+        const System.Reflection.BindingFlags fields = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        typeof(MainPageViewModel).GetField("_checkingInstallation", fields)!.SetValue(vm, false);
+        var result = typeof(MainPageViewModel).GetField("_unselectedState", fields)!;
+        foreach (var kind in Enum.GetValues<LaunchButtonState>())
+        {
+            result.SetValue(vm, kind);
+            var state = WebHomeState.Create(vm, "dark", 0xffabcdef, false, []);
+            Assert(state.State == kind && state.LaunchLabel == kind.Label() &&
+                state.Detail == vm.LaunchButtonDetail && state.Detail.Length > 0, kind + " retains native reason");
+            var checks = state.Overlay.Checks;
+            bool? expectedGate = kind switch {
+                LaunchButtonState.Ready => true,
+                LaunchButtonState.Checking or LaunchButtonState.Launching or LaunchButtonState.Running => null,
+                _ => false
+            };
+            Assert(checks.Gate.Text == vm.ExecutionGateText && checks.Gate.Passed == expectedGate, kind + " check result");
+            Assert(!state.OfficialFlow, kind + " requires verified official capability");
+            Assert((state with { Overlay = state.Overlay with { OfficialCapability = true } }).OfficialFlow ==
+                (kind == LaunchButtonState.Ready), kind + " official action");
+            Assert(state.Overlay.ProviderPreflightText == vm.ProviderPreflightText &&
+                state.Overlay.LatestControlledReceiptText == vm.LatestControlledReceiptText &&
+                state.Overlay.ProviderArgumentVector == vm.ProviderArgumentVector &&
+                !state.Overlay.CanOpenRoot, "native diagnostics and unconfigured path");
+        }
+        return Task.CompletedTask;
+    }
+
+    private static Task HomeOverlayActionsAreBounded()
+    {
+        foreach (string action in new[] { "open-root", "import-motion", "import-card", "official-flow", "export-diagnostics" })
+            Assert(WebHomeBridge.Parse(JsonSerializer.Serialize(new { action }))?.Action == action, action);
+        string Title(string title) => JsonSerializer.Serialize(new { action = "art-title", title, artKey = "background" });
+        Assert(WebHomeBridge.Parse(Title(""))?.Title == "" && WebHomeBridge.Parse(Title(new string('题',120))) != null,
+            "reset and save title");
+        Assert(WebHomeBridge.Parse(Title(new string('题',121))) == null &&
+            WebHomeBridge.Parse("""{"action":"art-title","title":"未指定背景"}""") == null &&
+            WebHomeBridge.Parse("""{"action":"override-arguments"}""") == null, "reject invalid overlay edits");
+        return Task.CompletedTask;
+    }
+
+    private static Task HomeOverlayPreviewRejectsActions()
+    {
+        foreach (string action in new[] { "locate", "open-root", "import-motion", "import-card", "art-title", "reset",
+            "recheck", "official-flow", "export-diagnostics" })
+        {
+            var json = JsonSerializer.Serialize(new { action, artKey = "current", title = "画名" });
+            Assert(WebHomeBridge.Parse(json) != null && WebHomeBridge.Parse(json, preview: true) == null, action);
         }
         return Task.CompletedTask;
     }
