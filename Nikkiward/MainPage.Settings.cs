@@ -43,6 +43,7 @@ public sealed partial class MainPage
         SyncLauncherChrome();
         SetShellNavigationSelection("settings");
         var target = restoreDestination ? _activeSettingsDestination : destination;
+        if (target == SettingsDestination.Overview && TryShowWebPage("settings")) return;
         if (ContentFrame.Content is SettingsPage page)
         {
             page.NavigateTo(target);

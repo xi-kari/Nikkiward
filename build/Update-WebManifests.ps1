@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $project = (Resolve-Path (Join-Path $PSScriptRoot '../Nikkiward')).Path
 foreach ($set in 'Fonts','Skins') {
-    $folders = if ($set -eq 'Fonts') { 'fonts' } else { 'shared','skins','studio' }
+    $folders = if ($set -eq 'Fonts') { 'fonts' } else { 'pages','shared','skins','studio' }
     $paths = foreach ($folder in $folders) {
         Get-ChildItem (Join-Path $project "Web/$folder") -File -Recurse | ForEach-Object {
             [IO.Path]::GetRelativePath($project, $_.FullName).Replace('\','/')

@@ -49,7 +49,7 @@ public sealed partial class MainPage
         try
         {
             SetShellNavigationSelection("library");
-            ShowLibrary();
+            ShowLibrary(officialBrowser: true);
             var journalPage = ContentFrame.Content as JournalPage
                 ?? throw new InvalidOperationException("Journal page navigation did not complete.");
             _journalRouteIntent = JournalRouteIntent.Overview;

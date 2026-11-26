@@ -170,6 +170,22 @@ public static class WishHistoryMerger
 
 public static class WishHistoryProjector
 {
+    internal static (WishHistoryRow Row, int? Distance)[] PoolTimeline(IEnumerable<WishHistoryRow> pool)
+    {
+        var ordered = pool.OrderBy(r => r.Entry.TimestampUtc).ThenBy(r => r.Entry.PullNumber);
+        var timeline = new List<(WishHistoryRow, int?)>();
+        int? previousFive = null;
+        foreach (var row in ordered)
+        {
+            var distance = row.Entry.PullNumber - previousFive;
+            timeline.Add((row, distance >= 0 ? distance : null));
+            if (row.Entry.Rarity == 5) previousFive = row.Entry.PullNumber;
+            else if (row.Entry.Rarity == null) previousFive = null;
+        }
+        timeline.Reverse();
+        return timeline.ToArray();
+    }
+
     public static WishHistoryProjection Project(
         IEnumerable<WishHistoryEntry> entries,
         WishHistorySummary? summary,
@@ -266,7 +282,7 @@ public sealed class WishHistoryStore
                 HistoryPath,
                 FileMode.Open,
                 FileAccess.Read,
-                FileShare.Read,
+                FileShare.Read | FileShare.Delete,
                 32 * 1024,
                 FileOptions.Asynchronous | FileOptions.SequentialScan);
             var snapshot = await JsonSerializer.DeserializeAsync<WishHistoryStoreSnapshot>(
@@ -283,11 +299,60 @@ public sealed class WishHistoryStore
         }
     }
 
-    public async Task<WishHistoryStoreSnapshot> MergeAndSaveAsync(
+    private readonly SemaphoreSlim _writeLock = new(1, 1);
+
+    public async Task ExportAsync(Stream output)
+    {
+        var snapshot = await LoadAsync();
+        using var writer = new Utf8JsonWriter(output, new JsonWriterOptions { Indented = true });
+        writer.WriteStartObject();
+        writer.WriteString("format", "nikkiward-wish-v1");
+        writer.WritePropertyName("history");
+        JsonSerializer.Serialize(writer, snapshot, WishHistoryJsonTypeInfo);
+        writer.WriteEndObject();
+        await writer.FlushAsync();
+    }
+
+    public async Task<WishHistoryStoreSnapshot> ImportAsync(Stream input)
+    {
+        using var document = await JsonDocument.ParseAsync(input);
+        var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object ||
+            !root.TryGetProperty("format", out var format) || format.ValueKind != JsonValueKind.String || !format.ValueEquals("nikkiward-wish-v1") ||
+            !root.TryGetProperty("history", out var history) || history.ValueKind != JsonValueKind.Object ||
+            !history.TryGetProperty("schemaVersion", out var version) || version.ValueKind != JsonValueKind.Number ||
+            !version.TryGetInt32(out var schema) || schema != CurrentSchemaVersion ||
+            !history.TryGetProperty("entries", out var entries) || entries.ValueKind != JsonValueKind.Array)
+            throw new InvalidDataException("请选择 Nikkiward 导出的心愿共鸣 JSON 文件。");
+
+        var snapshot = history.Deserialize(WishHistoryJsonTypeInfo)!;
+        if (snapshot.Entries.Any(e => e == null || string.IsNullOrWhiteSpace(e.StableId) ||
+            e.TimestampUtc == default || e.Rarity is < 1 or > 5))
+            throw new InvalidDataException("文件包含无效的共鸣记录。");
+
+        return await SaveAsync(snapshot.Entries, snapshot.Summary, DateTimeOffset.UtcNow, true, default);
+    }
+
+    public Task<WishHistoryStoreSnapshot> MergeAndSaveAsync(
+        IEnumerable<WishHistoryEntry> imported, WishHistorySummary? summary,
+        DateTimeOffset capturedAtUtc, CancellationToken cancellationToken = default) =>
+        SaveAsync(imported, summary, capturedAtUtc, false, cancellationToken);
+
+    private async Task<WishHistoryStoreSnapshot> SaveAsync(
+        IEnumerable<WishHistoryEntry> imported, WishHistorySummary? summary,
+        DateTimeOffset capturedAtUtc, bool backup, CancellationToken cancellationToken)
+    {
+        await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try { return await MergeCoreAsync(imported, summary, capturedAtUtc, backup, cancellationToken).ConfigureAwait(false); }
+        finally { _writeLock.Release(); }
+    }
+
+    private async Task<WishHistoryStoreSnapshot> MergeCoreAsync(
         IEnumerable<WishHistoryEntry> imported,
         WishHistorySummary? summary,
         DateTimeOffset capturedAtUtc,
-        CancellationToken cancellationToken = default)
+        bool backup,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(imported);
         var existing = await LoadAsync(cancellationToken).ConfigureAwait(false);
@@ -298,7 +363,7 @@ public sealed class WishHistoryStore
         for (var index = 0; index < importedEntries.Length; index++)
         {
             var entry = importedEntries[index];
-            if (entry.TimestampSource == "capture" &&
+            if (!backup && entry.TimestampSource == "capture" &&
                 existingByStableId.TryGetValue(entry.StableId, out var known))
             {
                 importedEntries[index] = entry with
@@ -315,7 +380,7 @@ public sealed class WishHistoryStore
             SchemaVersion = CurrentSchemaVersion,
             CapturedAtUtc = capturedAtUtc.ToUniversalTime(),
             Entries = entries.ToList(),
-            Summary = summary is null ? existing.Summary : summary with { },
+            Summary = backup ? existing.Summary ?? summary : summary ?? existing.Summary,
         };
 
         Directory.CreateDirectory(RootPath);
