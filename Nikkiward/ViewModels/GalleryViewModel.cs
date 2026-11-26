@@ -425,7 +425,7 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
             scopeId, rootPath);
     }
 
-    private static (string Id, string DisplayName) ResolveCategory(string relativePath)
+    internal static (string Id, string DisplayName) ResolveCategory(string relativePath)
     {
         var segments = relativePath.Split(
             [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],

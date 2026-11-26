@@ -65,6 +65,7 @@ internal static class Program
             .Concat(HolographicBackdropProjectionTests.All)
             .Concat(AuthorProfileDepthProjectionTests.All)
             .Concat(GalleryIntegrationTests.All)
+            .Concat(GalleryIndexTests.All)
             .Concat(GalleryFavoriteCardLayoutTests.All)
             .Concat(GalleryMetadataTests.All)
             .Concat(ScreenshotRuntimeContractTests.All)
