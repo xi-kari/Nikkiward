@@ -103,6 +103,33 @@ internal record PlannerCommand(string Action, string? Id = null, string? Text = 
     }
 }
 
+internal sealed class PlannerSession(PlannerData initial, Action<PlannerData> save)
+{
+    internal PlannerData Current { get; private set; } = initial;
+    private bool _pendingSave;
+
+    internal void Save(PlannerData data)
+    {
+        save(data);
+        Current = data;
+        _pendingSave = false;
+    }
+
+    internal bool Refresh(DateTimeOffset now, TimeOnly reset, Action<LocalReminder[]> notify)
+    {
+        var next = Current.Reset(now, reset).Advance(now, out var due);
+        if (due.Length != 0) notify(due);
+        if (!ReferenceEquals(next, Current))
+        {
+            Current = next;
+            _pendingSave = true;
+        }
+        if (!_pendingSave) return false;
+        Save(Current);
+        return true;
+    }
+}
+
 internal sealed class PlannerStore(string root)
 {
     internal const string RelativePath = "home-planner.json";
