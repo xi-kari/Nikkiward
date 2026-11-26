@@ -53,6 +53,7 @@
     <Compile Include="..\Nikkiward\Services\IInstallationInspector.cs" Link="Services\IInstallationInspector.cs" />
     <Compile Include="..\Nikkiward\Services\WindowsInstallationInspector.cs" Link="Services\WindowsInstallationInspector.cs" />
     <Compile Include="..\Nikkiward\Services\WindowsLaunchPreflightVerifier.cs" Link="Services\WindowsLaunchPreflightVerifier.cs" />
+    <Compile Include="..\Nikkiward\ViewModels\LaunchButtonState.cs" Link="ViewModels\LaunchButtonState.cs" />
     <Compile Include="..\Nikkiward\ViewModels\OfficialAssistedLaunchCoordinator.cs" Link="ViewModels\OfficialAssistedLaunchCoordinator.cs" />
     <Compile Include="..\Nikkiward\ViewModels\ExternalChannelProcessBindingFactory.cs" Link="ViewModels\ExternalChannelProcessBindingFactory.cs" />
     <!-- The backdrop analysis path is deliberately free of WinUI and WinRT types

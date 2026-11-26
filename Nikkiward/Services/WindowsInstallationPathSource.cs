@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
 namespace Nikkiward.Services;
@@ -45,9 +46,9 @@ public sealed class WindowsInstallationPathSource : IWindowsInstallationPathSour
                 continue;
             }
 
-            AddPathFromValue(roots, ReadString(uninstallPath, "InstallLocation"));
-            AddPathFromValue(roots, ReadString(uninstallPath, "DisplayIcon"));
-            AddPathFromValue(roots, ReadString(uninstallPath, "UninstallString"));
+            AddDirectory(roots, ParseDirectory(ReadString(uninstallPath, "InstallLocation")));
+            AddFileDirectory(roots, ParseDisplayIcon(ReadString(uninstallPath, "DisplayIcon")));
+            AddFileDirectory(roots, ParseUninstallCommand(ReadString(uninstallPath, "UninstallString")));
         }
 
         return DistinctPaths(roots);
@@ -167,43 +168,52 @@ public sealed class WindowsInstallationPathSource : IWindowsInstallationPathSour
         }
     }
 
-    private static void AddPathFromValue(List<string> roots, string? value)
+    internal static string? ParseDirectory(string? value)
+    {
+        var path = value?.Trim();
+        if (string.IsNullOrEmpty(path))
+        {
+            return null;
+        }
+
+        return path.Length >= 2 && path[0] == '"' && path[^1] == '"' ? path[1..^1] : path;
+    }
+
+    internal static string? ParseDisplayIcon(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            return;
+            return null;
         }
 
-        var trimmed = value.Trim();
-        string firstToken;
-        if (trimmed.StartsWith('"'))
-        {
-            var closingQuote = trimmed.IndexOf('"', 1);
-            firstToken = closingQuote > 1
-                ? trimmed[1..closingQuote]
-                : trimmed.Trim('"');
-        }
-        else
-        {
-            var comma = trimmed.LastIndexOf(',');
-            if (comma > 0 && int.TryParse(trimmed[(comma + 1)..], out _))
-            {
-                trimmed = trimmed[..comma];
-            }
+        var comma = value.LastIndexOf(',');
+        return ParseDirectory(comma >= 0 && int.TryParse(value[(comma + 1)..], out _) ? value[..comma] : value);
+    }
 
-            var executableEnd = trimmed.IndexOf(".exe", StringComparison.OrdinalIgnoreCase);
-            firstToken = executableEnd >= 0
-                ? trimmed[..(executableEnd + 4)]
-                : trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? trimmed;
+    internal static string? ParseUninstallCommand(string? value)
+    {
+        var command = value?.Trim();
+        if (string.IsNullOrEmpty(command))
+        {
+            return null;
         }
 
-        if (File.Exists(firstToken))
+        if (command[0] == '"')
         {
-            AddDirectory(roots, Path.GetDirectoryName(firstToken));
+            var end = command.IndexOf('"', 1);
+            return end > 1 ? command[1..end] : null;
         }
-        else if (Directory.Exists(firstToken))
+
+        var match = Regex.Match(command, @"^.+?\.exe(?=\s|$)",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        return match.Success ? match.Value : null;
+    }
+
+    private static void AddFileDirectory(List<string> roots, string? path)
+    {
+        if (File.Exists(path))
         {
-            AddDirectory(roots, firstToken);
+            AddDirectory(roots, Path.GetDirectoryName(path));
         }
     }
 

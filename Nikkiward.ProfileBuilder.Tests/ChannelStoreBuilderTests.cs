@@ -6,9 +6,46 @@ internal static class ChannelStoreBuilderTests
 {
     public static (string Name, Func<Task> Run)[] All =>
     [
+        ("rejected store plan shows only its reason", RejectedCapacity),
+        ("copied shared objects survive rebuild and reject changed content", RebuildCopiedObjects),
         ("channel store dry-run requires all three channels", MissingChannelIsRejected),
         ("channel store materializes three roots from one shared object layer", BuildsAndRollsBackThreeChannelStore),
     ];
+
+    private static Task RejectedCapacity()
+    {
+        var plan = new ChannelStoreBuildPlan
+        {
+            FailureCode = ChannelStoreFailureCode.InvalidStoreRoot,
+            FailureDetail = "存储位置必须位于 NTFS 卷上。",
+        };
+        AssertEqual(plan.FailureDetail, plan.GetCapacityText(), "rejected capacity");
+        return Task.CompletedTask;
+    }
+
+    private static async Task RebuildCopiedObjects()
+    {
+        using var fixture = new StoreFixture();
+        var builder = new WindowsChannelStoreBuilder();
+        var request = new ChannelStoreBuildRequest
+        {
+            Candidates = [fixture.OfficialCandidate, fixture.BilibiliCandidate, fixture.SteamCandidate],
+            StoreRootPath = fixture.StoreRoot,
+            EnableHardLinks = false,
+        };
+        var plan = await builder.CreatePlanAsync(request);
+        var first = await builder.BuildAsync(plan, plan.PlanSha256);
+        Assert(first.Succeeded, first.FailureDetail ?? "first build failed");
+        var secondPlan = await builder.CreatePlanAsync(request);
+        var second = await builder.BuildAsync(secondPlan, secondPlan.PlanSha256);
+        Assert(second.Succeeded, second.FailureDetail ?? "rebuild failed");
+        var shared = plan.Imports.First(item => item.SharedContent);
+        var bytes = File.ReadAllBytes(shared.DestinationPath);
+        bytes[0] ^= 1;
+        File.WriteAllBytes(shared.DestinationPath, bytes);
+        var conflict = await builder.BuildAsync(secondPlan, secondPlan.PlanSha256);
+        AssertEqual(ChannelStoreFailureCode.ImportConflict, conflict.FailureCode, "changed shared object");
+    }
 
     private static async Task MissingChannelIsRejected()
     {

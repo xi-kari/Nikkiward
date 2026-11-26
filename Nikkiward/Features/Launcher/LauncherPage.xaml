@@ -170,7 +170,8 @@
                                 x:Name="PrimaryActionProgressRing"
                                 Width="14"
                                 Height="14"
-                                IsActive="{x:Bind ViewModel.IsLaunchButtonBusy}" />
+                                IsActive="{x:Bind ViewModel.IsLaunchButtonBusy}"
+                                Visibility="{x:Bind ViewModel.IsLaunchButtonBusy}" />
                             <TextBlock
                                 x:Name="PrimaryActionLabel"
                                 MaxWidth="100"
@@ -234,7 +235,8 @@
                     Padding="0"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Center"
-                    automation:AutomationProperties.Name="打开启动设置"
+                    automation:AutomationProperties.Name="打开游戏设置"
+                    ToolTipService.ToolTip="游戏设置 · 定位游戏"
                     Background="Transparent"
                     BorderThickness="0"
                     Click="OnLaunchSettingsClicked"

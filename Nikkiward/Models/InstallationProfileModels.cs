@@ -192,6 +192,8 @@ public sealed record InstallationProfileCandidate
 
     public LaunchProviderBinding? Provider { get; init; }
 
+    public string? ProductBuildNumber { get; init; }
+
     public SteamManifestEvidence? SteamManifest { get; init; }
 
     public IReadOnlyList<string> MissingComponents { get; init; } = Array.Empty<string>();

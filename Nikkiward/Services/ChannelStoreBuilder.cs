@@ -832,10 +832,7 @@ public sealed class WindowsChannelStoreBuilder : IChannelStoreBuilder
                     item.Sha256,
                     cancellationToken)
                 .ConfigureAwait(false);
-            if (!destinationVerified ||
-                item.SharedContent && !WindowsHardLinkIdentity.AreSameFile(
-                    item.SourcePath,
-                    item.DestinationPath))
+            if (!destinationVerified)
             {
                 throw new ChannelStoreException(
                     ChannelStoreFailureCode.ImportConflict,
@@ -1117,7 +1114,7 @@ public sealed class WindowsChannelStoreBuilder : IChannelStoreBuilder
             var drive = new DriveInfo(Path.GetPathRoot(normalized)!);
             if (!string.Equals(drive.DriveFormat, "NTFS", StringComparison.OrdinalIgnoreCase))
             {
-                error = "Store root must be on NTFS.";
+                error = "存储位置必须位于 NTFS 卷上。";
                 return false;
             }
 
