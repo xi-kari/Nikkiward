@@ -37,6 +37,7 @@ public sealed class ArtBackdropService : INotifyPropertyChanged
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly List<FrameworkElement> _onArtInkHosts = [];
 
+    private MotionPlaybackSampling? _motionSampling = new();
     private FrameworkElement? _scrimLayer;
     private ArtAnalysis? _currentAnalysis;
 
@@ -78,6 +79,10 @@ public sealed class ArtBackdropService : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    internal void BeginMotionSampling(CancellationToken lifetime) => _motionSampling = new(lifetime);
+
+    internal void EndMotionSampling() => _motionSampling = null;
 
     /// <summary>Accent derived from the current artwork, or the brand blush.</summary>
     public Color AccentColor
@@ -246,6 +251,7 @@ public sealed class ArtBackdropService : INotifyPropertyChanged
             return null;
         }
 
+        var playback = descriptor.Kind == BackgroundSourceKind.Motion ? _motionSampling : null;
         await _gate.WaitAsync(cancellationToken);
         try
         {
@@ -253,13 +259,14 @@ public sealed class ArtBackdropService : INotifyPropertyChanged
                 descriptor,
                 TimeSpan.Zero,
                 allowCache: true,
+                playback,
                 cancellationToken);
             if (analysis is null)
             {
                 return null;
             }
 
-            await PublishAsync(analysis);
+            await PublishAsync(analysis, playback, cancellationToken);
             return analysis;
         }
         finally
@@ -278,6 +285,7 @@ public sealed class ArtBackdropService : INotifyPropertyChanged
             return null;
         }
 
+        var playback = _motionSampling;
         await _gate.WaitAsync(cancellationToken);
         try
         {
@@ -285,20 +293,22 @@ public sealed class ArtBackdropService : INotifyPropertyChanged
                 descriptor,
                 position,
                 allowCache: false,
+                playback,
                 cancellationToken);
-            if (analysis is null ||
-                _currentAnalysis is null ||
-                !HasMaterialLuminanceDrift(
-                    _currentAnalysis,
-                    analysis,
-                    DynamicLuminanceDelta))
+            if (analysis is null || _currentAnalysis is null)
             {
                 return null;
             }
 
-            analysis.ArtHash = _currentAnalysis.ArtHash;
-            analysis.BlurredArtPath = _currentAnalysis.BlurredArtPath;
-            await PublishAsync(analysis);
+            if (analysis.ArtHash == _currentAnalysis.ArtHash)
+            {
+                if (!HasMaterialLuminanceDrift(_currentAnalysis, analysis, DynamicLuminanceDelta))
+                {
+                    return null;
+                }
+                analysis.BlurredArtPath = _currentAnalysis.BlurredArtPath;
+            }
+            await PublishAsync(analysis, playback, cancellationToken);
             return analysis;
         }
         finally
@@ -341,6 +351,7 @@ public sealed class ArtBackdropService : INotifyPropertyChanged
         BackgroundSourceDescriptor descriptor,
         TimeSpan position,
         bool allowCache,
+        MotionPlaybackSampling? playback,
         CancellationToken cancellationToken)
     {
         var sampler = _samplers.FirstOrDefault(item => item.CanServe(descriptor));
@@ -349,8 +360,28 @@ public sealed class ArtBackdropService : INotifyPropertyChanged
             return null;
         }
 
-        var hash = await sampler.TryIdentifyAsync(descriptor, cancellationToken);
+        if (descriptor.Kind == BackgroundSourceKind.Motion)
+        {
+            return playback is null ? null : await playback.AnalyzeAsync(
+                descriptor, sampler, Analyze, cancellationToken, requireIdentity: !allowCache);
+        }
 
+        var hash = await sampler.TryIdentifyAsync(descriptor, cancellationToken);
+        return await Analyze(hash, (width, at, token) =>
+            sampler.SampleAsync(descriptor, width, at, token), cancellationToken);
+
+        Task<ArtAnalysis?> Analyze(string? artHash, MotionFrameReader readFrame, CancellationToken token) =>
+            AnalyzeFrameAsync(descriptor, position, allowCache, artHash, readFrame, token);
+    }
+
+    private async Task<ArtAnalysis?> AnalyzeFrameAsync(
+        BackgroundSourceDescriptor descriptor,
+        TimeSpan position,
+        bool allowCache,
+        string? hash,
+        MotionFrameReader readFrame,
+        CancellationToken cancellationToken)
+    {
         if (allowCache && hash is not null)
         {
             var cached = await _cache.LoadAsync(hash, cancellationToken);
@@ -361,8 +392,7 @@ public sealed class ArtBackdropService : INotifyPropertyChanged
             }
         }
 
-        var decoded = await sampler.SampleAsync(
-            descriptor,
+        var decoded = await readFrame(
             ArtBlurBaker.BakeWidth,
             position,
             cancellationToken);
@@ -382,7 +412,8 @@ public sealed class ArtBackdropService : INotifyPropertyChanged
                 result.SourceKind = descriptor.Kind;
                 cancellationToken.ThrowIfCancellationRequested();
                 result.BlurredArtPath = null;
-                return (Analysis: result, Blurred: _baker.Bake(DownsampleForBake(decoded)));
+                var blurred = allowCache ? _baker.Bake(DownsampleForBake(decoded)) : null;
+                return (Analysis: result, Blurred: blurred);
             },
             cancellationToken);
 
@@ -394,7 +425,7 @@ public sealed class ArtBackdropService : INotifyPropertyChanged
                 ResolveDoubleResource("MotionScrimFloor", MotionScrimFloorFallback));
         }
 
-        if (allowCache && hash is not null)
+        if (analysis.Blurred is not null && hash is not null)
         {
             analysis.Analysis.BlurredArtPath = await TryWriteBlurAsync(
                 hash,
@@ -473,10 +504,12 @@ public sealed class ArtBackdropService : INotifyPropertyChanged
         }
     }
 
-    private Task PublishAsync(ArtAnalysis analysis)
+    private Task PublishAsync(ArtAnalysis analysis, MotionPlaybackSampling? playback, CancellationToken cancellationToken)
     {
         void Publish()
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            playback?.Lifetime.ThrowIfCancellationRequested();
             DerivedAccentLight = analysis.DerivedAccentLight;
             DerivedAccentDark = analysis.DerivedAccentDark;
             DominantHueWeight = analysis.DominantHueWeight;

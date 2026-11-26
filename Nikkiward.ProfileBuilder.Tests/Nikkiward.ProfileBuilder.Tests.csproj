@@ -60,6 +60,7 @@
     <Compile Include="..\Nikkiward\Features\Background\ArtBlurBaker.cs" Link="Features\Background\ArtBlurBaker.cs" />
     <Compile Include="..\Nikkiward\Features\Background\ArtAnalysisCache.cs" Link="Features\Background\ArtAnalysisCache.cs" />
     <Compile Include="..\Nikkiward\Features\Background\MotionSourceRules.cs" Link="Features\Background\MotionSourceRules.cs" />
+    <Compile Include="..\Nikkiward\Features\Background\MotionPlaybackSampling.cs" Link="Features\Background\MotionPlaybackSampling.cs" />
     <Compile Include="..\Nikkiward\Features\Background\MotionImportFileCopier.cs" Link="Features\Background\MotionImportFileCopier.cs" />
     <Compile Include="..\Nikkiward\Features\Background\WallpaperImportSupport.cs" Link="Features\Background\WallpaperImportSupport.cs" />
     <Compile Include="..\Nikkiward\Features\Background\HolographicBackdropProjection.cs" Link="Features\Background\HolographicBackdropProjection.cs" />
