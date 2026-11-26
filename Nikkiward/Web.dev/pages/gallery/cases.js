@@ -35,6 +35,12 @@ const G=[
     color:filtered?'14726732':null,filters:{'晨曦':24,'花雾':15,'月白':36,'旧金':12},clothes:{'105602':21},colors:{14726732:18},
     missingRoot:name==='gallery-unlocated',protection:true,tabs,offset:0,next:null,indexing:name==='gallery-indexing',indexed:160,total:1284,
     matches:empty||noMatch?0:days.reduce((sum,g)=>sum+g.photos.length,0),days:empty||noMatch?[]:days};
+  if(name==='gallery-by-name'){
+    state.sort='name';
+    const photos=[days[0].photos[0],days[1].photos[0],days[0].photos[1]].map((p,i)=>({...p,name:['A.jpg','B.jpg','C.jpg'][i]}));
+    state.days=[{date:null,photos}];state.matches=photos.length;
+    state.tabs=[{id:'all',name:'全部',count:photos.length}];
+  }
   await receivePage({type:'state',page:favorites?'favorites':'gallery',module:'gallery',
     skin:name==='gallery-more'?'stitch':['atelier','stitch','journal','wishstar'].includes(variant)?variant:'cinema',
     tone:params.get('tone')==='light'||name==='gallery-blossom'?'light':'dark',state});

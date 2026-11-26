@@ -17,6 +17,7 @@ public sealed partial class MainPage
     private sealed record GalleryLibrary(string? Root, string Exports, string? Profile, GalleryIndex Index)
     {
         internal Dictionary<bool, GalleryPageSession> Pages { get; } = [];
+        internal Dictionary<string, GalleryDefaultFavorite> DefaultPaths { get; } = [];
     }
     private GalleryLibrary? _galleryLibrary;
 
@@ -56,8 +57,10 @@ public sealed partial class MainPage
         private CancellationTokenSource _images = new();
         private readonly SemaphoreSlim _thumbnailGate = new(3);
         private readonly SemaphoreSlim _starGate = new(1);
-        private readonly Dictionary<string, GalleryDefaultFavorite> _defaultPaths = [];
-        private readonly List<GalleryIndexPhoto> _defaults = [];
+        private readonly Dictionary<string, GalleryDefaultFavorite> _defaultPaths;
+        private bool _seedsLoaded;
+        private GalleryIndexPhoto[] _defaults = [];
+        private (PlaySession? Current, PlaySession? Previous) _sessions;
         private IDisposable? _watch;
         private bool _running, _pending, _overlap, _protect;
         private string? _error;
@@ -67,11 +70,13 @@ public sealed partial class MainPage
         {
             (_shell, _root, _exports, _profile, _favorites) = (shell, library.Root, library.Exports, library.Profile, favorites);
             _index = library.Index;
+            _defaultPaths = library.DefaultPaths;
             if (!library.Pages.TryGetValue(favorites, out var session))
                 library.Pages[favorites] = session = new(_index, favorites);
             _session = session;
             _session.BeginVisit();
-            _session.Reset([], keepWindow: true);
+            var sessions = shell.HomeSessions;
+            _sessions = (sessions.Current, sessions.Previous);
         }
 
         internal bool Matches(string? root, string exports, string? profile, bool favorites) =>
@@ -93,6 +98,7 @@ public sealed partial class MainPage
             _watch?.Dispose();
             _shell.ViewModel.PropertyChanged -= RootChanged;
             _life.Cancel();
+            _session.CancelBuild();
             _images.Cancel();
             _images.Dispose();
         }
@@ -163,33 +169,50 @@ public sealed partial class MainPage
             {
                 _error = "默认收藏未能载入。";
             }
+            token.ThrowIfCancellationRequested();
             var known = _defaultPaths.ToDictionary(p => p.Value.RelativePath, p => p.Key);
-            _defaults.Clear();
+            var defaults = new List<GalleryIndexPhoto>(seed.Count);
             _defaultPaths.Clear();
             foreach (var p in seed)
             {
                 var id = known.GetValueOrDefault(p.RelativePath) ?? Guid.NewGuid().ToString("N");
                 _defaultPaths[id] = p;
-                _defaults.Add(new(id, Path.GetFileName(p.FilePath), p.RelativePath, "DefaultFavorites", "默认收藏",
+                defaults.Add(new(id, Path.GetFileName(p.FilePath), p.RelativePath, "DefaultFavorites", "默认收藏",
                     p.LastWriteTimeUtc.ToLocalTime(), p.FileSizeBytes, new(null,null,false,null,[],null,null,[]), true,false,null));
             }
-            var sessions = _shell.HomeSessions;
-            var scan = _index.RefreshAsync(stars, sessions.Current, sessions.Previous, token: token, exportState: exportStars);
+            _defaults = defaults.ToArray();
+            if (!_seedsLoaded)
+            {
+                _seedsLoaded = true;
+                await ResetAsync();
+                token.ThrowIfCancellationRequested();
+                Publish();
+            }
+            var scan = _index.RefreshAsync(stars, null, null, token: token, exportState: exportStars);
             while (!scan.IsCompleted)
             {
                 if (await Task.WhenAny(scan, Task.Delay(600, token)) == scan || token.IsCancellationRequested) break;
-                if (_session.Page.Matches < 80 && _session.Page.Progress.Indexed != _index.Progress.Indexed) Reset();
+                if (_session.Page.Matches < 80 && _session.Page.Progress.Indexed != _index.Progress.Indexed) await ResetAsync();
                 Publish();
             }
             await scan;
             token.ThrowIfCancellationRequested();
-            Reset();
+            await ResetAsync();
         }
 
-        private void Reset()
+        private async Task<bool> ResetAsync()
         {
+            if (!await _session.ResetAsync(_defaults, keepWindow: true, sessions: _sessions)) return false;
             InvalidateImages();
-            _session.Reset(_defaults, keepWindow: true);
+            return true;
+        }
+
+        internal async void PlayTimeChanged()
+        {
+            var (current, previous, _) = _shell.HomeSessions;
+            if (_sessions == (current, previous)) return;
+            _sessions = (current, previous);
+            if (_seedsLoaded && await ResetAsync()) Publish();
         }
 
         private string? PathFor(GalleryIndexPhoto p) => _defaultPaths.TryGetValue(p.Id, out var seed) ? seed.FilePath : _index.ResolvePath(p.Id);
@@ -247,8 +270,7 @@ public sealed partial class MainPage
             {
                 case "query": case "clear":
                     InvalidateImages();
-                    _session.Change(action == "clear" ? JsonSerializer.SerializeToElement(new { }) : m, _defaults);
-                    Publish();
+                    if (await _session.ChangeAsync(action == "clear" ? JsonSerializer.SerializeToElement(new { }) : m, _defaults, _sessions)) Publish();
                     return;
                 case "refresh": ScheduleRefresh(); Publish(); return;
                 case "locate-game":

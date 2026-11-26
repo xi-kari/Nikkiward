@@ -42,43 +42,64 @@ internal sealed partial class GalleryIndex
         lock (_gate) return _rows.GetValueOrDefault(id)?.Path;
     }
 
-    internal GalleryIndexPhoto[] BurstGroup(string id)
+    private Lazy<GalleryIndexPhoto[]>? _photos;
+    private readonly Dictionary<bool, (IEnumerable<GalleryIndexPhoto> Defaults, Lazy<GalleryQueryCatalog> Catalog)> _catalogs = [];
+    private readonly Lock _cursorGate = new();
+
+    private void InvalidateCatalog()
     {
-        lock (_gate)
-        {
-            var photos = WithBursts();
-            var group = photos.FirstOrDefault(p => p.Id == id)?.Burst;
-            return group == null ? [] : photos.Where(p => p.Burst == group).OrderBy(p => p.LocalTime.ToUniversalTime())
-                .ThenBy(p => p.RelativePath, StringComparer.Ordinal).ToArray();
-        }
+        _photos = null;
+        _catalogs.Clear();
     }
 
-    internal GalleryQuerySnapshot Snapshot(GalleryQuery query, IEnumerable<GalleryIndexPhoto> defaults, bool favoritesRoute)
+    private Lazy<GalleryIndexPhoto[]> Photos()
     {
+        if (_photos != null) return _photos;
+        var rows = _rows.Values.Select(r => r.Photo).ToArray();
+        return _photos = new(() => WithBursts(rows));
+    }
+
+    internal GalleryQuerySnapshot Snapshot(GalleryQuery query, IEnumerable<GalleryIndexPhoto> defaults, bool favoritesRoute,
+        CancellationToken token = default, (PlaySession? Current, PlaySession? Previous)? sessions = null,
+        GalleryQuerySnapshot? previousSnapshot = null)
+    {
+        Lazy<GalleryQueryCatalog> catalog;
+        GalleryIndexProgress progress;
         lock (_gate)
         {
-            var photos = WithBursts().Concat(defaults);
-            return new(query, (favoritesRoute ? photos.Where(p => p.Favorite) : photos).ToArray(), _progress);
+            if (!_catalogs.TryGetValue(favoritesRoute, out var entry) || !ReferenceEquals(entry.Defaults, defaults))
+            {
+                var rows = Photos();
+                entry = (defaults, new(() => new GalleryQueryCatalog(rows.Value, defaults, favoritesRoute)));
+                _catalogs[favoritesRoute] = entry;
+            }
+            catalog = entry.Catalog;
+            progress = _progress;
         }
+        var data = catalog.Value;
+        token.ThrowIfCancellationRequested();
+        if (sessions.HasValue) data = data.ForSessions(sessions.Value);
+        if (previousSnapshot?.Catalog == data && previousSnapshot.Query == query && previousSnapshot.Progress == progress)
+            return previousSnapshot;
+        return new(query, data, progress, token);
     }
 
     internal GalleryQueryPage Query(GalleryQuery query, GalleryQueryCursor? cursor = null)
     {
-        lock (_gate)
+        lock (_cursorGate)
         {
             if (cursor is null)
-                _snapshot = new(query, WithBursts(), _progress);
+                _snapshot = Snapshot(query, Array.Empty<GalleryIndexPhoto>(), false);
             else if (_snapshot?.Version != cursor.Version || _snapshot.Query != query || cursor.Offset < 0)
                 throw new ArgumentException("相册查询已失效，请从第一页重新查询。", nameof(cursor));
             return _snapshot!.Page(cursor?.Offset ?? 0);
         }
     }
 
-    private GalleryIndexPhoto[] WithBursts()
+    private static GalleryIndexPhoto[] WithBursts(GalleryIndexPhoto[] rows)
     {
-        var photos = new List<GalleryIndexPhoto>(_rows.Count);
-        var byEligibility = _rows.Values.Select(r => r.Photo)
-            .ToLookup(p => !p.Exported && GalleryFiles.IsLocalCaptureCategory(p.CategoryId));
+        var photos = new List<GalleryIndexPhoto>(rows.Length);
+        var byEligibility = rows.ToLookup(p => !p.Exported && GalleryFiles.IsLocalCaptureCategory(p.CategoryId));
         photos.AddRange(byEligibility[false]);
         foreach (var directory in byEligibility[true].GroupBy(p => Path.GetDirectoryName(p.RelativePath), StringComparer.OrdinalIgnoreCase))
         {
@@ -117,15 +138,16 @@ try { await RefreshCoreAsync(favorites, current, previous, exportState?.StarredP
     private async Task RefreshCoreAsync(GalleryFavoriteState favorites, PlaySession? current, PlaySession? previous,
         IReadOnlySet<string>? exportStars, CancellationToken token, GalleryFavoriteState? exportState)
     {
-        Dictionary<string, string> ids;
+        KeyValuePair<string, Row>[] existing;
         lock (_gate)
         {
-            ids = _rows.ToDictionary(pair => pair.Value.LogicalPath, pair => pair.Key, StringComparer.OrdinalIgnoreCase);
+            existing = _rows.ToArray();
             _issues.Clear();
             _progress = new(_rows.Count, _rows.Count, 0, true);
         }
         try
         {
+            var ids = existing.ToDictionary(pair => pair.Value.LogicalPath, pair => pair.Key, StringComparer.OrdinalIgnoreCase);
             var sources = new Dictionary<string, Source>(StringComparer.OrdinalIgnoreCase);
             void Collect(string? root, bool exported)
             {
@@ -146,15 +168,18 @@ try { await RefreshCoreAsync(favorites, current, previous, exportState?.StarredP
                 sources.TryAdd(entry.OriginalPath, new(new(fallback.ProtectedPath), entry.RelativePath,
                     entry.ScopeId == exportState?.ScopeId, entry.OriginalLastWriteTimeUtc.UtcDateTime));
             }
+            var removed = new List<string>();
+            foreach (var (id, row) in existing)
+            {
+                if (!sources.TryGetValue(row.LogicalPath, out var source) || row.Path != source.File.FullName ||
+                    _memoryCache?.GetValueOrDefault(CacheKey(row.Path, row.LogicalPath)) is not { } prior ||
+                    !source.File.Exists || prior.Size != source.File.Length || prior.Modified != source.File.LastWriteTimeUtc.Ticks)
+                    removed.Add(id);
+            }
             lock (_gate)
             {
-                foreach (var (id, row) in _rows.ToArray())
-                {
-                    if (!sources.TryGetValue(row.LogicalPath, out var source) || row.Path != source.File.FullName ||
-                        _memoryCache?.GetValueOrDefault(CacheKey(row.Path, row.LogicalPath)) is not { } prior ||
-                        !source.File.Exists || prior.Size != source.File.Length || prior.Modified != source.File.LastWriteTimeUtc.Ticks)
-                        _rows.Remove(id);
-                }
+                foreach (var id in removed) _rows.Remove(id);
+                if (removed.Count != 0) InvalidateCatalog();
                 _progress = _progress with { Total = sources.Count, Indexed = _rows.Count };
             }
             var persist = CanWriteCache(Path.GetDirectoryName(_cache)!, _root, _exports);
@@ -200,6 +225,7 @@ try { await RefreshCoreAsync(favorites, current, previous, exportState?.StarredP
                     lock (_gate)
                     {
                         _rows[id] = new(file.FullName, photo, logicalPath);
+                        InvalidateCatalog();
                         _progress = _progress with { Indexed = _rows.Count };
                     }
                 }
@@ -208,7 +234,7 @@ try { await RefreshCoreAsync(favorites, current, previous, exportState?.StarredP
                     Issue(logicalPath, ex);
                     lock (_gate)
                     {
-                        if (ids.TryGetValue(logicalPath, out var id)) _rows.Remove(id);
+                        if (ids.TryGetValue(logicalPath, out var id) && _rows.Remove(id)) InvalidateCatalog();
                         _progress = _progress with { Indexed = _rows.Count, Skipped = _progress.Skipped + 1 };
                     }
                 }

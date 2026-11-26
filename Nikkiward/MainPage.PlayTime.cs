@@ -174,6 +174,7 @@ public sealed partial class MainPage
         var sessions = _playTime?.Sessions ?? [];
         ViewModel.LocalPlayDuration = ViewModel.GeneralSettings.RecordLocalPlayTime && sessions.Count > 0
             ? $"本机 {sessions.Sum(session => session.Duration.TotalHours):0.#} 小时" : null;
+        _webGallery?.PlayTimeChanged();
         HomeDataChanged?.Invoke(this, EventArgs.Empty);
         var settingsState = (sessions.Count > 0, _playTimeError);
         if (_lastWebPlayTime != settingsState)
