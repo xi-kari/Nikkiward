@@ -1,12 +1,21 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Nikkiward.Models;
+using Nikkiward.ViewModels;
 using Nikkiward.Services;
 
 internal static class UserSettingsTests
 {
     public static (string Name, Func<Task> Run)[] All =>
     [
+        ("damaged settings survive profile discovery and window close", () => DiscoverWithSettingsAsync("{broken")),
+        ("future settings survive profile discovery and window close", () => DiscoverWithSettingsAsync("{\"schemaVersion\":999}")),
+        ("first run saves the discovered profile", () => DiscoverWithSettingsAsync(null)),
+        ("overlapping preference saves retain both sections", OverlappingPreferenceSaves),
+        ("queued preference changes preserve both hotkeys", QueuedPreferencesPreserveHotkeys),
+        ("failed hotkey save restores registration and display", () => HotkeysRollBack(new IOException())),
+        ("cancelled hotkey save restores registration and display", () => HotkeysRollBack(new OperationCanceledException())),
+        ("protected settings restore only a validated backup", RestoreProtectedSettings),
         ("new settings use the single appearance authority", NewSettingsUseAppearance),
         ("appearance settings round trip through settings json", AppearanceRoundTripsThroughSettingsJson),
         ("Wallpaper Engine presentation settings round trip through settings json", WallpaperEnginePresentationRoundTripsThroughSettingsJson),
@@ -23,6 +32,170 @@ internal static class UserSettingsTests
         ("settings atomic replacement leaves no temporary files", AtomicReplacementLeavesNoTemporaryFiles),
         ("application paths preserve Windows drive roots", ApplicationPathsPreserveDriveRoots),
     ];
+
+    private sealed class SingleInstall : IInstallationDiscoveryService
+    {
+        public Task<ProfileBuildResult> DiscoverAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ProfileBuildResult
+            {
+                Candidates = [new InstallationProfileCandidate
+                {
+                    ProfileId = "test", Profile = new LaunchProfile { ProfileId = "test" },
+                    State = InstallationCandidateState.Candidate,
+                }],
+            });
+
+        public Task<ProfileBuildResult> DiscoverFromManualGameRootAsync(string selectedDirectory,
+            string? selectedLauncherRoot = null, CancellationToken cancellationToken = default) =>
+            DiscoverAsync(cancellationToken);
+    }
+
+    private static MainPageViewModel CreatePage(WindowSettingsSession session) =>
+        new(session, new WindowsInstallationInspector(), new RedactedDiagnosticReportExporter(), new SingleInstall());
+
+    private static async Task DiscoverWithSettingsAsync(string? original)
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var store = new JsonUserSettingsStore(root);
+            var directory = Path.GetDirectoryName(store.SettingsFilePath)!;
+            Directory.CreateDirectory(directory);
+            var bytes = System.Text.Encoding.UTF8.GetBytes(original ?? "");
+            if (original is not null)
+            {
+                await File.WriteAllBytesAsync(store.SettingsFilePath, bytes);
+            }
+
+            var session = new WindowSettingsSession(store);
+            var page = CreatePage(session);
+            await page.InitializeAsync();
+            AssertEqual("test", page.SelectedProfileId, "unique install selected");
+            await page.DiscoverAsync();
+            var manual = await page.DiscoverFromManualRootAsync(root, null);
+            Assert(manual.Succeeded, "manual discovery remains usable");
+            Assert(await page.SelectProfileAsync("test"), "profile remains selectable");
+            await session.SaveWindowPlacementAsync(new(50, 60, 800, 600, 0, 0, 96, false));
+            if (original is null)
+            {
+                AssertEqual("test", (await store.LoadAsync()).SelectedProfileId, "first run persisted");
+                return;
+            }
+            Assert(File.ReadAllBytes(store.SettingsFilePath).SequenceEqual(bytes), "original bytes changed");
+            Assert(page.SettingsStatusText.Contains("只读保护"), "protection is visible");
+            await AssertThrowsAsync<UserSettingsStoreException>(() => page.SaveDeveloperModeAsync(true));
+            await session.RecoverUnreadableAsync(null, CancellationToken.None);
+            var preserved = Directory.GetFiles(directory, "settings.unreadable-*.json").Single();
+            Assert(File.ReadAllBytes(preserved).SequenceEqual(bytes), "archived original bytes changed");
+            AssertEqual(null, (await store.LoadAsync()).SelectedProfileId, "reset writes defaults");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private sealed class PausedStore(IUserSettingsStore store) : IUserSettingsStore
+    {
+        public TaskCompletionSource Saving { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Resume { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public string SettingsFilePath => store.SettingsFilePath;
+        public Task<UserSettings> LoadAsync(CancellationToken cancellationToken = default) => store.LoadAsync(cancellationToken);
+
+        public async Task SaveAsync(UserSettings settings, CancellationToken cancellationToken = default)
+        {
+            Saving.TrySetResult();
+            await Resume.Task.WaitAsync(cancellationToken);
+            await store.SaveAsync(settings, cancellationToken);
+        }
+    }
+
+    private static async Task OverlappingPreferenceSaves()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var store = new PausedStore(new JsonUserSettingsStore(root));
+            var page = CreatePage(new WindowSettingsSession(store));
+            var appearance = page.SaveThemeModeAsync(ThemeMode.WarmLight);
+            await store.Saving.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var developer = page.SaveDeveloperModeAsync(true);
+            store.Resume.SetResult();
+            await Task.WhenAll(appearance, developer);
+            var saved = await store.LoadAsync();
+            Assert(saved.DeveloperModeEnabled, "developer setting lost");
+            AssertEqual(ThemeMode.WarmLight, saved.Appearance.ThemeMode, "appearance lost");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static async Task QueuedPreferencesPreserveHotkeys()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var store = new PausedStore(new JsonUserSettingsStore(root));
+            var page = CreatePage(new WindowSettingsSession(store));
+            var hotkeys = page.SaveHotkeySettingsAsync("F9", "F10");
+            await store.Saving.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var general = page.SaveGeneralSettingsAsync(page.GeneralSettings with { LanguageTag = "zh-CN" });
+            var screenshot = page.SaveScreenshotSettingsAsync(page.ScreenshotSettings with { FolderPath = root });
+            store.Resume.SetResult();
+            await Task.WhenAll(hotkeys, general, screenshot);
+            var saved = await store.LoadAsync();
+            AssertEqual("F9", saved.General.MainWindowHotkey, "general preferences preserve main shortcut");
+            AssertEqual("F10", saved.Screenshot.Hotkey, "screenshot preferences preserve capture shortcut");
+            AssertEqual(root, saved.Screenshot.FolderPath, "capture folder persisted");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static async Task HotkeysRollBack(Exception failure)
+    {
+        var registered = "Alt+D";
+        var displayed = "F10";
+        var error = await AssertThrowsAsync<Exception>(() => HotkeySettingsChange.ApplyAsync(
+            () =>
+            {
+                registered = displayed;
+                return HotkeyRegistrationResult.Success("");
+            },
+            () => Task.FromException(failure),
+            () => registered = displayed = "Alt+D"));
+        Assert(ReferenceEquals(failure, error), "save outcome reaches the event boundary");
+        AssertEqual("Alt+D", registered, "registration restored");
+        AssertEqual("Alt+D", displayed, "display restored");
+    }
+
+    private static async Task RestoreProtectedSettings()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var store = new JsonUserSettingsStore(root);
+            await store.SaveAsync(new UserSettings { DeveloperModeEnabled = true });
+            var maintenance = new SettingsMaintenanceService(store.SettingsFilePath, Path.Combine(root, "browser"));
+            var good = await maintenance.CreateBackupAsync();
+            await File.WriteAllTextAsync(store.SettingsFilePath, "{broken");
+            var bad = await maintenance.CreateBackupAsync();
+            var session = new WindowSettingsSession(store);
+            await AssertThrowsAsync<UserSettingsStoreException>(() => session.LoadAsync());
+            await AssertThrowsAsync<JsonException>(() => session.RecoverUnreadableAsync(bad.FilePath, CancellationToken.None));
+            AssertEqual("{broken", await File.ReadAllTextAsync(store.SettingsFilePath), "bad backup preserved original");
+            await session.RecoverUnreadableAsync(good.FilePath, CancellationToken.None);
+            Assert((await store.LoadAsync()).DeveloperModeEnabled, "restored preference");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
 
     private static Task NewSettingsUseAppearance()
     {

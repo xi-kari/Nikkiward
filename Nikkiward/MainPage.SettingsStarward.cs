@@ -36,7 +36,8 @@ public sealed partial class MainPage
             LastBackupAtUtc = ViewModel.FileManagementSettings.LastBackupAtUtc,
             ClearLauncherBackgroundFiles = ViewModel.FileManagementSettings.ClearLauncherBackgroundFiles,
             IsBusy = _settingsMaintenanceBusy,
-            StatusText = _settingsMaintenanceBusy ? "正在处理本地数据" : null,
+            ProtectionMessage = App.Settings.ProtectionMessage,
+            StatusText = _settingsMaintenanceBusy ? "正在处理本地数据" : App.Settings.ProtectionMessage,
         };
 
     private async Task RefreshFileManagementSettingsStateAsync(CancellationToken cancellationToken)
@@ -241,6 +242,22 @@ public sealed partial class MainPage
 
     private async void OnSettingsFileOpenBackupRequested(object? sender, EventArgs e)
     {
+        if (App.Settings.ProtectionMessage is not null)
+        {
+            await RunSettingsMaintenanceOperationAsync(async token =>
+            {
+                var picker = new FileOpenPicker { CommitButtonText = "恢复设置并关闭" };
+                picker.FileTypeFilter.Add(".zip");
+                WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow));
+                if (await picker.PickSingleFileAsync() is { } file)
+                {
+                    await App.Settings.RecoverUnreadableAsync(file.Path, token);
+                    await App.MainWindow.ExitApplicationAsync();
+                }
+            }, "从备份恢复设置失败");
+            return;
+        }
+
         var path = ViewModel.FileManagementSettings.LastBackupPath;
         if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
         {
@@ -261,7 +278,8 @@ public sealed partial class MainPage
 
     private async void OnSettingsFileDeleteAllSettingsRequested(object? sender, EventArgs e)
     {
-        var confirmed = await ConfirmSettingsDeletionAsync();
+        var reset = App.Settings.ProtectionMessage is not null;
+        var confirmed = await ConfirmSettingsDeletionAsync(reset);
         if (!confirmed)
         {
             return;
@@ -270,13 +288,19 @@ public sealed partial class MainPage
         await RunSettingsMaintenanceOperationAsync(
             async cancellationToken =>
             {
+                if (reset)
+                {
+                    await App.Settings.RecoverUnreadableAsync(null, cancellationToken);
+                    await App.MainWindow.ExitApplicationAsync();
+                    return;
+                }
                 await App.Settings.DeleteAsync(SettingsMaintenance.DeleteSettingsAsync, cancellationToken);
                 await TryShowDialogAsync(
                     "设置已删除",
                     "设置文件已删除，应用将关闭。下次启动时会使用默认设置。 ");
                 await App.MainWindow.ExitApplicationAsync();
             },
-            "设置删除失败");
+            reset ? "设置重置失败" : "设置删除失败");
     }
 
     private async void OnSettingsFileOpenLogsRequested(object? sender, EventArgs e) =>
@@ -312,48 +336,60 @@ public sealed partial class MainPage
         object? sender,
         ScreenshotSettingsChangedEventArgs e)
     {
+        var token = _lifetimeCancellation?.Token ?? CancellationToken.None;
         var previousSettings = ViewModel.ScreenshotSettings;
-        var hotkeyChanged = !string.Equals(
-            e.Settings.Hotkey,
-            previousSettings.Hotkey,
-            StringComparison.OrdinalIgnoreCase);
-        var persisted = false;
         try
         {
-            if (hotkeyChanged)
+            await _hotkeySaveGate.WaitAsync(token);
+            try
             {
-                var registration = App.MainWindow.ApplyHotkeys(
-                    ViewModel.GeneralSettings.MainWindowHotkey,
-                    e.Settings.Hotkey);
-                _hostedSettingsPage?.ApplyHotkeyRegistrationStatus(
-                    registration.Message);
-                if (!registration.Succeeded)
+                previousSettings = ViewModel.ScreenshotSettings;
+                var hotkeyChanged = !string.Equals(
+                    e.Settings.Hotkey,
+                    previousSettings.Hotkey,
+                    StringComparison.OrdinalIgnoreCase);
+                if (!hotkeyChanged)
                 {
-                    _hostedSettingsPage?.ApplyScreenshotSettings(
-                        ViewModel.ScreenshotSettings,
-                        ResolveScreenshotFolderPath());
-                    return;
+                    await ViewModel.SaveScreenshotSettingsAsync(e.Settings, token);
                 }
-            }
+                else
+                {
+                    var mainWindowHotkey = ViewModel.GeneralSettings.MainWindowHotkey;
+                    var registration = await HotkeySettingsChange.ApplyAsync(
+                        () => App.MainWindow.ApplyHotkeys(mainWindowHotkey, e.Settings.Hotkey),
+                        () => ViewModel.SaveScreenshotSettingsAsync(e.Settings, token),
+                        () =>
+                        {
+                            var rollback = App.MainWindow.ApplyHotkeys(mainWindowHotkey, previousSettings.Hotkey);
+                            _hostedSettingsPage?.ApplyHotkeyRegistrationStatus(rollback.Message);
+                        });
+                    _hostedSettingsPage?.ApplyHotkeyRegistrationStatus(registration.Message);
+                    if (!registration.Succeeded)
+                    {
+                        _hostedSettingsPage?.ApplyScreenshotSettings(
+                            ViewModel.ScreenshotSettings,
+                            ResolveScreenshotFolderPath());
+                        return;
+                    }
+                }
 
-            await ViewModel.SaveScreenshotSettingsAsync(
-                e.Settings,
-                _lifetimeCancellation?.Token ?? CancellationToken.None);
-            persisted = true;
-            _hostedSettingsPage?.ApplyHotkeySettings(
-                ViewModel.GeneralSettings,
-                ViewModel.ScreenshotSettings);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            if (hotkeyChanged && !persisted)
+                _hostedSettingsPage?.ApplyHotkeySettings(
+                    ViewModel.GeneralSettings,
+                    ViewModel.ScreenshotSettings);
+            }
+            finally
             {
-                var rollback = App.MainWindow.ApplyHotkeys(
-                    ViewModel.GeneralSettings.MainWindowHotkey,
-                    previousSettings.Hotkey);
-                _hostedSettingsPage?.ApplyHotkeyRegistrationStatus(rollback.Message);
+                _hotkeySaveGate.Release();
             }
-
+        }
+        catch (OperationCanceledException)
+        {
+            _hostedSettingsPage?.ApplyScreenshotSettings(
+                ViewModel.ScreenshotSettings,
+                ResolveScreenshotFolderPath());
+        }
+        catch (Exception ex)
+        {
             _hostedSettingsPage?.ApplyScreenshotSettings(
                 previousSettings,
                 ResolveScreenshotFolderPath());
@@ -434,54 +470,51 @@ public sealed partial class MainPage
         }
     }
 
+    private readonly SemaphoreSlim _hotkeySaveGate = new(1, 1);
+
     private async void OnSettingsHotkeySettingsChanged(
         object? sender,
         HotkeySettingsChangedEventArgs e)
     {
-        var previousGeneral = ViewModel.GeneralSettings;
-        var previousScreenshot = ViewModel.ScreenshotSettings;
-        var persisted = false;
+        var token = _lifetimeCancellation?.Token ?? CancellationToken.None;
         try
         {
-            var registration = App.MainWindow.ApplyHotkeys(
-                e.MainWindowHotkey,
-                e.ScreenshotHotkey);
-            _hostedSettingsPage?.ApplyHotkeyRegistrationStatus(
-                registration.Message);
-            if (!registration.Succeeded)
+            await _hotkeySaveGate.WaitAsync(token);
+            try
             {
-                _hostedSettingsPage?.ApplyHotkeySettings(
-                    ViewModel.GeneralSettings,
-                    ViewModel.ScreenshotSettings);
-                return;
+                var previousGeneral = ViewModel.GeneralSettings;
+                var previousScreenshot = ViewModel.ScreenshotSettings;
+                var registration = await HotkeySettingsChange.ApplyAsync(
+                    () => App.MainWindow.ApplyHotkeys(e.MainWindowHotkey, e.ScreenshotHotkey),
+                    () => ViewModel.SaveHotkeySettingsAsync(e.MainWindowHotkey, e.ScreenshotHotkey, token),
+                    () =>
+                    {
+                        var rollback = App.MainWindow.ApplyHotkeys(previousGeneral.MainWindowHotkey, previousScreenshot.Hotkey);
+                        _hostedSettingsPage?.ApplyHotkeyRegistrationStatus(rollback.Message);
+                        _hostedSettingsPage?.ApplyHotkeySettings(previousGeneral, previousScreenshot);
+                    });
+                if (_hostedSettingsPage is { } page)
+                {
+                    page.ApplyHotkeyRegistrationStatus(registration.Message);
+                    page.ApplyHotkeySettings(ViewModel.GeneralSettings, ViewModel.ScreenshotSettings);
+                    if (registration.Succeeded)
+                    {
+                        page.ApplyGeneralSettings(ViewModel.GeneralSettings);
+                        page.ApplyScreenshotSettings(ViewModel.ScreenshotSettings, ResolveScreenshotFolderPath());
+                    }
+                }
             }
-
-            await ViewModel.SaveHotkeySettingsAsync(
-                e.MainWindowHotkey,
-                e.ScreenshotHotkey,
-                _lifetimeCancellation?.Token ?? CancellationToken.None);
-            persisted = true;
-            if (_hostedSettingsPage is { } page)
+            finally
             {
-                page.ApplyGeneralSettings(ViewModel.GeneralSettings);
-                page.ApplyScreenshotSettings(
-                    ViewModel.ScreenshotSettings,
-                    ResolveScreenshotFolderPath());
-                page.ApplyHotkeySettings(
-                    ViewModel.GeneralSettings,
-                    ViewModel.ScreenshotSettings);
+                _hotkeySaveGate.Release();
             }
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (OperationCanceledException)
         {
-            if (!persisted)
-            {
-                var rollback = App.MainWindow.ApplyHotkeys(
-                    previousGeneral.MainWindowHotkey,
-                    previousScreenshot.Hotkey);
-                _hostedSettingsPage?.ApplyHotkeyRegistrationStatus(rollback.Message);
-                _hostedSettingsPage?.ApplyHotkeySettings(previousGeneral, previousScreenshot);
-            }
+            _hostedSettingsPage?.ApplyHotkeySettings(ViewModel.GeneralSettings, ViewModel.ScreenshotSettings);
+        }
+        catch (Exception ex)
+        {
             ViewModel.ReportUiError($"快捷键设置保存失败：{ex.GetType().Name}: {ex.Message}");
         }
     }
@@ -503,7 +536,10 @@ public sealed partial class MainPage
 
             await CopyScreenshotToClipboardAsync(result);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
         {
             ViewModel.ReportUiError($"游戏截图失败：{ex.GetType().Name}: {ex.Message}");
         }
@@ -549,14 +585,14 @@ public sealed partial class MainPage
         }
     }
 
-    private async Task<bool> ConfirmSettingsDeletionAsync()
+    private async Task<bool> ConfirmSettingsDeletionAsync(bool reset)
     {
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
-            Title = "删除所有设置",
-            Content = "这会删除 Nikkiward 的 settings.json，应用关闭后下次启动将恢复默认设置。是否继续？",
-            PrimaryButtonText = "删除并关闭",
+            Title = reset ? "重置为默认设置" : "删除所有设置",
+            Content = reset ? "原设置文件将改名保存在数据文件夹中。应用将写入默认设置并关闭。" : "这会删除 Nikkiward 的 settings.json，应用关闭后下次启动将恢复默认设置。是否继续？",
+            PrimaryButtonText = reset ? "重置并关闭" : "删除并关闭",
             CloseButtonText = "取消",
             DefaultButton = ContentDialogButton.Close,
         };

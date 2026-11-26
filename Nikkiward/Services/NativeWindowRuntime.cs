@@ -9,6 +9,28 @@ public sealed record HotkeyRegistrationResult(bool Succeeded, string Message)
     public static HotkeyRegistrationResult Failure(string message) => new(false, message);
 }
 
+internal static class HotkeySettingsChange
+{
+    internal static async Task<HotkeyRegistrationResult> ApplyAsync(
+        Func<HotkeyRegistrationResult> register, Func<Task> save, Action rollback)
+    {
+        var registration = register();
+        if (registration.Succeeded)
+        {
+            try
+            {
+                await save();
+            }
+            catch
+            {
+                rollback();
+                throw;
+            }
+        }
+        return registration;
+    }
+}
+
 public sealed class NativeWindowActivationChangedEventArgs(bool isActive) : EventArgs
 {
     public bool IsActive { get; } = isActive;

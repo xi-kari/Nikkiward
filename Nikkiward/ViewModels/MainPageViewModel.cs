@@ -12,7 +12,7 @@ namespace Nikkiward.ViewModels;
 public sealed partial class MainPageViewModel : INotifyPropertyChanged
 {
     private const string DiagnosticProfileId = "infinity-nikki-active";
-    private readonly IUserSettingsStore _settingsStore;
+    private readonly WindowSettingsSession _settingsStore;
     private readonly IInstallationInspector _installationInspector;
     private readonly IDiagnosticReportExporter _diagnosticExporter;
     private readonly IInstallationDiscoveryService _installationDiscovery;
@@ -27,7 +27,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     private LaunchSnapshot? _snapshot;
     private bool _initialized;
     private Task? _initializationTask;
-    private UserSettings _persistedSettings = new();
+    private UserSettings PersistedSettings => _settingsStore.Current;
     private bool _isBusy;
     private bool _isLaunchAttemptInProgress;
     private bool _isOfficialAssistedRunning;
@@ -56,7 +56,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         IInstallationDiscoveryService? installationDiscovery = null,
         ILaunchPreflightVerifier? preflightVerifier = null)
     {
-        _settingsStore = settingsStore;
+        _settingsStore = settingsStore as WindowSettingsSession ?? new WindowSettingsSession(settingsStore);
         _installationInspector = installationInspector;
         _diagnosticExporter = diagnosticExporter;
         _installationDiscovery = installationDiscovery ?? new WindowsInstallationProfileBuilder();
@@ -76,19 +76,19 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     /// Last loaded or saved gamepad section. Unlike the launch surfaces this is
     /// a plain application preference, not verification evidence.
     /// </summary>
-    public GamepadSettings GamepadSettings { get; private set; } = new();
+    public GamepadSettings GamepadSettings => PersistedSettings.Gamepad;
 
-    public AppearanceSettings AppearanceSettings { get; private set; } = new();
+    public AppearanceSettings AppearanceSettings => PersistedSettings.Appearance;
 
-    public GeneralSettings GeneralSettings { get; private set; } = new();
+    public GeneralSettings GeneralSettings => PersistedSettings.General;
 
-    public DownloadSettings DownloadSettings { get; private set; } = new();
+    public DownloadSettings DownloadSettings => PersistedSettings.Download;
 
-    public FileManagementSettings FileManagementSettings { get; private set; } = new();
+    public FileManagementSettings FileManagementSettings => PersistedSettings.FileManagement;
 
-    public ScreenshotSettings ScreenshotSettings { get; private set; } = new();
+    public ScreenshotSettings ScreenshotSettings => PersistedSettings.Screenshot;
 
-    public bool DeveloperModeEnabled { get; private set; }
+    public bool DeveloperModeEnabled => PersistedSettings.DeveloperModeEnabled;
 
     public ThemeMode ThemeMode => AppearanceSettings.ThemeMode;
 
@@ -347,7 +347,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
 
     public string SettingsStatusText
     {
-        get => _settingsStatusText;
+        get => _settingsStore.ProtectionMessage ?? _settingsStatusText;
         private set => SetField(ref _settingsStatusText, value);
     }
 
@@ -581,22 +581,12 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             _settingsErrorText = RedactUiText($"设置读取失败：{ex.GetType().Name}: {ex.Message}");
-            SettingsStatusText = "设置读取失败；本次不把设置内容当作安装或能力认证来源。";
+            SettingsStatusText = _settingsStore.ProtectionMessage ?? "设置读取失败。";
         }
 
         var selectedProfileId = settings?.SelectedProfileId;
         if (settings is not null)
         {
-            // Retained so a later profile save round-trips the sections this
-            // view model does not otherwise touch, such as gamepad mappings.
-            _persistedSettings = settings;
-            GamepadSettings = settings.Gamepad;
-            AppearanceSettings = settings.Appearance;
-            GeneralSettings = settings.General;
-            DownloadSettings = settings.Download;
-            FileManagementSettings = settings.FileManagement;
-            ScreenshotSettings = settings.Screenshot;
-            DeveloperModeEnabled = settings.DeveloperModeEnabled;
             InitializeChannelStoreSettings(settings.ChannelStore);
 
             var unknownCapability = settings.Profiles.Any(profile =>
@@ -759,10 +749,10 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
 
             // Every manual selection must leave a visible trace; a silently
             // discarded pick is indistinguishable from a broken button.
-            SettingsStatusText = outcome.Succeeded
+            ManualDiscoveryStatusText = outcome.Succeeded
                 ? $"已使用所选目录：{outcome.Detail}"
                 : $"所选目录未通过校验：{outcome.Detail}";
-            ManualDiscoveryStatusText = SettingsStatusText;
+            SettingsStatusText = ManualDiscoveryStatusText;
             if (!outcome.Succeeded)
             {
                 LastErrorText = CombineErrors(_settingsErrorText, outcome.Detail)!;
@@ -961,13 +951,11 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             .GroupBy(profile => profile.ProfileId, StringComparer.Ordinal)
             .Select(group => group.First())
             .ToArray();
-        var updated = _persistedSettings with
+        await _settingsStore.UpdateAsync(current => current with
         {
             SelectedProfileId = selectedProfileId,
             Profiles = profiles,
-        };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
+        }, cancellationToken, automatic: true);
         SettingsStatusText = $"已保存 SelectedProfileId 与非权威 profile seed · {_settingsStore.SettingsFilePath}";
     }
 
@@ -981,10 +969,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     {
         ArgumentNullException.ThrowIfNull(gamepad);
 
-        var updated = _persistedSettings with { Gamepad = gamepad };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
-        GamepadSettings = gamepad;
+        await _settingsStore.UpdateAsync(current => current with { Gamepad = gamepad }, cancellationToken);
     }
 
     public async Task SaveGeneralSettingsAsync(
@@ -992,10 +977,10 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         CancellationToken cancellationToken = default)
     {
         var normalized = ApplicationSettingsValidator.Normalize(general);
-        var updated = _persistedSettings with { General = normalized };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
-        GeneralSettings = normalized;
+        await _settingsStore.UpdateAsync(current => current with
+        {
+            General = normalized with { MainWindowHotkey = current.General.MainWindowHotkey },
+        }, cancellationToken);
         OnPropertyChanged(nameof(GeneralSettings));
     }
 
@@ -1004,10 +989,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         CancellationToken cancellationToken = default)
     {
         var normalized = ApplicationSettingsValidator.Normalize(download);
-        var updated = _persistedSettings with { Download = normalized };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
-        DownloadSettings = normalized;
+        await _settingsStore.UpdateAsync(current => current with { Download = normalized }, cancellationToken);
         OnPropertyChanged(nameof(DownloadSettings));
         OnPropertyChanged(nameof(ChannelStoreRootPath));
     }
@@ -1017,10 +999,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         CancellationToken cancellationToken = default)
     {
         var normalized = ApplicationSettingsValidator.Normalize(fileManagement);
-        var updated = _persistedSettings with { FileManagement = normalized };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
-        FileManagementSettings = normalized;
+        await _settingsStore.UpdateAsync(current => current with { FileManagement = normalized }, cancellationToken);
         OnPropertyChanged(nameof(FileManagementSettings));
     }
 
@@ -1029,10 +1008,11 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         CancellationToken cancellationToken = default)
     {
         var normalized = ApplicationSettingsValidator.Normalize(screenshot);
-        var updated = _persistedSettings with { Screenshot = normalized };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
-        ScreenshotSettings = normalized;
+        var changesHotkey = normalized.Hotkey != ScreenshotSettings.Hotkey;
+        await _settingsStore.UpdateAsync(current => current with
+        {
+            Screenshot = changesHotkey ? normalized : normalized with { Hotkey = current.Screenshot.Hotkey },
+        }, cancellationToken);
         OnPropertyChanged(nameof(ScreenshotSettings));
     }
 
@@ -1041,19 +1021,11 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         string screenshotHotkey,
         CancellationToken cancellationToken = default)
     {
-        var general = ApplicationSettingsValidator.Normalize(
-            GeneralSettings with { MainWindowHotkey = mainWindowHotkey });
-        var screenshot = ApplicationSettingsValidator.Normalize(
-            ScreenshotSettings with { Hotkey = screenshotHotkey });
-        var updated = _persistedSettings with
+        await _settingsStore.UpdateAsync(current => current with
         {
-            General = general,
-            Screenshot = screenshot,
-        };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
-        GeneralSettings = general;
-        ScreenshotSettings = screenshot;
+            General = ApplicationSettingsValidator.Normalize(current.General with { MainWindowHotkey = mainWindowHotkey }),
+            Screenshot = ApplicationSettingsValidator.Normalize(current.Screenshot with { Hotkey = screenshotHotkey }),
+        }, cancellationToken);
         OnPropertyChanged(nameof(GeneralSettings));
         OnPropertyChanged(nameof(ScreenshotSettings));
     }
@@ -1062,10 +1034,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         bool enabled,
         CancellationToken cancellationToken = default)
     {
-        var updated = _persistedSettings with { DeveloperModeEnabled = enabled };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
-        DeveloperModeEnabled = enabled;
+        await _settingsStore.UpdateAsync(current => current with { DeveloperModeEnabled = enabled }, cancellationToken);
         OnPropertyChanged(nameof(DeveloperModeEnabled));
     }
 
@@ -1078,9 +1047,12 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             throw new ArgumentOutOfRangeException(nameof(themeMode));
         }
 
-        await SaveAppearanceSettingsAsync(
-            AppearanceSettings with { ThemeMode = themeMode },
-            cancellationToken);
+        await _settingsStore.UpdateAsync(current => current with
+        {
+            Appearance = current.Appearance with { ThemeMode = themeMode },
+        }, cancellationToken);
+        OnPropertyChanged(nameof(AppearanceSettings));
+        OnPropertyChanged(nameof(ThemeMode));
     }
 
     public async Task SaveAppearanceSettingsAsync(
@@ -1090,10 +1062,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         ArgumentNullException.ThrowIfNull(appearance);
 
         var normalized = AppearanceSettingsValidator.Normalize(appearance);
-        var updated = _persistedSettings with { Appearance = normalized };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
-        AppearanceSettings = normalized;
+        await _settingsStore.UpdateAsync(current => current with { Appearance = normalized }, cancellationToken);
         OnPropertyChanged(nameof(AppearanceSettings));
         OnPropertyChanged(nameof(ThemeMode));
     }
@@ -1115,21 +1084,21 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
 
         var normalizedRoot = Path.GetFullPath(rootPath)
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        var galleryProfiles = _persistedSettings.GalleryProfiles
-            .Where(item => !string.Equals(
-                item.ProfileId,
-                profileId,
-                StringComparison.Ordinal))
-            .Append(new GalleryProfileSettings
-            {
-                ProfileId = profileId,
-                RootPath = normalizedRoot,
-            })
-            .OrderBy(item => item.ProfileId, StringComparer.Ordinal)
-            .ToArray();
-        var updated = _persistedSettings with { GalleryProfiles = galleryProfiles };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
+        await _settingsStore.UpdateAsync(current => current with
+        {
+            GalleryProfiles = current.GalleryProfiles
+                .Where(item => !string.Equals(
+                    item.ProfileId,
+                    profileId,
+                    StringComparison.Ordinal))
+                .Append(new GalleryProfileSettings
+                {
+                    ProfileId = profileId,
+                    RootPath = normalizedRoot,
+                })
+                .OrderBy(item => item.ProfileId, StringComparer.Ordinal)
+                .ToArray(),
+        }, cancellationToken);
 
         if (string.Equals(_profile?.ProfileId, profileId, StringComparison.Ordinal))
         {
@@ -1146,20 +1115,11 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             throw new ArgumentException("ProfileId is required.", nameof(profileId));
         }
 
-        var galleryProfiles = _persistedSettings.GalleryProfiles
-            .Where(item => !string.Equals(
-                item.ProfileId,
-                profileId,
-                StringComparison.Ordinal))
-            .ToArray();
-        if (galleryProfiles.Length == _persistedSettings.GalleryProfiles.Count)
+        await _settingsStore.UpdateAsync(current =>
         {
-            return;
-        }
-
-        var updated = _persistedSettings with { GalleryProfiles = galleryProfiles };
-        await _settingsStore.SaveAsync(updated, cancellationToken);
-        _persistedSettings = updated;
+            var roots = current.GalleryProfiles.Where(item => item.ProfileId != profileId).ToArray();
+            return roots.Length == current.GalleryProfiles.Count ? current : current with { GalleryProfiles = roots };
+        }, cancellationToken);
 
         if (string.Equals(_profile?.ProfileId, profileId, StringComparison.Ordinal))
         {
@@ -1174,7 +1134,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             return null;
         }
 
-        var matches = _persistedSettings.GalleryProfiles
+        var matches = PersistedSettings.GalleryProfiles
             .Where(item => string.Equals(
                 item.ProfileId,
                 profileId,
