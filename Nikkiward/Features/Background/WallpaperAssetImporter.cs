@@ -9,23 +9,26 @@ public sealed class WallpaperAssetImporter
     private const int FrameWidth = 4096;
     private readonly string _stillRootPath;
     private readonly WallpaperPackageCache _packageCache;
+    private readonly Func<IReadOnlyList<string>> _protectedRoots;
 
-    public WallpaperAssetImporter(string? localDataRoot = null)
+    public WallpaperAssetImporter(Func<IReadOnlyList<string>> protectedRoots, string? localDataRoot = null)
     {
         var applicationRoot = string.IsNullOrWhiteSpace(localDataRoot)
             ? Nikkiward.Services.ApplicationDataPaths.Root
             : Path.Combine(
                 Path.GetFullPath(localDataRoot),
                 "Nikkiward");
+        _protectedRoots = protectedRoots;
         _stillRootPath = Path.Combine(applicationRoot, "WallpaperImports", "Still");
-        _packageCache = new WallpaperPackageCache(
-            Path.Combine(applicationRoot, "WallpaperImports", "Packages"));
+        _packageCache = new WallpaperPackageCache(Path.Combine(applicationRoot, "WallpaperImports", "Packages"));
     }
 
     public async Task<(BackgroundSourceValidation Validation, string? ImportedPath)> ImportPackageAsync(
         string sourcePath,
-        CancellationToken cancellationToken) =>
-        await _packageCache.ImportAsync(sourcePath, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        return await _packageCache.ImportAsync(sourcePath, cancellationToken, _protectedRoots());
+    }
 
     public async Task<(BackgroundSourceValidation Validation, string? ImportedPath)> ImportStillAsync(
         string sourcePath,
@@ -48,7 +51,8 @@ public sealed class WallpaperAssetImporter
                 return (new(false, "图片文件大小超出支持范围。"), null);
             }
 
-            Directory.CreateDirectory(_stillRootPath);
+            var destination = WallpaperImportDirectory.Prepare(_stillRootPath, _protectedRoots());
+            if (!destination.IsUsable) return (destination, null);
         }
         catch (Exception ex) when (ex is
             IOException or
@@ -112,6 +116,8 @@ public sealed class WallpaperAssetImporter
 
     internal async Task<string?> CachePreviewAsync(string path, bool video, CancellationToken token)
     {
+        var destination = WallpaperImportDirectory.Prepare(_stillRootPath, _protectedRoots());
+        if (!destination.IsUsable) throw new IOException(destination.RejectReason);
         var file = new FileInfo(path);
         var cached = await GalleryThumbnailFile.GetOrCreateAsync(_stillRootPath, null, file, false, async () =>
         {
@@ -146,7 +152,8 @@ public sealed class WallpaperAssetImporter
             return (new(false, "视频壁纸预览帧为空。"), null);
         }
 
-        Directory.CreateDirectory(_stillRootPath);
+        var destination = WallpaperImportDirectory.Prepare(_stillRootPath, _protectedRoots());
+        if (!destination.IsUsable) return (destination, null);
         var hash = Convert.ToHexString(
             SHA256.HashData(encoded)).ToLowerInvariant();
         var target = Path.Combine(_stillRootPath, $"{hash}.jpg");

@@ -155,8 +155,11 @@ internal sealed class PhotoStudioView : Grid
                     var meta = await _metadata.ReadIndexMetadataAsync(photo.FilePath, photo.OriginalPath, _life.Token);
                     var stars = await new GalleryAnnotationStore().LoadStarredAsync(photo.AnnotationScopeId, _life.Token);
                     photo.SetStarred(stars.Contains(photo.StarKey));
-                    Send(new { type = "photo", id, edits = Store.Load(key), starred = photo.IsStarred,
-                        rejected = Store.Rejected(key),
+                    var roots = _shell.ViewModel.GalleryReadOnlyRoots;
+                    var editsForPhoto = Store.Load(key, out var invalidEdits, roots);
+                    var rejected = Store.Rejected(key, out var invalidMark, roots);
+                    Send(new { type = "photo", id, edits = invalidEdits || invalidMark ? null : editsForPhoto,
+                        unreadable = invalidEdits || invalidMark, starred = photo.IsStarred, rejected,
                         date = photo.FullModifiedText, folder = Path.GetDirectoryName(photo.FilePath), sizeBytes = photo.FileSizeBytes,
                         hasParameters = meta.HasParameters, lens = meta.Camera?.FocalLength, aperture = meta.Camera?.Aperture, filter = meta.Camera?.Filter?.Id,
                         outfit = meta.ClothingIds.Select(n => n.ToString()), url = Images + _session.Issue(id) });
@@ -165,7 +168,7 @@ internal sealed class PhotoStudioView : Grid
                     var comparisonStars = await new GalleryAnnotationStore().LoadStarredAsync(photo.AnnotationScopeId, _life.Token);
                     Send(new { type = action, id, url = Images + _session.Issue(id),
                         starred = comparisonStars.Contains(photo.StarKey),
-                        rejected = Store.Rejected(key) });
+                        rejected = Store.Rejected(key, out var unreadable, _shell.ViewModel.GalleryReadOnlyRoots), unreadable });
                     break;
                 case "thumb": Send(new { type = action, id, url = await photo.ReadThumbnailDataUrlAsync(_life.Token) }); break;
                 case "save":

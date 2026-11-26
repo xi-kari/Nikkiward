@@ -46,8 +46,13 @@ public sealed partial class MainPage
         SyncLauncherChrome();
     }
 
-    internal Task ImportStudioBackgroundAsync(string path, string originalName, CancellationToken token) =>
-        ImportWallpaperAsync(path, originalName, WallpaperImportMode.HolographicCard, token);
+    internal async Task ImportStudioBackgroundAsync(string path, string originalName, CancellationToken token)
+    {
+        var imported = await _wallpaperAssetImporter.ImportStillAsync(path, token);
+        if (!imported.Validation.IsUsable || imported.ImportedPath == null)
+            throw new IOException(imported.Validation.RejectReason);
+        await CommitStillBackgroundAsync(imported.ImportedPath, originalName, token);
+    }
 
     internal async Task ChooseStudioExportsAsync()
     {

@@ -55,8 +55,8 @@ public sealed partial class MainPage : Page
     // Constructed on the UI thread so the service captures a real DispatcherQueue;
     // with a null queue it would mutate brushes on whichever thread published.
     private readonly ArtBackdropService _backdrop = new();
-    private readonly MotionBackgroundImporter _motionBackgroundImporter = new();
-    private readonly WallpaperAssetImporter _wallpaperAssetImporter = new();
+    private readonly MotionBackgroundImporter _motionBackgroundImporter;
+    private readonly WallpaperAssetImporter _wallpaperAssetImporter;
     private CancellationTokenSource? _lifetimeCancellation;
     private DispatcherTimer? _launchStateTimer;
     private int _launchStateRefreshInProgress;
@@ -173,6 +173,8 @@ public sealed partial class MainPage : Page
 
     public MainPage()
     {
+        _motionBackgroundImporter = new(() => ViewModel.GalleryReadOnlyRoots);
+        _wallpaperAssetImporter = new(() => ViewModel.GalleryReadOnlyRoots);
         HomeSkins.TokensFor(HomeSkins.Resolve(ViewModel.AppearanceSettings.HomeSkin));
         InitializeComponent();
         ApplyLaunchSettingsHostLayout(RootGrid.ActualWidth);
