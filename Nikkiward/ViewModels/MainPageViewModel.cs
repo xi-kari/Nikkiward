@@ -207,7 +207,12 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     public string ServiceShortcutText =>
         "奇想手账 · 内置网页登录与本地只读快照";
 
-    public string LifecycleText => _launchLifecycleText;
+    public string LifecycleText => SelectedRuntimeRefusal?.Block switch
+    {
+        ("Preflight.BaselineDirty", var detail) => $"Running · {detail}",
+        ({ } code, var detail) => $"Blocked · {code} · {detail}",
+        _ => _launchLifecycleText,
+    };
 
     public string ExecutionSummaryTitle =>
         _isOfficialAssistedRunning
@@ -406,6 +411,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     public bool CanDiscover => !IsBusy;
 
     public bool CanAttemptOfficialAssistedLaunch =>
+        RuntimeBlockCode is null &&
         !IsBusy &&
         !_isLaunchAttemptInProgress &&
         !_isOfficialAssistedRunning &&
@@ -430,7 +436,13 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         CancellationToken cancellationToken = default)
     {
         var binding = _activeProcessBinding;
-        if (binding is null || _isCloseGameInProgress)
+        if (binding is null)
+        {
+            await RefreshRefusedBaselineAsync(cancellationToken);
+            return;
+        }
+
+        if (_isCloseGameInProgress)
         {
             return;
         }
@@ -626,6 +638,8 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         {
             _checkingInstallation = false;
             _profileBuildResult = null;
+            _unselectedState = LaunchButtonState.Blocked;
+            _discoveryFailure = null;
             _selectedCandidate = null;
             _preflightResult = null;
             _profile = null;
@@ -1173,6 +1187,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         result = ApplyPersistedChannelStoreTargets(result);
         _snapshot = null;
         _profileBuildResult = result;
+        _unselectedState = LaunchDiscoveryDisplay.WithoutSelection(false, result, out _discoveryFailure);
         _selectedCandidate = null;
         _preflightResult = null;
         _profile = null;
@@ -1399,6 +1414,11 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 Components.Add(new ComponentItemViewModel(component));
             }
 
+            if (SelectedRuntimeRefusal is { Block.Code: not null and not ("Preflight.BaselineDirty" or "Preflight.ObserverUnavailable") } refusal)
+            {
+                refusal.Block = default;
+            }
+
             var readinessState = ResolveReadinessState(results);
             var componentFailure = BuildFailureReason(results);
             var failureReason = LaunchSnapshot.ResolveFailureReason(
@@ -1482,6 +1502,14 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         {
             var diagnosticProfile = _profile with { ProfileId = DiagnosticProfileId };
             var diagnosticSnapshot = _snapshot with { ProfileId = DiagnosticProfileId };
+            if (SelectedRuntimeRefusal is { } failure)
+            {
+                diagnosticSnapshot = diagnosticSnapshot with
+                {
+                    LastFailureReason = CombineErrors(_snapshot.LastFailureReason,
+                        $"最近运行检查拒绝（{failure.Time:O}）：{failure.Code} · {failure.Detail}"),
+                };
+            }
             var result = await _diagnosticExporter.ExportAsync(
                 diagnosticProfile,
                 diagnosticSnapshot,
@@ -1573,6 +1601,11 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 {
                     ApplyPreflightFailure(failedPreflight);
                 }
+                else if (_selectedCandidate is not null)
+                {
+                    var paths = preparation.Preflight?.Components.Select(component => component.FilePath).ToArray() ?? [];
+                    RecordRuntimeRefusal(preparation.FailureCode, preparation.Detail, paths);
+                }
 
                 _launchAttemptStatusText =
                     $"{preparation.FailureCode} · 未创建 provider";
@@ -1661,6 +1694,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             }
             else
             {
+                RecordRuntimeRefusal(receipt.FailureCode, receipt.Detail, preparation.ObservedProcessPaths);
                 _launchAttemptStatusText =
                     $"{receipt.FailureCode} · RootPid=null · 未创建 provider";
                 _launchLifecycleText =

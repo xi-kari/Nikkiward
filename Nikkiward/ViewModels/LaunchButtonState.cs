@@ -51,6 +51,8 @@ public enum LaunchButtonState
     /// <summary>No install candidate was discovered.</summary>
     NotInstalled,
 
+    Incomplete,
+
     /// <summary>Discovery found several installs or an ambiguous root; the user has to pick one.</summary>
     SelectionRequired,
 
@@ -96,6 +98,7 @@ internal static class LaunchDiscoveryDisplay
     {
         LaunchButtonState.Checking => "检查安装中",
         LaunchButtonState.NotInstalled => "未发现安装",
+        LaunchButtonState.Incomplete => "安装不完整",
         LaunchButtonState.SelectionRequired => "需要选择安装",
         LaunchButtonState.ChannelUnsupported => "渠道暂不支持",
         LaunchButtonState.ContractDrift => "渠道身份不符",
@@ -108,8 +111,9 @@ internal static class LaunchDiscoveryDisplay
         _ => "启动游戏",
     };
 
-    internal static LaunchButtonState WithoutSelection(bool checking, ProfileBuildResult? result)
+    internal static LaunchButtonState WithoutSelection(bool checking, ProfileBuildResult? result, out InstallationProfileCandidate? failure)
     {
+        failure = null;
         if (checking)
         {
             return LaunchButtonState.Checking;
@@ -123,7 +127,40 @@ internal static class LaunchDiscoveryDisplay
         var needsSelection = result.Candidates.Any(candidate =>
             candidate.FailureCode is ProfileBuildFailureCode.AmbiguousLauncherRoot or ProfileBuildFailureCode.AmbiguousGameRoot ||
             candidate.Profile is not null && candidate.State is InstallationCandidateState.Candidate or InstallationCandidateState.ReadyForStaticVerification);
-        return needsSelection ? LaunchButtonState.SelectionRequired : LaunchButtonState.NotInstalled;
+        if (needsSelection)
+        {
+            return LaunchButtonState.SelectionRequired;
+        }
+
+        failure = DiscoveryFailure(result.Candidates);
+        return failure?.FailureCode switch
+        {
+            null => LaunchButtonState.NotInstalled,
+            ProfileBuildFailureCode.ChannelMarkerMismatch => LaunchButtonState.ContractDrift,
+            ProfileBuildFailureCode.BackendRootNotFound or ProfileBuildFailureCode.LayoutMismatch or
+                ProfileBuildFailureCode.ChannelMarkerMissing or ProfileBuildFailureCode.SteamManifestMissing or ProfileBuildFailureCode.SteamNotReady => LaunchButtonState.Incomplete,
+            ProfileBuildFailureCode.UnsupportedVersion or ProfileBuildFailureCode.ProviderContractUnavailable => LaunchButtonState.ChannelUnsupported,
+            _ => LaunchButtonState.Blocked,
+        };
+    }
+
+    private static InstallationProfileCandidate? DiscoveryFailure(IReadOnlyList<InstallationProfileCandidate> candidates)
+    {
+        var mismatch = candidates.FirstOrDefault(item => item.FailureCode == ProfileBuildFailureCode.ChannelMarkerMismatch);
+        if (mismatch is not null)
+        {
+            return candidates.FirstOrDefault(item => item.FailureCode == ProfileBuildFailureCode.LayoutMismatch &&
+                item.GameRootPath is not null && string.Equals(item.GameRootPath, mismatch.GameRootPath, StringComparison.OrdinalIgnoreCase))
+                ?? mismatch;
+        }
+
+        return candidates.FirstOrDefault(item => item.FailureCode switch
+        {
+            ProfileBuildFailureCode.LauncherRootNotFound or ProfileBuildFailureCode.GameRootNotFound => false,
+            ProfileBuildFailureCode.SteamManifestMissing =>
+                item.State == InstallationCandidateState.Downloading || Directory.Exists(item.LauncherRootPath),
+            _ => true,
+        });
     }
 
     internal static string FormatGameVersion(string? value)

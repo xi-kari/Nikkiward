@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using Nikkiward.Models;
 
 namespace Nikkiward.ViewModels;
@@ -12,6 +14,104 @@ public sealed partial class MainPageViewModel
 {
     private readonly AfterLaunchWindowPolicy _afterLaunchWindow = new();
     internal event Action<AfterLaunchBehavior>? AfterLaunchWindowRequested;
+
+    private sealed record RuntimeRefusal(string Code, string Detail, DateTimeOffset Time, InstallationProfileCandidate Candidate,
+        IReadOnlyList<string> ProcessPaths)
+    {
+        public (string? Code, string? Detail) Block { get; set; } = (Code, Detail);
+    }
+
+    private LaunchButtonState _unselectedState = LaunchButtonState.Blocked;
+    private InstallationProfileCandidate? _discoveryFailure;
+    private readonly List<RuntimeRefusal> _runtimeRefusals = [];
+
+    private RuntimeRefusal? SelectedRuntimeRefusal => _selectedCandidate is not { } candidate ? null :
+        _runtimeRefusals.Find(failure => failure.Candidate.ProfileId == candidate.ProfileId &&
+            string.Equals(failure.Candidate.GameRootPath, candidate.GameRootPath, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(failure.Candidate.LauncherRootPath, candidate.LauncherRootPath, StringComparison.OrdinalIgnoreCase));
+
+    private string? RuntimeBlockCode => SelectedRuntimeRefusal?.Block.Code;
+
+    internal void RecordRuntimeRefusal(string code, string detail, IReadOnlyList<string> processPaths)
+    {
+        if (_selectedCandidate is null)
+        {
+            return;
+        }
+
+        if (SelectedRuntimeRefusal is { } previous)
+        {
+            _runtimeRefusals.Remove(previous);
+        }
+
+        _runtimeRefusals.Add(new(code, RedactUiText(detail), DateTimeOffset.UtcNow, _selectedCandidate, processPaths));
+    }
+
+    private async Task RefreshRefusedBaselineAsync(CancellationToken cancellationToken)
+    {
+        if (SelectedRuntimeRefusal is not { Block.Code: "Preflight.BaselineDirty" or "Preflight.ObserverUnavailable" } refusal)
+        {
+            return;
+        }
+
+        var observation = await Task.Run(() => ObserveBaseline(refusal.ProcessPaths), cancellationToken);
+        if (!ReferenceEquals(SelectedRuntimeRefusal, refusal) || observation == refusal.Block)
+        {
+            return;
+        }
+
+        if (observation.Code is null)
+        {
+            _launchLifecycleText = "NotRunning · 已确认目标组件均未运行";
+        }
+
+        refusal.Block = observation;
+        NotifyLaunchAttemptChanged();
+    }
+
+    private static (string? Code, string? Detail) ObserveBaseline(IReadOnlyList<string> paths)
+    {
+        foreach (var path in paths)
+        {
+            var name = Path.GetFileNameWithoutExtension(path);
+            var processes = Process.GetProcessesByName(name);
+            try
+            {
+                foreach (var process in processes)
+                {
+                    if (process.HasExited)
+                    {
+                        continue;
+                    }
+
+                    // The game normally runs elevated; MainModule cannot read an elevated
+                    // process from here, the limited-information query can.
+                    if (!OfficialAssistedLaunchCoordinator.TryQueryProcessPath(process.Id, out var actualPath))
+                    {
+                        return ("Preflight.ObserverUnavailable", $"无法确认活动 {name} 进程的精确路径。");
+                    }
+
+                    if (string.Equals(actualPath, path, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return ("Preflight.BaselineDirty", $"目标组件 {Path.GetFileName(path)} 正在运行。");
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+            {
+                return ("Preflight.ObserverUnavailable", $"无法读取活动 {name} 进程的精确路径。");
+            }
+            finally
+            {
+                foreach (var process in processes)
+                {
+                    process.Dispose();
+                }
+            }
+        }
+
+        return default;
+    }
 
     public LaunchButtonState LaunchButtonState
     {
@@ -37,6 +137,11 @@ public sealed partial class MainPageViewModel
                 return LaunchButtonState.Launching;
             }
 
+            if (RuntimeBlockCode is { } code)
+            {
+                return code == "Preflight.BaselineDirty" ? LaunchButtonState.Running : LaunchButtonState.Blocked;
+            }
+
             if (CanAttemptSelectedChannelLaunch)
             {
                 return LaunchButtonState.Ready;
@@ -44,7 +149,7 @@ public sealed partial class MainPageViewModel
 
             if (_checkingInstallation || _selectedCandidate is null)
             {
-                return LaunchDiscoveryDisplay.WithoutSelection(_checkingInstallation, _profileBuildResult);
+                return _checkingInstallation ? LaunchButtonState.Checking : _unselectedState;
             }
 
             if (_preflightResult is null)
@@ -72,7 +177,7 @@ public sealed partial class MainPageViewModel
                     LaunchButtonState.Blocked,
                 LaunchPreflightFailureCode.RequiredComponentMissing or
                 LaunchPreflightFailureCode.MarkerMissing =>
-                    LaunchButtonState.NotInstalled,
+                    LaunchButtonState.Incomplete,
 
                 // BinaryIdentityDrift (file changed while being read) is a
                 // transient condition — an update writing files right now —
@@ -92,18 +197,24 @@ public sealed partial class MainPageViewModel
     {
         LaunchButtonState.Checking =>
             "正在核对本机安装与组件签名。",
+        LaunchButtonState.Incomplete when _selectedCandidate is null && _discoveryFailure is { } failed =>
+            failed.MissingComponents.Count > 0 ? $"缺少组件：{string.Join("、", failed.MissingComponents)}。" : failed.Detail ?? "请用对应渠道的启动器校验安装文件。",
+        LaunchButtonState.Incomplete => _preflightResult?.FailureDetail ?? "请用官方启动器校验安装文件。",
         LaunchButtonState.NotInstalled =>
             "请在游戏设置的「基本信息」中点「定位游戏」。",
         LaunchButtonState.SelectionRequired =>
             "请在游戏设置的「基本信息」中点「定位游戏」，选择要使用的安装目录。",
+        LaunchButtonState.Running or LaunchButtonState.Blocked when SelectedRuntimeRefusal?.Block.Detail is { } detail =>
+            detail,
         LaunchButtonState.Blocked when _selectedCandidate is null =>
+            _discoveryFailure?.Detail ??
             "安装发现失败，请在游戏设置中点「定位游戏」重试。",
         LaunchButtonState.ChannelUnsupported =>
             _selectedCandidate?.Identity.DistributionChannel is DistributionChannel.Steam
                 ? "Steam Windows 直启尚未验证，本次不会打开 Steam 或官方启动器。"
                 : "当前渠道或区服没有对应的启动契约，暂不支持辅助启动。",
         LaunchButtonState.ContractDrift =>
-            "游戏目录的 product.db 渠道标识与所选渠道不一致，请确认选择的是国服目录。",
+            "游戏目录的 product.db 渠道标识与所选渠道不一致，请确认选择的是对应渠道的游戏目录。",
         LaunchButtonState.Blocked when _preflightResult is null =>
             "组件检查未完成，请在当前档案中点「刷新服务器列表」重试。",
         LaunchButtonState.Blocked when IsExternalChannelSelected &&
