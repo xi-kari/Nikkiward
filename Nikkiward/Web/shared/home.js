@@ -103,6 +103,7 @@ async function show(state) {
   if (!bridge) state.still = true;
   render(state);
   planner.refresh();
+  homeOverlays.refresh();
   if (win.classList.contains('pending')) {
     void win.offsetWidth;
     try { await Promise.all([document.fonts.ready, ready]); }
@@ -129,6 +130,7 @@ async function show(state) {
 }
 
 if (bridge) bridge.addEventListener('message', ({data}) => {
+  if (['open-status','open-background','open-settings'].includes(data)) return homeOverlays.open(data.slice(5));
   if (data === 'open-planner') return planner.open();
   if (typeof data === 'string' && data.startsWith('planner-error:')) return planner.result(data.slice(14));
   if (data === 'planner-saved') return planner.result();
@@ -145,6 +147,13 @@ else if (location.protocol === 'file:' && new URLSearchParams(location.search).h
   win.classList.add('still');
   document.addEventListener('DOMContentLoaded', () => {
     const mock = new URLSearchParams(location.search).get('mock');
+    if (['config','diag','config-blossom','config-real','diag-real'].includes(mock)) {
+      const fixture = document.createElement('script');
+      fixture.src = '../../../Web.dev/overlays.js';
+      fixture.onload = () => document.head.append(script);
+      document.head.append(fixture);
+      return;
+    }
     if (!(mock === 'panel' || mock === 'panel-light' || id === 'atelier' && mock === 'panel-edit')) return document.head.append(script);
     window.panelHomeCase = mock === 'panel-light' ? 'home-blossom' : 'home-tide';
     window.panelEdit = mock === 'panel-edit';
@@ -155,7 +164,12 @@ else if (location.protocol === 'file:' && new URLSearchParams(location.search).h
   }, {once:true});
 }
 
-if (bridge) document.addEventListener('click', e => {
+function sendHomeAction(message) {
+  if (['settings','status','background'].includes(message.action)) homeOverlays.open(message.action);
+  else bridge?.postMessage(message);
+}
+
+document.addEventListener('click', e => {
   const button = e.target.closest('button[data-action]');
   if (!button || button.disabled) return;
   const message = {action:button.dataset.action};
@@ -164,7 +178,7 @@ if (bridge) document.addEventListener('click', e => {
     const {x,y,width,height} = button.getBoundingClientRect();
     message.rect = {x,y,width,height};
   }
-  bridge.postMessage(message);
+  sendHomeAction(message);
 });
 
 function describeProfile(button, profile) {

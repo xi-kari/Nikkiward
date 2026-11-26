@@ -2005,6 +2005,7 @@ public sealed class ComponentItemViewModel
                         : "验证通过";
         FileVersionText = string.IsNullOrWhiteSpace(component.FileVersion) ? "未提供" : component.FileVersion;
         ProductVersionText = string.IsNullOrWhiteSpace(component.ProductVersion) ? "未提供" : component.ProductVersion;
+        SignatureStatus = component.SignatureStatus;
         SignatureText = FormatSignature(component);
         Sha256Text = string.IsNullOrWhiteSpace(component.Sha256) ? "未计算" : component.Sha256;
         FileMetadataText = FormatMetadata(component);
@@ -2022,6 +2023,8 @@ public sealed class ComponentItemViewModel
     public string FileVersionText { get; }
 
     public string ProductVersionText { get; }
+
+    internal AuthenticodeSignatureStatus SignatureStatus { get; }
 
     public string SignatureText { get; }
 

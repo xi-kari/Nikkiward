@@ -47,7 +47,90 @@ internal sealed record HomeChecklist(int Completed, int Total, string? Next, Che
         new(items.Count(i => i.Done), items.Length, items.FirstOrDefault(i => !i.Done)?.Text, items);
 }
 internal sealed record HomeRect(double X, double Y, double Width, double Height);
-internal sealed record HomeAction(string Action, string? PhotoId = null, HomeRect? Rect = null, string? ProfileId = null, PlannerCommand? Planner = null);
+internal sealed record HomeComponent(string ComponentId, string DisplayName, string StatusText, string FileVersionText, string FilePath);
+internal sealed record HomeCheck(string Text, bool? Passed = null);
+internal sealed record HomeChecks(HomeCheck Directory, HomeCheck Channel, HomeCheck Signature,
+    HomeCheck Integrity, HomeCheck Processes, HomeCheck Gate);
+
+internal sealed record HomeOverlayState(
+    string GameRootPath,
+    string ChannelText,
+    string SelectedChannelLaunchRoute,
+    string ManualDiscoveryStatusText,
+    string LaunchCapabilityText,
+    string CapabilityDetailText,
+    string StaticIdentityText,
+    string StaticReadinessText,
+    string ProviderContractId,
+    string ProviderExecutionEnabledText,
+    string ManualAttemptAuthorizationText,
+    string ProviderExecutablePath,
+    string ProviderWorkingDirectory,
+    string ProviderArgumentVector,
+    string ProviderEvidenceState,
+    string ProviderObservationText,
+    string ExternalEvidenceText,
+    string LatestControlledReceiptText,
+    string ApplicationExecutionText,
+    string InstallationCandidateText,
+    string LifecycleText,
+    string ProviderPreflightText,
+    string ProviderObservationPolicyText,
+    string LastUpdatedText,
+    string ActivityText,
+    string LastErrorText,
+    string HomeFallback,
+    string HomeArtKey,
+    bool CanNameArtwork,
+    bool CanDiscover,
+    bool CanExport,
+    bool CanRefresh,
+    bool OfficialCapability, string LauncherVersion, string Signature, string ArtworkTitle, bool MotionImport, HomeChecks Checks)
+{
+    public bool CanOpenRoot => Path.IsPathFullyQualified(GameRootPath);
+
+    internal static HomeOverlayState From(MainPageViewModel vm)
+    {
+        var launcher = vm.CurrentComponentRows.FirstOrDefault(c => c.ComponentId == "official-launcher");
+        var background = vm.AppearanceSettings.Background;
+        var state = vm.HomeState;
+        var version = vm.SelectedLauncherVersionName ?? launcher?.FileVersionText ?? "未知";
+        var signature = launcher?.SignatureText ?? "未检查";
+        var ready = state == LaunchButtonState.Ready;
+        var checks = new HomeChecks(
+            new(vm.GameRootPath, state == LaunchButtonState.NotInstalled ? false : ready ? true : null),
+            new(vm.ChannelText, state == LaunchButtonState.ContractDrift ? false : ready ? true : null),
+            new($"{version} · {signature}", launcher?.SignatureStatus switch
+            {
+                AuthenticodeSignatureStatus.Valid when ready => true,
+                AuthenticodeSignatureStatus.Invalid or AuthenticodeSignatureStatus.NotSigned or AuthenticodeSignatureStatus.Untrusted => false,
+                _ => null
+            }),
+            new(vm.StaticReadinessText, state == LaunchButtonState.Incomplete ? false : ready ? true : null),
+            new(vm.LifecycleText, state == LaunchButtonState.CleanupRequired ? false : null),
+            new(vm.ExecutionGateText, ready ? true : state is LaunchButtonState.Checking or LaunchButtonState.Running or
+                LaunchButtonState.Launching ? null : false));
+        return new(
+            vm.GameRootPath, $"{vm.ChannelText} / {vm.PlatformText}", vm.SelectedChannelLaunchRoute, vm.ManualDiscoveryStatusText,
+            vm.LaunchCapabilityText, vm.CapabilityDetailText, vm.StaticIdentityText,
+            vm.StaticReadinessText, vm.ProviderContractId, vm.ProviderExecutionEnabledText,
+            vm.ManualAttemptAuthorizationText, vm.ProviderExecutablePath, vm.ProviderWorkingDirectory,
+            vm.ProviderArgumentVector, vm.ProviderEvidenceState, vm.ProviderObservationText,
+            vm.ExternalEvidenceText, vm.LatestControlledReceiptText, vm.ApplicationExecutionText,
+            vm.InstallationCandidateText, vm.LifecycleText, vm.ProviderPreflightText,
+            vm.ProviderObservationPolicyText, vm.LastUpdatedText, vm.ActivityText,
+            vm.LastErrorText, vm.HomeFallback, vm.HomeArtKey,
+            vm.CanNameArtwork, vm.CanDiscover, vm.CanExport, vm.CanRefresh,
+            vm.CanAttemptOfficialAssistedLaunch, version, signature,
+            vm.AppearanceSettings.ArtworkTitles.GetValueOrDefault(vm.HomeArtKey)?.Name ?? "",
+            background.WallpaperEnginePresentation switch {
+                WallpaperEnginePresentation.MotionBackdrop => true,
+                WallpaperEnginePresentation.HolographicCard => false,
+                _ => background.MotionEnabled
+            }, checks);
+    }
+}
+internal sealed record HomeAction(string Action, string? PhotoId = null, HomeRect? Rect = null, string? ProfileId = null, PlannerCommand? Planner = null, string? Title = null, string? ArtKey = null);
 internal sealed record WebHomeState(LaunchButtonState State, string LaunchLabel, string Detail, bool Enabled, bool Busy,
     bool CloseVisible, bool CloseEnabled, string CloseLabel, string Profile, string Channel, string Check, string CheckTime,
     string? OfficialDuration, string? LocalDuration, string? TaskText, double? Progress, string ArtName, string ArtSource,
@@ -72,6 +155,8 @@ internal sealed record WebHomeState(LaunchButtonState State, string LaunchLabel,
             vm.HasHomeTask && vm.ChannelStoreProgressVisibility == Microsoft.UI.Xaml.Visibility.Visible ? vm.ChannelStoreProgressPercent : null,
             vm.HomeArtName, vm.HomeArtSource, paperTheme, fill, still, photos, DateOnly.FromDateTime(DateTime.Today))
         {
+            Overlay = HomeOverlayState.From(vm), Components = vm.CurrentComponentRows.Select(c =>
+                new HomeComponent(c.ComponentId, c.DisplayName, c.StatusText, c.FileVersionText, c.FilePath)).ToArray(),
             ChecklistReset = vm.GeneralSettings.ChecklistReset,
             CheckCount = vm.HomeCheckCount,
             DiscoveryTime = vm.HomeCandidates.Count == 0 ? null : vm.HomeCandidates.Max(c => c.ObservedAtUtc).ToLocalTime().ToString("MM-dd HH:mm"),
@@ -120,6 +205,9 @@ internal sealed record WebHomeState(LaunchButtonState State, string LaunchLabel,
         return ArtPaletteAnalyzer.ContrastRatio(luminance, 1) >= 4.5 ? "#FFFFFF" : "#000000";
     }
 
+    public bool OfficialFlow => State == LaunchButtonState.Ready && Overlay.OfficialCapability;
+    public required HomeOverlayState Overlay { get; init; }
+    public HomeComponent[] Components { get; init; } = [];
     public HomeBackground? Background { get; init; }
     public HomeProfileOption[] Profiles { get; init; } = [];
     public string? DiscoveryTime { get; init; }
@@ -176,13 +264,16 @@ internal static class WebHomeBridge
         Converters = { new JsonStringEnumConverter<LaunchButtonState>() }
     };
 
-    internal static HomeAction? Parse(string json)
+    internal static HomeAction? Parse(string json, bool preview = false)
     {
+        if (preview) return null;
         HomeAction? message;
         try { message = JsonSerializer.Deserialize<HomeAction>(json, Json); }
         catch (JsonException) { return null; }
         return message?.Action switch
         {
+            "art-title" when message.Title is { Length: <= 120 } && !string.IsNullOrEmpty(message.ArtKey) => message,
+            "open-root" or "import-motion" or "import-card" or "official-flow" or "export-diagnostics" => message,
             "planner" when message.Planner?.Valid() == true => message,
             "profile" when message.Rect is { X: >= 0, Y: >= 0, Width: > 0, Height: > 0 } r &&
                 double.IsFinite(r.X + r.Width) && double.IsFinite(r.Y + r.Height) => message,

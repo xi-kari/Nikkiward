@@ -9,7 +9,9 @@
     'real-notfound':['tide','notfound'], 'real-running':['tide','running'],
     'real-long':['photo05','blocked']
   };
-  const key = window.panelHomeCase ?? new URLSearchParams(location.search).get('mock');
+  const overlayCase = window.prepareOverlayCase?.({config:'home-tide',diag:'home-blossom-blocked'});
+  const showCase = overlayCase?.show ?? show;
+  const key = overlayCase?.homeCase ?? window.panelHomeCase ?? new URLSearchParams(location.search).get('mock');
   if (!Object.hasOwn(cases,key)) return;
   const [cover,visual] = cases[key];
   const assets = 'file:///D:/Projects/nikkiward-worktrees/_briefs/redesign/concepts/assets/';
@@ -83,7 +85,7 @@
     <button><svg viewBox="0 0 11 11"><path d="M0 5.5h11"/></svg></button>
     <button><svg viewBox="0 0 11 11"><rect x=".5" y=".5" width="10" height="10"/></svg></button>
     <button><svg viewBox="0 0 11 11"><path d="M0 0l11 11M11 0L0 11"/></svg></button></div>`);
-  await show({
+  await showCase({
     state, visual, launchLabel, detail, check, checkTime:visual === 'notfound' ? '' : '21:02',
     enabled:visual === 'ready', busy:visual === 'launching', readySummary:detail,
     closeVisible:visual === 'running', closeEnabled:visual === 'running', closeLabel:'关闭游戏',

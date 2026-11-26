@@ -230,13 +230,13 @@ function wake() {
 function updateIdle() {
   const s = currentState;
   const allowed = !!s && s.enabled && s.visual === 'ready' && !s.running && !s.still &&
-    !motion.matches && !win.dataset.ov && !planner.dialog.open && !document.hidden;
+    !motion.matches && !win.dataset.ov && !planner.dialog.open && !homeOverlays.dialog.open && !document.hidden;
   if (allowed === idleAllowed) return;
   idleAllowed = allowed;
   wake();
 }
 document.addEventListener('visibilitychange',updateIdle);
-document.addEventListener('DOMContentLoaded',() => planner.dialog.addEventListener('toggle',updateIdle));
+document.addEventListener('DOMContentLoaded',() => [planner.dialog,homeOverlays.dialog].forEach(d=>d.addEventListener('toggle',updateIdle)));
 motion.addEventListener('change',updateIdle);
 for (const event of ['pointermove','pointerdown','wheel']) document.addEventListener(event,wake,{passive:true});
 
@@ -303,7 +303,7 @@ function renderPalette() {
       if (action === 'idle') { clearTimeout(timer); setIdle(true); }
       else if (action === 'launch') cta.click();
       else if (action === 'photo') $('#ledge button').click();
-      else bridge?.postMessage({action});
+      else sendHomeAction({action});
     };
     list.append(b);
   }

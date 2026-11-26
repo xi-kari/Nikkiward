@@ -14,6 +14,8 @@
 <link rel="stylesheet" href="../../shared/theme.css">
 <link rel="stylesheet" href="../../shared/planner.css">
 <script defer src="../../shared/planner.js"></script>
+<link rel="stylesheet" href="../../shared/overlays.css">
+<script defer src="../../shared/overlays.js"></script>
 ```
 
 共用脚本在 DOM 解析后运行，提供 `$`、`win`、`bridge` 和 `show(state)`。页面需提供 `#win.pending`、无替代文字的 `img#coverImg`、`video#coverVideo[muted][loop][playsinline][hidden]` 和普通脚本全局函数 `render(state)`。根节点 pending 时不可见；首次封面和字体就绪后，共用脚本移除 pending，有动效时加 enter。皮肤把 still 应用到自己的动画，按设计稿设置背景层尺寸、裁切和遮罩。视频、静态帧、后台暂停及原生接管由共用脚本处理。顶部有交互元素时实现 `window.mastheadBounds()`，返回它们在页面坐标中的左右边界数组，单位为 CSS 像素。若导航以外还有独立的顶部工具按钮，在数组后追加其左右边界；两块之间仍可拖动窗口。
@@ -49,13 +51,21 @@
 普通按钮使用 `data-action`，共用脚本发送 `{action}`。可用动作如下。
 
 - launch、close 请求启动或关闭游戏。所有决定留在原生入口。
-- settings、background、reset、status 打开游戏设置、选择背景、恢复默认背景、查看诊断。tide、blossom 选择海月和花信。
+- settings、background、status 在当前网页打开游戏设置、背景分区、启动检查。reset 请求原生恢复默认背景。tide、blossom 选择海月和花信。
 - select-profile 发送 `{action:'select-profile',profileId:p.id}`，使用当前列表给出的 ID。rediscover 重新发现安装，locate 选择游戏目录，recheck 重新执行检查。profile 是原生浮层兼容动作，附 rect {x,y,width,height}；网页档案按钮直接打开自己的切换器。
 - gallery、journal、download、time 打开相册、手账、下载状态、时长。photo 需附 photoId；按钮可使用 `data-action="photo" data-photo-id="…"`。
 - nav-launcher、nav-library、nav-gallery、nav-gallery-favorites、nav-resonance、nav-settings 对应首页、手账、相册、收藏、共鸣、设置。
 - 设计稿的命令面板组合这些动作。熄灯鉴赏、打开或收起命令面板等页面内交互由皮肤自行完成。
 
 面板由共享 planner.js 渲染，用 data-planner="check"、"reminder" 或 "link" 打开对应区段。编辑发送 {action:"planner",planner:{action,id,text,...}}。check 支持 add/edit/toggle/delete/move，link 支持 add/edit/delete/move/open，reminder 支持 add/edit/delete/move，以连字符拼接动作名。新增省略 id，编辑和新增带 text，链接带 url，提醒带 repeat、time 以及相应的 date 或 weekday；移动带 step（-1 或 1）。打开链接只发送已保存的 id。
+
+## 游戏设置与启动检查
+
+五套首页共用 overlays.js 和 overlays.css。宿主随首页状态下发 overlay（安装身份、只读契约、静态证据、回执、执行门、背景画名、导入模式及操作权限）、components（组件身份、版本、路径和状态）与 officialFlow。诊断原因和下一步沿用 launchLabel、detail。官方启动动作同时要求 Ready 和原生辅助启动能力。
+
+原生入口可向网页发 open-settings、open-background、open-status。关闭、Esc 和分区选择由网页处理。网页可发送 locate、open-root、import-motion、import-card、reset、art-title、recheck、export-diagnostics、official-flow。art-title 附当前 artKey 和最长 120 字的 title，空标题恢复原名。资源管理器只打开原生当前安装路径；导入文件、定位目录、诊断导出目录和启动确认沿用原生流程。
+
+五套皮肤均提供 config、diag 对照。cinema 另有 config-blossom、config-real、diag-real。长路径和拒绝原因数据位于 Web.dev/overlays.js。
 
 ## 对照与发布
 

@@ -9,7 +9,9 @@
     'real-notfound':['tide','notfound'], 'real-running':['tide','running'], 'real-long':['photo05','blocked'],
     'home-tide-idle':['tide','ready'], switcher:['tide','ready'], palette:['tide','ready']
   };
-  const key = window.panelHomeCase ?? new URLSearchParams(location.search).get('mock');
+  const overlayCase = window.prepareOverlayCase?.({config:'home-tide',diag:'home-blossom-blocked','config-blossom':'home-blossom','config-real':'real-blocked','diag-real':'real-blocked'});
+  const showCase = overlayCase?.show ?? show;
+  const key = overlayCase?.homeCase ?? window.panelHomeCase ?? new URLSearchParams(location.search).get('mock');
   if (!Object.hasOwn(cases,key)) return;
   const [bg,visual] = cases[key];
   const covers = {
@@ -58,7 +60,7 @@
       'real-long':'请在游戏设置的「基本信息」中点「定位游戏」，选择要使用的安装目录。'
     };
     const label = long ? '需要选择安装' : launchLabel;
-    show({
+    showCase({
       state:long ? 'SelectionRequired' : state, visual, launchLabel:label, detail:reasons[key],
       enabled:ready, busy:false, closeVisible:running, closeEnabled:running, closeLabel:'关闭游戏',
       readySummary:ready ? '官方启动器 1.3.2 · 签名已核对' : null, check:ready ? '检查通过' : label,
@@ -76,7 +78,7 @@
     return;
   }
   if (key === 'palette') commands.find(([, , action]) => action === 'photo')[1] = '照片工坊 · 最近一张';
-  show({
+  showCase({
     state,visual,launchLabel,detail,readySummary,check,checkTime:'今天 14:02',
     nextActions:visual === 'blocked' ? ['recheck'] : visual === 'notfound' ? ['locate'] : [],
     enabled:visual === 'ready',busy:visual === 'launching',running:visual === 'running',

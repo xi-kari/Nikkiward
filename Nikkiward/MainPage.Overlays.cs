@@ -14,6 +14,7 @@ using Nikkiward.Features.GamepadControl;
 using Nikkiward.Features.Journal;
 using Nikkiward.Features.Launcher;
 using Nikkiward.Features.Profile;
+using Nikkiward.Features.Launcher.Skins;
 using Nikkiward.Features.Settings;
 using Nikkiward.Features.Shell;
 using Nikkiward.Features.Wish;
@@ -30,6 +31,45 @@ namespace Nikkiward;
 
 public sealed partial class MainPage
 {
+    internal async Task<bool> InvokeOverlayActionAsync(HomeAction request)
+    {
+        switch (request.Action)
+        {
+            case "open-root":
+                var root = ViewModel.GameRootPath;
+                if (!Path.IsPathFullyQualified(root)) break;
+                try
+                {
+                    var folder = await StorageFolder.GetFolderFromPathAsync(root);
+                    if (!await Launcher.LaunchFolderAsync(folder))
+                        ViewModel.ReportUiError("无法在资源管理器中打开游戏目录。");
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
+                    or System.Runtime.InteropServices.COMException)
+                {
+                    ViewModel.ReportUiError($"游戏目录打开失败：{ex.Message}");
+                }
+                break;
+            case "import-motion": case "import-card":
+                await ChooseWallpaperAsync(request.Action == "import-motion"
+                    ? WallpaperImportMode.MotionBackdrop : WallpaperImportMode.HolographicCard);
+                break;
+            case "art-title":
+                if (ViewModel.CanNameArtwork && request.ArtKey == ViewModel.HomeArtKey)
+                    OnLaunchSettingsArtworkTitleSaveRequested(this, new(request.ArtKey, request.Title!));
+                break;
+            case "official-flow":
+                if (ViewModel.HomeState == LaunchButtonState.Ready && ViewModel.CanAttemptOfficialAssistedLaunch)
+                    OnStatusOfficialFlowRequested(this, EventArgs.Empty);
+                break;
+            case "export-diagnostics":
+                if (ViewModel.CanExport) OnStatusExportRequested(this, EventArgs.Empty);
+                break;
+            default: return false;
+        }
+        return true;
+    }
+
     private void OnShowDetailsClicked(object sender, RoutedEventArgs e)
     {
         SetShellNavigationSelection("launcher");
@@ -44,11 +84,13 @@ public sealed partial class MainPage
 
     private void ShowStatusDrawer()
     {
+        if (ContentFrame.Content is not LauncherPage) ShowLauncher();
         CloseProfileOverlay();
         HideLibrary();
         HideGallery();
         HideResonance();
         HidePhotoPlugin();
+        if (_hostedLauncherPage?.WebHome is { } web) { web.OpenOverlay("status"); return; }
         OpenStatusDrawerSurface();
         if (StatusFrame.Content is not StatusPage)
         {
@@ -121,6 +163,7 @@ public sealed partial class MainPage
         HidePhotoPlugin();
         CloseDetails();
 
+        if (_hostedLauncherPage?.WebHome is { } web) { web.OpenOverlay("settings"); return; }
         _launchSettingsOpen = true;
         OpenLaunchSettingsSurface();
         if (LaunchSettingsFrame.Content is LaunchSettingsPage page)

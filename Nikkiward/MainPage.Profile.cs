@@ -35,8 +35,8 @@ public sealed partial class MainPage
         {
             case "select-profile": _ = SelectProfileAsync(id!); break;
             case "rediscover": _ = DiscoverProfilesAsync(); break;
-            case "locate": OnChooseGameRootClicked(this, new RoutedEventArgs()); break;
-            case "recheck": OnRefreshClicked(this, new RoutedEventArgs()); break;
+            case "locate": if (ViewModel.CanDiscover) OnChooseGameRootClicked(this, new RoutedEventArgs()); break;
+            case "recheck": if (ViewModel.CanRefresh) OnRefreshClicked(this, new RoutedEventArgs()); break;
             case "tide": case "blossom":
                 var background = new BackgroundArtSettings { SelectedSource = action == "tide" ? AppearanceBackgroundPresets.Preset1Source : AppearanceBackgroundPresets.Preset2Source };
                 OnSettingsAppearanceChanged(this, new AppearanceSettingsChangedEventArgs(ViewModel.AppearanceSettings with { Background = background }, true));
