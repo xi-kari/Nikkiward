@@ -1,4 +1,6 @@
 using Microsoft.Win32;
+using Nikkiward.Services;
+using Nikkiward.ViewModels;
 using Nikkiward.Features.GamepadControl;
 using Nikkiward.Models;
 
@@ -9,6 +11,8 @@ internal static class GameBarGuideTests
 
     public static (string Name, Func<Task> Run)[] All =>
     [
+        ("failed gamepad save preserves runtime and Game Bar", () => SaveRejected(false)),
+        ("cancelled gamepad save preserves runtime and Game Bar", () => SaveRejected(true)),
         ("Game Bar stays untouched without an effective Guide mapping", WithoutMapping),
         ("Game Bar restores an original DWORD zero", () => RoundTrip(GameBarRegistryValue.Disabled)),
         ("Game Bar restores an original DWORD one", () => RoundTrip(One)),
@@ -20,6 +24,30 @@ internal static class GameBarGuideTests
         ("Game Bar leaves another live instance's takeover alone", ConcurrentInstance),
         ("Game Bar leaves the registry alone when recovery cannot be recorded", CannotRecord),
     ];
+
+    private static async Task SaveRejected(bool cancel)
+    {
+        using var fixture = new Fixture(One);
+        var store = new JsonUserSettingsStore(Path.GetDirectoryName(fixture.StatePath));
+        Directory.CreateDirectory(Path.GetDirectoryName(store.SettingsFilePath)!);
+        await File.WriteAllTextAsync(store.SettingsFilePath, "{broken");
+        var page = new MainPageViewModel(store, new WindowsInstallationInspector(), new RedactedDiagnosticReportExporter());
+        var runtime = page.GamepadSettings;
+        var saved = runtime;
+        try
+        {
+            await page.SaveAndApplyGamepadAsync(Mapped, settings =>
+            {
+                runtime = settings;
+                fixture.Guide.Apply(settings, true, true);
+            }, new CancellationToken(cancel));
+            throw new InvalidOperationException("save unexpectedly succeeded");
+        }
+        catch (UserSettingsStoreException) when (!cancel) { }
+        catch (OperationCanceledException) when (cancel) { }
+        Assert(runtime == saved && fixture.Registry.Writes.Count == 0 && Same(One, fixture.Registry.Value),
+            "rejected edit changed runtime or registry");
+    }
 
     private static Task WithoutMapping()
     {

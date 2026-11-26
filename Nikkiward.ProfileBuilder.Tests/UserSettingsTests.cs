@@ -16,6 +16,8 @@ internal static class UserSettingsTests
         ("queued preference changes preserve both hotkeys", QueuedPreferencesPreserveHotkeys),
         ("failed hotkey save restores registration and display", () => HotkeysRollBack(new IOException())),
         ("cancelled hotkey save restores registration and display", () => HotkeysRollBack(new OperationCanceledException())),
+        ("first-run backup restores defaults", () => FirstRunBackupRestoresSettings(false)),
+        ("missing settings backup restores current session snapshot", () => FirstRunBackupRestoresSettings(true)),
         ("protected settings restore only a validated backup", RestoreProtectedSettings),
         ("new settings use the single appearance authority", NewSettingsUseAppearance),
         ("appearance settings round trip through settings json", AppearanceRoundTripsThroughSettingsJson),
@@ -196,6 +198,31 @@ internal static class UserSettingsTests
         Assert(ReferenceEquals(failure, error), "save outcome reaches the event boundary");
         AssertEqual("Alt+D", registered, "registration restored");
         AssertEqual("Alt+D", displayed, "display restored");
+    }
+
+    private static async Task FirstRunBackupRestoresSettings(bool useSnapshot)
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var store = new JsonUserSettingsStore(root);
+            var maintenance = new SettingsMaintenanceService(store.SettingsFilePath, Path.Combine(root, "browser"));
+            var backup = useSnapshot
+                ? await maintenance.CreateBackupAsync(snapshot: new UserSettings { DeveloperModeEnabled = true })
+                : await maintenance.CreateBackupAsync();
+            Assert(!File.Exists(store.SettingsFilePath), "backup created live settings");
+            await File.WriteAllTextAsync(store.SettingsFilePath, "{broken");
+            var session = new WindowSettingsSession(store);
+            await AssertThrowsAsync<UserSettingsStoreException>(() => session.LoadAsync());
+            await session.RecoverUnreadableAsync(backup.FilePath, CancellationToken.None);
+            var restored = await store.LoadAsync();
+            AssertEqual(UserSettings.CurrentSchemaVersion, restored.SchemaVersion, "restored schema");
+            AssertEqual(useSnapshot, restored.DeveloperModeEnabled, "restored effective setting");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     private static async Task RestoreProtectedSettings()

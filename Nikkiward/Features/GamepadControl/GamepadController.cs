@@ -217,28 +217,6 @@ internal static class GamepadController
             ? (modifiers, keys)
             : ([], []);
 
-    public static bool TrySetGuideMapKeys(string? value, out string? normalizedTextOrBadKey)
-    {
-        if (!GamepadKeyNames.TryParse(value, out normalizedTextOrBadKey, out var modifiers, out var keys))
-        {
-            return false;
-        }
-
-        _guideKeys = (modifiers, keys);
-        return true;
-    }
-
-    public static bool TrySetShareMapKeys(string? value, out string? normalizedTextOrBadKey)
-    {
-        if (!GamepadKeyNames.TryParse(value, out normalizedTextOrBadKey, out var modifiers, out var keys))
-        {
-            return false;
-        }
-
-        _shareKeys = (modifiers, keys);
-        return true;
-    }
-
     /// <summary>
     /// Releases GameInput and hands the Guide button back to the Xbox Game Bar.
     /// Call on app exit; the original leaked both.

@@ -104,6 +104,7 @@
     <Compile Include="AppearanceSettingsTests.cs" />
     <Compile Include="ApplicationSettingsTests.cs" />
     <Compile Include="WindowLifecycleTests.cs" />
+    <Compile Include="..\Nikkiward\Services\WindowTray.cs" Link="Services\WindowTray.cs" />
     <Compile Include="..\Nikkiward\Services\InstanceActivation.cs" Link="Services\InstanceActivation.cs" />
     <Compile Include="..\Nikkiward\Services\NativeWindowRuntime.cs" Link="Services\NativeWindowRuntime.cs" />
     <Compile Include="..\Nikkiward\Services\WindowPlacement.cs" Link="Services\WindowPlacement.cs" />

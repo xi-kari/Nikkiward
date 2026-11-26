@@ -29,6 +29,9 @@ public sealed partial class GamepadSettingsView : UserControl
             SelectAction(ShareActionCombo, settings.ShareAction);
             GuideKeysBox.Text = settings.GuideMapKeys ?? string.Empty;
             ShareKeysBox.Text = settings.ShareMapKeys ?? string.Empty;
+            EnableToggle.IsEnabled = LongPressToggle.IsEnabled = runtime.CanEdit;
+            GuideActionCombo.IsEnabled = ShareActionCombo.IsEnabled = runtime.CanEdit;
+            GuideKeysBox.IsEnabled = ShareKeysBox.IsEnabled = runtime.CanEdit;
             StatusText.Text = runtime.StatusText;
             RedistPanel.Visibility = runtime.RuntimeMissing
                 ? Visibility.Visible
@@ -40,17 +43,6 @@ public sealed partial class GamepadSettingsView : UserControl
             _loading = false;
         }
     }
-
-    public void ApplyRuntimeState(GamepadRuntimeViewState runtime)
-    {
-        StatusText.Text = runtime.StatusText;
-        RedistPanel.Visibility = runtime.RuntimeMissing
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-    }
-
-    public void ApplySettings(GamepadSettings settings) =>
-        ApplyState(settings, new GamepadRuntimeViewState(StatusText.Text, RedistPanel.Visibility == Visibility.Visible));
 
     private GamepadSettings CurrentSettings() => new()
     {
@@ -118,7 +110,7 @@ public sealed partial class GamepadSettingsView : UserControl
             return;
         }
 
-        if (!GamepadController.TrySetGuideMapKeys(GuideKeysBox.Text, out var result))
+        if (!GamepadKeyNames.TryParse(GuideKeysBox.Text, out var result, out _, out _))
         {
             ShowMappingError("导航键", result);
             return;
@@ -136,7 +128,7 @@ public sealed partial class GamepadSettingsView : UserControl
             return;
         }
 
-        if (!GamepadController.TrySetShareMapKeys(ShareKeysBox.Text, out var result))
+        if (!GamepadKeyNames.TryParse(ShareKeysBox.Text, out var result, out _, out _))
         {
             ShowMappingError("分享键", result);
             return;

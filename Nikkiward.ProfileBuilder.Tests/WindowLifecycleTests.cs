@@ -14,6 +14,7 @@ internal static class WindowLifecycleTests
         (nameof(MaximizedRestoresItsNormalRectangle), MaximizedRestoresItsNormalRectangle),
         (nameof(MinimizeKeepsPreviousMaximizedState), MinimizeKeepsPreviousMaximizedState),
         (nameof(MinimumSizeTakesPrecedenceOverMargin), MinimumSizeTakesPrecedenceOverMargin),
+        (nameof(TrayFailureStillActivatesWindow), TrayFailureStillActivatesWindow),
         (nameof(OnlyKeyOwnerOpensWindow), OnlyKeyOwnerOpensWindow),
         (nameof(RestartWaitsOnlyForItsPredecessor), RestartWaitsOnlyForItsPredecessor),
         (nameof(OnlyExactRestartArgumentsRequestHandoff), OnlyExactRestartArgumentsRequestHandoff),
@@ -22,6 +23,20 @@ internal static class WindowLifecycleTests
     private static readonly WindowDisplay Primary = new(new Rectangle(0, 0, 1920, 1040), 96);
     private static readonly WindowDisplay Left = new(new Rectangle(-1920, 40, 1920, 1040), 96);
     private static readonly Size Design = new(1440, 810);
+
+    private static Task TrayFailureStillActivatesWindow()
+    {
+        var activated = false;
+        string? error = null;
+        var tray = new WindowTray(_ => throw new InvalidOperationException("Explorer unavailable"), message => error = message);
+        tray.Open(CloseWindowBehavior.MinimizeToTray, () => activated = true);
+        if (!activated || tray.CloseBehavior != CloseWindowBehavior.Exit || error?.Contains("Explorer unavailable") != true ||
+            tray.TrySetEnabled(true))
+        {
+            throw new InvalidOperationException("lost window, fallback behavior or tray error");
+        }
+        return Task.CompletedTask;
+    }
 
     private static Task FirstOpenFitsSmallHighDpiScreen() =>
         Check([Primary with { Dpi = 144 }], null, new Rectangle(24, 24, 1872, 992));

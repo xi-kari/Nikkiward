@@ -10,44 +10,43 @@ public static class ChannelStoreReceiptVerifier
         PropertyNameCaseInsensitive = true,
     };
 
-    public static bool Verify(
-        ChannelStoreSettings settings,
-        ChannelStoreProfileSettings profile)
+    internal static ChannelStoreBuildReceipt? ReadReceipt(ChannelStoreSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(settings.StoreRootPath) ||
+            string.IsNullOrWhiteSpace(settings.LastReceiptId) ||
+            Path.GetFileName(settings.LastReceiptId) != settings.LastReceiptId ||
+            !VariantHash.IsSha256(settings.LastPlanSha256))
+        {
+            return null;
+        }
+
+        try
+        {
+            var root = NormalizeDirectory(settings.StoreRootPath);
+            var path = Path.Combine(root, "receipts", settings.LastReceiptId + ".json");
+            var receipt = JsonSerializer.Deserialize<ChannelStoreBuildReceipt>(File.ReadAllText(path), JsonOptions);
+            return receipt is { Succeeded: true } && receipt.ReceiptId == settings.LastReceiptId &&
+                string.Equals(receipt.PlanSha256, settings.LastPlanSha256, StringComparison.OrdinalIgnoreCase) &&
+                PathEquals(receipt.StoreRootPath, root) ? receipt : null;
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or JsonException or NotSupportedException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    public static bool Verify(ChannelStoreSettings settings, ChannelStoreProfileSettings profile)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(profile);
-        if (string.IsNullOrWhiteSpace(settings.StoreRootPath) ||
-            string.IsNullOrWhiteSpace(settings.LastReceiptId) ||
-            !VariantHash.IsSha256(settings.LastPlanSha256) ||
-            string.IsNullOrWhiteSpace(profile.LauncherRootPath) ||
-            string.IsNullOrWhiteSpace(profile.XStarterPath))
+        if (string.IsNullOrWhiteSpace(profile.LauncherRootPath) || string.IsNullOrWhiteSpace(profile.XStarterPath) ||
+            ReadReceipt(settings) is not { } receipt)
         {
             return false;
         }
 
         try
         {
-            var storeRoot = NormalizeDirectory(settings.StoreRootPath);
-            var receiptPath = Path.Combine(
-                storeRoot,
-                "receipts",
-                settings.LastReceiptId + ".json");
-            if (!File.Exists(receiptPath))
-            {
-                return false;
-            }
-
-            var receipt = JsonSerializer.Deserialize<ChannelStoreBuildReceipt>(
-                File.ReadAllText(receiptPath),
-                JsonOptions);
-            if (receipt is not { Succeeded: true } ||
-                !string.Equals(receipt.ReceiptId, settings.LastReceiptId, StringComparison.Ordinal) ||
-                !string.Equals(receipt.PlanSha256, settings.LastPlanSha256, StringComparison.OrdinalIgnoreCase) ||
-                !PathEquals(receipt.StoreRootPath, storeRoot))
-            {
-                return false;
-            }
-
             var variantId = profile.DistributionChannel switch
             {
                 DistributionChannel.Official => GameVariantId.MainlandOfficial,

@@ -228,7 +228,7 @@ public sealed partial class MainPage
         await RunSettingsMaintenanceOperationAsync(
             async cancellationToken =>
             {
-                var receipt = await SettingsMaintenance.CreateBackupAsync(cancellationToken);
+                var receipt = await SettingsMaintenance.CreateBackupAsync(cancellationToken, App.Settings.Current);
                 await ViewModel.SaveFileManagementSettingsAsync(
                     ViewModel.FileManagementSettings with
                     {

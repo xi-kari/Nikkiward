@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Microsoft.UI.Xaml;
 using Nikkiward.Models;
 using Nikkiward.Services;
@@ -11,7 +12,9 @@ public sealed partial class MainPageViewModel
     private readonly IChannelEntryLauncher _channelEntryLauncher = new WindowsChannelEntryLauncher();
     private ChannelStoreSettings _channelStoreSettings = new();
     private ChannelStoreBuildPlan? _channelStorePlan;
-    private ChannelStoreBuildReceipt? _channelStoreReceipt;
+    private (ProfileBuildResult Profiles, ChannelStoreBuildReceipt Receipt)? _pendingRegistration;
+    private ImmutableHashSet<string> _channelStoreReadOnlyRoots = ImmutableHashSet.Create<string>(StringComparer.OrdinalIgnoreCase);
+    public string ChannelStoreBuildLabel => _pendingRegistration is null ? "创建单本体" : "重试登记";
     private ChannelActivationReceipt? _lastChannelActivationReceipt;
     private string? _pendingChannelStoreRootPath;
     private string _channelStoreStatusText = "尚未创建三渠道单本体计划";
@@ -27,7 +30,9 @@ public sealed partial class MainPageViewModel
 
     public string ChannelStoreStatusText
     {
-        get => _channelStoreStatusText;
+        get => _settingsStore.ProtectionMessage is { } protection
+            ? $"{_channelStoreStatusText} · 无法创建单本体：{protection}"
+            : _channelStoreStatusText;
         private set => SetField(ref _channelStoreStatusText, value);
     }
 
@@ -66,8 +71,8 @@ public sealed partial class MainPageViewModel
         HasUniqueSelectableChannel(DistributionChannel.Steam);
 
     public bool CanBuildChannelStore =>
-        CanPlanChannelStore &&
-        _channelStorePlan?.CanExecute is true;
+        !IsBusy && !IsChannelStoreBusy && _settingsStore.ProtectionMessage is null &&
+        (_pendingRegistration is not null || (CanPlanChannelStore && _channelStorePlan?.CanExecute is true));
 
     public bool CanActivateSelectedChannel =>
         !IsBusy &&
@@ -117,6 +122,8 @@ public sealed partial class MainPageViewModel
         _pendingChannelStoreRootPath = Path.GetFullPath(storeRootPath)
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         _channelStorePlan = null;
+        _pendingRegistration = null;
+        OnPropertyChanged(nameof(ChannelStoreBuildLabel));
         ChannelStoreStatusText = "已选择存储位置；点击 Dry-run 后开始枚举和完整哈希。";
         OnPropertyChanged(nameof(ChannelStoreRootPath));
         OnPropertyChanged(nameof(ChannelStoreCapacityText));
@@ -166,6 +173,12 @@ public sealed partial class MainPageViewModel
 
     public async Task BuildChannelStoreAsync(CancellationToken cancellationToken = default)
     {
+        if (_settingsStore.ProtectionMessage is not null)
+        {
+            OnPropertyChanged(nameof(ChannelStoreStatusText));
+            return;
+        }
+
         if (!CanBuildChannelStore || _channelStorePlan is null)
         {
             ChannelStoreStatusText = "请先完成可执行的 dry-run。";
@@ -174,24 +187,34 @@ public sealed partial class MainPageViewModel
 
         IsChannelStoreBusy = true;
         ChannelStoreProgressPercent = 0;
-        ChannelStoreStatusText = "正在导入共享对象并物化三个渠道根";
+        ChannelStoreStatusText = _pendingRegistration is null ? "正在导入共享对象并物化三个渠道根" : "正在重新登记档案";
         try
         {
-            var progress = new Progress<ChannelStoreProgress>(ApplyChannelStoreProgress);
-            _channelStoreReceipt = await _channelStoreBuilder.BuildAsync(
-                _channelStorePlan,
-                _channelStorePlan.PlanSha256,
-                progress,
-                cancellationToken);
-            if (!_channelStoreReceipt.Succeeded)
+            var retrying = _pendingRegistration is not null;
+            if (!retrying)
             {
-                ChannelStoreStatusText =
-                    $"物化失败：{_channelStoreReceipt.FailureCode} · " +
-                    _channelStoreReceipt.FailureDetail;
-                return;
+                var progress = new Progress<ChannelStoreProgress>(ApplyChannelStoreProgress);
+                var built = await _channelStoreBuilder.BuildAsync(
+                    _channelStorePlan,
+                    _channelStorePlan.PlanSha256,
+                    progress,
+                    cancellationToken);
+                if (!built.Succeeded)
+                {
+                    ChannelStoreStatusText =
+                        $"物化失败：{built.FailureCode} · " +
+                        built.FailureDetail;
+                    return;
+                }
+                foreach (var variant in _channelStorePlan.Variants)
+                {
+                    _channelStoreReadOnlyRoots = _channelStoreReadOnlyRoots
+                        .Add(variant.SourceGameRootPath).Add(variant.TargetGameRootPath);
+                }
+                _pendingRegistration = (ApplyChannelStoreTargets(_profileBuildResult!, _channelStorePlan), built);
             }
 
-            var materialized = ApplyChannelStoreTargets(_profileBuildResult!, _channelStorePlan);
+            var (materialized, receipt) = _pendingRegistration!.Value;
             var selectedProfileId = _selectedCandidate?.ProfileId;
             var profiles = materialized.Candidates
                 .Where(candidate => candidate.Profile is not null)
@@ -202,9 +225,9 @@ public sealed partial class MainPageViewModel
             var channelStore = new ChannelStoreSettings
             {
                 StoreRootPath = _channelStorePlan.StoreRootPath,
-                LastReceiptId = _channelStoreReceipt.ReceiptId,
+                LastReceiptId = receipt.ReceiptId,
                 LastPlanSha256 = _channelStorePlan.PlanSha256,
-                LastCompletedAtUtc = _channelStoreReceipt.CompletedAtUtc,
+                LastCompletedAtUtc = receipt.CompletedAtUtc,
                 Profiles = materialized.Candidates
                     .Where(candidate => candidate.Profile is not null && candidate.GameRootPath is not null)
                     .Select(candidate => new ChannelStoreProfileSettings
@@ -217,12 +240,29 @@ public sealed partial class MainPageViewModel
                     })
                     .ToArray(),
             };
-            await _settingsStore.UpdateAsync(current => current with
+            if (retrying && channelStore.Profiles.Any(profile => !IsUsableStoredProfile(channelStore, profile)))
             {
-                ChannelStore = channelStore,
-                Profiles = profiles,
-                SelectedProfileId = selectedProfileId,
-            }, cancellationToken);
+                ChannelStoreStatusText = "物化目标或回执无法验证。请检查存储位置后重试登记，或重新执行 dry-run。";
+                return;
+            }
+            try
+            {
+                await _settingsStore.UpdateAsync(current => current with
+                {
+                    ChannelStore = channelStore,
+                    Profiles = profiles,
+                    SelectedProfileId = selectedProfileId,
+                }, cancellationToken);
+            }
+            catch (Exception ex) when (ex is UserSettingsStoreException or IOException or UnauthorizedAccessException or OperationCanceledException)
+            {
+                ChannelStoreStatusText = $"单本体已创建，档案未登记。回执 {receipt.ReceiptId} 已保留，可点击“重试登记”。{ex.Message}";
+                OnPropertyChanged(nameof(ChannelStoreBuildLabel));
+                return;
+            }
+            _pendingRegistration = null;
+            _channelStorePlan = null;
+            OnPropertyChanged(nameof(ChannelStoreBuildLabel));
             _channelStoreSettings = channelStore;
             await ApplyDiscoveryResultAsync(materialized, selectedProfileId, cancellationToken);
             if (IsExternalChannelSelected)
@@ -230,7 +270,7 @@ public sealed partial class MainPageViewModel
                 await RefreshAsync(cancellationToken);
             }
             ChannelStoreStatusText =
-                $"单本体已创建：receipt={_channelStoreReceipt.ReceiptId}；" +
+                $"单本体已创建：receipt={receipt.ReceiptId}；" +
                 "三个源安装仍保留，完成逐渠道启动验证后可手动卸载。";
             OnPropertyChanged(nameof(ChannelStoreRootPath));
             OnPropertyChanged(nameof(ChannelStoreCapacityText));
@@ -501,6 +541,10 @@ public sealed partial class MainPageViewModel
     private void InitializeChannelStoreSettings(ChannelStoreSettings settings)
     {
         _channelStoreSettings = settings ?? new ChannelStoreSettings();
+        if (ChannelStoreReceiptVerifier.ReadReceipt(_channelStoreSettings) is { SourceRootsEligibleForManualCleanup: { } sources })
+        {
+            _channelStoreReadOnlyRoots = _channelStoreReadOnlyRoots.Union(sources);
+        }
         _pendingChannelStoreRootPath = null;
         ChannelStoreStatusText = string.IsNullOrWhiteSpace(_channelStoreSettings.LastReceiptId)
             ? "尚未创建三渠道单本体计划"
@@ -521,9 +565,15 @@ public sealed partial class MainPageViewModel
                 var stored = _channelStoreSettings.Profiles.FirstOrDefault(item =>
                     string.Equals(item.ProfileId, candidate.ProfileId, StringComparison.Ordinal) &&
                     item.DistributionChannel == candidate.Identity.DistributionChannel);
-                return stored is null || !IsUsableStoredProfile(stored)
-                    ? candidate
-                    : WithStoredProfileTargets(candidate, stored);
+                if (stored is null || !IsUsableStoredProfile(_channelStoreSettings, stored))
+                {
+                    return candidate;
+                }
+                if (candidate.GameRootPath is { } source)
+                {
+                    _channelStoreReadOnlyRoots = _channelStoreReadOnlyRoots.Add(source);
+                }
+                return WithStoredProfileTargets(candidate, stored);
             })
             .ToList();
         foreach (var stored in _channelStoreSettings.Profiles)
@@ -649,7 +699,7 @@ public sealed partial class MainPageViewModel
 
     private InstallationProfileCandidate? CreateStoredCandidate(ChannelStoreProfileSettings stored)
     {
-        if (!IsUsableStoredProfile(stored))
+        if (!IsUsableStoredProfile(_channelStoreSettings, stored))
         {
             return null;
         }
@@ -743,17 +793,17 @@ public sealed partial class MainPageViewModel
             candidate.State is InstallationCandidateState.Candidate or
                 InstallationCandidateState.ReadyForStaticVerification) == 1;
 
-    private bool IsUsableStoredProfile(ChannelStoreProfileSettings stored)
+    private static bool IsUsableStoredProfile(ChannelStoreSettings settings, ChannelStoreProfileSettings stored)
     {
-        if (string.IsNullOrWhiteSpace(_channelStoreSettings.StoreRootPath) ||
+        if (string.IsNullOrWhiteSpace(settings.StoreRootPath) ||
             string.IsNullOrWhiteSpace(stored.LauncherRootPath) ||
             string.IsNullOrWhiteSpace(stored.XStarterPath) ||
-            !ChannelStoreReceiptVerifier.Verify(_channelStoreSettings, stored))
+            !ChannelStoreReceiptVerifier.Verify(settings, stored))
         {
             return false;
         }
 
-        var storeRoot = Path.GetFullPath(_channelStoreSettings.StoreRootPath)
+        var storeRoot = Path.GetFullPath(settings.StoreRootPath)
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         if (!IsPathWithin(storeRoot, stored.GameRootPath) ||
             !IsPathWithin(storeRoot, stored.LauncherRootPath) ||
@@ -812,6 +862,10 @@ public sealed partial class MainPageViewModel
 
     private void ApplyChannelStoreProgress(ChannelStoreProgress progress)
     {
+        if (!IsChannelStoreBusy || _pendingRegistration is not null)
+        {
+            return;
+        }
         ChannelStoreProgressPercent = progress.TotalBytes > 0
             ? Math.Clamp(progress.BytesCompleted * 100d / progress.TotalBytes, 0, 100)
             : progress.TotalFiles > 0

@@ -419,7 +419,6 @@ public sealed partial class MainPage
             await LoadResonanceHistoryAsync(currentCancellation.Token);
             await LoadWishHistoryAsync(currentCancellation.Token);
             await ViewModel.InitializeAsync(currentCancellation.Token);
-            App.MainWindow.ApplyCloseBehavior(ViewModel.GeneralSettings.CloseWindowBehavior);
             var hotkeyRegistration = App.MainWindow.ApplyHotkeys(
                 ViewModel.GeneralSettings.MainWindowHotkey,
                 ViewModel.ScreenshotSettings.Hotkey);

@@ -123,7 +123,8 @@ public sealed partial class MainPage
                 : "已启用；未检测到手柄，连接后自动生效。";
         }
 
-        return new GamepadRuntimeViewState(status, GamepadController.RuntimeMissing);
+        var protection = App.Settings.ProtectionMessage;
+        return new GamepadRuntimeViewState(protection ?? status, GamepadController.RuntimeMissing, protection is null);
     }
 
     private void OnSettingsCloseRequested(object? sender, EventArgs e) => CloseDetails();

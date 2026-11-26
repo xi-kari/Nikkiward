@@ -358,9 +358,9 @@ public sealed class NativeWindowRuntime : IDisposable
         var data = CreateTrayData();
         if (!ShellNotifyIcon(NimAdd, ref data))
         {
+            var error = Marshal.GetLastWin32Error();
             DestroyLoadedTrayIcon();
-            throw new InvalidOperationException(
-                $"System tray icon registration failed with Win32 error {Marshal.GetLastWin32Error()}.");
+            throw new InvalidOperationException($"Windows 错误码 {error}。");
         }
 
         data.UnionTimeoutOrVersion = NotifyIconVersion4;

@@ -116,6 +116,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     public IReadOnlyList<string> GalleryReadOnlyRoots => PersistedSettings.GalleryProfiles
         .Select(item => GalleryAnnotationStore.NormalizeGalleryRoot(item.RootPath))
         .Concat(PersistedSettings.Profiles.Select(item => item.GameRootPath))
+        .Concat(_channelStoreReadOnlyRoots)
         .Concat(PersistedSettings.ChannelStore.Profiles.Select(item => item.GameRootPath))
         .Concat(_profileBuildResult?.Candidates.Select(item => item.GameRootPath) ?? [])
         .OfType<string>().Where(Path.IsPathFullyQualified).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
