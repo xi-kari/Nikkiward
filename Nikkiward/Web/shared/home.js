@@ -121,3 +121,15 @@ if (bridge) document.addEventListener('click', e => {
   }
   bridge.postMessage(message);
 });
+
+function describeProfile(button, profile) {
+  if (profile.detail) {
+    if (button.disabled) {
+      button.disabled = false;
+      button.setAttribute('aria-disabled', 'true');
+      button.addEventListener('click', event => event.stopImmediatePropagation(), true);
+    }
+    button.title = profile.detail;
+    button.setAttribute('aria-description', profile.detail);
+  }
+}

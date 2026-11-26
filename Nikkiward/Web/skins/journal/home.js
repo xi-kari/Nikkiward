@@ -36,12 +36,13 @@ function renderProfiles(s) {
   profileKey = key;
   const count = s.profiles.length;
   $('.switcher .lead').textContent = count === 3 ? '同一个游戏，三条线路。每个档案各自检查安装，互不影响。' :
-    count ? '每个档案各自检查安装，互不影响。' : '尚未发现安装';
+    count ? count + ' 个档案' : '尚未发现安装';
   const focused = document.activeElement.dataset.profileId;
   $('#profs').replaceChildren(...s.profiles.map(p => {
     const b = document.createElement('button');
     b.className = p.available ? 'prof can' : 'prof';
     b.disabled = !p.available;
+    describeProfile(b, p);
     b.dataset.profileId = p.id;
     b.setAttribute('role','radio');
     b.setAttribute('aria-checked',p.current);

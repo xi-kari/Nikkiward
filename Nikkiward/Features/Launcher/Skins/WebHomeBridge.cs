@@ -38,7 +38,7 @@ internal sealed record HomeBackground(string Type, string Url, string? Poster = 
     }
 }
 
-internal sealed record HomeProfileOption(string Id, string Name, string Region, string Channel, bool Available, string Reason, bool Current);
+internal sealed record HomeProfileOption(string Id, string Name, string Region, string Channel, bool Available, string Reason, bool Current, string? Detail);
 internal sealed record HomePhoto(string Id, string FileName, string Time, string? Thumbnail);
 internal sealed record HomeChecklist(int Completed, int Total, string Next);
 internal sealed record HomeRect(double X, double Y, double Width, double Height);
@@ -69,15 +69,41 @@ internal sealed record WebHomeState(LaunchButtonState State, string LaunchLabel,
         {
             SessionMinutes = vm.HomeState == LaunchButtonState.Running ? vm.HomeSessionMinutes : null,
             DiscoveryTime = vm.HomeCandidates.Count == 0 ? null : vm.HomeCandidates.Max(c => c.ObservedAtUtc).ToLocalTime().ToString("MM-dd HH:mm"),
-            Profiles = vm.HomeCandidates.Select(c =>
-            {
-                var (region, title, channel) = MainPageViewModel.FormatHomeProfile(c.Identity.RegionFamily, c.Identity.DistributionChannel, c.DisplayName);
-                bool available = c.Profile != null && c.State is (InstallationCandidateState.Candidate or InstallationCandidateState.ReadyForStaticVerification);
-                return new HomeProfileOption(c.ProfileId, title, region, channel, available, available ? "已发现安装" : c.Detail ?? "不可用", c.ProfileId == vm.SelectedProfileId);
-            }).ToArray(),
+            Profiles = ProfileRows(vm.HomeCandidates, vm.SelectedProfileId).ToArray(),
             ReadySummary = vm.HomeReadySummary,
             OnAccent = ink,
         };
+    }
+
+    internal static IEnumerable<HomeProfileOption> ProfileRows(IReadOnlyList<InstallationProfileCandidate> candidates, string? selected)
+    {
+        var groups = candidates.ToLookup(c => c.Identity.DistributionChannel);
+        DistributionChannel[] channels = [DistributionChannel.Official, DistributionChannel.Bilibili, DistributionChannel.Steam];
+        foreach (var channel in channels.Union(groups.Select(g => g.Key)))
+        {
+            var group = groups[channel];
+            var choices = group.Where(c => c.Profile != null &&
+                c.State is InstallationCandidateState.Candidate or InstallationCandidateState.ReadyForStaticVerification).ToArray();
+            if (choices.Length > 0)
+            {
+                foreach (var c in choices)
+                {
+                    var name = MainPageViewModel.FormatHomeProfile(c.Identity.RegionFamily, channel, c.DisplayName);
+                    var path = c.GameRootPath ?? c.Profile!.GameRootPath;
+                    yield return new(c.ProfileId, name.Title, name.Region, name.Channel, true,
+                        choices.Length > 1 ? path : "已发现安装", c.ProfileId == selected, choices.Length > 1 ? path : null);
+                }
+                continue;
+            }
+
+            var first = group.FirstOrDefault();
+            var label = MainPageViewModel.FormatHomeProfile(first?.Identity.RegionFamily, channel, first?.DisplayName ?? "");
+            var reason = group.Any(c => c.State == InstallationCandidateState.Downloading) ? "正在下载" :
+                group.Any(c => c.State == InstallationCandidateState.Incomplete) ? "安装不完整" :
+                group.Any(c => c.State == InstallationCandidateState.Unsupported) ? "暂不支持" : "未发现安装";
+            var details = string.Join("\n", group.Select(c => c.Detail).Where(d => !string.IsNullOrWhiteSpace(d)).Distinct());
+            yield return new("", label.Title, label.Region, label.Channel, false, reason, false, details.Length > 0 ? details : null);
+        }
     }
 
     private static string ContrastInk(uint fill)

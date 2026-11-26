@@ -182,7 +182,7 @@
                 </StackPanel>
                 <TextBlock x:Name="Reason" Grid.Column="1" MaxWidth="430" Margin="12,4,20,4"
                            HorizontalAlignment="Right" VerticalAlignment="Center" TextAlignment="Right"
-                           Text="{x:Bind Model.HomeLaunchDetail}" TextWrapping="Wrap" FontSize="12" LineHeight="18" />
+                           TextWrapping="Wrap" FontSize="12" LineHeight="18" />
                 <StackPanel
                     x:Name="Actions"
                     Grid.Column="2"

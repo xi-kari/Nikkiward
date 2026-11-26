@@ -32,6 +32,7 @@ internal static class AppearanceRuntimeContractTests
         (nameof(AtelierBackgroundSources), AtelierBackgroundSources),
         (nameof(AtelierBackgroundHandoff), AtelierBackgroundHandoff),
         (nameof(WebHomeCreatesMediaFolders), WebHomeCreatesMediaFolders),
+        (nameof(WebHomeChannelRows), WebHomeChannelRows),
         (nameof(WebSkinProfileActions), WebSkinProfileActions),
         (nameof(AtelierComparisonAssets), AtelierComparisonAssets),
         (nameof(AtelierArtworkAndIssue), AtelierArtworkAndIssue),
@@ -808,6 +809,28 @@ internal static class AppearanceRuntimeContractTests
             Assert(HomeBackground.CreateMediaFolders(root) == folders, "existing data root");
         }
         finally { Directory.Delete(root, recursive: true); }
+        return Task.CompletedTask;
+    }
+
+    private static Task WebHomeChannelRows()
+    {
+        var missing = new InstallationProfileCandidate
+        {
+            Identity = new() { DistributionChannel = DistributionChannel.Steam },
+            Detail = "Steam manifest 不存在"
+        };
+        var other = missing with { Detail = "另一个库也没有安装" };
+        var ready = missing with { Profile = new(), State = InstallationCandidateState.Candidate, ProfileId = "a", GameRootPath = @"D:\Game" };
+        var second = ready with { ProfileId = "b", GameRootPath = @"E:\Game" };
+        var rows = WebHomeState.ProfileRows([missing, missing, other], null).ToArray();
+        Assert(rows.Select(p => p.Name).SequenceEqual(["国服 · 官方", "国服 · 哔哩哔哩", "国际服 · Steam"]), "stable channel order");
+        Assert(rows.All(p => !p.Available && !p.Current && p.Reason == "未发现安装") &&
+            rows[2].Detail == missing.Detail + "\n" + other.Detail, "one unavailable row with distinct details");
+        rows = WebHomeState.ProfileRows([missing, ready], "a").ToArray();
+        Assert(rows.Length == 3 && rows[2].Available && rows[2].Current && rows[2].Id == "a", "usable installation wins");
+        rows = WebHomeState.ProfileRows([ready, missing, second], "b").ToArray();
+        Assert(rows.Length == 4 && rows[2].Reason != rows[3].Reason && !rows[2].Current && rows[3].Current &&
+            rows[3].Id == "b", "multiple selectable installations retain identity and location");
         return Task.CompletedTask;
     }
 

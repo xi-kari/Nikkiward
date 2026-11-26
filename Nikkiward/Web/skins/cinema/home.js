@@ -86,12 +86,13 @@ function renderProfiles(s) {
   if (key === profileKey) return;
   profileKey = key;
   const count = new Set(s.profiles.map(p => p.channel)).size;
-  $('#switcher header span').textContent = count === 3 ? '档案 · 同一个游戏的三个渠道' : '档案';
+  $('#switcher header span').textContent = count === 3 && s.profiles.length === 3 ? '档案 · 同一个游戏的三个渠道' : '档案 · ' + s.profiles.length + ' 个档案';
   const focused = document.activeElement.closest('.pf')?.dataset.id;
   $('#pfList').replaceChildren(...s.profiles.map(p => {
     const b = element('button',null,'pf');
     b.dataset.id = p.id;
     b.disabled = !p.available;
+    describeProfile(b, p);
     b.setAttribute('role','radio');
     b.setAttribute('aria-checked',p.current);
     const reason = element('p');

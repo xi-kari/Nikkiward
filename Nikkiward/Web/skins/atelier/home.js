@@ -166,6 +166,7 @@ function renderProfiles(s) {
     const b = document.createElement('button');
     b.className = 'prof ' + (p.available ? '' : 'na');
     b.disabled = !p.available;
+    describeProfile(b, p);
     b.setAttribute('role','radio');
     b.setAttribute('aria-checked',p.current);
     b.innerHTML = '<span><b></b><small><i></i></small></span><svg viewBox="0 0 16 16"><path d="M2.5 8.5l3.5 3.5 7.5-8"/></svg>';

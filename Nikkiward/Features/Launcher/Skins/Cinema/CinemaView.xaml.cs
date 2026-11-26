@@ -46,7 +46,7 @@ public sealed partial class CinemaView : UserControl, IDisposable
 
     private void OnModelChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(Model.LaunchButtonState) or nameof(Model.AppearanceSettings) or nameof(Model.HasHomeTask))
+        if (e.PropertyName is nameof(Model.HomeLaunchDetail) or nameof(Model.LaunchButtonState) or nameof(Model.AppearanceSettings) or nameof(Model.HasHomeTask))
         {
             Refresh();
             if (Model.HomeState != _lastState || e.PropertyName == nameof(Model.AppearanceSettings))
@@ -71,7 +71,7 @@ public sealed partial class CinemaView : UserControl, IDisposable
         Recent.Visibility = Visible(ActualWidth >= 840 && _host?.RecentPhotos.Count > 0);
         ArtLabel.Visibility = Visible(ActualWidth >= 760);
         bool closeVisible = vm.HomeCloseVisibility == Visibility.Visible;
-        bool wide = ActualWidth >= (closeVisible ? 1510 : 1430);
+        bool wide = ActualWidth >= (closeVisible ? 1710 : 1630);
         Facts.Spacing = wide ? 36 : 12;
         Art.Width = wide ? 244 : ActualWidth >= 760 ? 155 : 138;
         ArtTitle.MaxWidth = Art.Width - 64;
@@ -86,7 +86,7 @@ public sealed partial class CinemaView : UserControl, IDisposable
         ReadyDot.Visibility = Visible(vm.HomeState == LaunchButtonState.Ready);
         WarnDot.Visibility = Visible(blocked && !vm.HomeBusy);
         NeutralDot.Visibility = Visible(ReadyDot.Visibility == Visibility.Collapsed && WarnDot.Visibility == Visibility.Collapsed);
-        bool stacked = ActualWidth < (blocked ? 1020 : closeVisible ? 920 : 780);
+        bool stacked = ActualWidth < (blocked ? 1020 : closeVisible ? 1340 : 1240);
         Grid.SetColumnSpan(Facts, stacked ? 3 : 1);
         Grid.SetRow(Reason, stacked ? 1 : 0);
         Grid.SetColumn(Reason, stacked ? 0 : 1);
@@ -94,7 +94,7 @@ public sealed partial class CinemaView : UserControl, IDisposable
         Grid.SetRow(Actions, stacked ? 2 : 0);
         Grid.SetColumn(Actions, stacked ? 0 : 2);
         Grid.SetColumnSpan(Actions, stacked ? 3 : 1);
-        Reason.Visibility = Visible(blocked);
+        Reason.Text = vm.HomeReadySummary ?? vm.HomeLaunchDetail;
     }
 
     private static Visibility Visible(bool value) => value ? Visibility.Visible : Visibility.Collapsed;

@@ -47,6 +47,7 @@ function renderProfiles(items) {
     button.setAttribute('role','radio');
     button.setAttribute('aria-checked',p.current);
     button.disabled = !p.available;
+    describeProfile(button, p);
     button.innerHTML = '<i class="dot"></i><strong></strong><svg class="i ck"><use href="#i-ck"/></svg><small></small>';
     if (!p.available) button.querySelector('.dot').classList.add(p.reason.startsWith('需要选择安装') ? 'w' : 'n');
     button.querySelector('strong').textContent = p.name;

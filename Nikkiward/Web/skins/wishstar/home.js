@@ -81,7 +81,7 @@ function renderProfiles(s) {
   profileKey = key;
   const focusedId = document.activeElement.dataset.profileId;
   const channels = new Set(s.profiles.map(p => p.channel));
-  $('.pop h3 small').textContent = channels.size === 3 ? '一个游戏，三个渠道' :
+  $('.pop h3 small').textContent = channels.size === 3 && s.profiles.length === 3 ? '一个游戏，三个渠道' :
     s.profiles.length ? s.profiles.length + ' 个档案' : '';
   $('#noProfiles').hidden = !!s.profiles.length;
   $('#profList').replaceChildren(...s.profiles.map(p => {
@@ -89,6 +89,7 @@ function renderProfiles(s) {
     b.className = 'prow';
     b.dataset.profileId = p.id;
     b.disabled = !p.available;
+    describeProfile(b, p);
     b.setAttribute('role', 'radio');
     b.setAttribute('aria-checked', p.current);
     b.innerHTML = '<i class="pi">' + icon(p.current ? 'check' : 'planet') + '</i><div><b></b><span></span></div><div class="pst"><em></em><span></span></div>';
