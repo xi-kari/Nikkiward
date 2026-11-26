@@ -58,7 +58,6 @@ ul{list-style:none}
 .issue{position:absolute;left:var(--pad);right:var(--pad);top:62px;display:flex;gap:14px;align-items:center;font-size:12px;color:var(--ink2);letter-spacing:.12em}
 .issue i{width:1px;height:10px;background:var(--rule)}
 .issue .sp{flex:1}
-.win[data-state=running] .bgtask{visibility:hidden}
 .bgtask{display:flex;align-items:center;gap:10px;font-size:12px;letter-spacing:.06em;color:var(--ink2);padding:3px 0}
 .bgtask:hover{color:var(--ink)}
 .bgtask .bar{width:64px;height:1px;background:var(--hair);position:relative}
@@ -219,3 +218,12 @@ button.col:hover .v{text-decoration:underline;text-decoration-thickness:1px;text
 .prof:hover b{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:4px;text-decoration-color:var(--gold)}
 .prof.na b{color:var(--ink3)}
 #switcher .ft{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--rule);padding-top:10px;font-size:12px;color:var(--ink3)}
+
+.headline h1.long-title{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.headline:has(.long-title) .deck{flex:none}
+.bgtask,.profile,.prof>span{min-width:0}
+.bgtask>span:first-child,.profile b,.prof small,.tag[data-state=ready] .tag-sub{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bgtask>span:not(:first-child),.tagrow>.lnk,.profile svg{flex:none}
+
+.headline h1.long-title[data-len="4"]{font-size:clamp(48px,5vw,80px)}
+.thumbs button:only-child{flex:0 0 calc((100% - 24px)/4)}

@@ -59,7 +59,7 @@ function render(s) {
   win.dataset.state = tag.dataset.state = s.visual;
   tag.dataset.kind = ['ready','launching'].includes(s.visual) ? 'solid' : 'hollow';
   $('#tagTitle').textContent = s.launchLabel;
-  $('#tagSub').textContent = s.visual === 'ready' ? s.readySummary : s.detail;
+  $('#tagSub').textContent = s.visual === 'ready' ? s.readySummary : s.sessionMinutes != null && s.visual === 'running' ? '已运行 ' + s.sessionMinutes + ' 分钟' : s.detail;
   $('#launchDetail').textContent = $('#launch').title = s.detail;
   $('#tagKick').textContent = s.state === 'SignatureUntrusted' ? '暂不能启动 · 安全拒绝' : kicks[s.visual] || '';
   $('#launch').disabled = !s.enabled;
@@ -71,14 +71,16 @@ function render(s) {
   $('#status').hidden = !s.nextActions.includes('status');
   $('#retry').dataset.action = s.visual === 'notfound' ? 'rediscover' : 'recheck';
   $('#retry').textContent = s.visual === 'notfound' ? '重新发现' : '重新检查';
-  $('#locate').hidden = !s.nextActions.includes('locate');
+  $('#locate').hidden = !s.nextActions.includes('locate') && s.state !== 'SelectionRequired';
   $('#tagActs').hidden = !['blocked','notfound'].includes(s.visual);
-  $('#profileName').textContent = s.profile;
+  $('#profileName').textContent = s.profile || '选择档案';
   renderProfiles(s);
-  $('#platform').textContent = s.channel + ' · Windows';
-  $('#chkV').textContent = s.check;
+  $('#platform').textContent = [s.channel, 'Windows'].filter(Boolean).join(' · ');
+  const checkSummary = {SignatureUntrusted:'签名异常', SelectionRequired:'待选目录', Running:'已在运行',
+    NotInstalled:s.profile ? s.check : '待定位'};
+  $('#chkV').textContent = s.check === s.launchLabel ? checkSummary[s.state] || s.check : s.check;
   $('#chkS').textContent = [s.checkCount == null ? '' : s.checkCount + ' 项', s.checkTime].filter(Boolean).join(' · ');
-  const hours = s.officialDuration?.match(/^([\d.]+)h$/);
+  const hours = s.officialDuration?.match(/^(\d+(?:\.\d+)?)\s*(?:h|小时)$/);
   const official = $('#official');
   if (hours) {
     official.replaceChildren(number(hours[1]), ' 小时');
@@ -88,8 +90,13 @@ function render(s) {
   const snapshot = s.journalSnapshotDate && new Date(s.journalSnapshotDate + 'T12:00:00');
   $('#journalInfo').textContent = !s.officialDuration ? '官方时长 · 去手账页同步' :
     snapshot ? '官方时长 · ' + (snapshot.getMonth() + 1) + ' 月 ' + snapshot.getDate() + ' 日快照' : '官方时长';
-  $('#local').textContent = s.localDuration;
+  $('#local').textContent = s.localDuration && !s.localDuration.startsWith('本机') ? '本机 ' + s.localDuration : s.localDuration;
   $('#local').hidden = !s.localDuration;
+  if (s.officialDuration && s.localDuration && !snapshot) {
+    $('#journalInfo').textContent = '官方时长 · ' + $('#local').textContent;
+    $('#journalInfo').title = $('#journalInfo').textContent;
+    $('#local').hidden = true;
+  } else $('#journalInfo').removeAttribute('title');
   if (s.checklist) {
     $('#checklist').replaceChildren(number(s.checklist.completed), ' / ', number(s.checklist.total));
     $('#nextTask').textContent = '还剩：' + s.checklist.next;
@@ -101,9 +108,13 @@ function render(s) {
   if (!last.hidden) last.replaceChildren(document.createElement('b'), '上次游玩拍的 ' + s.lastSessionPhotos + ' 张');
   $('#coverKick').textContent = s.artSource;
   const title = $('#coverTitle');
-  if (title.textContent !== s.artName) {
-    title.dataset.len = Math.min(4, [...s.artName].length);
-    title.replaceChildren(...[...s.artName].map(ch => {
+  const caption = s.artSource === '自定义背景'
+    ? s.artName.replace(/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_(?=\S)/, '') : s.artName;
+  if (title.title !== s.artName) {
+    title.dataset.len = Math.min(4, [...caption].length);
+    title.classList.toggle('long-title', [...caption].length > 4);
+    if (title.classList.contains('long-title')) title.textContent = caption;
+    else title.replaceChildren(...[...caption].map(ch => {
       const span = document.createElement('span');
       span.append(document.createElement('b'));
       span.firstChild.textContent = ch;
@@ -113,7 +124,7 @@ function render(s) {
   }
   const task = $('#bgtask');
   task.hidden = !s.taskText;
-  task.firstElementChild.textContent = s.taskText;
+  task.firstElementChild.textContent = task.title = s.taskText || '';
   task.querySelector('.num').textContent = Math.round(s.progress);
   task.style.setProperty('--progress', s.progress + '%');
   task.lastElementChild.hidden = task.querySelector('.bar').hidden = s.progress == null;
