@@ -81,6 +81,7 @@ public sealed partial class MainPage
         ContentFrame.Visibility = Visibility.Visible;
         SyncLauncherChrome();
 
+        if (photo == null && TryShowWebPage(viewMode == GalleryViewMode.Favorites ? "favorites" : "gallery")) return;
         var cancellationToken = _lifetimeCancellation?.Token ?? CancellationToken.None;
         await ViewModel.InitializeAsync(cancellationToken);
         if (ContentFrame.Content is GalleryPage galleryPage)
@@ -110,7 +111,7 @@ public sealed partial class MainPage
             AppearanceRuntimeValues.CreateNavigationTransitionInfo());
     }
 
-    private void ShowLibrary()
+    private void ShowLibrary(bool officialBrowser = false)
     {
         CloseProfileOverlay();
         HideGallery();
@@ -119,6 +120,7 @@ public sealed partial class MainPage
         HideStatusDrawer();
         ContentFrame.Visibility = Visibility.Visible;
         SyncLauncherChrome();
+        if (!officialBrowser && TryShowWebPage("journal")) return;
         if (ContentFrame.Content is JournalPage journalPage)
         {
             journalPage.ResetScroll();
@@ -140,6 +142,7 @@ public sealed partial class MainPage
         HideStatusDrawer();
         ContentFrame.Visibility = Visibility.Visible;
         SyncLauncherChrome();
+        if (TryShowWebPage("wish")) return;
         if (ContentFrame.Content is WishPage wishPage)
         {
             wishPage.ResetScroll();
@@ -232,8 +235,9 @@ public sealed partial class MainPage
         LauncherBackground.Visibility = Visible(!webCover);
 
         bool webHome = launcherOpen && _hostedLauncherPage?.WebHome != null;
-        ContentFrame.Margin = !webHome && _homeSkin?.LeftEdge == true ? new Thickness(90, 0, 0, 0) : pageOpen ? new Thickness(0, 48, 0, 0) : default;
-        ShellNavigation.Visibility = Visible(!webHome && _studio == null);
+        bool webPage = pageOpen && CurrentWebPage != null;
+        ContentFrame.Margin = webPage ? default : !webHome && _homeSkin?.LeftEdge == true ? new Thickness(90, 0, 0, 0) : pageOpen ? new Thickness(0, 48, 0, 0) : default;
+        ShellNavigation.Visibility = Visible(!webPage && !webHome && _studio == null);
         PageHostBackdrop.Visibility = Visible(pageOpen);
 
         if (_hostedLauncherPage is { } launcherPage)

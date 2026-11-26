@@ -1,9 +1,15 @@
+using Nikkiward.Features.Pages;
 using Nikkiward.ViewModels;
 
 internal static class WishHistoryDomainTests
 {
     public static (string Name, Func<Task> Run)[] All =>
     [
+        ("web pages route only registered destinations", RegisteredPages),
+        ("web pages isolate actions by active page", PageActions),
+        ("wish JSON round trip preserves and deduplicates entries", RoundTrip),
+        ("wish pool timeline orders simultaneous pulls and preserves unknown distances", PoolTimeline),
+        ("invalid wish JSON leaves stored history intact", InvalidBackup),
         ("wish history merge preserves older records and appends new records", MergePreservesOlderRecords),
         ("wish history merge is idempotent for repeated imports", MergeIsIdempotent),
         ("wish history merge enriches duplicate records without erasing known fields", MergeEnrichesDuplicateRecords),
@@ -13,6 +19,79 @@ internal static class WishHistoryDomainTests
         ("wish history five-star rows expose only a subtle glow", FiveStarRowsExposeSubtleGlow),
         ("wish history store merges atomically and keeps history outside cache clearing", StoreMergesAtomically),
     ];
+
+    private static PageAdapter TestAdapter(params string[] actions) =>
+        new("wish", actions, () => new object(), (_, _) => Task.CompletedTask);
+
+    private static Task RegisteredPages()
+    {
+        var routes = PageRoutes.Register(("wish", TestAdapter()));
+        Assert(routes.ContainsKey("wish"), "wish is web");
+        foreach (var page in new[] { "gallery", "favorites", "journal", "settings" })
+            Assert(!routes.ContainsKey(page) && PageRoutes.NavigationTag(page) != null, page + " is native");
+        return Task.CompletedTask;
+    }
+
+    private static Task PageActions()
+    {
+        var wish = TestAdapter("import");
+        Assert(PageRoutes.Allows("wish", "wish", wish, "import"), "own action");
+        Assert(!PageRoutes.Allows("wish", "gallery", wish, "import"), "foreign envelope");
+        Assert(!PageRoutes.Allows("wish", "wish", wish, "delete"), "unknown action");
+        return Task.CompletedTask;
+    }
+
+    private static async Task RoundTrip()
+    {
+        using var source = new TemporaryDirectory();
+        using var destination = new TemporaryDirectory();
+        var store = new WishHistoryStore(source.Root);
+        var record = Entry("same", "2026-05-01T00:00:00Z", "花", 5, 40);
+        await store.MergeAndSaveAsync([record], new() { TotalPulls = 40 }, DateTimeOffset.UtcNow);
+        using var stream = new MemoryStream();
+        await store.ExportAsync(stream);
+        var target = new WishHistoryStore(destination.Root);
+        var older = record with { TimestampUtc = record.TimestampUtc.AddDays(-1) };
+        await target.MergeAndSaveAsync([older], null, DateTimeOffset.UtcNow);
+        for (var i = 0; i < 2; i++)
+        {
+            stream.Position = 0;
+            var snapshot = await target.ImportAsync(stream);
+            AssertSequence([older, record], snapshot.Entries, "records");
+            AssertEqual(40, snapshot.Summary?.TotalPulls, "summary");
+        }
+    }
+
+    private static Task PoolTimeline()
+    {
+        const string instant = "2026-06-18T21:19:00Z";
+        var rows = WishHistoryProjector.Project([
+            Entry("first-id", instant, rarity: 4, pullNumber: 42),
+            Entry("last-id", instant, rarity: 5, pullNumber: 40),
+            Entry("unknown-rarity", instant, pullNumber: 43),
+            Entry("after-unknown", instant, rarity: 4, pullNumber: 44)
+        ], null, TimeZoneInfo.Utc).Rows;
+        var timeline = WishHistoryProjector.PoolTimeline(rows);
+        AssertSequence<int?>([44, 43, 42, 40], timeline.Select(item => item.Row.Entry.PullNumber), "same-time pull order");
+        AssertSequence<int?>([null, 3, 2, null], timeline.Select(item => item.Distance), "known five-star interval");
+        return Task.CompletedTask;
+    }
+
+    private static async Task InvalidBackup()
+    {
+        using var fixture = new TemporaryDirectory();
+        var store = new WishHistoryStore(fixture.Root);
+        await store.MergeAndSaveAsync([Entry("kept", "2026-05-01T00:00:00Z")], null, DateTimeOffset.UtcNow);
+        var before = await File.ReadAllBytesAsync(store.HistoryPath);
+        foreach (var json in new[] { "{}", """{"format":123}""",
+            """{"format":"nikkiward-wish-v1","history":{"schemaVersion":1,"entries":[{}]}}""" })
+        {
+            using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
+            try { await store.ImportAsync(stream); throw new Exception("invalid file accepted"); }
+            catch (InvalidDataException) { }
+            AssertSequence(before, await File.ReadAllBytesAsync(store.HistoryPath), "unchanged history");
+        }
+    }
 
     private static Task MergePreservesOlderRecords()
     {

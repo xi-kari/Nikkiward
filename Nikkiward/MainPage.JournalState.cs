@@ -96,6 +96,7 @@ public sealed partial class MainPage
     private void ApplyResonanceHistory(ResonanceHistorySnapshot snapshot)
     {
         _resonanceSnapshot = snapshot;
+        CurrentWebPage?.Refresh();
         var itemCount = snapshot.Banners.Sum(banner => banner.Items.Count);
         var obtainedCount = snapshot.Banners.Sum(
             banner => banner.Items.Count(item => item.ObtainCount > 0));
@@ -186,6 +187,7 @@ public sealed partial class MainPage
         WishHistoryProjection projection,
         DateTimeOffset capturedAtUtc)
     {
+        CurrentWebPage?.Refresh();
         _hostedWishPage?.ApplyWishProjection(
             projection,
             capturedAtUtc == default
