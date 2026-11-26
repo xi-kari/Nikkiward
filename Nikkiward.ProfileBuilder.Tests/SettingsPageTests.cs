@@ -10,6 +10,9 @@ internal static class SettingsPageTests
     internal static (string, Func<Task>)[] All => [
         (nameof(RealSettingsSectionStatesSerialize), RealSettingsSectionStatesSerialize),
         (nameof(AppearanceRoundTrip), AppearanceRoundTrip),
+        (nameof(DeveloperSettingsReflectCurrentInspection), DeveloperSettingsReflectCurrentInspection),
+        (nameof(DownloadLimitsRoundTrip), DownloadLimitsRoundTrip),
+        (nameof(SettingsNavigationFollowsDeveloperMode), SettingsNavigationFollowsDeveloperMode),
         (nameof(GeneralRoundTrip), GeneralRoundTrip),
         (nameof(CustomAccentReturnsToPreset), CustomAccentReturnsToPreset),
         (nameof(AboutChannelState), AboutChannelState),
@@ -78,6 +81,55 @@ internal static class SettingsPageTests
         finally { folder.Delete(true); }
     }
 
+    private static Task DeveloperSettingsReflectCurrentInspection()
+    {
+        var model = new MainPageViewModel(new JsonUserSettingsStore(Path.GetTempPath()),
+            new WindowsInstallationInspector(), new RedactedDiagnosticReportExporter());
+        var diagnostics = JsonSerializer.SerializeToElement(DeveloperSettingsState.Diagnostics(model));
+        var contract = DeveloperSettingsState.Contract(model);
+        Require(diagnostics.GetProperty("components").GetArrayLength() == model.Components.Count
+            && diagnostics.GetProperty("canExport").GetBoolean() == model.CanExport
+            && diagnostics.GetProperty("exportStatus").GetString() == model.ExportStatusText);
+        Require(contract["Steam 应用编号"].Contains("3164330") && contract["清单编号"] == "未读取");
+        return Task.CompletedTask;
+    }
+
+    private static async Task DownloadLimitsRoundTrip()
+    {
+        var folder = Directory.CreateTempSubdirectory();
+        try
+        {
+            var store = new JsonUserSettingsStore(folder.FullName);
+            var download = DownloadSection.Change(new DownloadSettings { DefaultGameInstallPath = folder.FullName }, "hardLinks", "false");
+            foreach (var limit in new[] { 10_000_000, 0 })
+            {
+                download = DownloadSection.Change(download, "limit", limit.ToString());
+                await store.SaveAsync(new UserSettings { Download = download });
+                var state = JsonSerializer.SerializeToElement(DownloadSection.State((await store.LoadAsync()).Download));
+                Require(state.GetProperty("limit").GetInt32() == limit && !state.GetProperty("hardLinks").GetBoolean()
+                    && state.GetProperty("path").GetString() == folder.FullName);
+            }
+            Reject(() => DownloadSection.Change(download, "limit", "-1"));
+            Reject(() => DownloadSection.Change(download, "limit", "10000001"));
+            Reject(() => DownloadSection.Change(download, "hardLinks", "yes"));
+        }
+        finally { folder.Delete(true); }
+    }
+
+    private static Task SettingsNavigationFollowsDeveloperMode()
+    {
+        Require(SettingsSections.All.Where(s => !s.Developer).Select(s => s.Id).SequenceEqual(
+            ["appearance", "general", "Download", "FileManagement", "Screenshot", "Gallery", "Plugins", "Hotkeys", "Gamepad", "Advanced", "about"]));
+        var developer = SettingsSections.All.SkipWhile(s => s.Id != "Advanced").Skip(1).SkipLast(1);
+        Require(developer.Select(s => s.Id).SequenceEqual(["Journal", "Files", "Status", "Components", "Diagnostics", "Contract"]));
+        foreach (var entry in developer)
+        {
+            Require(SettingsSections.Resolve(entry.Id, true) == entry);
+            Reject(() => SettingsSections.Resolve(entry.Id, false));
+        }
+        return Task.CompletedTask;
+    }
+
     private static Task AboutChannelState()
     {
         var section = new AboutSection();
@@ -105,11 +157,11 @@ internal static class SettingsPageTests
         var registered = new Dictionary<string, PageAdapter> {
             ["appearance"] = new("appearance", AppearanceSection.Actions, () => new {}, (_,_) => Task.CompletedTask)
         };
-        Require(SettingsSections.All.Select(s => s.Destination).ToHashSet().SetEquals(Enum.GetValues<SettingsDestination>()));
+        Require(SettingsSections.All.Select(s => s.Destination).ToHashSet().SetEquals(Enum.GetValues<SettingsDestination>().Except([SettingsDestination.Overview])));
         Require(SettingsSections.NativeTarget(SettingsSections.Resolve("Gallery", false), registered) == SettingsDestination.Gallery);
         Reject(() => SettingsSections.NativeTarget(SettingsSections.Resolve("appearance", false), registered));
-        Require(SettingsSections.Resolve("Overview", false).Destination == SettingsDestination.Overview);
-        Reject(() => SettingsSections.Resolve("Plugins", false));
+        Reject(() => SettingsSections.Resolve("Overview", false));
+        Reject(() => SettingsSections.Resolve("Diagnostics", false));
         Require(SettingsSections.Resolve("Plugins", true).Destination == SettingsDestination.Plugins);
         return Task.CompletedTask;
     }

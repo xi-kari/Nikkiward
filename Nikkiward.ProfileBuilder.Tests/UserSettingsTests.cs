@@ -8,6 +8,8 @@ internal static class UserSettingsTests
 {
     public static (string Name, Func<Task> Run)[] All =>
     [
+        (nameof(MissingSettingsMembersUseModelDefaults), MissingSettingsMembersUseModelDefaults),
+        (nameof(OlderHomeSettingsKeepRecentPhotosAndIdleDelay), OlderHomeSettingsKeepRecentPhotosAndIdleDelay),
         ("old general settings keep the window and after-launch choices round trip", AfterLaunchSettingsRoundTrip),
         ("damaged settings survive profile discovery and window close", () => DiscoverWithSettingsAsync("{broken")),
         ("future settings survive profile discovery and window close", () => DiscoverWithSettingsAsync("{\"schemaVersion\":999}")),
@@ -35,6 +37,68 @@ internal static class UserSettingsTests
         ("settings atomic replacement leaves no temporary files", AtomicReplacementLeavesNoTemporaryFiles),
         ("application paths preserve Windows drive roots", ApplicationPathsPreserveDriveRoots),
     ];
+
+    private static async Task MissingSettingsMembersUseModelDefaults()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var store = new JsonUserSettingsStore(root);
+            await store.SaveAsync(new UserSettings());
+            var defaults = JsonNode.Parse(await File.ReadAllTextAsync(store.SettingsFilePath))!.AsObject();
+            foreach (var (key, value) in defaults)
+            {
+                if (key == "schemaVersion") continue;
+                var partial = defaults.DeepClone().AsObject();
+                if (value is JsonObject) partial[key] = new JsonObject();
+                else partial.Remove(key);
+                await File.WriteAllTextAsync(store.SettingsFilePath, partial.ToJsonString());
+                var read = JsonSerializer.SerializeToNode(await store.LoadAsync(), JsonUserSettingsStore.UserSettingsJsonTypeInfo);
+                Assert(JsonNode.DeepEquals(defaults, read), $"model defaults for {key}");
+            }
+            var nested = defaults.DeepClone().AsObject();
+            nested["appearance"]!["background"] = new JsonObject { ["holographicCardEnabled"] = false };
+            nested.Remove("screenshot");
+            nested["channelStore"] = null;
+            nested["general"]!["checklistReset"] = "00:00:00";
+            nested["download"] = new JsonObject { ["enableHardLinks"] = false };
+            nested["fileManagement"] = new JsonObject { ["clearLauncherBackgroundFiles"] = true };
+            nested["gamepad"] = new JsonObject { ["enabled"] = true };
+            nested["galleryProfiles"] = new JsonArray(new JsonObject { ["profileId"] = "album", ["rootPath"] = root });
+            await File.WriteAllTextAsync(store.SettingsFilePath, nested.ToJsonString());
+            var loaded = await store.LoadAsync();
+            Assert(!loaded.Appearance.Background.HolographicCardEnabled && loaded.General.ChecklistReset == TimeOnly.MinValue &&
+                loaded.Appearance.Background.CarouselIntervalMinutes == new BackgroundArtSettings().CarouselIntervalMinutes &&
+                loaded.ChannelStore.Profiles.Count == 0 && loaded.Screenshot == new ScreenshotSettings() &&
+                !loaded.Download.EnableHardLinks && loaded.FileManagement.ClearLauncherBackgroundFiles &&
+                loaded.Gamepad.Enabled && loaded.Gamepad.GuideLongPressOpensMainWindow &&
+                loaded.GalleryProfiles.Single().RootPath == root, "nested defaults and explicit overrides");
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    private static async Task OlderHomeSettingsKeepRecentPhotosAndIdleDelay()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var store = new JsonUserSettingsStore(root);
+            await store.SaveAsync(new UserSettings());
+            var document = JsonNode.Parse(await File.ReadAllTextAsync(store.SettingsFilePath))!;
+            var appearance = document["appearance"]!.AsObject();
+            appearance.Remove("showRecentPhotos");
+            appearance.Remove("appreciationDelaySeconds");
+            await File.WriteAllTextAsync(store.SettingsFilePath, document.ToJsonString());
+            var before = (await store.LoadAsync()).Appearance;
+            Assert(before.ShowRecentPhotos && before.AppreciationDelaySeconds == 8, "old home defaults");
+            appearance["showRecentPhotos"] = false;
+            appearance["appreciationDelaySeconds"] = 0;
+            await File.WriteAllTextAsync(store.SettingsFilePath, document.ToJsonString());
+            var after = (await store.LoadAsync()).Appearance;
+            Assert(!after.ShowRecentPhotos && after.AppreciationDelaySeconds == 0, "explicit home preferences");
+        }
+        finally { Directory.Delete(root, true); }
+    }
 
     private static async Task AfterLaunchSettingsRoundTrip()
     {

@@ -1332,7 +1332,6 @@ internal static class AppearanceRuntimeContractTests
         {
             "JournalItem",
             "FilesItem",
-            "PluginsItem",
             "StatusItem",
             "ComponentsItem",
             "DiagnosticsItem",
@@ -1355,15 +1354,15 @@ internal static class AppearanceRuntimeContractTests
             developerPanel >= 0 &&
             homeXaml.IndexOf("Tag=\"journal\"", StringComparison.Ordinal) > developerPanel &&
             homeXaml.IndexOf("Tag=\"files\"", StringComparison.Ordinal) > developerPanel &&
-            homeXaml.IndexOf("Tag=\"plugins\"", StringComparison.Ordinal) > developerPanel &&
+            homeXaml.Contains("Tag=\"plugins\"", StringComparison.Ordinal) &&
+            homeXaml.IndexOf("Tag=\"plugins\"", StringComparison.Ordinal) < developerPanel &&
             !settingsXaml.Contains("外观、插件与输入设置", StringComparison.Ordinal) &&
             settingsCode.Contains("IsDeveloperDestination(destination) && !_developerModeEnabled", StringComparison.Ordinal) &&
             settingsCode.Contains("JournalItem.Visibility = visibility", StringComparison.Ordinal) &&
             settingsCode.Contains("FilesItem.Visibility = visibility", StringComparison.Ordinal) &&
-            settingsCode.Contains("PluginsItem.Visibility = visibility", StringComparison.Ordinal) &&
             Regex.IsMatch(
                 settingsCode,
-                @"IsDeveloperDestination\s*\([^)]*\)\s*=>\s*destination\s+is\s+SettingsDestination\.Journal\s+or\s+SettingsDestination\.Files\s+or\s+SettingsDestination\.Plugins\s+or",
+                @"IsDeveloperDestination\s*\([^)]*\)\s*=>\s*destination\s+is\s+SettingsDestination\.Journal\s+or\s+SettingsDestination\.Files\s+or\s+SettingsDestination\.Status\s+or",
                 RegexOptions.CultureInvariant) &&
             settingsCode.Contains("ApplyDeveloperMode(bool enabled)", StringComparison.Ordinal),
             "developer-only settings need an explicit toggle, collapsed navigation, and a guarded path");

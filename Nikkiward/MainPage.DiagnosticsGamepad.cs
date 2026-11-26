@@ -28,7 +28,9 @@ namespace Nikkiward;
 
 public sealed partial class MainPage
 {
-    private async void OnExportDiagnosticsClicked(object sender, RoutedEventArgs e)
+    private async void OnExportDiagnosticsClicked(object sender, RoutedEventArgs e) => await ExportSettingsDiagnosticsAsync();
+
+    private async Task ExportSettingsDiagnosticsAsync()
     {
         try
         {
@@ -82,7 +84,9 @@ public sealed partial class MainPage
         }
     }
 
-    private async void OnProviderValidationDetailsClicked(object sender, RoutedEventArgs e)
+    private async void OnProviderValidationDetailsClicked(object sender, RoutedEventArgs e) => await ShowValidationDetailsAsync();
+
+    private async Task ShowValidationDetailsAsync()
     {
         try
         {
@@ -104,7 +108,7 @@ public sealed partial class MainPage
             };
 
             await ShowDialogAsync(
-                "Provider validation receipt · 只读详情",
+                "启动验证记录 · 只读详情",
                 scrollViewer);
         }
         catch (Exception ex)

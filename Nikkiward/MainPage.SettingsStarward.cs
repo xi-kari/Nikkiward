@@ -62,37 +62,6 @@ public sealed partial class MainPage
         }
     }
 
-    private async Task RunSettingsMaintenanceOperationAsync(
-        Func<CancellationToken, Task> operation,
-        string failurePrefix)
-    {
-        if (_settingsMaintenanceBusy)
-        {
-            return;
-        }
-
-        _settingsMaintenanceBusy = true;
-        _hostedSettingsPage?.ApplyFileManagementState(CreateFileManagementSettingsViewState());
-        var cancellationToken = _lifetimeCancellation?.Token ?? CancellationToken.None;
-        try
-        {
-            await operation(cancellationToken);
-            await RefreshFileManagementSettingsStateAsync(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception ex)
-        {
-            ViewModel.ReportUiError($"{failurePrefix}：{ex.GetType().Name}: {ex.Message}");
-        }
-        finally
-        {
-            _settingsMaintenanceBusy = false;
-            _hostedSettingsPage?.ApplyFileManagementState(CreateFileManagementSettingsViewState());
-        }
-    }
-
     private async void OnSettingsGeneralChanged(
         object? sender,
         GeneralSettingsChangedEventArgs e)
@@ -184,159 +153,22 @@ public sealed partial class MainPage
         }
     }
 
-    private async void OnSettingsUserDataFolderRequested(
-        object? sender,
-        UserDataFolderRequestedEventArgs e)
+    private async Task RunNativeFileCommandAsync(string action, bool enabled = false)
     {
-        if (e.Action is UserDataFolderAction.Open)
-        {
-            await OpenFolderAsync(e.Path, "数据文件夹打开失败");
-            return;
-        }
-
-        var folderPath = await PickFolderAsync("选择数据文件夹", PickerLocationId.ComputerFolder);
-        if (folderPath is null)
-        {
-            return;
-        }
-
-        try
-        {
-            var normalized = ApplicationDataPaths.ValidateExistingRoot(
-                folderPath,
-                requireSettings: true);
-            if (string.Equals(
-                    normalized,
-                    ApplicationDataPaths.Root,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                _hostedSettingsPage?.ApplyFileManagementState(
-                    CreateFileManagementSettingsViewState());
-                return;
-            }
-
-            if (!await ConfirmDataFolderSwitchAsync(normalized))
-            {
-                return;
-            }
-
-            await App.MainWindow.ExitApplicationAsync(
-                () => ApplicationDataPaths.ConfigureRoot(normalized, App.StartSuccessor));
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            ViewModel.ReportUiError($"数据文件夹保存失败：{ex.GetType().Name}: {ex.Message}");
-        }
+        try { await RunFileCommandAsync(action, enabled); }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { ViewModel.ReportUiError($"文件管理操作失败：{ex.Message}"); }
     }
 
-    private async void OnSettingsFileBackupRequested(object? sender, EventArgs e)
-    {
-        await RunSettingsMaintenanceOperationAsync(
-            async cancellationToken =>
-            {
-                var receipt = await SettingsMaintenance.CreateBackupAsync(cancellationToken, App.Settings.Current);
-                await ViewModel.SaveFileManagementSettingsAsync(
-                    ViewModel.FileManagementSettings with
-                    {
-                        LastBackupPath = receipt.FilePath,
-                        LastBackupAtUtc = receipt.CreatedAtUtc,
-                    },
-                    cancellationToken);
-            },
-            "数据备份失败");
-    }
+    private async void OnSettingsUserDataFolderRequested(object? sender, UserDataFolderRequestedEventArgs e) =>
+        await RunNativeFileCommandAsync(e.Action == UserDataFolderAction.Open ? "openFolder" : "chooseFolder");
 
-    private async void OnSettingsFileOpenBackupRequested(object? sender, EventArgs e)
-    {
-        if (App.Settings.ProtectionMessage is not null)
-        {
-            await RunSettingsMaintenanceOperationAsync(async token =>
-            {
-                var picker = new FileOpenPicker { CommitButtonText = "恢复设置并关闭" };
-                picker.FileTypeFilter.Add(".zip");
-                WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow));
-                if (await picker.PickSingleFileAsync() is { } file)
-                {
-                    await App.Settings.RecoverUnreadableAsync(file.Path, token);
-                    await App.MainWindow.ExitApplicationAsync();
-                }
-            }, "从备份恢复设置失败");
-            return;
-        }
-
-        var path = ViewModel.FileManagementSettings.LastBackupPath;
-        if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
-        {
-            try
-            {
-                var file = await StorageFile.GetFileFromPathAsync(path);
-                if (!await Launcher.LaunchFileAsync(file))
-                {
-                    await OpenFolderAsync(Path.GetDirectoryName(path)!, "备份目录打开失败");
-                }
-            }
-            catch (Exception ex)
-            {
-                ViewModel.ReportUiError($"最近备份打开失败：{ex.GetType().Name}: {ex.Message}");
-            }
-        }
-    }
-
-    private async void OnSettingsFileDeleteAllSettingsRequested(object? sender, EventArgs e)
-    {
-        var reset = App.Settings.ProtectionMessage is not null;
-        var confirmed = await ConfirmSettingsDeletionAsync(reset);
-        if (!confirmed)
-        {
-            return;
-        }
-
-        await RunSettingsMaintenanceOperationAsync(
-            async cancellationToken =>
-            {
-                if (reset)
-                {
-                    await App.Settings.RecoverUnreadableAsync(null, cancellationToken);
-                    await App.MainWindow.ExitApplicationAsync();
-                    return;
-                }
-                await App.Settings.DeleteAsync(SettingsMaintenance.DeleteSettingsAsync, cancellationToken);
-                await TryShowDialogAsync(
-                    "设置已删除",
-                    "设置文件已删除，应用将关闭。下次启动时会使用默认设置。 ");
-                await App.MainWindow.ExitApplicationAsync();
-            },
-            reset ? "设置重置失败" : "设置删除失败");
-    }
-
-    private async void OnSettingsFileOpenLogsRequested(object? sender, EventArgs e) =>
-        await OpenFolderAsync(SettingsMaintenance.LogFolder, "日志文件夹打开失败");
-
-    private async void OnSettingsFileClearCacheRequested(object? sender, EventArgs e)
-    {
-        await RunSettingsMaintenanceOperationAsync(
-            cancellationToken => SettingsMaintenance.ClearCachesAsync(
-                ViewModel.FileManagementSettings.ClearLauncherBackgroundFiles,
-                cancellationToken),
-            "缓存清理失败");
-    }
-
-    private async void OnSettingsFileClearLauncherBackgroundChanged(object? sender, bool enabled)
-    {
-        try
-        {
-            await ViewModel.SaveFileManagementSettingsAsync(
-                ViewModel.FileManagementSettings with
-                {
-                    ClearLauncherBackgroundFiles = enabled,
-                },
-                _lifetimeCancellation?.Token ?? CancellationToken.None);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            ViewModel.ReportUiError($"缓存清理选项保存失败：{ex.GetType().Name}: {ex.Message}");
-        }
-    }
+    private async void OnSettingsFileBackupRequested(object? sender, EventArgs e) => await RunNativeFileCommandAsync("backup");
+    private async void OnSettingsFileOpenBackupRequested(object? sender, EventArgs e) => await RunNativeFileCommandAsync("openBackup");
+    private async void OnSettingsFileDeleteAllSettingsRequested(object? sender, EventArgs e) => await RunNativeFileCommandAsync("delete");
+    private async void OnSettingsFileOpenLogsRequested(object? sender, EventArgs e) => await RunNativeFileCommandAsync("logs");
+    private async void OnSettingsFileClearCacheRequested(object? sender, EventArgs e) => await RunNativeFileCommandAsync("clearCache");
+    private async void OnSettingsFileClearLauncherBackgroundChanged(object? sender, bool enabled) => await RunNativeFileCommandAsync("change", enabled);
 
     private async void OnSettingsScreenshotSettingsChanged(
         object? sender,
@@ -573,17 +405,7 @@ public sealed partial class MainPage
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(path))
-            {
-                throw new ArgumentException("Folder path is empty.", nameof(path));
-            }
-
-            Directory.CreateDirectory(path);
-            var folder = await StorageFolder.GetFolderFromPathAsync(path);
-            if (!await Launcher.LaunchFolderAsync(folder))
-            {
-                throw new InvalidOperationException("The folder launcher returned false.");
-            }
+            await OpenSettingsFolderAsync(path);
         }
         catch (Exception ex)
         {
@@ -591,31 +413,28 @@ public sealed partial class MainPage
         }
     }
 
-    private async Task<bool> ConfirmSettingsDeletionAsync(bool reset)
+    private static async Task OpenSettingsFolderAsync(string path)
     {
-        var dialog = new ContentDialog
+        if (string.IsNullOrWhiteSpace(path))
         {
-            XamlRoot = XamlRoot,
-            Title = reset ? "重置为默认设置" : "删除所有设置",
-            Content = reset ? "原设置文件将改名保存在数据文件夹中。应用将写入默认设置并关闭。" : "这会删除 Nikkiward 的 settings.json，应用关闭后下次启动将恢复默认设置。是否继续？",
-            PrimaryButtonText = reset ? "重置并关闭" : "删除并关闭",
-            CloseButtonText = "取消",
-            DefaultButton = ContentDialogButton.Close,
-        };
-        return await dialog.ShowAsync() is ContentDialogResult.Primary;
+            throw new ArgumentException("Folder path is empty.", nameof(path));
+        }
+
+        Directory.CreateDirectory(path);
+        var folder = await StorageFolder.GetFolderFromPathAsync(path);
+        if (!await Launcher.LaunchFolderAsync(folder))
+        {
+            throw new InvalidOperationException("The folder launcher returned false.");
+        }
     }
 
-    private async Task<bool> ConfirmDataFolderSwitchAsync(string folderPath)
-    {
-        var dialog = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = "切换数据文件夹",
-            Content = $"Nikkiward 不会自动移动现有数据。请确认已把当前数据复制到以下目录，且其中包含 settings.json：\n\n{folderPath}\n\n确认后应用将重启并从该目录读取设置、缓存、插件、手账和截图。",
-            PrimaryButtonText = "切换并重启",
-            CloseButtonText = "取消",
-            DefaultButton = ContentDialogButton.Close,
-        };
-        return await dialog.ShowAsync() is ContentDialogResult.Primary;
-    }
+    private Task<bool> ConfirmSettingsDeletionAsync(bool reset) => ConfirmSettingsActionAsync(
+        reset ? "重置为默认设置" : "删除所有设置",
+        reset ? "原设置文件将改名保存在数据文件夹中。应用将写入默认设置并关闭。" : "这会删除 Nikkiward 的 settings.json，应用关闭后下次启动将恢复默认设置。是否继续？",
+        reset ? "重置并关闭" : "删除并关闭");
+
+    private Task<bool> ConfirmDataFolderSwitchAsync(string folderPath) => ConfirmSettingsActionAsync(
+        "切换数据文件夹",
+        $"Nikkiward 不会自动移动现有数据。请确认已把当前数据复制到以下目录，且其中包含 settings.json：\n\n{folderPath}\n\n确认后应用将重启并从该目录读取设置、缓存、插件、手账和截图。",
+        "切换并重启");
 }

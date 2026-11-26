@@ -26,6 +26,8 @@
 #settings .skins button{display:grid;grid-template-columns:minmax(0,1fr);min-width:0;height:auto;padding:4px 4px 7px;justify-items:center;white-space:normal}
 #settings .skins button[aria-pressed=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
 #settings .skins img{width:100%;min-width:0}
+#settings .row p{overflow-wrap:anywhere}
+#settings .row>.value{min-width:0;text-align:end}
 #settings .source,#settings .value,#settings .hint{overflow-wrap:anywhere}
 #settings .actions{display:flex;flex-wrap:wrap;gap:8px}
 #settings :disabled{opacity:.5;cursor:default}
