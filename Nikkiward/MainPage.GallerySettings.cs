@@ -295,7 +295,7 @@ public sealed partial class MainPage
         await RunGallerySettingsOperationAsync(
             async cancellationToken =>
             {
-                _ = await GalleryProtection.CleanUnstarredAsync(scopeId, cancellationToken);
+                await GalleryFavoriteCleanupDialog.CleanAsync(GalleryProtection, scopeId, XamlRoot, cancellationToken);
             },
             "未收藏保护副本清理失败");
     }

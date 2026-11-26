@@ -299,81 +299,84 @@ public sealed class GalleryFavoriteProtectionService
     }
 
     public async Task<bool> TryUnstarAsync(
-        string scopeId, string relativePath, bool confirmed = false, CancellationToken cancellationToken = default)
+        string scopeId, string relativePath, bool confirmed = false, CancellationToken cancellationToken = default) =>
+        (await TryUnstarAsync(scopeId, relativePath, cancellationToken, approved: null, confirmed: confirmed).ConfigureAwait(false)).Count == 0;
+
+    internal sealed record UnstarConfirmation(string RootPath, string Sha256, GalleryOriginalIssue Reason, bool Paused);
+
+    internal async Task<IReadOnlyList<UnstarConfirmation>> TryUnstarAsync(
+        string scopeId, string relativePath, CancellationToken cancellationToken,
+        IReadOnlyCollection<UnstarConfirmation>? approved, bool confirmed = false)
     {
         using var operation = await EnterDirectoryOperationAsync(cancellationToken).ConfigureAwait(false);
         var path = GalleryAnnotationStore.NormalizeRelativePath(relativePath);
         var preferences = await GetPreferencesAsync(cancellationToken).ConfigureAwait(false);
         using var indexes = await OpenIndexesAsync(preferences, writable: true, waitForWriter: true,
             cancellationToken).ConfigureAwait(false);
-        var matches = indexes.Stores.Where(index => !preferences.IsPausedForOverlap &&
-                !preferences.OverlappingRoots.Contains(index.Store.RootPath, StringComparer.OrdinalIgnoreCase))
-            .SelectMany(index => index.Entries.Where(entry => entry.ScopeId == scopeId &&
-                string.Equals(entry.RelativePath, path, StringComparison.OrdinalIgnoreCase))
-                .Select(entry => (index, entry))).ToArray();
-        var originals = new List<IDisposable>();
+        bool IsPaused(GalleryFavoriteProtectionStore.ManifestIndex index) => preferences.IsPausedForOverlap ||
+            preferences.OverlappingRoots.Contains(index.Store.RootPath, StringComparer.OrdinalIgnoreCase);
+        var matches = indexes.Stores.SelectMany(index => index.Entries.Where(entry => entry.ScopeId == scopeId &&
+            string.Equals(entry.RelativePath, path, StringComparison.OrdinalIgnoreCase))
+            .Select(entry => (index, entry))).ToArray();
+        var pending = new List<UnstarConfirmation>();
+        using var originals = new GalleryOriginalReadLocks();
+        foreach (var (index, entry) in matches)
+        {
+            if (!index.CanWrite && !IsPaused(index))
+            {
+                throw new IOException("保护目录当前只读，已保留收藏。");
+            }
+            if (confirmed || index.Entries.Any(other => other != entry &&
+                string.Equals(other.Sha256, entry.Sha256, StringComparison.OrdinalIgnoreCase)) ||
+                !File.Exists(Path.Combine(index.Store.RootPath, entry.ObjectPath)))
+            {
+                continue;
+            }
+
+            if (await originals.CheckAsync(entry, cancellationToken).ConfigureAwait(false) is { } reason)
+            {
+                var copy = new UnstarConfirmation(index.Store.RootPath, entry.Sha256, reason, IsPaused(index));
+                if (approved?.Contains(copy) != true)
+                {
+                    pending.Add(copy);
+                }
+            }
+        }
+
+        if (pending.Count > 0)
+        {
+            return pending;
+        }
+
+        var writableMatches = matches.Where(item => item.index.CanWrite).ToArray();
+        var previous = new Stack<(GalleryFavoriteProtectionStore.ManifestIndex Index,
+            IReadOnlyList<GalleryFavoriteProtectionEntry> Entries)>();
         try
         {
-            foreach (var (index, entry) in matches)
+            foreach (var (index, entry) in writableMatches)
             {
-                if (!index.CanWrite)
-                {
-                    throw new IOException("保护目录当前只读，已保留收藏。");
-                }
-                if (confirmed || index.Entries.Any(other => other != entry &&
-                    string.Equals(other.Sha256, entry.Sha256, StringComparison.OrdinalIgnoreCase)) ||
-                    !File.Exists(Path.Combine(index.Store.RootPath, entry.ObjectPath)))
-                {
-                    continue;
-                }
-
-                try
-                {
-                    // Keep the original from being deleted between the decision and the release.
-                    originals.Add(File.OpenHandle(entry.OriginalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite));
-                }
-                catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
-                {
-                    return false;
-                }
+                var entries = index.Entries;
+                await index.SaveAsync(entries.Where(item => item != entry).ToArray(), cancellationToken).ConfigureAwait(false);
+                previous.Push((index, entries));
             }
 
-            var previous = new Stack<(GalleryFavoriteProtectionStore.ManifestIndex Index,
-                IReadOnlyList<GalleryFavoriteProtectionEntry> Entries)>();
-            try
-            {
-                foreach (var (index, entry) in matches)
-                {
-                    var entries = index.Entries;
-                    await index.SaveAsync(entries.Where(item => item != entry).ToArray(), cancellationToken).ConfigureAwait(false);
-                    previous.Push((index, entries));
-                }
-
-                await _annotations.SetStarredAsync(scopeId, relativePath, false, cancellationToken).ConfigureAwait(false);
-            }
-            catch
-            {
-                foreach (var (index, entries) in previous)
-                {
-                    await index.SaveAsync(entries, CancellationToken.None).ConfigureAwait(false);
-                }
-                throw;
-            }
-
-            // Only reclaim bytes after every manifest and the annotation file have committed.
-            foreach (var (index, entry) in matches)
-            {
-                index.DeleteReleasedObject(entry);
-            }
-            return true;
+            await _annotations.SetStarredAsync(scopeId, relativePath, false, cancellationToken).ConfigureAwait(false);
         }
-        finally
+        catch
         {
-            foreach (var original in originals)
+            foreach (var (index, entries) in previous)
             {
-                original.Dispose();
+                await index.SaveAsync(entries, CancellationToken.None).ConfigureAwait(false);
             }
+            throw;
         }
+
+        // Only reclaim bytes after every manifest and the annotation file have committed.
+        foreach (var (index, entry) in writableMatches)
+        {
+            index.DeleteReleasedObject(entry);
+        }
+        return [];
     }
 
     private async Task<ManifestIndexes> OpenIndexesAsync(
@@ -394,7 +397,7 @@ public sealed class GalleryFavoriteProtectionService
                     var index = await CreateStore(root, preferences).OpenIndexAsync(canWrite, token, waitForWriter).ConfigureAwait(false);
                     indexes.Stores.Add(index);
                     indexes.Complete &= index.HasManifest ||
-                        !preferences.KnownRootPaths.Contains(root, StringComparer.OrdinalIgnoreCase);
+                        !preferences.KnownRootPaths.Contains(root, StringComparer.OrdinalIgnoreCase) || index.Store.IsUnusedRoot();
                 }
                 catch (Exception ex) when (IsStoreError(ex))
                 {
@@ -490,35 +493,19 @@ public sealed class GalleryFavoriteProtectionService
         GetOverviewAsync(verify: true, cancellationToken);
 
     public async Task<GalleryFavoriteProtectionCleanupResult> CleanUnstarredAsync(
-        string scopeId,
-        CancellationToken cancellationToken = default)
+        string scopeId, CancellationToken cancellationToken = default, IReadOnlyCollection<GalleryCleanupCopy>? confirmed = null)
     {
         using var operation = await EnterDirectoryOperationAsync(cancellationToken).ConfigureAwait(false);
         var preferences = await GetPreferencesAsync(cancellationToken).ConfigureAwait(false);
-        var result = new GalleryFavoriteProtectionCleanupResult();
         if (preferences.IsPausedForOverlap)
         {
-            return result;
+            return new();
         }
 
-        foreach (var rootPath in EnumerateRoots(preferences).Except(preferences.OverlappingRoots, StringComparer.OrdinalIgnoreCase))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var store = CreateStore(rootPath, preferences);
-            var current = await store.CleanUnstarredAsync(
-                    scopeId,
-                    _annotations,
-                    cancellationToken)
-                .ConfigureAwait(false);
-            result = result with
-            {
-                RemovedEntryCount = result.RemovedEntryCount + current.RemovedEntryCount,
-                RemovedObjectCount = result.RemovedObjectCount + current.RemovedObjectCount,
-                ReclaimedBytes = result.ReclaimedBytes + current.ReclaimedBytes,
-            };
-        }
-
-        return result;
+        var stores = EnumerateRoots(preferences).Except(preferences.OverlappingRoots, StringComparer.OrdinalIgnoreCase)
+            .Select(root => CreateStore(root, preferences));
+        return await GalleryFavoriteProtectionStore.CleanUnstarredAsync(stores, scopeId, _annotations, confirmed,
+            cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<GalleryFavoriteProtectionPreferences> LoadPreferencesCoreAsync(

@@ -410,20 +410,38 @@ public sealed partial class GalleryPage
             {
                 await _annotationStore.SetStarredAsync(scopeId, photo.RelativePath, isStarred, operationCancellation.Token);
             }
-            else if (!await _favoriteProtectionService.TryUnstarAsync(scopeId, photo.RelativePath,
-                         cancellationToken: operationCancellation.Token))
+            else
             {
-                var answer = await ShowDialogAsync("取消这张照片的收藏？",
-                    "原图已不存在，取消收藏会删除这张照片仅存的本地保护副本。",
-                    "取消收藏并删除副本", operationCancellation.Token);
-                EnsureCurrentFavoriteOperation(operationKey, operationCancellation, pageScopeId, generation);
-                if (answer != ContentDialogResult.Primary)
+                var approved = new List<GalleryFavoriteProtectionService.UnstarConfirmation>();
+                while (true)
                 {
-                    return;
+                    var pending = await _favoriteProtectionService.TryUnstarAsync(scopeId, photo.RelativePath,
+                        operationCancellation.Token, approved);
+                    if (pending.Count == 0)
+                    {
+                        break;
+                    }
+                    var messages = pending.Select(copy =>
+                    {
+                        var reason = copy.Reason switch
+                        {
+                            GalleryOriginalIssue.Missing => "原图已不存在",
+                            GalleryOriginalIssue.Changed => "原图已被修改",
+                            _ => "无法读取原图以核对内容",
+                        };
+                        var consequence = copy.Paused ? "保护已暂停，此副本将保留至清理时。"
+                            : "取消收藏会删除此版本仅存的本地保护副本。";
+                        return (pending.Count > 1 ? copy.RootPath + "\n" : "") + reason + "。" + consequence;
+                    });
+                    var answer = await ShowDialogAsync("取消这张照片的收藏？", string.Join("\n\n", messages),
+                        pending.Any(copy => !copy.Paused) ? "取消收藏并删除副本" : "取消收藏", operationCancellation.Token);
+                    EnsureCurrentFavoriteOperation(operationKey, operationCancellation, pageScopeId, generation);
+                    if (answer != ContentDialogResult.Primary)
+                    {
+                        return;
+                    }
+                    approved.AddRange(pending);
                 }
-
-                await _favoriteProtectionService.TryUnstarAsync(scopeId, photo.RelativePath,
-                    confirmed: true, cancellationToken: operationCancellation.Token);
             }
             EnsureCurrentFavoriteOperation(
                 operationKey,

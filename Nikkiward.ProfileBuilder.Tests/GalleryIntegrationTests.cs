@@ -20,6 +20,13 @@ internal static class GalleryIntegrationTests
         ("favorite protection cleanup removes only unstarred objects", TestFavoriteProtectionCleanup),
         ("filtered unstar preserves a hidden favorite's only copy", TestFilteredUnstar),
         ("unstar waits for confirmation before removing the last copy", TestUnstarConfirmation),
+        ("unstar compares original content before release", TestUnstarOriginalContent),
+        ("paused unstar and resumed cleanup protect the last copy", TestPausedUnstarCleanup),
+        ("unstar consent names each protected version and paused root", TestUnstarConsentAcrossStores),
+        ("restarring after pause retains the previous version for cleanup", TestRestarAfterPause),
+        ("batch cleanup rechecks newly changed originals across stores", TestCleanupAcrossStores),
+        ("legacy migration distinguishes unused roots from offline volumes", () => TestUnusedLegacyRoot(false)),
+        ("legacy migration accepts an empty online object store", () => TestUnusedLegacyRoot(true)),
         ("same-profile galleries keep same-name favorites separate", TestGalleryRootIsolation),
         ("refresh defers object hashing until fallback", TestDeferredFallbackVerification),
         ("refresh opens each protection manifest once", TestManifestReadsPerRefresh),
@@ -433,6 +440,174 @@ internal static class GalleryIntegrationTests
         Assert(await service.TryUnstarAsync(scope, name, confirmed: true), "explicit release succeeds");
         Assert(!(await stars.LoadStarredAsync(scope)).Contains(name), "confirmed star removed");
         Assert(!File.Exists(protectedPhoto.ProtectedPath), "confirmed last reference releases its object");
+    }
+
+    private static async Task TestUnstarOriginalContent()
+    {
+        using var fixture = new TempFixture();
+        var service = fixture.CreateProtectionService();
+        var stars = new GalleryAnnotationStore(fixture.Root);
+        const string name = "edited.jpg";
+        const string scope = "profile:main";
+        var path = Path.Combine(fixture.Album, name);
+        await File.WriteAllTextAsync(path, "old");
+        var photo = await service.ProtectAsync(scope, name, path);
+        await stars.SetStarredAsync(scope, name, true);
+        await File.WriteAllTextAsync(path, "new");
+        Assert(!await service.TryUnstarAsync(scope, name), "same-length edit requires confirmation");
+        Assert((await stars.LoadStarredAsync(scope)).Contains(name), "star retained");
+        AssertEqual("old", await File.ReadAllTextAsync(photo.ProtectedPath!), "old version retained");
+        await File.WriteAllTextAsync(path, "old");
+        using (File.Open(path, FileMode.Open, FileAccess.Write, FileShare.ReadWrite))
+        {
+            Assert(!await service.TryUnstarAsync(scope, name), "an active writer prevents safe release");
+        }
+        Assert(await service.TryUnstarAsync(scope, name), "matching bytes allow release");
+        Assert(!File.Exists(photo.ProtectedPath), "last reference released");
+    }
+
+    private static async Task TestPausedUnstarCleanup()
+    {
+        using var fixture = new TempFixture();
+        string[] readOnly = [];
+        var service = new GalleryFavoriteProtectionService(fixture.Root, Path.Combine(fixture.Root, "pictures"), () => readOnly);
+        var stars = new GalleryAnnotationStore(fixture.Root);
+        const string scope = "profile:main";
+        const string name = "missing.jpg";
+        var path = Path.Combine(fixture.Album, name);
+        await File.WriteAllTextAsync(path, "protected");
+        var photo = await service.ProtectAsync(scope, name, path);
+        await stars.SetStarredAsync(scope, name, true);
+        File.Delete(path);
+        var store = new GalleryFavoriteProtectionStore((await service.GetPreferencesAsync()).ActiveRootPath);
+        var manifest = await File.ReadAllBytesAsync(store.ManifestPath);
+        readOnly = [store.RootPath];
+        Assert(!await service.TryUnstarAsync(scope, name), "paused last copy requires confirmation");
+        Assert((await stars.LoadStarredAsync(scope)).Contains(name), "paused star retained");
+        Assert(await service.TryUnstarAsync(scope, name, confirmed: true), "paused unstar confirmed");
+        Assert(!(await stars.LoadStarredAsync(scope)).Contains(name), "confirmed star removed");
+        Assert(manifest.SequenceEqual(File.ReadAllBytes(store.ManifestPath)), "paused manifest retained");
+        AssertEqual("protected", await File.ReadAllTextAsync(photo.ProtectedPath!), "paused bytes retained");
+        readOnly = [];
+        var pending = await service.CleanUnstarredAsync(scope);
+        AssertEqual(0, pending.RemovedObjectCount, "cleanup requires fresh confirmation");
+        Assert(manifest.SequenceEqual(File.ReadAllBytes(store.ManifestPath)), "pending cleanup keeps manifest");
+        AssertEqual(GalleryAnnotationStore.NormalizeRelativePath(name), pending.NeedsConfirmation.Single().DisplayName, "cleanup identifies the only copy");
+        AssertEqual(1, (await service.CleanUnstarredAsync(scope, confirmed: pending.NeedsConfirmation)).RemovedObjectCount,
+            "confirmation releases the listed copy");
+        Assert(!File.Exists(photo.ProtectedPath), "confirmed cleanup releases bytes");
+    }
+
+    private static async Task TestUnstarConsentAcrossStores()
+    {
+        using var fixture = new TempFixture();
+        string[] readOnly = [];
+        var service = new GalleryFavoriteProtectionService(fixture.Root, Path.Combine(fixture.Root, "pictures"), () => readOnly);
+        const string scope = "profile:main";
+        const string name = "same.jpg";
+        var path = Path.Combine(fixture.Album, name);
+        var firstRoot = (await service.GetPreferencesAsync()).ActiveRootPath;
+        await File.WriteAllTextAsync(path, "first");
+        var first = await service.ProtectAsync(scope, name, path);
+        await service.SetActiveRootAsync(Path.Combine(fixture.Root, "second-store"));
+        await File.WriteAllTextAsync(path, "second");
+        var second = await service.ProtectAsync(scope, name, path);
+        File.Delete(path);
+        readOnly = [firstRoot];
+        await new GalleryAnnotationStore(fixture.Root).SetStarredAsync(scope, name, true);
+        var pending = await service.TryUnstarAsync(scope, name, CancellationToken.None, []);
+        AssertEqual(2, pending.Count, "both versions listed");
+        var paused = pending.Single(copy => copy.Paused);
+        var unapproved = await service.TryUnstarAsync(scope, name, CancellationToken.None, [paused]);
+        AssertEqual(second.Entry!.Sha256, unapproved.Single().Sha256, "paused approval cannot release the other version");
+        Assert(File.Exists(first.ProtectedPath) && File.Exists(second.ProtectedPath), "no partial unstar");
+        AssertEqual(0, (await service.TryUnstarAsync(scope, name, CancellationToken.None, pending)).Count, "unstar confirmed");
+        Assert(File.Exists(first.ProtectedPath) && !File.Exists(second.ProtectedPath), "only writable version released");
+    }
+
+    private static async Task TestRestarAfterPause()
+    {
+        using var fixture = new TempFixture();
+        string[] readOnly = [];
+        var service = new GalleryFavoriteProtectionService(fixture.Root, Path.Combine(fixture.Root, "pictures"), () => readOnly);
+        const string scope = "profile:main";
+        const string name = "edited.jpg";
+        var path = Path.Combine(fixture.Album, name);
+        var stars = new GalleryAnnotationStore(fixture.Root);
+        await File.WriteAllTextAsync(path, "old");
+        var previous = await service.ProtectAsync(scope, name, path);
+        await stars.SetStarredAsync(scope, name, true);
+        await File.WriteAllTextAsync(path, "new");
+        readOnly = [(await service.GetPreferencesAsync()).ActiveRootPath];
+        var prompt = await service.TryUnstarAsync(scope, name, CancellationToken.None, []);
+        Assert(prompt.Single() is { Paused: true, Reason: GalleryOriginalIssue.Changed }, "paused edit is identified");
+        AssertEqual(0, (await service.TryUnstarAsync(scope, name, CancellationToken.None, prompt)).Count, "paused unstar succeeds");
+        readOnly = [];
+        await stars.SetStarredAsync(scope, name, true);
+        var current = await service.ProtectAsync(scope, name, path);
+        var cleanup = await service.CleanUnstarredAsync(scope);
+        AssertEqual(previous.ProtectedPath!, cleanup.NeedsConfirmation.Single().ObjectPath, "old version requires cleanup approval");
+        AssertEqual("old", await File.ReadAllTextAsync(previous.ProtectedPath!), "old bytes preserved");
+        AssertEqual("new", await File.ReadAllTextAsync(current.ProtectedPath!), "new bytes protected");
+    }
+
+    private static async Task TestCleanupAcrossStores()
+    {
+        using var fixture = new TempFixture();
+        var service = fixture.CreateProtectionService();
+        const string scope = "profile:main";
+        async Task<(string Original, string Copy)> Protect(string name)
+        {
+            var path = Path.Combine(fixture.Album, name);
+            await File.WriteAllTextAsync(path, name);
+            var photo = await service.ProtectAsync(scope, name, path);
+            return (path, photo.ProtectedPath!);
+        }
+        var first = await Protect("first.jpg");
+        await service.SetActiveRootAsync(Path.Combine(fixture.Root, "second-store"));
+        var second = await Protect("second.jpg");
+        File.Delete(first.Original);
+        var pending = await service.CleanUnstarredAsync(scope);
+        AssertEqual(first.Copy, pending.NeedsConfirmation.Single().ObjectPath, "missing original listed");
+        Assert(File.Exists(second.Copy), "safe object in other store retained pending confirmation");
+        await File.WriteAllTextAsync(second.Original, "edited");
+        var revised = await service.CleanUnstarredAsync(scope, confirmed: pending.NeedsConfirmation);
+        AssertEqual(second.Copy, revised.NeedsConfirmation.Single().ObjectPath, "newly changed original requires consent");
+        Assert(File.Exists(first.Copy) && File.Exists(second.Copy), "revised plan retains both copies");
+        var cleanup = await service.CleanUnstarredAsync(scope,
+            confirmed: pending.NeedsConfirmation.Concat(revised.NeedsConfirmation).ToArray());
+        AssertEqual(2, cleanup.RemovedObjectCount, "both confirmed versions released");
+    }
+
+    private static async Task TestUnusedLegacyRoot(bool createEmptyRoot)
+    {
+        using var fixture = new TempFixture();
+        var service = fixture.CreateProtectionService();
+        var unused = (await service.GetPreferencesAsync()).ActiveRootPath;
+        var active = Path.Combine(fixture.Root, "new-store");
+        await service.SetActiveRootAsync(active);
+        const string name = "legacy.jpg";
+        const string legacy = "profile:main";
+        var original = Path.Combine(fixture.Album, name);
+        await File.WriteAllTextAsync(original, "legacy bytes");
+        await service.ProtectAsync(legacy, name, original);
+        await new GalleryAnnotationStore(fixture.Root).SetStarredAsync(legacy, name, true);
+        File.Delete(original);
+        var offline = Enumerable.Range('D', 'Z' - 'D' + 1).Select(c => $"{(char)c}:\\")
+            .First(drive => !Directory.GetLogicalDrives().Contains(drive, StringComparer.OrdinalIgnoreCase));
+        async Task Register(string root) => await File.WriteAllTextAsync(service.SettingsFilePath,
+            System.Text.Json.JsonSerializer.Serialize(new { schemaVersion = 1, isEnabled = true, activeRootPath = active, knownRootPaths = new[] { root, active } }));
+        await Register(Path.Combine(offline, "protected"));
+        AssertEqual(0, (await service.LoadGalleryAsync("main", fixture.Album)).StarredPaths.Count, "offline volume defers migration");
+        if (createEmptyRoot)
+        {
+            Directory.CreateDirectory(Path.Combine(unused, "objects", "aa"));
+        }
+        await Register(unused);
+        var restored = await service.LoadGalleryAsync("main", fixture.Album);
+        Assert(restored.StarredPaths.Contains(name) && restored.ProtectedFavorites.Single().IsUsingProtectedCopy,
+            "never-created root allows verified fallback migration");
+        AssertEqual(createEmptyRoot, Directory.Exists(unused), "migration preserves empty root state");
     }
 
     private static async Task TestGalleryRootIsolation()
