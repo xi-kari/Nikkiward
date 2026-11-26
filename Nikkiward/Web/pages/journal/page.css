@@ -1,0 +1,33 @@
+#journal .cols{grid-template-columns:330px minmax(0,1fr) 380px}
+#journal .mod{min-width:0;overflow-wrap:anywhere}
+#journal .webph{margin-top:22px;width:100%;height:214px;border:1px solid var(--line2);border-radius:min(var(--nk-panel-radius-s),10px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;font-size:13px;color:var(--ink2);background:var(--journal-card,var(--wall3))}
+[data-skin=cinema][data-tone=dark] #journal{--journal-card:#10141d;--accent:#a8d1ff}
+[data-skin=cinema][data-tone=light] #journal{--journal-card:white}
+#journal .webph:hover,#journal .links button:hover{border-color:var(--ink2);color:var(--ink)}
+#journal .webph .i{width:22px;height:22px}
+#journal .webph small,#journal .note{font-size:12px;color:var(--ink3)}
+#journal .week{border:0;padding-bottom:0}
+#journal .bars{display:flex;align-items:flex-end;gap:14px;height:132px;padding-top:14px;border-bottom:1px solid var(--line)}
+#journal .bars div{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;height:100%}
+#journal .bars b{width:100%;background:var(--ink);border-radius:1px 1px 0 0;min-height:1px}
+#journal .bars div:last-child b{background:var(--accent)}
+#journal .bars span{font-size:11px;color:var(--ink2)}
+#journal .bl{display:flex;gap:14px;padding-top:6px}
+#journal .bl span{flex:1;text-align:center;font-size:12px;color:var(--ink3)}
+#journal .recent-title{margin-top:24px}
+#journal .todo{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px;cursor:pointer}
+#journal .todo input{width:16px;height:16px;accent-color:var(--accent);flex:none}
+#journal .todo.done span{color:var(--ink3);text-decoration:line-through}
+#journal .todo .sp{flex:1}
+#journal .todo .note{flex:none;white-space:nowrap}
+#journal .ghost{margin:8px 0 0 -12px}
+#journal .tools-title{margin-top:26px}
+#journal .links .kv{width:100%}
+#journal .links .i{width:15px;height:15px;color:var(--ink3)}
+#journal form{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+#journal .field{flex:1 1 160px;min-width:0}
+#journal [hidden]{display:none}
+#journal details,#journal .play>.btn{margin-top:12px}
+#journal summary{cursor:pointer}
+@media(max-width:1160px){#journal .cols{grid-template-columns:minmax(0,1fr) minmax(0,1.35fr) minmax(0,1.1fr);gap:24px}}
+@media(max-width:800px){#journal .cols{grid-template-columns:1fr}#journal .ph{flex-wrap:wrap;align-items:center;height:auto}#journal .meta{order:2;width:100%}}

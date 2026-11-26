@@ -59,12 +59,12 @@ public sealed partial class MainPage
         {
             var detail = ex is JournalWebView2RuntimeUnavailableException
                 ? $"{ex.Message}\n下载地址：{JournalPage.WebView2RuntimeDownloadUri}"
-                : $"内置页面暂时不可用；可使用“系统浏览器打开”。\n\n{ex.GetType().Name}: {ex.Message}";
+                : $"内置页面暂时不可用。\n\n{ex.GetType().Name}: {ex.Message}";
             ViewModel.ReportUiError($"奇想手账内置页面打开失败：{detail}");
             _hostedJournalPage?.SetBrowserStatus(detail);
             await TryShowDialogAsync(
                 "奇想手账内置页面打开失败",
-                detail + "\n\n请点击手账面板中的“系统浏览器打开”，登录后仍可回到 Nikkiward 手动同步当前页面。");
+                _returnToWebJournal ? detail : detail + "\n\n请点击手账面板中的“系统浏览器打开”，登录后仍可回到 Nikkiward 手动同步当前页面。");
         }
     }
 
@@ -200,7 +200,7 @@ public sealed partial class MainPage
     private void OnJournalBrowserClosed(object? sender, EventArgs e)
     {
         var returnToResonance = IsResonanceHistoryUri(_hostedJournalPage?.LastContentUri);
-        if (returnToResonance)
+        if (!_returnToWebJournal && returnToResonance)
         {
             SetShellNavigationSelection("resonance");
             ShowResonance();

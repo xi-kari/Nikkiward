@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Nikkiward.ViewModels;
+using Nikkiward.Features.Pages;
+using Nikkiward.Services;
+using System.Text.Json;
 
 internal static class JournalDomainTests
 {
@@ -22,7 +25,72 @@ internal static class JournalDomainTests
         ("journal URLs accept only normalized official HTTPS hosts", UrlPolicyAcceptsOnlyOfficialHttpsHosts),
         ("journal image validation trusts supported byte signatures", ImageValidationUsesByteSignatures),
         ("journal route intent follows SPA resonance routes", RouteIntentFollowsSpaResonanceRoutes),
+        ("journal page projects unsynced and disabled states", JournalPageEmpty),
+        ("journal page splits sessions at local midnight and DST", JournalPageDays),
+        ("journal page limits planner actions and shares home storage", JournalPagePlanner),
     ];
+
+    private static Task JournalPageEmpty()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var state = JsonSerializer.SerializeToElement(JournalPageData.State(null, false,
+            [new("官方", now.AddHours(-1), now, TimeSpan.FromHours(1))], null, PlannerData.Empty, now, TimeZoneInfo.Utc));
+        AssertEqual(JsonValueKind.Null, state.GetProperty("date").ValueKind, "unsynced");
+        AssertEqual(false, state.GetProperty("enabled").GetBoolean(), "disabled");
+        AssertEqual(JsonValueKind.Null, state.GetProperty("play").ValueKind, "hide recorded history while disabled");
+        AssertEqual(0, state.GetProperty("items").GetArrayLength(), "empty checklist");
+        return Task.CompletedTask;
+    }
+
+    private static Task JournalPageDays()
+    {
+        var zone = TimeZoneInfo.FindSystemTimeZoneById("Pacific Standard Time");
+        var start = new DateTimeOffset(2026, 3, 8, 7, 0, 0, TimeSpan.Zero);
+        var now = start.AddHours(26);
+        var snapshot = new JournalSnapshot { CapturedAtUtc = start, LoginDays = "212",
+            Sections = [new() { Title = "探索", Blocks = [new() { Label = "奇想星", Current = "2", Total = "5" }] },
+                new() { Title = "共鸣衣橱", Blocks = [new() { Kind = "wardrobe-card", Label = "套装",
+                    Source = "wardrobe-card:新版本:套装", ResourceUrl = "cover" }] }],
+            Resources = [new() { Url = "cover", LocalFilePath = Path.Combine("Assets", "cover.png") }] };
+        var state = JsonSerializer.SerializeToElement(JournalPageData.State(snapshot, true,
+            [new("官方",start,now,now-start)], null, PlannerData.Empty, now, zone));
+        AssertEqual("2026-03-07 23:00", state.GetProperty("date").GetString(), "snapshot local time");
+        AssertEqual("212", state.GetProperty("metrics")[0].GetProperty("value").GetString(), "snapshot metric");
+        AssertEqual("2/5", state.GetProperty("modules")[0].GetProperty("rows")[0].GetProperty("value").GetString(), "module progress");
+        var card = state.GetProperty("modules")[1].GetProperty("rows")[0];
+        AssertEqual("新版本 · 套装", card.GetProperty("label").GetString(), "wardrobe version");
+        AssertEqual("cover.png", card.GetProperty("image").GetString(), "cached preview identifier");
+        var play = state.GetProperty("play");
+        var days = play.GetProperty("days").EnumerateArray().Select(d => d.GetProperty("hours").GetDouble()).ToArray();
+        AssertEqual(true, days.SequenceEqual(new double[] {0,0,0,0,1,23,2}), "seven local days across spring transition");
+        AssertEqual(26d, play.GetProperty("week").GetDouble(), "week");
+        AssertEqual(26d, play.GetProperty("total").GetDouble(), "total");
+        AssertEqual("26:00", play.GetProperty("recent")[0].GetProperty("duration").GetString(), "multi-day duration");
+        return Task.CompletedTask;
+    }
+
+    private static Task JournalPagePlanner()
+    {
+        var adapter = new PageAdapter("journal", JournalPageData.Actions, () => new object(), (_, _) => Task.CompletedTask);
+        AssertEqual(true, JournalPageData.Actions.ToHashSet().SetEquals(
+            ["official","preview-image","time-settings","check-add","check-toggle","link-add","link-open"]), "exact action list");
+        AssertEqual(false, PageRoutes.Allows("wish","journal",adapter,"official"), "inactive route");
+        var temp = Directory.CreateTempSubdirectory();
+        try
+        {
+            var store = new PlannerStore(temp.FullName);
+            var now = DateTimeOffset.Now;
+            var add = JournalPageData.ReadCommand("check-add", JsonSerializer.SerializeToElement(new { text = "拍照" }));
+            store.Save(store.Load().Change(add, now));
+            var home = store.Load();
+            AssertEqual("拍照", home.Items.Single().Text, "home reads journal addition");
+            store.Save(home.Change(new PlannerCommand("check-toggle", home.Items[0].Id), now));
+            var state = JsonSerializer.SerializeToElement(JournalPageData.State(null,false,[],null,store.Load(),now,TimeZoneInfo.Local));
+            AssertEqual(true, state.GetProperty("items")[0].GetProperty("done").GetBoolean(), "journal reads home change");
+        }
+        finally { temp.Delete(true); }
+        return Task.CompletedTask;
+    }
 
     private static Task SectionKeysPreferStableRoutes()
     {

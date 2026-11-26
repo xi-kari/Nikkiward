@@ -90,6 +90,7 @@
     <Compile Include="..\Nikkiward\ViewModels\JournalDomainModels.cs" Link="ViewModels\JournalDomainModels.cs" />
     <Compile Include="..\Nikkiward\ViewModels\JournalSnapshot.cs" Link="ViewModels\JournalSnapshot.cs" />
     <Compile Include="..\Nikkiward\Features\Pages\PageRoutes.cs" Link="Features\Pages\PageRoutes.cs" />
+    <Compile Include="..\Nikkiward\Features\Pages\JournalPageData.cs" Link="Features\Pages\JournalPageData.cs" />
     <Compile Include="..\Nikkiward\ViewModels\WishHistoryDomain.cs" Link="ViewModels\WishHistoryDomain.cs" />
     <Compile Include="..\Nikkiward\ViewModels\ResonanceHistorySnapshot.cs" Link="ViewModels\ResonanceHistorySnapshot.cs" />
     <Compile Include="..\Nikkiward\ViewModels\LocalPluginCatalog.cs" Link="ViewModels\LocalPluginCatalog.cs" />
