@@ -79,8 +79,8 @@
                             Padding="{StaticResource SpaceTightHorizontalPaddingThickness}"
                             HorizontalAlignment="Stretch"
                             HorizontalContentAlignment="Stretch"
-                            automation:AutomationProperties.HelpText="只显示奇想手账的只读时长快照；不会启动目标进程。"
-                            automation:AutomationProperties.Name="本地时长"
+                            automation:AutomationProperties.HelpText="查看官方奇想手账的时长快照。"
+                            automation:AutomationProperties.Name="官方手账时长"
                             Background="Transparent"
                             BorderThickness="0"
                             Click="OnPlayTimeClicked"
@@ -90,7 +90,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="本地时长" />
+                                <TextBlock Text="官方手账时长" />
                                 <TextBlock
                                     x:Name="PlayTimeTextBlock"
                                     Grid.Column="1"
@@ -209,7 +209,7 @@
                 HorizontalAlignment="Stretch"
                 HorizontalContentAlignment="Stretch"
                 automation:AutomationProperties.HelpText="打开奇想手账时长详情。"
-                automation:AutomationProperties.Name="本地时长"
+                automation:AutomationProperties.Name="官方手账时长"
                 Background="Transparent"
                 BorderThickness="0"
                 Click="OnPlayTimeClicked"

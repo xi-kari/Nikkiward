@@ -102,12 +102,14 @@ public sealed partial class MainPage
             await ViewModel.SaveGeneralSettingsAsync(
                 e.Settings,
                 _lifetimeCancellation?.Token ?? CancellationToken.None);
+            UpdatePlayTimeTimer(fromSettings: true);
             ApplicationLanguageRuntime.Apply(ViewModel.GeneralSettings.LanguageTag);
             App.MainWindow.ApplyCloseBehavior(e.Settings.CloseWindowBehavior);
             SyncLauncherChrome();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            _hostedSettingsPage?.ApplyGeneralSettings(ViewModel.GeneralSettings);
             ViewModel.ReportUiError($"通用设置保存失败：{ex.GetType().Name}: {ex.Message}");
         }
     }

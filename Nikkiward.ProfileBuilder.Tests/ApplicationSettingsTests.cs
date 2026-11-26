@@ -9,6 +9,11 @@ internal static class ApplicationSettingsTests
 {
     public static IEnumerable<(string Name, Func<Task> Run)> All =>
     [
+        (nameof(PlayTimeContinuity), PlayTimeContinuity),
+        (nameof(PlayTimePidReuse), PlayTimePidReuse),
+        (nameof(PlayTimeSleep), PlayTimeSleep),
+        (nameof(PlayTimeDisabled), PlayTimeDisabled),
+        (nameof(PlayTimeStorage), PlayTimeStorage),
         ("application settings defaults match the visible controls", DefaultsMatchVisibleControls),
         ("application settings round trip through the current schema", SettingsRoundTrip),
         ("language preference and default install root drive runtime consumers", LanguageAndDefaultStoreRoot),
@@ -26,6 +31,99 @@ internal static class ApplicationSettingsTests
         ("data backups remain unique within the same timestamp", BackupsRemainUnique),
         ("data root selection requires a migrated settings file", DataRootSelectionRequiresSettings),
     ];
+
+    private static readonly DateTimeOffset Epoch = DateTimeOffset.UnixEpoch.AddDays(10);
+    private static readonly Dictionary<string, string> Installs = new(StringComparer.OrdinalIgnoreCase) { ["game.exe"] = "官方" };
+
+    private static ObservedGame Game(int created) => new("GAME.exe", 42, Epoch.AddSeconds(created));
+
+    private static Task PlayTimeContinuity()
+    {
+        var ledger = new PlayTimeLedger([]);
+        ledger.Observe(Epoch, [Game(-10)], Installs);
+        ledger.Observe(Epoch.AddSeconds(30), [Game(-10)], Installs);
+        ledger.Observe(Epoch.AddSeconds(60), [], Installs);
+        var session = ledger.Sessions.Single();
+        AssertEqual(Epoch.AddSeconds(-10), session.StartUtc, "recent creation");
+        AssertEqual(Epoch.AddSeconds(30), session.EndUtc, "last seen");
+        AssertEqual(TimeSpan.FromSeconds(40), session.Duration, "observed duration");
+        ledger.Observe(Epoch.AddSeconds(89), [Game(60)], Installs);
+        AssertEqual(Epoch.AddSeconds(60), ledger.Sessions[1].StartUtc, "first sight at next sample");
+        ledger.Observe(Epoch.AddSeconds(89), [], Installs);
+        ledger.Observe(Epoch.AddSeconds(90), [Game(60)], Installs);
+        AssertEqual(Epoch.AddSeconds(90), ledger.Sessions[2].StartUtc, "do not credit creation twice");
+        return Task.CompletedTask;
+    }
+
+    private static Task PlayTimePidReuse()
+    {
+        var ledger = new PlayTimeLedger([]);
+        ledger.Observe(Epoch, [Game(-300)], Installs);
+        ledger.Observe(Epoch.AddSeconds(30), [Game(20)], Installs);
+        AssertEqual(Epoch, ledger.Sessions[0].StartUtc, "already running");
+        AssertEqual(Epoch.AddSeconds(20), ledger.Sessions[1].StartUtc, "reused PID");
+        return Task.CompletedTask;
+    }
+
+    private static Task PlayTimeSleep()
+    {
+        var ledger = new PlayTimeLedger([]);
+        ledger.Observe(Epoch, [Game(-300)], Installs);
+        ledger.Observe(Epoch.AddSeconds(60), [Game(-300)], Installs);
+        ledger.Observe(Epoch.AddSeconds(121), [Game(-300)], Installs);
+        AssertEqual(TimeSpan.FromSeconds(60), ledger.Sessions[0].Duration, "two periods inclusive");
+        AssertEqual(Epoch.AddSeconds(121), ledger.Sessions[1].StartUtc, "sleep gap");
+        return Task.CompletedTask;
+    }
+
+    private static Task PlayTimeDisabled()
+    {
+        Assert(!new GeneralSettings().RecordLocalPlayTime, "disabled by default");
+        var ledger = new PlayTimeLedger([]);
+        ledger.Observe(Epoch, [Game(-10)], Installs, enabled: false);
+        AssertEqual(0, ledger.Sessions.Count, "disabled");
+        ledger.Observe(Epoch, [Game(-10) with { Path = "unknown.exe" }], Installs);
+        AssertEqual(0, ledger.Sessions.Count, "unknown installation");
+        ledger.Disconnect(Epoch.AddSeconds(20));
+        ledger.Observe(Epoch.AddSeconds(20), [Game(10)], Installs);
+        AssertEqual(Epoch.AddSeconds(20), ledger.Sessions.Single().StartUtc, "exclude time before opt-in");
+        return Task.CompletedTask;
+    }
+
+    private static Task PlayTimeStorage()
+    {
+        using var fixture = new TemporaryFolder();
+        var store = new PlayTimeStore(fixture.Path);
+        var ledger = new PlayTimeLedger([]);
+        ledger.Observe(Epoch, [Game(-10)], Installs);
+        store.Save(ledger.Sessions);
+        AssertEqual(ledger.Sessions.Single(), new PlayTimeStore(fixture.Path).Load().Single(), "round trip");
+        store.Clear();
+        AssertEqual(0, store.Load().Count, "clear");
+        var path = Path.Combine(fixture.Path, "PlayTime", "sessions.json");
+        var hugeSession = new PlaySession("官方", DateTimeOffset.MinValue, DateTimeOffset.MaxValue,
+            DateTimeOffset.MaxValue - DateTimeOffset.MinValue);
+        var overflowing = JsonSerializer.Serialize(new PlayTimeDocument(1, Enumerable.Repeat(hugeSession, 4).ToArray()));
+        foreach (var (document, reason) in new[]
+        {
+            (overflowing, "损坏"), ("{", "损坏"), ("{}", "损坏"),
+            ("""{"SchemaVersion":2,"FutureLayout":{}}""", "更高版本"),
+            ("""{"SchemaVersion":1,"Sessions":[{}]}""", "损坏"),
+        })
+        {
+            File.WriteAllText(path, document);
+            var damaged = new PlayTimeStore(fixture.Path);
+            try
+            {
+                damaged.Load();
+                throw new InvalidOperationException("invalid play time document loaded");
+            }
+            catch (InvalidDataException ex) { Assert(ex.Message.Contains(reason), "protection reason"); }
+            try { damaged.Save([]); } catch (InvalidOperationException) { }
+            AssertEqual(document, File.ReadAllText(path), "protected original");
+        }
+        return Task.CompletedTask;
+    }
 
     private static Task DefaultsMatchVisibleControls()
     {
@@ -57,6 +155,7 @@ internal static class ApplicationSettingsTests
                 MainWindowHotkey = " Ctrl+Shift+N ",
                 CloseWindowBehavior = CloseWindowBehavior.MinimizeToTray,
                 EnableProfileQuickSwitcher = false,
+                RecordLocalPlayTime = true,
             },
             Download = new DownloadSettings
             {
@@ -85,6 +184,7 @@ internal static class ApplicationSettingsTests
         AssertEqual("system", loaded.General.LanguageTag, "language");
         AssertEqual("Ctrl+Shift+N", loaded.General.MainWindowHotkey, "main window hotkey");
         AssertEqual(CloseWindowBehavior.MinimizeToTray, loaded.General.CloseWindowBehavior, "close behavior");
+        Assert(loaded.General.RecordLocalPlayTime, "play time opt-in");
         Assert(!loaded.General.EnableProfileQuickSwitcher, "profile quick switcher");
         AssertEqual("D:\\Games\\Nikki", loaded.Download.DefaultGameInstallPath, "install path");
         Assert(!loaded.Download.EnableHardLinks, "hard link setting");
@@ -275,6 +375,7 @@ internal static class ApplicationSettingsTests
             "settings.pre-schema8.rollback.json",
             "JournalCache/journal-snapshot.json",
             "JournalCache/resonance-history.json",
+            "PlayTime/sessions.json",
             "WishHistory/wish-history.json",
             "Gallery/stars.json",
             "Gallery/default-favorites-v1.seed",
