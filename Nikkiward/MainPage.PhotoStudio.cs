@@ -12,7 +12,7 @@ namespace Nikkiward;
 public sealed partial class MainPage
 {
     private PhotoStudioView? _studio;
-    internal string StudioOrigin => ContentFrame.Content is GalleryPage ? "相册" : "首页";
+    internal string StudioOrigin => ContentFrame.Content is GalleryPage || _webGallery != null ? "相册" : "首页";
     internal string StudioSkin => Features.Launcher.Skins.HomeSkins.Resolve(ViewModel.AppearanceSettings.HomeSkin).Id.ToLowerInvariant();
     internal string StudioTone => ViewModel.HomeArtKey switch
     {
@@ -27,10 +27,10 @@ public sealed partial class MainPage
         return (MainPage)element;
     }
 
-    internal void OpenStudio(IEnumerable<GalleryPhotoItemViewModel> list, GalleryPhotoItemViewModel photo)
+    internal void OpenStudio(IEnumerable<GalleryPhotoItemViewModel> list, GalleryPhotoItemViewModel photo, bool compare = false)
     {
         if (_studio != null) return;
-        var view = _studio = new PhotoStudioView(this, list, photo);
+        var view = _studio = new PhotoStudioView(this, list, photo, compare);
         ContentFrame.Visibility = Visibility.Collapsed;
         ShellNavigation.Visibility = Visibility.Collapsed;
         RootGrid.Children.Add(view);
@@ -60,6 +60,7 @@ public sealed partial class MainPage
             PhotoStudioStore.CheckDestination(folder.Path, ViewModel.GalleryReadOnlyRoots);
             PhotoStudioStore.CheckDestination(PhotoStudioView.Store.Root, ViewModel.GalleryReadOnlyRoots);
             PhotoStudioView.Store.ExportRoot = folder.Path;
+            CurrentWebPage?.Refresh();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         { await TryShowDialogAsync("无法设置导出目录", ex.Message); }
@@ -72,24 +73,14 @@ public sealed partial class MainPage
             if (photo.IsStarred != value) await gallery.ToggleGalleryStarAsync(photo);
             return;
         }
-        if (value)
-        {
-            await new GalleryAnnotationStore().SetStarredAsync(photo.AnnotationScopeId, photo.RelativePath, true, token);
-            photo.SetStarred(true);
-            await GalleryProtection.ProtectAsync(photo.AnnotationScopeId, photo.RelativePath, photo.FilePath, token);
-        }
-        else
-        {
-            var pending = await GalleryProtection.TryUnstarAsync(photo.AnnotationScopeId, photo.RelativePath, token, approved: null);
-            if (pending.Count > 0)
+        _webGallery?.CheckStarStorage();
+        if (await GalleryFavoriteChange.SetAsync(new(), GalleryProtection, photo.AnnotationScopeId, photo.RelativePath,
+            photo.FilePath, value, async (message, button) =>
             {
-                var dialog = new ContentDialog { XamlRoot = XamlRoot, Title = "取消收藏？",
-                    Content = "原图无法核对，取消收藏可能删除仅存的本地保护副本。", PrimaryButtonText = "取消收藏", CloseButtonText = "保留" };
-                if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
-                if ((await GalleryProtection.TryUnstarAsync(photo.AnnotationScopeId, photo.RelativePath, token, pending)).Count > 0)
-                    throw new IOException("保护副本已更改，请重试。");
-            }
-            photo.SetStarred(false);
-        }
+                var dialog = new ContentDialog { XamlRoot = XamlRoot, Title = "取消这张照片的收藏？", Content = message,
+                    PrimaryButtonText = button, CloseButtonText = "保留", DefaultButton = ContentDialogButton.Close };
+                return await dialog.ShowAsync() == ContentDialogResult.Primary;
+            }, token)) photo.SetStarred(value);
+        _webGallery?.ScheduleRefresh();
     }
 }

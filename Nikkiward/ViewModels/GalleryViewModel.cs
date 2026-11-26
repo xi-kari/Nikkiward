@@ -25,20 +25,6 @@ public enum GalleryViewMode
 
 public sealed class GalleryViewModel : INotifyPropertyChanged
 {
-    private static readonly IReadOnlyDictionary<string, string> CategoryNames =
-        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["NikkiPhotos_HighQuality"] = "高清拍摄",
-            ["NikkiPhotos_LowQuality"] = "低清副本",
-            ["MagazinePhotos"] = "杂志照片",
-            ["ClockInPhoto"] = "打卡照片",
-            ["CloudPhotos"] = "云端照片",
-            ["CloudPhotos_LowQuality"] = "云端低清",
-            ["ScreenShot"] = "系统截图",
-            ["Collage"] = "拼贴照片",
-            ["CollagePhoto"] = "拼贴照片",
-        };
-
     private readonly List<GalleryPhotoItemViewModel> _allPhotos = [];
     private bool _isBusy;
     private bool _isInitialized;
@@ -358,12 +344,8 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
         IReadOnlyList<GalleryDefaultFavorite> defaultFavorites)
     {
         ArgumentNullException.ThrowIfNull(defaultFavorites);
-        _allPhotos.RemoveAll(photo => string.Equals(
-            photo.AnnotationScopeId,
-            GalleryDefaultFavoriteSeedService.ScopeId,
-            StringComparison.Ordinal));
-
-        foreach (var favorite in defaultFavorites)
+        GalleryFiles.ReplaceDefaultFavorites(_allPhotos, photo => photo.AnnotationScopeId == GalleryDefaultFavoriteSeedService.ScopeId,
+            defaultFavorites, favorite =>
         {
             var fileName = Path.GetFileName(favorite.FilePath);
             var photo = new GalleryPhotoItemViewModel(
@@ -376,8 +358,8 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
                 favorite.LastWriteTimeUtc,
                 favorite.ScopeId, WatchableRootPath);
             photo.SetStarred(true);
-            _allPhotos.Add(photo);
-        }
+            return photo;
+        });
 
         RebuildCategories();
         ApplyFilterAndSort();
@@ -425,24 +407,8 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
             scopeId, rootPath);
     }
 
-    internal static (string Id, string DisplayName) ResolveCategory(string relativePath)
-    {
-        var segments = relativePath.Split(
-            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
-            StringSplitOptions.RemoveEmptyEntries);
-
-        foreach (var segment in segments)
-        {
-            if (CategoryNames.TryGetValue(segment, out var displayName))
-            {
-                return (segment, displayName);
-            }
-        }
-
-        return relativePath.EndsWith("PendingUp.jpeg", StringComparison.OrdinalIgnoreCase)
-            ? ("PendingUp", "待上传")
-            : ("Other", "其他");
-    }
+    internal static (string Id, string DisplayName) ResolveCategory(string relativePath) =>
+        GalleryFiles.ResolveCategory(relativePath);
 
     private void RebuildCategories()
     {
@@ -630,6 +596,7 @@ public sealed class GalleryPhotoItemViewModel : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public string FilePath { get; }
+    internal string OriginalPath => IsUsingProtectedCopy && _galleryRoot != null ? Path.Combine(_galleryRoot, RelativePath) : FilePath;
 
     public string RelativePath { get; }
 
@@ -735,9 +702,11 @@ public sealed class GalleryPhotoItemViewModel : INotifyPropertyChanged
         }
     }
 
+    internal bool MemoryOnlyThumbnails { get; init; }
+
     internal async Task<string?> ReadThumbnailDataUrlAsync(CancellationToken token)
     {
-        var thumbnail = await GalleryThumbnailCache.TryGetThumbnailAsync(FilePath, Extension, _galleryRoot, token);
+        var thumbnail = await GalleryThumbnailCache.TryGetThumbnailAsync(FilePath, Extension, _galleryRoot, token, MemoryOnlyThumbnails);
         if (thumbnail == null) return null;
         try
         {

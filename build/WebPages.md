@@ -28,6 +28,12 @@
 
 挂载只发生在进入路由时。返回的函数接收首份及后续状态。切走时 unmount 负责取消页面的订阅、定时器及异步工作，底座随后清空 DOM 和命令。路由、模块、皮肤与明暗由原生发送，底座更新 html 的 data-skin、data-tone。数据变化时原生调用当前宿主的 Refresh。页面用 `send(action, fields)` 发送 `{page, action, …fields}`，原生检查来源、当前页面及该适配器白名单，再交给处理器。共用导航为 `send('navigate', {to:'journal'})`。可恢复的文件错误显示在当前页面，宿主或模块载入失败走诊断和原生回退。
 
+## 按标识供图
+
+相册通过 `WebPagesView.RegisterImages` 登记供图函数和离页清理回调。页面请求 `https://page-image.nikkiward.invalid/<查询版本>/<照片标识>`。原生只接受当前查询已签发的标识，最多并发读取三张缩略图；未知或失效的标识返回 404。页面的 CSP 在 `img-src` 中允许这个独立主机。
+
+供图主机必须保持未映射状态。实机验证中，WebView2 将映射到 `Web` 文件夹的 `pages.nikkiward.invalid` 请求直接解析为本地文件，未触发 `WebResourceRequested`。把供图路径挂在这个主机下，会让列表正常显示而所有缩略图都找不到文件。
+
 ## 对照与发布
 
 在 `Nikkiward/Web.dev/pages/<路由>/cases.js` 读取 mock 和 tone，调用 `receivePage({type:'state',page,module,skin,tone,state})`，与正式页面共用挂载和渲染。普通浏览器打开 `Nikkiward/Web/pages/index.html?mock=wish`。另有 wish-empty、wish-records、wish-atelier、wish-stitch、wish-journal、wish-wishstar，亮色加 `&tone=light`。正式宿主只接受固定入口地址。Web.dev 不进入发布包。

@@ -11,7 +11,7 @@ public sealed partial class MainPage
 
     private bool TryShowWebPage(string page)
     {
-        _pageAdapters ??= PageRoutes.Register(("wish", WishPageAdapter()));
+        _pageAdapters ??= PageRoutes.Register(("wish", WishPageAdapter()), ("gallery", GalleryPageAdapter(false)), ("favorites", GalleryPageAdapter(true)));
         if (_webPagesFailed || !_pageAdapters.TryGetValue(page, out var adapter)) return false;
         ContentFrame.Visibility = Visibility.Visible;
         if (CurrentWebPage is not { } view)

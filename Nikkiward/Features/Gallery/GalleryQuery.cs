@@ -5,7 +5,7 @@ internal sealed record GalleryIndexFacts(int? Width, int? Height, bool HasParame
 
 internal sealed record GalleryIndexPhoto(string Id, string FileName, string RelativePath, string CategoryId,
     string CategoryName, DateTime LocalTime, long Size, GalleryIndexFacts Facts, bool Favorite,
-    bool Exported, string? Session, string? Burst = null);
+    bool Exported, string? Session, string? Burst = null, bool ProtectedCopy = false);
 
 internal enum GalleryQuerySort { Newest, Oldest, Name, Category }
 
@@ -31,30 +31,36 @@ internal sealed class GalleryQuerySnapshot
     private readonly GalleryIndexProgress _progress;
     private static readonly StringComparer Names = StringComparer.OrdinalIgnoreCase;
 
+    internal IReadOnlyList<GalleryIndexPhoto> Ordered => _matches;
+    internal Dictionary<string, string> CategoryNames { get; } = new(StringComparer.OrdinalIgnoreCase);
+
     internal GalleryQuerySnapshot(GalleryQuery query, GalleryIndexPhoto[] photos, GalleryIndexProgress progress)
     {
+        var originals = photos.Where(p => !p.Exported).ToArray();
+        var source = query.Exports ? photos.Where(p => p.Exported).ToArray() : originals;
+        foreach (var photo in originals) CategoryNames.TryAdd(photo.CategoryId, photo.CategoryName);
         Query = query;
         _progress = progress;
-        var swatches = photos.SelectMany(p => p.Facts.Colors.Distinct()).CountBy(c => c)
+        var swatches = source.SelectMany(p => p.Facts.Colors.Distinct()).CountBy(c => c)
             .OrderByDescending(pair => pair.Value).ThenBy(pair => pair.Key);
         var colors = new Dictionary<int, int>();
         foreach (var (color, _) in swatches)
         {
             if (colors.Keys.Any(c => Near(c, color))) continue;
-            colors[color] = photos.Count(p => p.Facts.Colors.Any(c => Near(c, color)));
+            colors[color] = source.Count(p => p.Facts.Colors.Any(c => Near(c, color)));
             if (colors.Count == 8) break;
         }
-        _counts = new(photos.Length, photos.Count(p => p.Favorite), photos.Count(p => p.Session == "current"),
-            photos.Count(p => p.Burst != null), photos.Count(p => p.Exported),
-            photos.CountBy(p => p.CategoryId, Names).ToDictionary(Names),
-            photos.Select(p => p.Facts.FilterId).OfType<string>().CountBy(id => id, Names).ToDictionary(Names),
-            photos.SelectMany(p => p.Facts.ClothingIds.Distinct()).CountBy(id => id).ToDictionary(), colors);
+        _counts = new(originals.Length, originals.Count(p => p.Favorite), originals.Count(p => p.Session == "current"),
+            originals.Count(p => p.Burst != null), photos.Length - originals.Length,
+            originals.CountBy(p => p.CategoryId, Names).ToDictionary(Names),
+            source.Select(p => p.Facts.FilterId).OfType<string>().CountBy(id => id, Names).ToDictionary(Names),
+            source.SelectMany(p => p.Facts.ClothingIds.Distinct()).CountBy(id => id).ToDictionary(), colors);
 
         var term = query.Text.Trim();
         bool Contains(string? s) => s?.Contains(term, StringComparison.OrdinalIgnoreCase) == true;
-        var filtered = photos.Where(p =>
+        var filtered = source.Where(p =>
             (!query.Favorites || p.Favorite) && (!query.Current || p.Session == "current") &&
-            (!query.Bursts || p.Burst != null) && (!query.Exports || p.Exported) &&
+            (!query.Bursts || p.Burst != null) &&
             (query.Category == null || Names.Equals(p.CategoryId, query.Category)) &&
             (query.Filter == null || Names.Equals(p.Facts.FilterId, query.Filter)) &&
             (query.Clothing == null || p.Facts.ClothingIds.Contains(query.Clothing.Value)) &&
@@ -71,9 +77,9 @@ internal sealed class GalleryQuerySnapshot
         _matches = ordered.ThenBy(p => p.RelativePath, StringComparer.Ordinal).ThenBy(p => p.Exported).ToArray();
     }
 
-    internal GalleryQueryPage Page(int offset)
+    internal GalleryQueryPage Page(int offset, int length = 80)
     {
-        var photos = _matches.Skip(offset).Take(80).ToArray();
+        var photos = _matches.Skip(offset).Take(length).ToArray();
         int end = offset + photos.Length;
         return new(Version, photos, photos.GroupBy(p => DateOnly.FromDateTime(p.LocalTime))
             .Select(g => new GalleryQueryDay(g.Key, g.ToArray())).ToArray(), _matches.Length,

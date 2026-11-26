@@ -128,6 +128,8 @@
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryThumbnailFile.cs" />
     <Compile Include="GalleryIntegrationTests.cs" />
     <Compile Include="GalleryIndexTests.cs" />
+    <Compile Include="..\Nikkiward\Features\Gallery\GalleryFavoriteChange.cs" />
+    <Compile Include="..\Nikkiward\Features\Pages\GalleryPageSession.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryIndex.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryIndex.Palette.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryIndex.Metadata.cs" />
