@@ -32,3 +32,10 @@
 #settings input{max-width:50%;accent-color:var(--accent)}
 @media(max-width:1050px){#settings .cols{grid-template-columns:146px minmax(0,1fr) 220px;gap:20px}}
 @media(max-width:760px){#settings .cols{grid-template-columns:minmax(0,1fr);gap:18px;padding:16px}#settings .slist{flex-direction:row;overflow:auto}#settings .slist button{flex:none}#settings .ph{height:auto;padding:16px;flex-wrap:wrap}#settings .row{gap:8px}}
+#settings .row p{overflow-wrap:anywhere}
+#settings .row>.actions{margin-top:0;justify-content:flex-end}
+#settings .content .field,#settings .content .select,#settings .content .select select{border-radius:var(--r-box)}
+#settings .content button.btn{border-radius:var(--r-pill)}
+#settings .hotkey-preview{inset:0;margin:auto;width:min(360px,90vw);padding:24px;border:1px solid var(--line2);border-radius:var(--r-box);color:var(--ink);background:var(--wall)}
+#settings .hotkey-preview p{margin:12px 0 24px}
+#settings .hotkey-preview::backdrop{background:rgba(0,0,0,.35)}

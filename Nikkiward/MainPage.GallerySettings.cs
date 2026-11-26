@@ -19,7 +19,9 @@ public sealed partial class MainPage
     private bool _gallerySettingsOperationInProgress;
     private int _gallerySettingsRefreshInProgress;
 
-    private void ApplyGallerySettingsPageState(SettingsPage page)
+    private void ApplyGallerySettingsPageState(SettingsPage page) => page.ApplyGalleryState(CreateGallerySettingsState());
+
+    private GallerySettingsViewState CreateGallerySettingsState()
     {
         var profileId = ViewModel.SelectedProfileId;
         var customRoot = ViewModel.GalleryRootPath;
@@ -30,7 +32,7 @@ public sealed partial class MainPage
         var tool = _nikkiGalleryToolState;
         var busy = _gallerySettingsOperationInProgress;
 
-        page.ApplyGalleryState(new GallerySettingsViewState(
+        return new GallerySettingsViewState(
             string.IsNullOrWhiteSpace(profileId)
                 ? "未选择 Profile"
                 : $"{ViewModel.ProfileDisplayName} · {profileId}",
@@ -72,7 +74,7 @@ public sealed partial class MainPage
             CanRegisterNikkiGallery: !busy,
             CanOpenNikkiGallery: !busy && tool?.IsAvailable is true,
             CanDisconnectNikkiGallery: !busy && tool?.IsRegistered is true,
-            IsBusy: busy));
+            IsBusy: busy);
     }
 
     private async Task RefreshGallerySettingsStateAsync(CancellationToken cancellationToken)
@@ -147,6 +149,7 @@ public sealed partial class MainPage
         {
             ViewModel.ReportUiError(
                 $"{failurePrefix}：{ex.GetType().Name}: {ex.Message}");
+            if (_webGallerySettingsBusy) await TryShowDialogAsync(failurePrefix, ex.Message);
         }
         finally
         {
@@ -158,7 +161,9 @@ public sealed partial class MainPage
         }
     }
 
-    private async void OnSettingsGalleryRootChooseRequested(object? sender, EventArgs e)
+    private async void OnSettingsGalleryRootChooseRequested(object? sender, EventArgs e) => await GalleryRootChooseAsync();
+
+    private async Task GalleryRootChooseAsync()
     {
         var profileId = ViewModel.SelectedProfileId;
         if (string.IsNullOrWhiteSpace(profileId))
@@ -186,7 +191,9 @@ public sealed partial class MainPage
             "图库目录保存失败");
     }
 
-    private async void OnSettingsGalleryRootResetRequested(object? sender, EventArgs e)
+    private async void OnSettingsGalleryRootResetRequested(object? sender, EventArgs e) => await GalleryRootResetAsync();
+
+    private async Task GalleryRootResetAsync()
     {
         var profileId = ViewModel.SelectedProfileId;
         if (string.IsNullOrWhiteSpace(profileId))
@@ -200,7 +207,9 @@ public sealed partial class MainPage
             "图库目录恢复失败");
     }
 
-    private async void OnSettingsGalleryOpenRequested(object? sender, EventArgs e)
+    private async void OnSettingsGalleryOpenRequested(object? sender, EventArgs e) => await GalleryOpenAsync();
+
+    private async Task GalleryOpenAsync()
     {
         SetShellNavigationSelection("gallery");
         await ShowGalleryAsync(returnToSettings: true);
@@ -208,18 +217,22 @@ public sealed partial class MainPage
 
     private async void OnSettingsGalleryProtectionEnabledChanged(
         object? sender,
-        GalleryProtectionEnabledChangedEventArgs e)
+        GalleryProtectionEnabledChangedEventArgs e) => await SetGalleryProtectionAsync(e.Enabled);
+
+    private async Task SetGalleryProtectionAsync(bool enabled)
     {
         await RunGallerySettingsOperationAsync(
             cancellationToken => GalleryProtection.SetEnabledAsync(
-                e.Enabled,
+                enabled,
                 cancellationToken),
             "收藏保护设置保存失败");
     }
 
     private async void OnSettingsGalleryProtectionRootChooseRequested(
         object? sender,
-        EventArgs e)
+        EventArgs e) => await GalleryProtectionRootChooseAsync();
+
+    private async Task GalleryProtectionRootChooseAsync()
     {
         var picker = new FolderPicker
         {
@@ -252,7 +265,9 @@ public sealed partial class MainPage
 
     private async void OnSettingsGalleryProtectionRootOpenRequested(
         object? sender,
-        EventArgs e)
+        EventArgs e) => await GalleryProtectionRootOpenAsync();
+
+    private async Task GalleryProtectionRootOpenAsync()
     {
         await RunGallerySettingsOperationAsync(
             async cancellationToken =>
@@ -269,7 +284,9 @@ public sealed partial class MainPage
 
     private async void OnSettingsGalleryProtectionVerifyRequested(
         object? sender,
-        EventArgs e)
+        EventArgs e) => await GalleryProtectionVerifyAsync();
+
+    private async Task GalleryProtectionVerifyAsync()
     {
         await RunGallerySettingsOperationAsync(
             async cancellationToken =>
@@ -282,7 +299,9 @@ public sealed partial class MainPage
 
     private async void OnSettingsGalleryProtectionCleanRequested(
         object? sender,
-        EventArgs e)
+        EventArgs e) => await GalleryProtectionCleanAsync();
+
+    private async Task GalleryProtectionCleanAsync()
     {
         var profileId = ViewModel.SelectedProfileId;
         if (string.IsNullOrWhiteSpace(profileId))
@@ -320,7 +339,9 @@ public sealed partial class MainPage
             "缩略图缓存清理失败");
     }
 
-    private async void OnSettingsNikkiGalleryRegisterRequested(object? sender, EventArgs e)
+    private async void OnSettingsNikkiGalleryRegisterRequested(object? sender, EventArgs e) => await NikkiGalleryRegisterAsync();
+
+    private async Task NikkiGalleryRegisterAsync()
     {
         var picker = new FileOpenPicker
         {
@@ -346,7 +367,9 @@ public sealed partial class MainPage
             "NikkiGallery 关联失败");
     }
 
-    private async void OnSettingsNikkiGalleryOpenRequested(object? sender, EventArgs e)
+    private async void OnSettingsNikkiGalleryOpenRequested(object? sender, EventArgs e) => await NikkiGalleryOpenAsync();
+
+    private async Task NikkiGalleryOpenAsync()
     {
         await RunGallerySettingsOperationAsync(
             async cancellationToken =>
@@ -359,7 +382,9 @@ public sealed partial class MainPage
             "NikkiGallery 打开失败");
     }
 
-    private async void OnSettingsNikkiGalleryDisconnectRequested(object? sender, EventArgs e)
+    private async void OnSettingsNikkiGalleryDisconnectRequested(object? sender, EventArgs e) => await NikkiGalleryDisconnectAsync();
+
+    private async Task NikkiGalleryDisconnectAsync()
     {
         await RunGallerySettingsOperationAsync(
             cancellationToken => _nikkiGalleryToolRegistry.DisconnectAsync(cancellationToken),

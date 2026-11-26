@@ -11,9 +11,11 @@ public sealed partial class MainPage
 
     private PageAdapter SettingsPageAdapter()
     {
-        PageAdapter[] adapters = [AppearancePageSection(), GeneralPageSection(), AboutPageSection()];
+        PageAdapter[] adapters = [AppearancePageSection(), GeneralPageSection(), AboutPageSection(),
+            ScreenshotPageSection(), GalleryPageSection(), PluginsPageSection(), HotkeysPageSection(), GamepadPageSection()];
         var sections = adapters.ToDictionary(adapter => adapter.Module, StringComparer.Ordinal);
         return new("settings", ["section", "native"], () => new {
+            gamepadConnectionChanged = _publishingGamepadConnection,
             sections = sections.ToDictionary(p => p.Key, p => p.Value.State()),
             navigation = SettingsSections.All.Where(s => !s.Developer || ViewModel.DeveloperModeEnabled).Select(s => new { id = s.Id, label = s.Label }),
             skins = HomeSkins.Available.Select(s => new { id = s.Id, label = s.Name }),

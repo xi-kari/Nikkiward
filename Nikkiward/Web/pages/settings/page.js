@@ -23,7 +23,7 @@
     view.id = 'settings';
     view.innerHTML = '<header class="ph"><h1>设置</h1><div class="meta">Nikkiward <span class="m"></span> · 非官方 · 社区项目 · MIT</div></header><div class="cols"><nav class="slist" aria-label="设置分类"></nav><section class="mod content"></section><aside class="mod"></aside></div>';
     root.append(view);
-    let state, active, revision = 0;
+    let state, active, renderedSection, revision = 0;
     const nav = view.querySelector('nav'), content = view.querySelector('.content'), aside = view.querySelector('aside');
     function action(section,op,data = {}) { send('section',{section,op,...data}); }
     function button(label,click) {
@@ -89,7 +89,7 @@
         }
         function save(field,value,section = active) { action(section,'change',{field,value:String(value)}); }
         const ui = {
-          element, row, button, action, check, save,
+          element, row, button, action, check, save, entering: renderedSection !== active,
           add: el => parent.append(el),
           group(label) {
             parent = element('section',null,'settings-group');
@@ -124,6 +124,7 @@
             return row(label,input);
           }
         };
+        renderedSection = active;
         renderers.get(active)(ui,state.sections[active],state);
         if (focus) view.querySelector('[data-focus="'+CSS.escape(focus)+'"]')?.focus({preventScroll:true});
       }
@@ -136,7 +137,16 @@
     commands.push(['设置','检查更新',() => {
       if (state.sections.about.available && !state.sections.about.checking) action('about','check');
     }]);
-    return next => { state = next; active ??= next.initial ?? 'appearance'; draw(); };
+    return next => {
+      state = next;
+      if (active && next.gamepadConnectionChanged) {
+        const status = content.querySelector('[data-gamepad-status]');
+        if (status) status.textContent = next.sections.Gamepad.status;
+        return;
+      }
+      active ??= next.initial ?? 'appearance';
+      draw();
+    };
   }
   registerPage('settings',{mount,unmount() {}});
 })();

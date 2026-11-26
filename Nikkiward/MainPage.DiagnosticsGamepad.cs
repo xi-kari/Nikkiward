@@ -198,8 +198,17 @@ public sealed partial class MainPage
         });
     }
 
-    private void OnGamepadStateChanged(object? sender, EventArgs e) =>
+    private void OnGamepadStateChanged(object? sender, EventArgs e)
+    {
         ApplySettingsPageState(_hostedSettingsPage);
+        if (CurrentWebPage is { } web && ShellNavigation.InteractiveRegions.OfType<RadioButton>()
+            .Any(item => item.IsChecked == true && Equals(item.Tag, "settings")))
+        {
+            _publishingGamepadConnection = true;
+            try { web.Refresh(); }
+            finally { _publishingGamepadConnection = false; }
+        }
+    }
 
     private async void OnSettingsGamepadChanged(
         object? sender,
