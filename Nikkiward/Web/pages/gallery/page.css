@@ -44,3 +44,5 @@
 .gallery-module .gscroll.is-empty{display:flex;flex-direction:column;padding-bottom:0}
 .gallery-module .is-empty .empty{margin:auto}
 
+
+.gallery-module .groups > .grow:first-child{margin-top:22px}

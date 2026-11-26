@@ -191,7 +191,7 @@
       if(reset){version=s.version;sent=null;lastOffset=-1;releaseImages();groups.replaceChildren();sections.clear();closeMenu();}
       if(document.activeElement!==search)search.value=s.text||'';
       const meta=find('.meta');meta.replaceChildren(el('span','m',(s.tabs[0]?.count||0).toLocaleString('en-US')),
-        favorites?' 张 · '+(s.protection?'收藏保护已开：原图被删后保留一份副本':'收藏保护已关闭'):' 张 · 按拍摄日期');
+        favorites?' 张 · '+(s.protection?'收藏保护已开：原图被删后保留一份副本':'收藏保护已关闭'):s.sort==='name'?' 张 · 按名称':s.sort==='category'?' 张 · 按分类':' 张 · 按拍摄日期');
       if(s.indexing)meta.append(' · 正在索引 '+s.indexed+' / '+s.total);
       if(!menu)navigation();
       notice.textContent=[s.error,s.overlap?'收藏保护因目录重叠暂停。请在相册设置中选择其他保护目录。':'',
@@ -219,9 +219,12 @@
         for(const day of s.days){
           let row=sections.get(day.date);
           if(!row){
-            const h=el('div','gh');h.append(el('span','m',day.date),el('span','',day.weekday+' · '+day.count+' 张'));
-            if(day.current&&!favorites)h.append(el('em','','本次游玩拍的'));
-            row=el('div','grow');groups.append(h,row);sections.set(day.date,row);
+            if(day.date){
+              const h=el('div','gh');h.append(el('span','m',day.date),el('span','',day.weekday+' · '+day.count+' 张'));
+              if(day.current&&!favorites)h.append(el('em','','本次游玩拍的'));
+              groups.append(h);
+            }
+            row=el('div','grow');groups.append(row);sections.set(day.date,row);
           }
           const frag=document.createDocumentFragment();for(const p of day.photos)frag.append(photoTile(p));row.append(frag);
         }

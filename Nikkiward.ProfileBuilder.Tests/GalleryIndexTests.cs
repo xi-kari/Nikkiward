@@ -8,6 +8,9 @@ internal static class GalleryIndexTests
 {
     internal static IEnumerable<(string, Func<Task>)> All =>
     [
+        (nameof(LargeQueryRunsOffCallerAndSupersedes), LargeQueryRunsOffCallerAndSupersedes),
+        (nameof(PlayWindowReclassifiesIndexedPhotos), PlayWindowReclassifiesIndexedPhotos),
+        (nameof(WebSortMatchesStudioAcrossPages), WebSortMatchesStudioAcrossPages),
         (nameof(NativeAndWebAlbumMembership), NativeAndWebAlbumMembership),
         (nameof(WebQueryAndIssuedPhotos), WebQueryAndIssuedPhotos),
         (nameof(WebFavoriteProtectionAndConsent), WebFavoriteProtectionAndConsent),
@@ -53,6 +56,98 @@ internal static class GalleryIndexTests
             .SelectMany(path => Directory.GetFiles(path, "*", SearchOption.AllDirectories))
             .Order().Select(p => $"{p}|{new FileInfo(p).Length}|{File.GetLastWriteTimeUtc(p).Ticks}").ToArray();
         public void Dispose() => Directory.Delete(Folder, true);
+    }
+
+    private static async Task LargeQueryRunsOffCallerAndSupersedes()
+    {
+        using var library = new Library();
+        var session = new GalleryPageSession(library.Open(), false);
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        int caller = Environment.CurrentManagedThreadId, traversals = 0;
+        IEnumerable<GalleryIndexPhoto> Photos()
+        {
+            Check(Environment.CurrentManagedThreadId != caller);
+            Interlocked.Increment(ref traversals);
+            entered.Set();
+            Check(release.Wait(TimeSpan.FromSeconds(5)));
+            for (int i = 9999; i >= 0; i--)
+            {
+                string id = i.ToString("D4");
+                yield return new(id, id, id, "ScreenShot", "截图", Epoch.AddMinutes(i), 10, Facts, false, false, null);
+            }
+        }
+        var source = Photos();
+        var timer = Stopwatch.StartNew();
+        var stale = session.ChangeAsync(JsonSerializer.SerializeToElement(new { text = "0000" }), source);
+        Check(entered.Wait(TimeSpan.FromSeconds(5)));
+        var latest = session.ChangeAsync(JsonSerializer.SerializeToElement(new { sort = "name" }), source);
+        release.Set();
+        Check(await latest && !await stale);
+        Check(session.Page.Matches == 10000 && session.Page.Photos.Length == 80 && session.Page.Photos[0].Id == "0000");
+        var counts = session.Page.Counts;
+        Check(await session.ChangeAsync(JsonSerializer.SerializeToElement(new { text = "999" }), source));
+        Check(traversals == 1 && ReferenceEquals(counts, session.Page.Counts) && session.Page.Matches == 19);
+        Console.WriteLine($"Gallery 10000 rows, initial and filtered queries: {timer.ElapsedMilliseconds} ms");
+        Check(timer.Elapsed < TimeSpan.FromSeconds(3));
+    }
+
+    private static async Task PlayWindowReclassifiesIndexedPhotos()
+    {
+        using var library = new Library();
+        library.Add("a.jpg"); library.Add("b.jpg", 5); library.Add("export.jpg", 2, true);
+        var index = library.Open();
+        await index.RefreshAsync(Empty, null, null);
+        var reads = library.Reads;
+        var session = new GalleryPageSession(index, false);
+        var seeds = Array.Empty<GalleryIndexPhoto>();
+        var start = new PlaySession("game", Epoch, Epoch, TimeSpan.Zero);
+        var sample = start with { EndUtc = Epoch.AddSeconds(5) };
+        await session.ChangeAsync(JsonSerializer.SerializeToElement(new { tab = "current" }), seeds, (null, null));
+        Check(session.Page.Matches == 0);
+        await session.ResetAsync(seeds, sessions: (start, null));
+        Check(session.Page.Photos.Single().FileName == "a.jpg");
+        await session.ResetAsync(seeds, sessions: (sample, null));
+        Check(session.Page.Counts.Current == 2 && session.Page.Matches == 2);
+        var unchanged = session.Version;
+        Check(!await session.ResetAsync(seeds, keepWindow: true,
+            sessions: (sample with { EndUtc = Epoch.AddSeconds(30) }, null)) && session.Version == unchanged);
+        await session.ResetAsync(seeds, sessions: (null, sample));
+        Check(session.Page.Counts.Current == 0 && session.Page.Matches == 0);
+        await session.ChangeAsync(JsonSerializer.SerializeToElement(new { }), seeds, (null, sample));
+        Check(session.Page.Photos.All(p => p.Session == "previous"));
+        var state = JsonSerializer.SerializeToElement(session.State(false,index.Progress,false,false,false,false,null));
+        Check(!state.GetProperty("days")[0].GetProperty("current").GetBoolean() && library.Reads == reads);
+    }
+
+    private static async Task WebSortMatchesStudioAcrossPages()
+    {
+        using var library = new Library();
+        var page = new GalleryPageSession(library.Open(), false);
+        var rows = Enumerable.Range(0, 97).Select(i =>
+        {
+            var id = i.ToString("D3");
+            var cat = (i % 3).ToString();
+            return new GalleryIndexPhoto(id, id, id, cat, cat, Epoch.AddDays(i % 2), 10, Facts, false, false, null);
+        }).Reverse().ToArray();
+        foreach (string sort in new[] { "name", "category" })
+        {
+            await page.ChangeAsync(JsonSerializer.SerializeToElement(new { sort }), rows);
+            var expected = page.StudioList(page.Page.Photos[0], false).Select(p => p.Id);
+            var visible = new List<string>();
+            do
+            {
+                var state = JsonSerializer.SerializeToElement(page.State(false,new(97,97,0,false),false,false,false,false,null));
+                var block = state.GetProperty("days").EnumerateArray().Single();
+                Check(block.GetProperty("date").ValueKind == JsonValueKind.Null);
+                visible.AddRange(block.GetProperty("photos").EnumerateArray().Select(p => p.GetProperty("id").GetString()!));
+            } while (page.Page.Next is {} next && page.Next(page.Version, next.Offset));
+            Check(visible.Count == 97 && visible.SequenceEqual(expected));
+            page.BeginVisit();
+            Check(page.Page.Photos.Length == 0);
+            await page.ResetAsync(rows, keepWindow: true);
+            Check(page.Page.Photos.Select(p => p.Id).SequenceEqual(visible) && page.Page.Next == null);
+        }
     }
 
     private static async Task NativeAndWebAlbumMembership()
@@ -105,7 +200,7 @@ internal static class GalleryIndexTests
         var index = library.Open();
         await index.RefreshAsync(Empty, null, null);
         var page = new GalleryPageSession(index, false);
-        page.Reset([]);
+        await page.ResetAsync([]);
         var old = page.Version;
         page.BeginVisit();
         var oldVisit = page.Visit;
@@ -113,7 +208,7 @@ internal static class GalleryIndexTests
         Check(page.Accept("query", command) && !page.Accept("query", command));
         page.BeginVisit();
         Check(!page.Accept("clear", command) && !page.Accept("next", command));
-        page.Change(JsonSerializer.SerializeToElement(new { tab = "category:NikkiPhotos_HighQuality", text = ".jpg", filter = "F12",
+        await page.ChangeAsync(JsonSerializer.SerializeToElement(new { tab = "category:NikkiPhotos_HighQuality", text = ".jpg", filter = "F12",
             clothing = "345", color = "15606306", sort = "oldest" }), []);
         var first = page.Page.Photos.First();
         var list = page.StudioList(first, false).ToArray();
@@ -126,10 +221,10 @@ internal static class GalleryIndexTests
         Check(state.GetProperty("days")[0].GetProperty("count").GetInt32() == 94 &&
             state.GetProperty("offset").GetInt32() == 80 && !state.ToString().Contains(library.Folder));
         Check(page.StudioList(first,true).Count() == 94);
-        page.Change(JsonSerializer.SerializeToElement(new { text = "000.jpg" }), []);
+        await page.ChangeAsync(JsonSerializer.SerializeToElement(new { text = "000.jpg" }), []);
         Check(page.Page.Matches == 1 && page.StudioList(page.Page.Photos.Single(),true).Count() == 94);
         var filtered = page.Version;
-        page.Change(JsonSerializer.SerializeToElement(new { }), []);
+        await page.ChangeAsync(JsonSerializer.SerializeToElement(new { }), []);
         Check(page.Page.Matches == 94 && page.Find(filtered, first.Id) == null && page.Page.Next != null);
         Check(before.SequenceEqual(library.Inventory()));
     }
@@ -157,7 +252,7 @@ internal static class GalleryIndexTests
         var index = library.Open();
         await index.RefreshAsync(missing,null,null);
         var page = new GalleryPageSession(index,true);
-        page.Reset([]);
+        await page.ResetAsync([]);
         Check(page.Page.Photos.Single().ProtectedCopy && index.ResolvePath(page.Page.Photos.Single().Id) == fallback.ProtectedPath);
         int prompts = 0;
         Task<bool> Confirm(string message,string button)
