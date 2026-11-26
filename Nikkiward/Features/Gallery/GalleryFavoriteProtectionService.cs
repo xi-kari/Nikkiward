@@ -698,7 +698,7 @@ public sealed class GalleryFavoriteProtectionService
             VariantPathPolicy.PathsOverlap(resolved, directory.Resolved));
     }
 
-    private static string ResolveDirectoryLinks(string path)
+    internal static string ResolveDirectoryLinks(string path)
     {
         var fullPath = NormalizeRootPath(path);
         var resolved = Path.GetPathRoot(fullPath)!;

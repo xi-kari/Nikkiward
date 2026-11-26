@@ -8,6 +8,8 @@ internal static class GalleryMetadataTests
     public static IReadOnlyList<(string Name, Func<Task> Run)> All { get; } =
     [
         ("gallery native ABI layout and UID extraction are exact", TestLayoutAndUserId),
+        ("gallery accepts AVIF and JPEG XL case insensitively", TestCodecExtensions),
+        ("gallery skips camera parameters for codec screenshots", TestCodecScreenshots),
         ("gallery metadata ABI mismatch fails closed", TestAbiMismatch),
         ("gallery metadata enforces the inclusive 10 MB boundary", TestFileSizeBoundary),
         ("gallery native calls are process-wide serial", TestProcessWideSerialization),
@@ -44,6 +46,30 @@ internal static class GalleryMetadataTests
             Nuan5GalleryMetadataService.ExtractUserId(@"D:\Photos\12345\photo.jpg") is null,
             "short numeric segment must not be accepted");
         return Task.CompletedTask;
+    }
+
+    private static Task TestCodecExtensions()
+    {
+        foreach (var extension in new[] { ".AVIF", ".avif", ".JXL", ".jxl" })
+        {
+            Assert(GalleryFileTypes.IsSupported(extension), "supported screenshot extension");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private static async Task TestCodecScreenshots()
+    {
+        using var fixture = GalleryMetadataFixture.CreateFile(64);
+        var native = FakeNativeAdapter.ForSuccess();
+        foreach (var extension in new[] { ".AVIF", ".jxl" })
+        {
+            var path = Path.ChangeExtension(fixture.FilePath, extension);
+            File.Copy(fixture.FilePath, path);
+            var result = await new Nuan5GalleryMetadataService(native).ReadAsync(path);
+            AssertEqual(0, native.DecodeCallCount, "camera decoder must be skipped");
+            Assert(!result.HasParameters, "screenshot has no camera parameters");
+        }
     }
 
     private static async Task TestAbiMismatch()

@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Nikkiward.Features.Background;
 
 namespace Nikkiward.Features.Gallery;
@@ -52,7 +50,7 @@ public static class GalleryThumbnailCache
 
     private static readonly SemaphoreSlim CacheMaintenanceGate = new(1, 1);
 
-    private static readonly Lazy<string?> CacheFolder = new(CreateCacheFolder);
+    private static readonly Lazy<string?> CacheFolder = new(ResolveCacheFolder);
 
     public static string? FolderPath => CacheFolder.Value;
 
@@ -63,6 +61,8 @@ public static class GalleryThumbnailCache
     /// </summary>
     public static async Task<string?> TryGetThumbnailPathAsync(
         string filePath,
+        string extension,
+        string? galleryRoot,
         CancellationToken cancellationToken = default)
     {
         var folder = CacheFolder.Value;
@@ -75,7 +75,7 @@ public static class GalleryThumbnailCache
         try
         {
             source = new FileInfo(filePath);
-            if (!source.Exists || source.Length < MinimumSourceBytes)
+            if (!source.Exists || (source.Length < MinimumSourceBytes && !GalleryFileTypes.UsesScreenshotCodec(extension)))
             {
                 return null;
             }
@@ -89,17 +89,17 @@ public static class GalleryThumbnailCache
             return null;
         }
 
-        var cachePath = Path.Combine(folder, BuildCacheFileName(source));
         await DecodeGate.WaitAsync(cancellationToken);
         try
         {
-            // A sibling call may have produced it while this one queued.
-            if (File.Exists(cachePath))
-            {
-                return cachePath;
-            }
-
-            return await RenderThumbnailAsync(source.FullName, cachePath, cancellationToken);
+            return await GalleryThumbnailFile.GetOrCreateAsync(folder, galleryRoot, source, async () =>
+                GalleryFileTypes.UsesScreenshotCodec(extension)
+                    ? await StarwardScreenshotDecoder.RenderThumbnailAsync(filePath, extension, ThumbnailWidth, cancellationToken)
+                    : await RenderThumbnailAsync(filePath, cancellationToken), cancellationToken);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
         }
         finally
         {
@@ -151,9 +151,8 @@ public static class GalleryThumbnailCache
         }
     }
 
-    private static async Task<string?> RenderThumbnailAsync(
+    private static async Task<byte[]?> RenderThumbnailAsync(
         string filePath,
-        string cachePath,
         CancellationToken cancellationToken)
     {
         try
@@ -173,27 +172,7 @@ public static class GalleryThumbnailCache
                 return null;
             }
 
-            var bytes = await ArtDecoder.EncodeJpegAsync(buffer, ThumbnailQuality);
-            if (bytes.Length == 0)
-            {
-                return null;
-            }
-
-            // Temp-then-move so a cancelled or crashed render never leaves a
-            // half-written JPEG that later looks like a valid cache hit.
-            var tempPath = $"{cachePath}.{Guid.NewGuid():N}.tmp";
-            await File.WriteAllBytesAsync(tempPath, bytes, cancellationToken);
-            try
-            {
-                File.Move(tempPath, cachePath, overwrite: true);
-            }
-            catch (IOException)
-            {
-                TryDelete(tempPath);
-                return File.Exists(cachePath) ? cachePath : null;
-            }
-
-            return cachePath;
+            return await ArtDecoder.EncodeJpegAsync(buffer, ThumbnailQuality);
         }
         catch (OperationCanceledException)
         {
@@ -205,19 +184,6 @@ public static class GalleryThumbnailCache
             // down; the caller shows the original image instead.
             return null;
         }
-    }
-
-    /// <summary>
-    /// Keyed on path plus mtime plus length, so replacing a photo in place
-    /// produces a different key rather than a stale hit.
-    /// </summary>
-    private static string BuildCacheFileName(FileInfo source)
-    {
-        var key = string.Create(
-            System.Globalization.CultureInfo.InvariantCulture,
-            $"{source.FullName.ToLowerInvariant()}|{source.LastWriteTimeUtc.Ticks}|{source.Length}");
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(key));
-        return $"{Convert.ToHexString(hash).ToLowerInvariant()[..32]}.jpg";
     }
 
     private static GalleryThumbnailCacheStatistics ReadStatistics(
@@ -249,6 +215,10 @@ public static class GalleryThumbnailCache
         catch (OperationCanceledException)
         {
             throw;
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return new GalleryThumbnailCacheStatistics(true, 0, 0);
         }
         catch (Exception ex) when (ex is IOException
             or UnauthorizedAccessException
@@ -299,6 +269,10 @@ public static class GalleryThumbnailCache
         {
             throw;
         }
+        catch (DirectoryNotFoundException)
+        {
+            return new GalleryThumbnailCacheClearResult(true, 0, 0, 0);
+        }
         catch (Exception ex) when (ex is IOException
             or UnauthorizedAccessException
             or ArgumentException
@@ -348,16 +322,14 @@ public static class GalleryThumbnailCache
         CacheMaintenanceGate.Release();
     }
 
-    private static string? CreateCacheFolder()
+    private static string? ResolveCacheFolder()
     {
         try
         {
-            var folder = Path.Combine(
+            return Path.Combine(
                 Nikkiward.Services.ApplicationDataPaths.Root,
                 "GalleryCache",
                 "Thumbnails");
-            Directory.CreateDirectory(folder);
-            return folder;
         }
         catch (Exception ex) when (ex is IOException
             or UnauthorizedAccessException
@@ -365,17 +337,6 @@ public static class GalleryThumbnailCache
             or NotSupportedException)
         {
             return null;
-        }
-    }
-
-    private static void TryDelete(string path)
-    {
-        try
-        {
-            File.Delete(path);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
         }
     }
 }

@@ -5,6 +5,9 @@ internal static class GalleryIntegrationTests
 {
     public static IEnumerable<(string Name, Func<Task> Run)> All =>
     [
+        ("gallery skips oversized screenshots before pixel decode", TestScreenshotPixelLimit),
+        ("gallery serializes screenshot renders", TestScreenshotConcurrency),
+        ("gallery caches screenshot thumbnails without changing originals", TestScreenshotCache),
         ("gallery stars persist and can be removed", TestPersistenceAndRemoval),
         ("gallery stars stay isolated by profile", TestProfileIsolation),
         ("gallery star paths normalize case and separators", TestPathNormalization),
@@ -39,6 +42,81 @@ internal static class GalleryIntegrationTests
         ("NikkiGallery registration detects executable changes", TestNikkiGalleryTamperDetection),
         ("NikkiGallery disconnect keeps the external executable", TestNikkiGalleryDisconnect),
     ];
+
+    private sealed class FakeDecoder(uint width, Action read) : GalleryScreenshotDecoder
+    {
+        public override uint Width => width;
+        public override uint Height => 2;
+        public override byte[] ReadPixels(CancellationToken token)
+        {
+            read();
+            return [5, 6, 7, 8];
+        }
+        public override void Dispose() { }
+    }
+
+    private static async Task TestScreenshotPixelLimit()
+    {
+        using var fixture = new TempFixture();
+        var path = Path.Combine(fixture.Root, "huge.avif");
+        File.WriteAllBytes(path, [1]);
+        var reads = 0;
+        try
+        {
+            await GalleryScreenshotDecoder.RenderAsync(path, ".avif",
+                (_, _) => new FakeDecoder(uint.MaxValue, () => reads++),
+                (_, _, pixels) => Task.FromResult(pixels), default);
+            throw new InvalidOperationException("oversized image accepted");
+        }
+        catch (InvalidDataException) { }
+        AssertEqual(0, reads, "pixel reads");
+    }
+
+    private static async Task TestScreenshotConcurrency()
+    {
+        using var fixture = new TempFixture();
+        var path = Path.Combine(fixture.Root, "small.jxl");
+        File.WriteAllBytes(path, [1]);
+        var active = 0;
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var renders = Enumerable.Range(0, 8).Select(_ => GalleryScreenshotDecoder.RenderAsync(
+            path, ".jxl", (_, _) => new FakeDecoder(2, () => { }),
+            async (_, _, pixels) =>
+            {
+                AssertEqual(1, Interlocked.Increment(ref active), "active codec renders");
+                entered.TrySetResult();
+                await release.Task;
+                Interlocked.Decrement(ref active);
+                return pixels;
+            }, default)).ToArray();
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.Delay(100);
+        release.SetResult();
+        await Task.WhenAll(renders);
+    }
+
+    private static async Task TestScreenshotCache()
+    {
+        using var fixture = new TempFixture();
+        var album = Directory.CreateDirectory(Path.Combine(fixture.Root, "album"));
+        var cache = Directory.CreateDirectory(Path.Combine(fixture.Root, "cache"));
+        var source = new FileInfo(Path.Combine(album.FullName, "photo.avif"));
+        File.WriteAllBytes(source.FullName, [1, 2, 3]);
+        var hash = SHA256.HashData(File.ReadAllBytes(source.FullName));
+        var thumbnail = await GalleryThumbnailFile.GetOrCreateAsync(cache.FullName, album.FullName, source, async () =>
+            await GalleryScreenshotDecoder.RenderAsync(source.FullName, ".avif",
+                (_, _) => new FakeDecoder(2, () => { }),
+                (_, _, pixels) => Task.FromResult(pixels), default), default);
+        var nestedCache = Path.Combine(album.FullName, "GalleryCache", "Thumbnails");
+        var skipped = await GalleryThumbnailFile.GetOrCreateAsync(nestedCache, album.FullName, source,
+            () => throw new InvalidOperationException("nested cache must not render"), default);
+        Assert(skipped is null && !Directory.Exists(nestedCache), "nested cache must stay absent");
+        AssertEqual(cache.FullName, Path.GetDirectoryName(thumbnail!), "thumbnail parent");
+        AssertEqual(1, album.GetFiles().Length, "source folder file count");
+        AssertEqual(1, cache.GetFiles().Length, "cache file count");
+        Assert(hash.SequenceEqual(SHA256.HashData(File.ReadAllBytes(source.FullName))), "original hash");
+    }
 
     private static async Task TestPersistenceAndRemoval()
     {
