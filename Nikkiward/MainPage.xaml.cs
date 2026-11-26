@@ -137,9 +137,9 @@ public sealed partial class MainPage : Page
         {
             var regions = new List<FrameworkElement>(2);
             if (HomeInteractive && _hostedLauncherPage?.WebHome is { } web) regions.Add(web.Masthead);
-            if (ShellNavigation.Visibility == Visibility.Visible && ShellNavigation.IsHitTestVisible) regions.AddRange(ShellNavigation.InteractiveRegions);
+            if (ShellNavigation.IsEnabled && ShellNavigation.Visibility == Visibility.Visible && ShellNavigation.IsHitTestVisible) regions.AddRange(ShellNavigation.InteractiveRegions);
 
-            if (ContentFrame.Visibility == Visibility.Visible &&
+            if (ContentFrame.IsEnabled && ContentFrame.Visibility == Visibility.Visible &&
                 ContentFrame.Content is ITitleBarMasthead masthead &&
                 masthead.MastheadInteractionRegion is { } mastheadRegion)
             {
@@ -155,6 +155,14 @@ public sealed partial class MainPage : Page
 
             return regions;
         }
+    }
+
+    internal Windows.Foundation.Rect ClipNavigationBounds(FrameworkElement region, Windows.Foundation.Rect bounds)
+    {
+        if (ShellNavigation.InteractiveRegions.Contains(region))
+            bounds.Intersect(ShellNavigation.TransformToVisual(null).TransformBounds(
+                new Windows.Foundation.Rect(0, 0, ShellNavigation.ActualWidth, ShellNavigation.ActualHeight)));
+        return bounds;
     }
 
     public MainPage()
@@ -191,10 +199,25 @@ public sealed partial class MainPage : Page
         var tokens = HomeSkins.TokensFor(skin);
         LauncherBackground.ApplyArtFrame((Thickness)tokens["HomeArtInset"], (CornerRadius)tokens["HomeArtRadius"]);
         ShellNavigation.Apply(skin, tokens);
-        ShellNavigation.Fit(RootGrid.ActualWidth);
+        FitShellNavigation(RootGrid.ActualWidth);
         _homeSkin = skin;
         SyncLauncherChrome();
         NotifyTitleBarPassthroughChanged();
+    }
+
+    private double _captionInset;
+
+    internal void SetCaptionInset(double inset)
+    {
+        if (_captionInset == inset) return;
+        _captionInset = inset;
+        FitShellNavigation(RootGrid.ActualWidth);
+    }
+
+    private void FitShellNavigation(double width)
+    {
+        ShellNavigation.Fit(width);
+        ShellNavigation.MaxWidth = Math.Max(0, width - _captionInset);
     }
 
     private void OnHomeNavigationSizeChanged(object sender, SizeChangedEventArgs e) =>
@@ -203,7 +226,7 @@ public sealed partial class MainPage : Page
     private void OnRootGridSizeChanged(object sender, SizeChangedEventArgs e)
     {
         ApplyLaunchSettingsHostLayout(e.NewSize.Width);
-        ShellNavigation.Fit(e.NewSize.Width);
+        FitShellNavigation(e.NewSize.Width);
     }
 
     private void ApplyLaunchSettingsHostLayout(double width) =>

@@ -30,6 +30,8 @@ public sealed partial class LaunchSettingsPage : PageBase
     public LaunchSettingsPage()
     {
         InitializeComponent();
+        Loaded += (_, _) => { ViewModel.PropertyChanged += OnArtworkChanged; RefreshArtworkEditor(); };
+        Unloaded += (_, _) => ViewModel.PropertyChanged -= OnArtworkChanged;
         CloseButton.Loaded += OnMastheadLoaded;
         CloseButton.SizeChanged += OnMastheadSizeChanged;
     }
@@ -54,13 +56,23 @@ public sealed partial class LaunchSettingsPage : PageBase
 
     private string _editedArtKey = string.Empty;
 
-    public void ApplyAppearanceSettings(AppearanceSettings settings)
+    private void OnArtworkChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ViewModel.HomeArtName)) RefreshArtworkEditor();
+    }
+
+    private void RefreshArtworkEditor()
     {
         ArtworkTitleBox.IsEnabled = ViewModel.CanNameArtwork;
         SaveTitle.IsEnabled = ResetTitle.IsEnabled = ViewModel.CanNameArtwork;
         _editedArtKey = ViewModel.HomeArtKey;
-        settings.ArtworkTitles.TryGetValue(_editedArtKey, out var title);
+        ViewModel.AppearanceSettings.ArtworkTitles.TryGetValue(_editedArtKey, out var title);
         ArtworkTitleBox.Text = title?.Name ?? string.Empty;
+    }
+
+    public void ApplyAppearanceSettings(AppearanceSettings settings)
+    {
+        RefreshArtworkEditor();
         var motionMode = settings.Background.WallpaperEnginePresentation switch
         {
             WallpaperEnginePresentation.MotionBackdrop => true,

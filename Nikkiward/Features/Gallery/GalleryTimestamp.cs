@@ -15,6 +15,13 @@ namespace Nikkiward.Features.Gallery;
 /// </remarks>
 public static partial class GalleryTimestamp
 {
+    internal static string FormatHomeTime(DateTime local, DateTime today)
+    {
+        var format = local.Date == today ? "'今天' HH:mm" : local.Date == today.AddDays(-1) ? "'昨天' HH:mm" :
+            local.Year == today.Year ? "MM-dd HH:mm" : "yyyy-MM-dd";
+        return local.ToString(format, CultureInfo.InvariantCulture);
+    }
+
     /// <summary>
     /// Infinity Nikki photo mode writes <c>2025_12_06_00_26_33_394282.jpeg</c>.
     /// The trailing group is a disambiguator, not sub-second precision, so it is

@@ -312,6 +312,7 @@ public sealed partial class MainPage
 
     private void ShowProfileOverlay(FrameworkElement anchor)
     {
+        if (!HomeInteractive) return;
         if (_profileFlyout is null)
         {
             var picker = new ProfilePickerView(ViewModel);

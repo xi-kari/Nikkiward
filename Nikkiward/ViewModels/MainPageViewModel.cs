@@ -102,9 +102,6 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
 
     public string PlatformText => "Windows";
 
-    public string CurrentProfileSummary =>
-        $"{ProfileDisplayName} · {ChannelText} / {PlatformText}";
-
     public string GameRootPath => !string.IsNullOrWhiteSpace(_selectedCandidate?.GameRootPath)
         ? _selectedCandidate.GameRootPath!
         : "尚未配置";
@@ -206,9 +203,6 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         !IsBusy &&
         !_isCloseGameInProgress &&
         _activeProcessBinding is not null;
-
-    public Visibility CloseGameButtonVisibility =>
-        CanCloseGame ? Visibility.Visible : Visibility.Collapsed;
 
     public string CloseGameButtonLabel => _isCloseGameInProgress ? "正在关闭" : "关闭游戏";
 
@@ -1126,6 +1120,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
 
         var normalized = AppearanceSettingsValidator.Normalize(appearance);
         await _settingsStore.UpdateAsync(current => current with { Appearance = normalized }, cancellationToken);
+        OnPropertyChanged(nameof(HomeArtName));
         OnPropertyChanged(nameof(AppearanceSettings));
         OnPropertyChanged(nameof(ThemeMode));
     }
@@ -1751,7 +1746,6 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(PrimaryActionHelpText));
         OnPropertyChanged(nameof(PrimaryActionHintText));
         OnPropertyChanged(nameof(CanCloseGame));
-        OnPropertyChanged(nameof(CloseGameButtonVisibility));
         OnPropertyChanged(nameof(CloseGameButtonLabel));
         OnPropertyChanged(nameof(LifecycleText));
         OnPropertyChanged(nameof(ExecutionSummaryTitle));
@@ -1929,7 +1923,6 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     {
         OnPropertyChanged(nameof(ProfileDisplayName));
         OnPropertyChanged(nameof(ChannelText));
-        OnPropertyChanged(nameof(CurrentProfileSummary));
         OnPropertyChanged(nameof(PlatformText));
         OnPropertyChanged(nameof(GameRootPath));
         OnPropertyChanged(nameof(SelectedProfileId));

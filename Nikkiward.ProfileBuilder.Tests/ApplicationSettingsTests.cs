@@ -20,6 +20,8 @@ internal static class ApplicationSettingsTests
         ("language preference and default install root drive runtime consumers", LanguageAndDefaultStoreRoot),
         ("schema 6 adds application settings with a rollback copy", Schema6MigrationAddsSections),
         (nameof(OnlyReadyAllowsHomeIdle), OnlyReadyAllowsHomeIdle),
+        (nameof(WatchFollowsFirstPhotoDirectory), WatchFollowsFirstPhotoDirectory),
+        (nameof(RecentPhotoTimeUsesLocalCalendar), RecentPhotoTimeUsesLocalCalendar),
         (nameof(HomeCheckTimeUsesLocalCalendarDay), HomeCheckTimeUsesLocalCalendarDay),
         (nameof(HomeFactsNotifyAndUseActualArtwork), HomeFactsNotifyAndUseActualArtwork),
         (nameof(RecentPhotosUseFileModificationTime), RecentPhotosUseFileModificationTime),
@@ -272,6 +274,30 @@ internal static class ApplicationSettingsTests
         return Task.CompletedTask;
     }
 
+    private static Task WatchFollowsFirstPhotoDirectory()
+    {
+        using var fixture = new TemporaryFolder();
+        var saved = Path.Combine(fixture.Path, "Saved");
+        var photos = Path.Combine(saved, "GamePlayPhotos");
+        AssertEqual(new GalleryWatchTarget(fixture.Path, "Saved", false), GalleryWatchTarget.Resolve(photos), "missing ancestors");
+        Directory.CreateDirectory(saved);
+        AssertEqual(new GalleryWatchTarget(saved, "GamePlayPhotos", false), GalleryWatchTarget.Resolve(photos), "first directory created");
+        Directory.CreateDirectory(photos);
+        AssertEqual(new GalleryWatchTarget(photos, "*", true), GalleryWatchTarget.Resolve(photos), "watch captures recursively");
+        return Task.CompletedTask;
+    }
+
+    private static Task RecentPhotoTimeUsesLocalCalendar()
+    {
+        var today = new DateTime(2026, 1, 1);
+        var time = today.AddHours(19);
+        AssertEqual("今天 19:00", GalleryTimestamp.FormatHomeTime(time, today), "today");
+        AssertEqual("昨天 19:00", GalleryTimestamp.FormatHomeTime(time.AddDays(-1), today), "yesterday across years");
+        AssertEqual("01-01 19:00", GalleryTimestamp.FormatHomeTime(time, today.AddDays(2)), "same year");
+        AssertEqual("2025-12-30", GalleryTimestamp.FormatHomeTime(time.AddDays(-2), today), "previous year");
+        return Task.CompletedTask;
+    }
+
     private static Task HomeCheckTimeUsesLocalCalendarDay()
     {
         var stamp = new DateTimeOffset(2026, 11, 25, 21, 40, 30, TimeSpan.FromHours(-8));
@@ -302,7 +328,9 @@ internal static class ApplicationSettingsTests
         var settings = new AppearanceSettings().WithArtworkTitle("imported.jpg", original: "晚霞.jpg");
         await page.SaveAppearanceSettingsAsync(settings);
         AssertEqual("晚霞", page.HomeArtName, "known original filename without extension");
+        notifications.Clear();
         await page.SaveAppearanceSettingsAsync(settings.WithArtworkTitle("imported.jpg", name: "天空"));
+        Assert(notifications.Contains(nameof(page.HomeArtName)), "successful save refreshes the displayed title");
         AssertEqual("天空", page.HomeArtName, "player title wins");
         AssertEqual(page.LaunchButtonLabel, page.HomeLaunchLabel, "live state label");
         AssertEqual(page.CanAttemptSelectedChannelLaunch, page.HomeLaunchEnabled, "live action gate");
@@ -469,6 +497,7 @@ internal static class ApplicationSettingsTests
             "settings.pre-schema6.rollback.json",
             "settings.pre-schema7.rollback.json",
             "settings.pre-schema8.rollback.json",
+            "settings.pre-schema9.rollback.json",
             "JournalCache/journal-snapshot.json",
             "JournalCache/resonance-history.json",
             "PlayTime/sessions.json",

@@ -33,7 +33,7 @@
 | taskText、progress | 后台任务短句和可空的 0–100 进度。 |
 | artName、artSource、background | 画名、来源，及 {type,url,poster}；type 为 image/video，视频 poster 是静态帧地址。 |
 | theme、accent、onAccent、palette、contrastPassed | dark/light、织标底色、织标文字色、原生取色的亮/暗主题强调色数组、当前织标文字对底色的对比度是否达到 4.5。 |
-| photos、photoTotal、lastSessionPhotos | 最近照片的 id、fileName、time、thumbnail，以及可空的总数和上次游玩拍摄数。**photos 缺省时保留上次列表，空数组才清空。** |
+| photos、photoTotal、lastSessionPhotos | 最近照片的 id、fileName、time（今天 HH:mm、昨天 HH:mm、MM-dd HH:mm 或往年 yyyy-MM-dd）、thumbnail，以及可空的总数和上次游玩拍摄数。**photos 缺省时保留上次列表，空数组才清空。** |
 | checklist、tools | 清单 {completed,total,next}、工具与提醒。当前应用均给 null。 |
 | date、issue | 本机日期 YYYY-MM-DD、中文刊号。 |
 

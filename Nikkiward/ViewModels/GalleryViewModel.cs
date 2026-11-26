@@ -651,17 +651,19 @@ public sealed class GalleryPhotoItemViewModel : INotifyPropertyChanged
     /// </summary>
     public DateTime LastWriteTimeUtc { get; }
 
-    public string ModifiedText => LastWriteTimeUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+    public string ModifiedText => GalleryTimestamp.FormatHomeTime(LastWriteTimeUtc.ToLocalTime(), DateTime.Today);
+
+    public string FullModifiedText => LastWriteTimeUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
 
     public string FileSizeText => FormatBytes(FileSizeBytes);
 
-    public string MetadataText => $"{CategoryName} · {ModifiedText} · {FileSizeText}";
+    public string MetadataText => $"{CategoryName} · {FullModifiedText} · {FileSizeText}";
 
     public string HoverTimeText => LastWriteTimeUtc.ToLocalTime().ToString("HH:mm");
 
     public string AccessibleName => HasProtectedCopy
-        ? $"{FileName}，{CategoryName}，{ModifiedText}，{ProtectionStatusText}"
-        : $"{FileName}，{CategoryName}，{ModifiedText}";
+        ? $"{FileName}，{CategoryName}，{FullModifiedText}，{ProtectionStatusText}"
+        : $"{FileName}，{CategoryName}，{FullModifiedText}";
 
     public bool IsStarred => _isStarred;
 

@@ -304,19 +304,6 @@ internal static class AppearanceRuntimeContractTests
 
     private static Task StaticVisualTokensHaveOneAuthority()
     {
-        var backdrop = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Background",
-            "ArtBackdropService.cs");
-        Assert(
-            backdrop.Contains("ResolveDoubleResource", StringComparison.Ordinal) &&
-            backdrop.Contains("\"LocalScrimReferenceAlpha\"", StringComparison.Ordinal) &&
-            backdrop.Contains("required / Math.Max(0.01, reference)", StringComparison.Ordinal) &&
-            backdrop.Contains("LocalScrimMinimumFactor = 0.60", StringComparison.Ordinal) &&
-            backdrop.Contains("LocalScrimMaximumFactor = 1.40", StringComparison.Ordinal),
-            "local readability surfaces must use the runtime reference-alpha factor contract");
-
         var controls = ReadSource("Nikkiward", "Themes", "Controls.xaml");
         Assert(
             controls.Contains(

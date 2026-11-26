@@ -66,7 +66,7 @@ public sealed partial class GalleryPreviewView : UserControl
         GalleryPreviewZoomText.Text = "100%";
         GalleryInfoFileNameText.Text = photo.FileName;
         GalleryInfoCategoryText.Text = photo.CategoryName;
-        GalleryInfoMetadataText.Text = $"{photo.ModifiedText} · {photo.FileSizeText}";
+        GalleryInfoMetadataText.Text = $"{photo.FullModifiedText} · {photo.FileSizeText}";
         GalleryInfoDimensionsText.Text = "分辨率：正在读取";
         GalleryInfoUidText.Text = $"UID：{photo.UidText}";
         GalleryInfoPathText.Text = photo.RelativePath;

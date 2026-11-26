@@ -270,13 +270,6 @@ public sealed partial class MainPageViewModel
         Services.WindowsLaunchPreflightVerifier.TryGetVersionDirectoryName(
             _selectedCandidate?.Provider?.BackendExecutablePath ?? _profile?.XStarterPath);
 
-    /// <summary>
-    /// Whether the launch attempt is blocked in a way the user cannot act on
-    /// from this screen. Drives the skeleton/disabled styling.
-    /// </summary>
-    public bool IsLaunchButtonBusy =>
-        LaunchButtonState is LaunchButtonState.Checking or LaunchButtonState.Launching;
-
     private void NotifyLaunchStateChanged()
     {
         var action = _afterLaunchWindow.Observe(_activeProcessBinding, LaunchButtonState,
@@ -300,6 +293,5 @@ public sealed partial class MainPageViewModel
         OnPropertyChanged(nameof(LaunchButtonState));
         OnPropertyChanged(nameof(LaunchButtonLabel));
         OnPropertyChanged(nameof(LaunchButtonDetail));
-        OnPropertyChanged(nameof(IsLaunchButtonBusy));
     }
 }

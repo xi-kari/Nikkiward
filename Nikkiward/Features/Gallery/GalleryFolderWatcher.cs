@@ -25,6 +25,7 @@ public sealed class GalleryFolderWatcher : IDisposable
     private readonly Action _onChanged;
     private readonly Lock _gate = new();
 
+    private string? _rootPath;
     private FileSystemWatcher? _watcher;
     private DispatcherQueueTimer? _timer;
     private bool _disposed;
@@ -53,17 +54,19 @@ public sealed class GalleryFolderWatcher : IDisposable
 
             DisposeWatcher();
 
-            if (string.IsNullOrWhiteSpace(rootPath) || !Directory.Exists(rootPath))
+            _rootPath = rootPath;
+            if (string.IsNullOrWhiteSpace(rootPath))
             {
                 return;
             }
 
             try
             {
-                var watcher = new FileSystemWatcher(rootPath)
+                var target = GalleryWatchTarget.Resolve(rootPath);
+                var watcher = new FileSystemWatcher(target.DirectoryPath, target.Filter)
                 {
-                    IncludeSubdirectories = true,
-                    NotifyFilter = NotifyFilters.FileName |
+                    IncludeSubdirectories = target.Recursive,
+                    NotifyFilter = NotifyFilters.DirectoryName | NotifyFilters.FileName |
                                    NotifyFilters.Size |
                                    NotifyFilters.LastWrite,
                 };
@@ -73,8 +76,9 @@ public sealed class GalleryFolderWatcher : IDisposable
                 watcher.Deleted += OnWatcherEvent;
                 watcher.Renamed += OnWatcherEvent;
                 watcher.Error += OnWatcherError;
-                watcher.EnableRaisingEvents = true;
                 _watcher = watcher;
+                watcher.EnableRaisingEvents = true;
+                if (!target.Recursive && Directory.Exists(Path.Combine(target.DirectoryPath, target.Filter))) ScheduleReload();
             }
             catch (Exception ex) when (ex is ArgumentException
                 or IOException
@@ -94,7 +98,7 @@ public sealed class GalleryFolderWatcher : IDisposable
         // unhandled, so the body stays trivial and the real work is dispatched.
         try
         {
-            if (!IsRelevant(e))
+            if (sender is FileSystemWatcher { IncludeSubdirectories: true } && !IsRelevant(e))
             {
                 return;
             }
@@ -165,6 +169,8 @@ public sealed class GalleryFolderWatcher : IDisposable
 
             try
             {
+                if (_watcher is { } watcher && (!watcher.IncludeSubdirectories || !Directory.Exists(watcher.Path)))
+                    Watch(_rootPath);
                 _onChanged();
             }
             catch (Exception)

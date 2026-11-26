@@ -14,7 +14,6 @@
         <Setter Property="VerticalContentAlignment" Value="Stretch" />
         <Setter Property="IslandCornerRadius" Value="{StaticResource RadiusIsland}" />
         <Setter Property="IslandPadding" Value="{ThemeResource IslandPaddingThickness}" />
-        <Setter Property="LocalScrimOpacity" Value="1" />
         <Setter Property="Background" Value="{ThemeResource GlassIslandBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource IslandEdgeHighlightBrush}" />
 
@@ -55,12 +54,6 @@
                             <Border
                                 x:Name="IslandTint"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="{TemplateBinding IslandCornerRadius}"
-                                IsHitTestVisible="False" />
-
-                            <Border
-                                x:Name="IslandLocalScrim"
-                                Background="{TemplateBinding LocalScrimBrush}"
                                 CornerRadius="{TemplateBinding IslandCornerRadius}"
                                 IsHitTestVisible="False" />
 

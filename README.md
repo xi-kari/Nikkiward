@@ -90,7 +90,7 @@ Get-FileHash .\Nikkiward-Setup-win-x64.exe -Algorithm SHA256
 
 - 在设置的「外观 → 首页样式」可选择已安装的首页设计。「熄灯放映」从底部展签切换档案、查看启动检查，最近拍摄可直接打开相册预览。
 - 背景来源:两张内置原画「花信」「海月」、你自己的静态图片、视频,以及 Wallpaper Engine 场景包(`.pkg`)。
-- 「高定画册」由网页绘制背景。视频不可播放时显示静态帧，Wallpaper Engine 场景显示预览图或已捕获的静态帧。两者均不可用时显示内置封面。
+- 五套首页皮肤都由网页绘制背景。视频不可播放时显示静态帧，Wallpaper Engine 场景显示预览图或已捕获的静态帧。两者均不可用时显示内置封面。
 - 视频背景始终静音、无缝循环;能否播放取决于系统已安装的解码器,最高接受 8K(7680×4320)输入。
 - Wallpaper Engine 场景要求你已自行安装桌面版 Wallpaper Engine(Steam 版),Nikkiward 不捆绑、不代下载:scene 类型以窗口捕获方式投影(上限 1600×900、30 帧);video 类型取其中的媒体文件,走 Nikkiward 自己的视频管线;web 与 application 类型只能取预览图作静态卡片。
 - 界面随画面自适应:自动取色、明暗判定与文字保护遮罩都有对比度闸门,推导不达标时回退到固定品牌色;省电模式、远程桌面、系统关闭透明效果或检测到持续掉帧时,玻璃效果与动态背景自动降级,把流畅让给正在运行的游戏。
@@ -168,6 +168,8 @@ Get-FileHash .\Nikkiward-Setup-win-x64.exe -Algorithm SHA256
 详见 [PRIVACY.md](PRIVACY.md)、[SECURITY.md](SECURITY.md)、[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) 与 [LICENSE](LICENSE);安全问题请按安全策略通过 GitHub 私密报告提交,不要发公开 Issue。
 
 ## 本地构建
+
+首页开发与状态契约见[网页皮肤开发说明](build/WebHomeSkins.md)。
 
 环境要求:Windows 10 1809 及以上(x64)、.NET SDK 10、支持 WinUI 3 / Windows App SDK 的 Visual Studio Build Tools。命令与 [贡献指南](.github/CONTRIBUTING.md) 一致(测试命令与 CI 完全相同,应用构建 CI 上用 Release 配置、本地用 Debug 即可);测试是 `dotnet run` 驱动的自研控制台宿主,不使用 `dotnet test`:
 

@@ -215,43 +215,25 @@ public sealed partial class MainPage
         bool profilePickerOpen = _profileFlyout?.IsOpen == true;
         bool pageOpen = contentOpen && !launcherOpen;
 
-        bool blockingOverlayOpen =
-            StatusDrawer.Visibility == Visibility.Visible ||
-            LaunchSettingsFrame.Visibility == Visibility.Visible;
-        bool overlayOpen = blockingOverlayOpen || profilePickerOpen;
-        bool launcherSurfaceVisible =
-            launcherOpen &&
-            !blockingOverlayOpen &&
-            !profilePickerOpen;
-        bool launcherSurfaceInteractive =
-            launcherOpen &&
-            !overlayOpen &&
-            !profilePickerOpen;
-
+        Frame? modal = LaunchSettingsFrame.Visibility == Visibility.Visible ? LaunchSettingsFrame :
+            StatusDrawer.Visibility == Visibility.Visible ? StatusFrame : null;
+        bool overlayOpen = modal != null || profilePickerOpen;
+        bool launcherSurfaceInteractive = launcherOpen && !overlayOpen;
+        SyncModalFocus(modal);
         if (HomeInteractive != launcherSurfaceInteractive)
         {
-            if (_hostedLauncherPage?.WebHome != null && blockingOverlayOpen)
-            {
-                var overlay = LaunchSettingsFrame.Visibility == Visibility.Visible ? LaunchSettingsFrame : StatusFrame;
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    if (overlay.IsLoaded && !HomeInteractive)
-                        (FocusManager.FindFirstFocusableElement(overlay) as UIElement)?.Focus(FocusState.Programmatic);
-                });
-            }
             HomeInteractive = launcherSurfaceInteractive;
             HomeInteractionChanged?.Invoke(this, EventArgs.Empty);
         }
         bool webCover = launcherOpen && _hostedLauncherPage?.WebHome?.CoverVisible == true;
         LauncherBackground.SetLauncherSurfaceState(
-            launcherSurfaceVisible && !webCover,
+            launcherOpen && !webCover,
             launcherSurfaceInteractive, webCover);
         LauncherBackground.Visibility = Visible(!webCover);
 
         bool webHome = launcherOpen && _hostedLauncherPage?.WebHome != null;
-        ContentFrame.Margin = !webHome && _homeSkin?.LeftEdge == true ? new Thickness(90, 0, 0, 0) : default;
+        ContentFrame.Margin = !webHome && _homeSkin?.LeftEdge == true ? new Thickness(90, 0, 0, 0) : pageOpen ? new Thickness(0, 48, 0, 0) : default;
         ShellNavigation.Visibility = Visible(!webHome);
-        OnArtScrim.Visibility = Visible(!webHome || overlayOpen);
         PageHostBackdrop.Visibility = Visible(pageOpen);
 
         if (_hostedLauncherPage is { } launcherPage)
@@ -264,6 +246,31 @@ public sealed partial class MainPage
 
         static Visibility Visible(bool value) =>
             value ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private Frame? _modalFrame;
+    private UIElement? _focusBeforeModal;
+
+    private void SyncModalFocus(Frame? modal)
+    {
+        if (modal == _modalFrame) return;
+        if (_modalFrame == null && XamlRoot != null)
+            _focusBeforeModal = FocusManager.GetFocusedElement(XamlRoot) as UIElement;
+        _modalFrame = modal;
+        ContentFrame.IsEnabled = ShellNavigation.IsEnabled = modal == null;
+        StatusFrame.IsEnabled = modal == StatusFrame;
+        LaunchSettingsFrame.IsEnabled = modal == LaunchSettingsFrame;
+        if (modal != null)
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (_modalFrame == modal)
+                    (FocusManager.FindFirstFocusableElement(modal) as UIElement)?.Focus(FocusState.Programmatic);
+            });
+        else
+        {
+            if (_focusBeforeModal is FrameworkElement { IsLoaded: true } trigger) trigger.Focus(FocusState.Programmatic);
+            _focusBeforeModal = null;
+        }
     }
 
     private void RefreshOnArtSurfaceRegistration()
@@ -296,20 +303,7 @@ public sealed partial class MainPage
             StatusDrawer.RequestedTheme = ElementTheme.Default;
         }
 
-        _backdrop.AttachOnArtSurface(OnArtScrim, hosts.ToArray());
-        ApplyOnArtScrimTheme();
-    }
-
-    private void ApplyOnArtScrimTheme()
-    {
-        OnArtScrim.RequestedTheme = ViewModel.ThemeMode switch
-        {
-            ThemeMode.WarmLight => ElementTheme.Light,
-            ThemeMode.WarmDark => ElementTheme.Dark,
-            _ => _backdrop.PreferredTheme == ArtPreferredTheme.Dark
-                ? ElementTheme.Dark
-                : ElementTheme.Light,
-        };
+        _backdrop.AttachOnArtSurface(hosts.ToArray());
     }
 
     /// <summary>

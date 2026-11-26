@@ -354,7 +354,6 @@ public sealed partial class MainPage
                 ApplyAccentForActualTheme();
             }
 
-            ApplyOnArtScrimTheme();
             App.MainWindow.ApplyCaptionButtonPolarity(analysis.PreferredTheme);
 
             return true;

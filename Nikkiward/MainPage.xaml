@@ -45,45 +45,6 @@
             HorizontalAlignment="Stretch"
             VerticalAlignment="Stretch" />
 
-        <Grid
-            x:Name="OnArtScrim"
-            IsHitTestVisible="False"
-            Opacity="0.22"
-            RequestedTheme="Dark">
-
-            <Rectangle
-                Fill="{ThemeResource OnArtScrimBrush}"
-                IsHitTestVisible="False"
-                Opacity="0.34" />
-
-            <Rectangle
-                Width="220"
-                HorizontalAlignment="Right"
-                IsHitTestVisible="False">
-                <Rectangle.Fill>
-                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                        <GradientStop Offset="0" Color="{ThemeResource OnArtScrimTransparentColor}" />
-                        <GradientStop Offset="0.7" Color="{ThemeResource OnArtScrimColor}" />
-                        <GradientStop Offset="1" Color="{ThemeResource OnArtScrimColor}" />
-                    </LinearGradientBrush>
-                </Rectangle.Fill>
-            </Rectangle>
-
-            <Rectangle
-                Height="200"
-                Margin="0"
-                VerticalAlignment="Bottom"
-                IsHitTestVisible="False">
-                <Rectangle.Fill>
-                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                        <GradientStop Offset="0" Color="{ThemeResource OnArtScrimTransparentColor}" />
-                        <GradientStop Offset="0.62" Color="{ThemeResource OnArtScrimColor}" />
-                        <GradientStop Offset="1" Color="{ThemeResource OnArtScrimColor}" />
-                    </LinearGradientBrush>
-                </Rectangle.Fill>
-            </Rectangle>
-        </Grid>
-
         <Border
             x:Name="PageHostBackdrop"
             Margin="0"
@@ -122,7 +83,7 @@
             Translation="0,0,32"
             Visibility="Collapsed">
             <Frame
-                x:Name="StatusFrame"
+                x:Name="StatusFrame" TabFocusNavigation="Cycle"
                 Background="Transparent"
                 IsNavigationStackEnabled="False" />
         </Border>
@@ -136,7 +97,7 @@
             Visibility="Collapsed" />
 
         <Frame
-            x:Name="LaunchSettingsFrame"
+            x:Name="LaunchSettingsFrame" TabFocusNavigation="Cycle"
             MaxWidth="1120"
             MaxHeight="690"
             Margin="24,60,24,24"

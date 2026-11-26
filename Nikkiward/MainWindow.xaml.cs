@@ -92,6 +92,8 @@ public sealed partial class MainWindow : Window
             presenter.IsResizable = true;
         }
 
+        AppWindow.Changed += OnWindowMetricsChanged;
+        RootFrame.Loaded += (_, _) => RootFrame.XamlRoot.Changed += OnRootMetricsChanged;
         RootFrame.Navigate(typeof(MainPage));
         if (RootFrame.Content is MainPage mainPage)
         {
@@ -231,11 +233,16 @@ public sealed partial class MainWindow : Window
             _mainPage.ViewModel.AfterLaunchWindowRequested -= OnAfterLaunchWindowRequested;
         }
 
+        AppWindow.Changed -= OnWindowMetricsChanged;
+        if (RootFrame.XamlRoot is { } root) root.Changed -= OnRootMetricsChanged;
         _nativeWindowRuntime.ShowWindowRequested -= OnNativeShowWindowRequested;
         _nativeWindowRuntime.ExitRequested -= OnNativeExitRequested;
         _nativeWindowRuntime.ScreenshotRequested -= OnNativeScreenshotRequested;
         _nativeWindowRuntime.Dispose();
     }
+
+    private void OnWindowMetricsChanged(AppWindow sender, AppWindowChangedEventArgs args) => UpdateTitleBarPassthroughRegion();
+    private void OnRootMetricsChanged(XamlRoot sender, XamlRootChangedEventArgs args) => UpdateTitleBarPassthroughRegion();
 
     private void OnTitleBarPassthroughChanged(object? sender, EventArgs e)
     {
@@ -255,11 +262,13 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void UpdateTitleBarPassthroughRegion()
     {
-        if (_nonClientPointerSource is null || _mainPage is null)
+        if (_nonClientPointerSource is null || _mainPage?.XamlRoot is not { } root)
         {
             return;
         }
 
+        int inset = CaptionWidth(root.RasterizationScale);
+        _mainPage.SetCaptionInset(inset / root.RasterizationScale);
         var rects = new List<RectInt32>();
         foreach (var region in _mainPage.TitleBarPassthroughRegions)
         {
@@ -278,6 +287,8 @@ public sealed partial class MainWindow : Window
                     0,
                     region.ActualWidth,
                     region.ActualHeight));
+            bounds = _mainPage.ClipNavigationBounds(region, bounds);
+            if (bounds.IsEmpty) continue;
             var left = checked((int)Math.Floor(bounds.X * scale));
             var top = checked((int)Math.Floor(bounds.Y * scale));
             var right = checked((int)Math.Ceiling((bounds.X + bounds.Width) * scale));
@@ -285,7 +296,7 @@ public sealed partial class MainWindow : Window
             left = Math.Max(0, left);
             right = Math.Min(right, AppWindow.ClientSize.Width);
             if (top < TitleBarStripHeight * scale)
-                right = Math.Min(right, AppWindow.ClientSize.Width - AppWindow.TitleBar.RightInset);
+                right = Math.Min(right, AppWindow.ClientSize.Width - inset);
             if (right <= left || bottom <= top)
             {
                 continue;
@@ -301,10 +312,12 @@ public sealed partial class MainWindow : Window
         UpdateCaptionRegion(rects);
     }
 
-    /// <summary>
-    /// Declares the draggable strip around the navigation rail, caption
-    /// buttons, and page-owned interactive regions.
-    /// </summary>
+    private int CaptionWidth(double scale)
+    {
+        var inset = AppWindow.TitleBar.RightInset;
+        return inset > 0 ? inset : checked((int)Math.Ceiling(CaptionButtonsWidth * scale));
+    }
+
     private void UpdateCaptionRegion(List<RectInt32> passthrough)
     {
         if (_nonClientPointerSource is null || _mainPage?.XamlRoot is null)
@@ -316,8 +329,7 @@ public sealed partial class MainWindow : Window
         var stripHeight = checked((int)Math.Ceiling(TitleBarStripHeight * scale));
         const int leftReserve = 0;
         var windowWidth = AppWindow.ClientSize.Width;
-        var captionWidth = AppWindow.TitleBar.RightInset;
-        if (captionWidth == 0) captionWidth = checked((int)Math.Ceiling(CaptionButtonsWidth * scale));
+        var captionWidth = CaptionWidth(scale);
         var right = Math.Max(leftReserve, windowWidth - captionWidth);
         if (right <= leftReserve)
         {

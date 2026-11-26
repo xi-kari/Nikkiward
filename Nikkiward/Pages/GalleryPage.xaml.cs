@@ -169,7 +169,8 @@ public sealed partial class GalleryPage : PageBase
                 {
                     var item = ViewModel.Photos.FirstOrDefault(p => p.AnnotationScopeId == photo.AnnotationScopeId &&
                         string.Equals(p.RelativePath, photo.RelativePath, StringComparison.OrdinalIgnoreCase));
-                    if (item != null && File.Exists(item.FilePath)) ShowGalleryPreviewAt(ViewModel.Photos.IndexOf(item));
+                    if (item != null) await ShowGalleryPhotoAsync(item);
+                    else await ShowDialogAsync("图片预览失败", "原照片已不在当前相册。");
                 }
                 _folderWatcher.Watch(ViewModel.WatchableRootPath);
             }

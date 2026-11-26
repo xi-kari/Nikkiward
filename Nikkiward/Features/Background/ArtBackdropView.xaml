@@ -45,7 +45,6 @@
                 Opacity="0"
                 Stretch="UniformToFill" />
 
-            <Grid x:Name="ArtVignette" Background="{ThemeResource ArtVignetteBrush}" />
 
             <Border
                 x:Name="ArtSharpHost"

@@ -26,13 +26,6 @@
             </LinearGradientBrush>
 
             <!-- Warm alpha-only vignette over outfit art. -->
-            <LinearGradientBrush x:Key="ArtVignetteBrush"
-                                 StartPoint="0.5,0"
-                                 EndPoint="0.5,1">
-                <GradientStop Offset="0" Color="#00241E1B" />
-                <GradientStop Offset="0.55" Color="#14241E1B" />
-                <GradientStop Offset="1" Color="#59241E1B" />
-            </LinearGradientBrush>
 
             <!-- Flat scrim for text protection over art. -->
             <SolidColorBrush x:Key="ScrimOverlayBrush" Color="#33000000" />
@@ -70,13 +63,6 @@
                 <GradientStop Offset="1" Color="#40000000" />
             </LinearGradientBrush>
 
-            <LinearGradientBrush x:Key="ArtVignetteBrush"
-                                 StartPoint="0.5,0"
-                                 EndPoint="0.5,1">
-                <GradientStop Offset="0" Color="#00241E1B" />
-                <GradientStop Offset="0.55" Color="#26241E1B" />
-                <GradientStop Offset="1" Color="#73241E1B" />
-            </LinearGradientBrush>
 
             <SolidColorBrush x:Key="ScrimOverlayBrush" Color="#4D000000" />
 
@@ -104,7 +90,6 @@
             <SolidColorBrush x:Key="PaperGlassStrongBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="IslandInnerRingBrush" Color="Transparent" />
             <SolidColorBrush x:Key="IslandEdgeHighlightBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
-            <SolidColorBrush x:Key="ArtVignetteBrush" Color="{ThemeResource SystemColorWindowColor}" Opacity="0.7" />
             <SolidColorBrush x:Key="ScrimOverlayBrush" Color="{ThemeResource SystemColorWindowColor}" Opacity="0.7" />
             <SolidColorBrush x:Key="ArtVignetteStrongBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <StaticResource x:Key="ArtHeroShadeDeepColor" ResourceKey="SystemColorWindowColor" />
@@ -123,7 +108,6 @@
     <x:Double x:Key="GlassSaturation">1.22</x:Double>
     <x:Double x:Key="GlassBrightness">1.04</x:Double>
     <x:Double x:Key="MotionScrimFloor">0.28</x:Double>
-    <x:Double x:Key="LocalScrimReferenceAlpha">0.34</x:Double>
 
     <SolidColorBrush x:Key="DrawerMaskBrush" Color="#72241E1B" />
     <SolidColorBrush x:Key="LaunchSettingsMaskBrush" Color="#66241E1B" />

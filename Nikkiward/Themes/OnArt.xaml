@@ -16,20 +16,6 @@
             <!-- Warm near white wash. Element Opacity carries the strength. -->
             <SolidColorBrush x:Key="OnArtScrimBrush" Color="#FFFDFAF5" />
 
-            <LinearGradientBrush x:Key="LocalScrimBottomBrush" StartPoint="0.5,0" EndPoint="0.5,1">
-                <GradientStop Offset="0" Color="#00FDFAF5" />
-                <GradientStop Offset="0.45" Color="#42FDFAF5" />
-                <GradientStop Offset="1" Color="#B8FDFAF5" />
-            </LinearGradientBrush>
-            <LinearGradientBrush x:Key="LocalScrimTopBrush" StartPoint="0.5,0" EndPoint="0.5,1">
-                <GradientStop Offset="0" Color="#A8FDFAF5" />
-                <GradientStop Offset="0.55" Color="#38FDFAF5" />
-                <GradientStop Offset="1" Color="#00FDFAF5" />
-            </LinearGradientBrush>
-            <RadialGradientBrush x:Key="LocalScrimRadialBrush" Center="0.5,0.5" RadiusX="0.72" RadiusY="0.72">
-                <GradientStop Offset="0" Color="#00FDFAF5" />
-                <GradientStop Offset="1" Color="#9CFDFAF5" />
-            </RadialGradientBrush>
 
             <!-- Gradient endpoints share RGB so interpolation changes alpha only. -->
             <Color x:Key="OnArtScrimColor">#FFFDFAF5</Color>
@@ -72,20 +58,6 @@
 
             <SolidColorBrush x:Key="OnArtScrimBrush" Color="#FF241E1B" />
 
-            <LinearGradientBrush x:Key="LocalScrimBottomBrush" StartPoint="0.5,0" EndPoint="0.5,1">
-                <GradientStop Offset="0" Color="#00241E1B" />
-                <GradientStop Offset="0.45" Color="#42241E1B" />
-                <GradientStop Offset="1" Color="#B8241E1B" />
-            </LinearGradientBrush>
-            <LinearGradientBrush x:Key="LocalScrimTopBrush" StartPoint="0.5,0" EndPoint="0.5,1">
-                <GradientStop Offset="0" Color="#A8241E1B" />
-                <GradientStop Offset="0.55" Color="#38241E1B" />
-                <GradientStop Offset="1" Color="#00241E1B" />
-            </LinearGradientBrush>
-            <RadialGradientBrush x:Key="LocalScrimRadialBrush" Center="0.5,0.5" RadiusX="0.72" RadiusY="0.72">
-                <GradientStop Offset="0" Color="#00241E1B" />
-                <GradientStop Offset="1" Color="#9C241E1B" />
-            </RadialGradientBrush>
 
             <Color x:Key="OnArtScrimColor">#FF241E1B</Color>
             <Color x:Key="OnArtScrimTransparentColor">#00241E1B</Color>
@@ -125,9 +97,6 @@
             <SolidColorBrush x:Key="OnArtTertiaryTextBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
 
             <SolidColorBrush x:Key="OnArtScrimBrush" Color="{ThemeResource SystemColorWindowColor}" />
-            <SolidColorBrush x:Key="LocalScrimBottomBrush" Color="Transparent" />
-            <SolidColorBrush x:Key="LocalScrimTopBrush" Color="Transparent" />
-            <SolidColorBrush x:Key="LocalScrimRadialBrush" Color="Transparent" />
 
             <!-- The edge scrim is redundant over opaque high-contrast plates. -->
             <Color x:Key="OnArtScrimColor">#00000000</Color>
@@ -154,7 +123,6 @@
 
     </ResourceDictionary.ThemeDictionaries>
 
-    <StaticResource x:Key="OnArtBadgeFillBrush" ResourceKey="DerivedAccentBrush" />
     <StaticResource x:Key="OnArtStatusIndicatorBrush" ResourceKey="AccentMintBrush" />
 
 </ResourceDictionary>

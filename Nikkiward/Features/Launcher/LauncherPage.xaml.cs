@@ -71,17 +71,24 @@ public sealed partial class LauncherPage : PageBase
         if (_watcher == null) return;
         ViewModel.PropertyChanged -= OnModelChanged;
         _scan?.Cancel();
-        _watcher?.Dispose();
+        _watcher.Dispose();
         _watcher = null;
         _scope = null;
         RecentPhotos.Clear();
         ReleaseSkin();
     }
 
+    private DateTime _photosDay = DateTime.Today;
+
     private void OnModelChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(ViewModel.GalleryRootPath) or nameof(ViewModel.SelectedProfileId) or nameof(ViewModel.GameRootPath))
             RefreshRecentPhotos();
+        else if (e.PropertyName == nameof(ViewModel.HomeCheckTime) && _photosDay != DateTime.Today)
+        {
+            _photosDay = DateTime.Today;
+            RefreshRecentPhotos(force: true);
+        }
     }
 
     private async void RefreshRecentPhotos(bool force = false)

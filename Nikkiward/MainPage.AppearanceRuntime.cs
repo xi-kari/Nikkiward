@@ -15,7 +15,6 @@ public sealed partial class MainPage
 
     private void ApplyAppearanceSettings(AppearanceSettings settings)
     {
-        ViewModel.ShowArtwork(ViewModel.HomeArtKey);
         ApplyHomeSkin(settings.HomeSkin);
         ApplyThemeMode(settings.ThemeMode);
         if (settings.AccentMode == AccentColorMode.Fixed)
