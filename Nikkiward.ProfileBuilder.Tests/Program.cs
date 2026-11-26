@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Microsoft.Win32;
 using Nikkiward.Models;
 using Nikkiward.Services;
 
@@ -72,7 +73,8 @@ internal static class Program
             .Concat(AboutSettingsContractTests.All)
             .ToArray();
 
-        if (args.Contains("--current-machine", StringComparer.Ordinal))
+        var currentMachine = args.Contains("--current-machine", StringComparer.Ordinal);
+        if (currentMachine)
         {
             tests = tests
                 .Append(("current machine discovery remains fail-closed", TestCurrentMachine))
@@ -81,12 +83,13 @@ internal static class Program
                 .ToArray();
         }
 
-        return await RunAsync(tests).ConfigureAwait(false);
+        return await RunAsync(tests, reportSkipped: currentMachine).ConfigureAwait(false);
     }
 
-    private static async Task<int> RunAsync((string Name, Func<Task> Run)[] tests)
+    private static async Task<int> RunAsync((string Name, Func<Task> Run)[] tests, bool reportSkipped = false)
     {
-        var failures = new List<string>();
+        var failed = 0;
+        var skipped = 0;
         foreach (var test in tests)
         {
             try
@@ -94,16 +97,24 @@ internal static class Program
                 await test.Run().ConfigureAwait(false);
                 Console.WriteLine($"PASS {test.Name}");
             }
+            catch (TestSkippedException ex)
+            {
+                skipped++;
+                Console.WriteLine($"SKIP {test.Name}: {ex.Message}");
+            }
             catch (Exception ex)
             {
-                failures.Add($"FAIL {test.Name}: {ex.Message}");
-                Console.WriteLine(failures[^1]);
+                failed++;
+                Console.WriteLine($"FAIL {test.Name}: {ex.Message}");
             }
         }
 
-        Console.WriteLine($"RESULT total={tests.Length} passed={tests.Length - failures.Count} failed={failures.Count}");
-        return failures.Count == 0 ? 0 : 1;
+        var skipSummary = reportSkipped || skipped > 0 ? $" skipped={skipped}" : string.Empty;
+        Console.WriteLine($"RESULT total={tests.Length} passed={tests.Length - failed - skipped} failed={failed}{skipSummary}");
+        return failed == 0 ? 0 : 1;
     }
+
+    private sealed class TestSkippedException(string reason) : Exception(reason) { }
 
     private static Task TestConfigReader()
     {
@@ -543,7 +554,7 @@ internal static class Program
         Assert(result.Plan is null, "an unsigned artifact must not expose a launch plan");
     }
 
-    private static async Task TestCurrentMachine()
+    private static async Task<InstallationProfileCandidate> GetCurrentCnCandidateAsync()
     {
         var builder = new WindowsInstallationProfileBuilder();
         var result = await builder.BuildAsync(new ProfileBuildRequest
@@ -552,35 +563,66 @@ internal static class Program
         });
 
         Assert(result.Candidates.Count > 0, "current machine should produce a diagnostic candidate or an explicit failure");
-        var cn = result.Candidates.FirstOrDefault(candidate => candidate.Provider is not null);
-        Assert(cn is not null, "current CN installation should produce a provider candidate");
-        AssertEqual(
-            @"C:\InfinityNikki Launcher",
-            cn!.Provider!.WorkingDirectory,
-            "current CN working directory");
-        Assert(
-            Regex.IsMatch(
-                cn.Provider.BackendExecutablePath,
-                @"^C:\\InfinityNikki Launcher\\\d+\.\d+\.\d+\\xstarter\.exe$"),
-            $"current CN backend path must be a versioned xstarter under the launcher root, got {cn.Provider.BackendExecutablePath}");
-        Assert(
-            result.Candidates.All(candidate => candidate.Provider is null ||
-                candidate.Provider.ArgumentList.SequenceEqual(["-skiplauncher"])),
-            "current machine provider arguments must remain fixed");
+        if (result.Candidates is [{ State: InstallationCandidateState.NotFound, Provider: null,
+            FailureCode: ProfileBuildFailureCode.LauncherRootNotFound or ProfileBuildFailureCode.GameRootNotFound } missing])
+        {
+            var roots = new WindowsInstallationPathSource().GetOfficialLauncherRootCandidates();
+            var config = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "InfinityNikki Launcher", "config.ini");
+            var gameDirectory = LauncherConfigReader.TryReadGameDirectory(config);
+            Assert(!HasCnGameFiles(gameDirectory) && !roots.Any(root => HasCnGameFiles(Path.Combine(root, "InfinityNikki"))),
+                $"CN discovery reported {missing.FailureCode} with game files on disk");
+            if (missing.FailureCode == ProfileBuildFailureCode.LauncherRootNotFound)
+            {
+                Assert(!roots.Any(root => File.Exists(Path.Combine(root, "launcher.exe"))),
+                    "CN discovery missed an installed launcher");
+            }
+
+            throw new TestSkippedException($"no official CN installation found ({missing.FailureCode})");
+        }
+
+        var candidate = result.SelectableCandidate;
+        Assert(candidate?.Provider is not null,
+            $"current CN installation should produce a selectable provider: {string.Join(", ", result.Candidates.Select(item => item.FailureCode))}");
+        AssertEqual(1, result.Candidates.Count(item => item.Provider is not null), "current CN provider count");
+        return candidate!;
+    }
+
+    private static bool HasCnGameFiles(string? directory) => directory is not null &&
+        (File.Exists(Path.Combine(directory, "InfinityNikki.exe")) || File.Exists(Path.Combine(directory, "product.db")));
+
+    private static void AssertCurrentXStarter(string launcherRoot, string executable)
+    {
+        Assert(Path.IsPathFullyQualified(launcherRoot) && File.Exists(Path.Combine(launcherRoot, "launcher.exe")),
+            $"expected launcher.exe in launcher working directory '{launcherRoot}'");
+        var backends = new DirectoryInfo(launcherRoot).EnumerateDirectories()
+            .Where(directory => Regex.IsMatch(directory.Name, @"^\d+\.\d+\.\d+$"))
+            .Select(directory => (Path: Path.Combine(directory.FullName, "xstarter.exe"),
+                Version: Version.TryParse(directory.Name, out var version) ? version : null))
+            .Where(backend => backend.Version is not null && File.Exists(backend.Path))
+            .ToArray();
+        var highest = backends.Max(backend => backend.Version);
+        Assert(backends.Any(backend => backend.Version == highest &&
+            string.Equals(backend.Path, executable, StringComparison.OrdinalIgnoreCase)),
+            $"expected xstarter.exe in the highest installed version ({highest}) under '{launcherRoot}', got '{executable}'");
+    }
+
+    private static async Task TestCurrentMachine()
+    {
+        var candidate = await GetCurrentCnCandidateAsync();
+        var provider = candidate.Provider!;
+        AssertEqual(InstallationCandidateState.ReadyForStaticVerification, candidate.State, "current CN state");
+        AssertEqual(candidate.LauncherRootPath, provider.WorkingDirectory, "current CN working directory");
+        AssertCurrentXStarter(provider.WorkingDirectory, provider.BackendExecutablePath);
+        Assert(provider.ArgumentList.SequenceEqual(["-skiplauncher"]), "current machine provider arguments must remain fixed");
+        Assert(!provider.ExecutionEnabled, "discovery must keep execution disabled");
     }
 
     private static async Task TestCurrentMachinePreflight()
     {
-        var builder = new WindowsInstallationProfileBuilder();
-        var discovered = await builder.BuildAsync(new ProfileBuildRequest
-        {
-            Channel = DistributionChannel.Official,
-        });
-        var candidate = discovered.SelectableCandidate;
-        Assert(candidate is not null, "current CN candidate required for preflight");
-
+        var candidate = await GetCurrentCnCandidateAsync();
         var verifier = new WindowsLaunchPreflightVerifier();
-        var result = await verifier.VerifyAsync(candidate!);
+        var result = await verifier.VerifyAsync(candidate);
         Assert(result.StaticIdentityPassed, result.FailureDetail ?? "static preflight should pass");
         Assert(!result.ExecutionAllowed, "execution must remain disabled by contract");
         AssertEqual(LaunchPreflightFailureCode.ExecutionGateClosed, result.FailureCode, "execution gate code");
@@ -589,27 +631,98 @@ internal static class Program
 
     private static async Task TestCurrentSteamInstall()
     {
+        const string manifestName = "appmanifest_3164330.acf";
+        var manifestPaths = new WindowsInstallationPathSource().GetSteamRootCandidates()
+            .SelectMany(GetSteamLibraryRoots)
+            .Select(root => Path.GetFullPath(Path.Combine(root, "steamapps", manifestName)))
+            .Concat(GetRegisteredSteamManifestPaths(manifestName))
+            .Where(File.Exists)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var builder = new WindowsInstallationProfileBuilder();
         var result = await builder.BuildAsync(new ProfileBuildRequest
         {
             Channel = DistributionChannel.Steam,
         });
-        var installation = result.Candidates.FirstOrDefault(candidate =>
-            candidate.SteamManifest?.ManifestPath.EndsWith(
-                @"steamapps\appmanifest_3164330.acf",
-                StringComparison.OrdinalIgnoreCase) == true);
-        Assert(installation is not null, "current Steam manifest should be discovered");
-        AssertEqual(InstallationCandidateState.Candidate, installation!.State, "current Steam install state");
+        Assert(result.Candidates.Count > 0, "Steam discovery should produce a candidate or an explicit failure");
+        Assert(result.Candidates.All(candidate => candidate.Provider is null), "Steam discovery must not create an unverified provider");
+        if (manifestPaths.Count == 0 && result.Candidates.All(candidate =>
+            candidate is { SteamManifest: null, FailureCode: ProfileBuildFailureCode.SteamManifestMissing,
+                State: InstallationCandidateState.NotFound or InstallationCandidateState.Incomplete } &&
+            !File.Exists(candidate.Profile?.LauncherPath) && !File.Exists(candidate.Profile?.GameExecutablePath)))
+        {
+            throw new TestSkippedException($"no {manifestName} found in the local Steam libraries");
+        }
+
+        var installations = result.Candidates.Where(candidate => candidate.SteamManifest is not null).ToArray();
+        var discoveredPaths = installations.Select(candidate => candidate.SteamManifest!.ManifestPath);
+        Assert(installations.Length > 0 && manifestPaths.SetEquals(discoveredPaths),
+            $"current Steam manifests on disk [{string.Join(", ", manifestPaths)}], discovered [{string.Join(", ", discoveredPaths)}]");
+        foreach (var installation in installations)
+        {
+            AssertCurrentSteamPlan(installation);
+        }
+    }
+
+    private static IEnumerable<string> GetRegisteredSteamManifestPaths(string manifestName)
+    {
+        const string uninstallKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 3164330";
+        foreach (var view in new[] { RegistryView.Registry32, RegistryView.Registry64 })
+        {
+            using var machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view);
+            using var app = machine.OpenSubKey(uninstallKey);
+            if (app?.GetValue("InstallLocation") is string path && Path.IsPathFullyQualified(path) &&
+                new DirectoryInfo(path).Parent is { Parent: { } steamApps } common &&
+                common.Name.Equals("common", StringComparison.OrdinalIgnoreCase) &&
+                steamApps.Name.Equals("steamapps", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return Path.Combine(steamApps.FullName, manifestName);
+            }
+        }
+    }
+
+    private static IEnumerable<string> GetSteamLibraryRoots(string steamRoot)
+    {
+        var libraryFolders = Path.Combine(steamRoot, "steamapps", "libraryfolders.vdf");
+        return File.Exists(libraryFolders)
+            ? ReadSteamFields(libraryFolders)["path"].Where(Path.IsPathFullyQualified).Prepend(steamRoot)
+            : [steamRoot];
+    }
+
+    private static ILookup<string, string> ReadSteamFields(string path)
+    {
+        const string fields = """
+            //[^\r\n]* |
+            "(?<key>(?:\\.|[^"\\])*)"
+            (?:(?:\s|//[^\r\n]*)* "(?<value>(?:\\.|[^"\\])*)")?
+            """;
+        return Regex.Matches(File.ReadAllText(path), fields, RegexOptions.IgnorePatternWhitespace)
+            .Where(match => match.Groups["value"].Success)
+            .ToLookup(match => match.Groups["key"].Value,
+                match => match.Groups["value"].Value.Replace(@"\\", @"\"), StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static void AssertCurrentSteamPlan(InstallationProfileCandidate installation)
+    {
+        AssertEqual(InstallationCandidateState.Candidate, installation.State, "current Steam install state");
         AssertEqual(
             ProfileBuildFailureCode.ProviderContractUnavailable,
             installation.FailureCode,
             "current Steam provider failure code");
-        Assert(installation.Provider is null, "current Steam install must not get an unverified provider");
         var directPlan = new WindowsChannelEntryLauncher().CreatePlan(installation);
         Assert(directPlan.CanLaunch, $"current Steam direct plan should pass: {directPlan.FailureDetail}");
         AssertEqual(ChannelLaunchEntryKind.SteamXStarterDirect, directPlan.EntryKind, "current Steam entry kind");
         AssertEqual(installation.Profile!.XStarterPath, directPlan.FileName, "current Steam xstarter path");
         AssertEqual(installation.LauncherRootPath, directPlan.WorkingDirectory, "current Steam working directory");
+        var manifest = installation.SteamManifest!.ManifestPath;
+        var fields = ReadSteamFields(manifest);
+        AssertEqual("3164330", fields["appid"].SingleOrDefault(), "current Steam manifest app ID");
+        var installDir = fields["installdir"].SingleOrDefault();
+        Assert(!string.IsNullOrWhiteSpace(installDir) && Path.GetFileName(installDir) == installDir,
+            $"expected an install directory name in '{manifest}'");
+        var launcherRoot = Path.Combine(Path.GetDirectoryName(manifest)!, "common", installDir!);
+        Assert(string.Equals(launcherRoot, directPlan.WorkingDirectory, StringComparison.OrdinalIgnoreCase),
+            $"Steam manifest specifies '{launcherRoot}', plan uses '{directPlan.WorkingDirectory}'");
+        AssertCurrentXStarter(launcherRoot, directPlan.FileName);
         Assert(directPlan.ArgumentList.SequenceEqual(["-skiplauncher"]), "current Steam direct argument");
     }
 
