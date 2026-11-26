@@ -87,7 +87,7 @@
         <span><svg class="ic sm"><use href="#i-clock"/></svg>检查于 <b class="num" id="checked"></b></span>
         <i class="s"></i><span>手账时长 <b class="num" id="official"></b></span>
         <i class="s" hidden></i><span hidden>本机时长 <b class="num" id="local"></b></span>
-        <i class="s" hidden></i><span hidden><i class="miniring"></i> <b class="num" id="progress"></b></span>
+        <i class="s" hidden></i><span hidden><i class="miniring"></i><span id="taskLabel"></span><b class="num" id="progress"></b></span>
       </button>
       <div class="tail glass" id="tail">
         <button class="prof" id="profBtn" aria-controls="switcher" aria-haspopup="dialog" aria-expanded="false">
@@ -109,7 +109,8 @@
       <button class="sat glass" data-action="settings" aria-label="游戏设置"><svg class="ic"><use href="#i-gear"/></svg><span class="tip">游戏设置</span></button>
       <button class="sat glass" data-action="background" aria-label="更换启动页背景"><svg class="ic"><use href="#i-image"/></svg><span class="tip">启动页背景</span></button>
       <button class="sat glass" data-action="journal" aria-label="打开奇想手账"><svg class="ic"><use href="#i-book"/></svg><span class="tip">奇想手账</span></button>
-      <button class="orb" id="orb" data-action="launch" aria-describedby="stat">
+      <span id="launchDetail" hidden></span>
+      <button class="orb" id="orb" data-action="launch" aria-describedby="launchDetail">
         <span class="orb-glow"></span><span class="orb-live"></span><span class="orb-calm"></span><span class="orb-swirl"></span><span class="orb-iris"></span><span class="orb-spec"></span>
         <span class="orb-label" id="orbLabel"></span>
       </button>

@@ -299,7 +299,7 @@ button:disabled{cursor:default}
 .strip > span:last-child{min-width:0}
 @media(max-width:1099px){
   .strip{width:32px;justify-content:center;padding:0}
-  .strip > *{display:none}
+  #strip > *{display:none}
   .strip::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--acc)}
   .thumb:nth-child(n+3):not(.more){display:none}
   .art{font-size:46px}
@@ -320,4 +320,47 @@ button:disabled{cursor:default}
   .prof-ic{display:none}
   .pop{max-width:calc(100vw - 20px)}
   .tail:has(#tailAct:not([hidden])){flex-wrap:wrap;padding-block:6px}
+}
+
+#win[data-bg=custom] .art{max-width:calc(100vw - var(--tail-width) - 130px - 2 * var(--m))}
+#win[data-bg=custom] #artEn{display:none}
+#strip #taskLabel{display:contents}
+.stat #statS .action-label{display:inline;white-space:nowrap;font:inherit;color:inherit}
+#win[data-bg=custom] .art{font-size:clamp(40px,3.25vw,60px)}
+#win[data-bg=custom] #artName{white-space:normal;text-wrap:balance;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
+.with-task-detail #strip #taskLabel{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.with-task-detail #strip .num,.with-task-detail .miniring,.with-task-detail #strip .s{flex:none}
+.stat #statS{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;overflow-wrap:anywhere}
+.prof > span:nth-child(2){min-width:0}
+#profName{max-width:14em;overflow:hidden;text-overflow:ellipsis}
+@media(min-width:1100px){
+  .tailwrap.with-task-detail{min-width:min(730px,58vw)}
+  .with-task-detail .tail{align-self:stretch}
+  .with-task-detail .strip{display:grid;grid-template-columns:auto 3px auto;grid-auto-flow:column;width:max-content;max-width:calc(100% - 118px);height:auto;padding-block:6px;row-gap:3px}
+  .with-task-detail .strip:has(> span:not([hidden]) > #local){grid-template-columns:auto 3px auto 3px auto}
+  .with-task-detail .strip > .s:nth-last-child(2){display:none}
+  .with-task-detail .strip > span:last-child{grid-column:1/-1;grid-row:2}
+  .with-task-detail .stat{flex:1}
+}
+@media(max-width:920px){
+  #win[data-bg=custom] .art{max-width:calc(100vw - 2 * var(--m))}
+}
+
+@media(min-width:921px){
+  .s-home:has(.with-task-detail) .lead,.s-home:has(#retry:not([hidden])) .lead{
+    container-type:inline-size;
+    width:calc(100vw - var(--tail-width) - 130px - 2 * var(--m));
+  }
+}
+@container(max-width:560px){
+  .thumb:nth-child(4):not(.more){display:none}
+}
+@container(max-width:440px){
+  .thumb:nth-child(n+3):not(.more){display:none}
+}
+@container(max-width:350px){
+  .thumb:nth-child(n+2):not(.more){display:none}
+}
+@container(max-width:238px){
+  .thumb:not(.more){display:none}
 }

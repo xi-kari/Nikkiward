@@ -43,6 +43,7 @@ function positionIndicator() {
   indicator.style.width = active.offsetWidth + 'px';
   indicator.style.transform = 'translateX(' + active.offsetLeft + 'px)';
 }
+new ResizeObserver(([entry]) => win.style.setProperty('--tail-width', entry.contentRect.width + 'px')).observe($('.tailwrap'));
 new ResizeObserver(positionIndicator).observe($('#nav [aria-current]'));
 window.mastheadBounds = () => {
   const nav = $('#nav').getBoundingClientRect();
@@ -73,7 +74,7 @@ document.addEventListener('keydown', e => {
 });
 
 function renderProfiles(s) {
-  $('#profName').textContent = s.profile;
+  $('#profName').textContent = profileButton.title = s.profile || '选择档案';
   $('.pop-foot span').textContent = s.discoveryTime ? '上次发现安装 · ' + s.discoveryTime : '';
   const key = JSON.stringify(s.profiles);
   if (key === profileKey) return;
@@ -92,7 +93,7 @@ function renderProfiles(s) {
     b.setAttribute('aria-checked', p.current);
     b.innerHTML = '<i class="pi">' + icon(p.current ? 'check' : 'planet') + '</i><div><b></b><span></span></div><div class="pst"><em></em><span></span></div>';
     b.querySelector('b').textContent = p.name;
-    b.querySelector('span').textContent = [p.channel, p.region, 'Windows'].join(' · ');
+    b.querySelector('span').textContent = p.name === p.region + ' · ' + p.channel ? 'Windows' : [p.channel, p.region, 'Windows'].join(' · ');
     const [reason, ...note] = p.reason.split('\n');
     b.querySelector('em').textContent = reason;
     b.querySelector('.pst span').textContent = note.join(' ');
@@ -157,7 +158,7 @@ function renderLaunch(s) {
   win.classList.toggle('quiet', s.running);
   const orb = $('#orb'), label = $('#orbLabel');
   orb.disabled = !s.enabled;
-  orb.title = s.detail;
+  orb.title = $('#launchDetail').textContent = s.detail;
   orb.setAttribute('aria-label', s.launchLabel);
   orb.setAttribute('aria-busy', s.busy);
   const signature = s.state === 'SignatureUntrusted';
@@ -177,10 +178,24 @@ function renderLaunch(s) {
   if (visual !== 'launching') document.querySelectorAll('.ripple').forEach(r => r.classList.remove('go'));
   document.querySelectorAll('.sat').forEach(b => b.disabled = visual === 'launching');
   $('#stat').dataset.tone = ({ready:'ok',running:'ok',launching:'busy',checking:'busy',unsupported:'idle'})[visual] || 'warn';
-  $('#statT').textContent = visual === 'ready' || signature ? s.check : s.launchLabel;
-  $('#statS').textContent = visual === 'ready' ? s.readySummary || s.detail : s.detail;
+  const heading = $('#statT'), summary = $('#statS');
+  heading.textContent = s.sessionMinutes != null && s.running ? '已运行 ' + s.sessionMinutes + ' 分钟' : s.check;
+  heading.parentElement.hidden = !heading.textContent || heading.textContent === s.launchLabel;
+  summary.textContent = visual === 'ready' ? s.readySummary : s.detail;
+  summary.hidden = !summary.textContent || summary.textContent === s.launchLabel || summary.textContent === heading.textContent;
+  summary.title = s.detail;
+  if (visual === 'notfound' || s.state === 'SelectionRequired') {
+    summary.replaceChildren(...s.detail.split(/(「[^」]+」)/).map(part => {
+      if (!part.startsWith('「')) return part;
+      const label = document.createElement('span');
+      label.className = 'action-label';
+      label.textContent = part;
+      return label;
+    }));
+  }
+  if (s.running && s.sessionMinutes != null && s.detail === '目标进程已在运行，启动按钮已锁定。') summary.hidden = true;
   const action = $('#tailAct');
-  const name = s.closeVisible ? 'close' : s.nextActions.find(a => a === 'locate' || a === 'recheck');
+  const name = s.closeVisible ? 'close' : s.state === 'SelectionRequired' ? 'locate' : s.nextActions.find(a => a === 'locate' || a === 'recheck');
   action.hidden = !name;
   const retry = $('#retry');
   const secondary = s.nextActions.find(a => a !== name && a !== 'status');
@@ -207,9 +222,13 @@ function render(s) {
     if (builtin) win.style.removeProperty(name);
     else win.style.setProperty(name,value);
   }
-  $('#artName').textContent = $('#artName').title = s.artName;
+  const datedName = !builtin && /^(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})_(.+)$/.exec(s.artName);
+  $('#artName').title = s.artName;
+  $('#artName').textContent = datedName ? datedName[5] : s.artName;
   $('#artEn').textContent = builtin ? (s.artName === '海月' ? 'Moonlit Tide' : 'Blossom Letter') : '';
-  $('#bgCap').textContent = builtin ? '启动页原画 · 内置' : s.artSource;
+  $('#bgCap').textContent = datedName
+    ? s.artSource + ' · ' + datedName[1] + ' ' + datedName.slice(2,5).join(':')
+    : builtin ? '启动页原画 · 内置' : s.artSource;
   $('#bgSwap').textContent = builtin ? '换一张' : '恢复默认背景';
   $('#bgSwap').dataset.action = builtin ? (s.artName === '海月' ? 'blossom' : 'tide') : 'reset';
   renderLaunch(s);
@@ -217,10 +236,10 @@ function render(s) {
   renderPhotos(s);
   $('#checked').previousSibling.textContent = s.checkTime === '尚未刷新' ? '' : '检查于 ';
   $('#checked').textContent = s.checkTime;
-  $('#strip').title = [s.check, s.checkTime, s.taskText].filter(Boolean).join(' · ');
   $('#official').textContent = s.officialDuration?.replace(/^([\d.]+)h$/, '$1 小时') || '未同步';
   $('#local').textContent = s.localDuration?.replace(/^本机\s*/, '') || '';
-  $('#progress').previousSibling.textContent = s.taskText ? s.taskText + ' ' : '';
+  $('#taskLabel').textContent = s.taskText;
+  $('.tailwrap').classList.toggle('with-task-detail', !!s.taskText && (!!s.localDuration || s.taskText.length > 12));
   for (const [selector,value] of [['#local',s.localDuration],['#progress',s.taskText]]) {
     const group = $(selector).parentElement;
     group.hidden = group.previousElementSibling.hidden = !value;
@@ -228,5 +247,9 @@ function render(s) {
   $('#progress').hidden = $('.miniring').hidden = s.progress == null;
   $('#progress').textContent = s.progress == null ? '' : Math.round(s.progress) + '%';
   $('.miniring').style.setProperty('--progress', s.progress + '%');
+  const info = [s.check, s.checkTime, '手账时长 ' + $('#official').textContent,
+    s.localDuration && '本机时长 ' + $('#local').textContent, s.taskText, $('#progress').textContent].filter(Boolean).join(' · ');
+  $('#strip').title = info;
+  $('#strip').setAttribute('aria-description', info);
   positionIndicator();
 }
