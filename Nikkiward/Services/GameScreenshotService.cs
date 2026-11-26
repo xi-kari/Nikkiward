@@ -198,61 +198,58 @@ public sealed class GameScreenshotService
 
         var completion = new TaskCompletionSource<CanvasRenderTarget>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        framePool.FrameArrived += OnFrameArrived;
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(4));
-        using var registration = timeout.Token.Register(() =>
-            completion.TrySetCanceled(timeout.Token));
-        session.StartCapture();
-
+        using var registration = timeout.Token.Register(() => completion.TrySetCanceled(timeout.Token));
+        var callbackGate = new object();
+        var stopped = false;
+        framePool.FrameArrived += OnFrameArrived;
         try
         {
+            timeout.Token.ThrowIfCancellationRequested();
+            try
+            {
+                session.StartCapture();
+            }
+            catch (Exception ex)
+            {
+                completion.TrySetException(ex);
+            }
             return await completion.Task.ConfigureAwait(false);
         }
         finally
         {
+            lock (callbackGate) stopped = true;
             framePool.FrameArrived -= OnFrameArrived;
         }
 
         void OnFrameArrived(Direct3D11CaptureFramePool sender, object args)
         {
-            using var frame = sender.TryGetNextFrame();
-            if (frame is null ||
-                frame.ContentSize.Width <= 0 ||
-                frame.ContentSize.Height <= 0)
+            lock (callbackGate)
             {
-                return;
-            }
-
-            CanvasRenderTarget? target = null;
-            try
-            {
-                using var source = CanvasBitmap.CreateFromDirect3D11Surface(
-                    CanvasDevice.GetSharedDevice(),
-                    frame.Surface,
-                    96);
-                target = new CanvasRenderTarget(
-                    CanvasDevice.GetSharedDevice(),
-                    frame.ContentSize.Width,
-                    frame.ContentSize.Height,
-                    96,
-                    source.Format,
-                    CanvasAlphaMode.Premultiplied);
-                using var drawingSession = target.CreateDrawingSession();
-                drawingSession.Clear(Microsoft.UI.Colors.Transparent);
-                drawingSession.DrawImage(source);
-                if (!completion.TrySetResult(target))
+                if (stopped || completion.Task.IsCompleted) return;
+                try
                 {
-                    target.Dispose();
+                    var frame = sender.TryGetNextFrame();
+                    if (frame is null) return;
+                    ScreenshotFrameHandoff.Draw(frame,
+                        f => f.ContentSize.Width <= 0 || f.ContentSize.Height <= 0 ? null :
+                            new CanvasRenderTarget(CanvasDevice.GetSharedDevice(), f.ContentSize.Width,
+                                f.ContentSize.Height, 96, pixelFormat, CanvasAlphaMode.Premultiplied),
+                        target => target.CreateDrawingSession(),
+                        (f, drawing) =>
+                        {
+                            using var source = CanvasBitmap.CreateFromDirect3D11Surface(
+                                CanvasDevice.GetSharedDevice(), f.Surface, 96);
+                            drawing.Clear(Microsoft.UI.Colors.Transparent);
+                            drawing.DrawImage(source);
+                        },
+                        completion.TrySetResult);
                 }
-
-                target = null;
-            }
-            catch (Exception ex)
-            {
-                target?.Dispose();
-                completion.TrySetException(ex);
+                catch (Exception ex)
+                {
+                    completion.TrySetException(ex);
+                }
             }
         }
     }
@@ -289,13 +286,8 @@ public sealed class GameScreenshotService
             filePrefix,
             frameTime,
             extension);
-        await using (var stream = new FileStream(
-            primaryPath,
-            FileMode.CreateNew,
-            FileAccess.Write,
-            FileShare.Read,
-            1024 * 1024,
-            FileOptions.Asynchronous | FileOptions.SequentialScan))
+        using var output = new ScreenshotOutput();
+        await output.StageAsync(primaryPath, async stream =>
         {
             if (!capturedHdr)
             {
@@ -324,11 +316,12 @@ public sealed class GameScreenshotService
                     quality,
                     xmpData);
             }
-        }
+        }, cancellationToken);
 
         string? sdrPath = null;
         if (capturedHdr && settings.AutoConvertHdrToSdr)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var sdrPixels = ScreenshotImageEncoder.ToneMapHdrToSdr(bitmap);
             using var sdrBitmap = CanvasBitmap.CreateFromBytes(
                 CanvasDevice.GetSharedDevice(),
@@ -342,22 +335,16 @@ public sealed class GameScreenshotService
                 filePrefix + "_SDR",
                 frameTime,
                 ".png");
-            await using var sdrStream = new FileStream(
-                sdrPath,
-                FileMode.CreateNew,
-                FileAccess.Write,
-                FileShare.Read,
-                1024 * 1024,
-                FileOptions.Asynchronous | FileOptions.SequentialScan);
-            await ScreenshotImageEncoder.EncodeSdrAsync(
+            await output.StageAsync(sdrPath, sdrStream => ScreenshotImageEncoder.EncodeSdrAsync(
                 sdrBitmap,
                 sdrStream,
                 ".png",
                 quality,
                 settings.EnableColorManagement,
-                xmpData);
+                xmpData), cancellationToken);
         }
 
+        output.Publish(cancellationToken);
         var message = capturedHdr
             ? sdrPath is null
                 ? $"HDR 截图已保存：{primaryPath}"

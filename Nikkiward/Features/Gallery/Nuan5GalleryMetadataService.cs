@@ -93,6 +93,11 @@ public sealed class Nuan5GalleryMetadataService
         string filePath,
         CancellationToken cancellationToken = default)
     {
+        if (GalleryFileTypes.UsesScreenshotCodec(Path.GetExtension(filePath)))
+        {
+            return GalleryPhotoMetadata.NoParameters(GalleryPhotoMetadataStatus.CameraParametersUnavailable);
+        }
+
         var userId = ExtractUserId(filePath);
         if (userId is null)
         {

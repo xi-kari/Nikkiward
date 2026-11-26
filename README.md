@@ -97,7 +97,7 @@ Get-FileHash .\Nikkiward-Setup-win-x64.exe -Algorithm SHA256
 ### 相册与收藏保护
 
 - 只读浏览游戏相册目录(默认 `X6Game\Saved\GamePlayPhotos`,每份档案也可另选任意本地图片目录):按游戏子目录自动分类、按日期分组,支持搜索、排序与收藏视图;对原图只有预览、复制、定位、星标四种操作,交互层没有删除或改写原图的代码路径。
-- 支持 PNG、JPG、JPEG、WebP、BMP;扫描会跳过 OneDrive 式云占位文件,不会静默触发云端下载。
+- 支持 PNG、JPG、JPEG、WebP、BMP、AVIF、JPEG XL;扫描会跳过 OneDrive 式云占位文件,不会静默触发云端下载。
 - 收藏按档案和图库目录分别保存。点星标时,收藏保护会把原图复制到本机保护目录(默认在系统图片库下的 `Nikkiward\ProtectedFavorites`,按 SHA-256 去重,可停用、可换目录)。原图被删后,收藏视图会校验并显示保护副本。取消收藏将删除仅存副本时,会先请你确认。它只覆盖已收藏的照片,不是整册备份。
 - 保护目录须与各图库、游戏目录互不包含。切换图库或读取旧配置时发现当前保护目录重叠,会暂停保护并保留已有副本。可在相册设置中选择其他保护目录恢复。
 - 照片的游戏内拍摄参数(焦距、光圈、滤镜、服装部件等)由第三方 NikkiGallery 项目的 `nuan5_decryption.dll` 解析(MIT,固定提交,SHA-256 记录于 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md));DLL 缺失时只是不显示这些参数,浏览、收藏、截图不受影响。
@@ -123,7 +123,7 @@ Get-FileHash .\Nikkiward-Setup-win-x64.exe -Algorithm SHA256
 - 格式三选一:PNG(默认)、AVIF、JPEG XL;质量分中、高、无损三档。
 - 检测到 HDR 显示器时自动按高位深捕获,并存为 AVIF 或 JPEG XL——即使你选的是 PNG;默认附带一份色调映射后的 SDR PNG 副本,并自动以文件形式复制到剪贴板,HDR 场景优先复制 SDR 副本,保证粘贴兼容。
 - 截图嵌入 XMP 元数据,色彩信息写入可开关;默认保存在启动器数据目录的 `Screenshots` 子目录,可自定义并一键打开。
-- 相册页面目前不支持浏览 AVIF 与 JPEG XL,HDR 截图请查看 SDR 副本,或使用外部查看器。
+- 相册可直接浏览 AVIF 与 JPEG XL,HDR 截图以 SDR 预览显示。
 
 ### 输入、更新与诊断
 

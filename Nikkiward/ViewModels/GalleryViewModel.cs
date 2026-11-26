@@ -123,7 +123,7 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
     public string EmptyStateDetail => _rootUnavailable
         ? "请选择 GamePlayPhotos 或其他本地图片目录；Nikkiward 只读浏览，不会移动、删除或改写文件。"
         : _allPhotos.Count == 0
-            ? "目录可访问，但其中没有受支持的 PNG、JPG、JPEG、WebP 或 BMP 图片。"
+            ? "目录可访问，但其中没有受支持的 PNG、JPG、JPEG、WebP、BMP、AVIF 或 JPEG XL 图片。"
             : _viewMode == GalleryViewMode.Favorites && StarredCount == 0
                 ? "在相册缩略图或预览页点击星标后，照片会出现在这里。"
             : "尝试清空搜索词或切换到“全部”分类。";
@@ -218,7 +218,7 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
 
             IsInitialized = true;
             StatusText = scanned.Count == 0
-                ? "扫描完成；目录中没有受支持的 PNG、JPG、JPEG、WebP 或 BMP 图片。"
+                ? "扫描完成；目录中没有受支持的 PNG、JPG、JPEG、WebP、BMP、AVIF 或 JPEG XL 图片。"
                 : $"扫描完成 · {scanned.Count:N0} 张图片 · 不读取游戏进程、账号状态或令牌";
         }
         catch (OperationCanceledException)
@@ -356,7 +356,7 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
                 categoryName,
                 entry.OriginalLength,
                 entry.OriginalLastWriteTimeUtc.UtcDateTime,
-                entry.ScopeId);
+                entry.ScopeId, WatchableRootPath);
             fallback.SetStarred(true);
             fallback.SetProtectedCopy(
                 protectedFavorite.ProtectedPath,
@@ -388,7 +388,7 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
                 "默认收藏",
                 favorite.FileSizeBytes,
                 favorite.LastWriteTimeUtc,
-                favorite.ScopeId);
+                favorite.ScopeId, WatchableRootPath);
             photo.SetStarred(true);
             _allPhotos.Add(photo);
         }
@@ -451,7 +451,7 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
                 categoryName,
                 file.Length,
                 GalleryTimestamp.Resolve(file.Name, file.LastWriteTimeUtc),
-                scopeId));
+                scopeId, rootPath));
         }
 
         return items;
@@ -633,6 +633,7 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
 
 public sealed class GalleryPhotoItemViewModel : INotifyPropertyChanged
 {
+    private readonly string? _galleryRoot;
     private ImageSource? _thumbnailSource;
     private bool _thumbnailRequested;
     private bool _isStarred;
@@ -650,7 +651,8 @@ public sealed class GalleryPhotoItemViewModel : INotifyPropertyChanged
         string categoryName,
         long fileSizeBytes,
         DateTime lastWriteTimeUtc,
-        string annotationScopeId)
+        string annotationScopeId,
+        string? galleryRoot)
     {
         FilePath = filePath;
         RelativePath = relativePath;
@@ -661,6 +663,7 @@ public sealed class GalleryPhotoItemViewModel : INotifyPropertyChanged
         FileSizeBytes = fileSizeBytes;
         LastWriteTimeUtc = DateTime.SpecifyKind(lastWriteTimeUtc, DateTimeKind.Utc);
         AnnotationScopeId = annotationScopeId;
+        _galleryRoot = galleryRoot;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -709,7 +712,13 @@ public sealed class GalleryPhotoItemViewModel : INotifyPropertyChanged
 
     public string StarGlyph => _isStarred ? "\uE735" : "\uE734";
 
-    public ImageSource CardSource => _isStarred
+    public string Extension => Path.GetExtension(RelativePath);
+
+    public bool UsesScreenshotCodec => GalleryFileTypes.UsesScreenshotCodec(Extension);
+
+    public string ThumbnailError { get; private set; } = string.Empty;
+
+    public ImageSource CardSource => _isStarred && !UsesScreenshotCodec
         ? _cardSource ??= CreateFullResolutionSource(ResolveFavoriteCardPath(FilePath))
         : ThumbnailSource;
 
@@ -759,7 +768,7 @@ public sealed class GalleryPhotoItemViewModel : INotifyPropertyChanged
                 _ = LoadCachedThumbnailAsync();
             }
 
-            return _thumbnailSource ??= CreateThumbnail(FilePath);
+            return _thumbnailSource ??= UsesScreenshotCodec ? new BitmapImage() : CreateThumbnail(FilePath);
         }
     }
 
@@ -770,20 +779,36 @@ public sealed class GalleryPhotoItemViewModel : INotifyPropertyChanged
             // Task.Run keeps the hash, decode and encode off the UI thread; the
             // continuation resumes on it, which BitmapImage requires.
             var cachePath = await Task.Run(
-                () => GalleryThumbnailCache.TryGetThumbnailPathAsync(FilePath));
+                () => GalleryThumbnailCache.TryGetThumbnailPathAsync(FilePath, Extension, _galleryRoot));
             if (string.IsNullOrEmpty(cachePath))
             {
+                if (UsesScreenshotCodec) SetThumbnailError("缩略图不可用");
                 return;
             }
 
-            _thumbnailSource = CreateThumbnail(cachePath);
+            var image = CreateThumbnail(cachePath);
+            if (UsesScreenshotCodec)
+            {
+                image.ImageOpened += (_, _) => SetCardAspectRatio(image.PixelWidth / (double)image.PixelHeight);
+            }
+
+            _thumbnailSource = image;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CardSource)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ThumbnailSource)));
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // The full-size fallback is already bound; a cache miss is not worth
-            // surfacing to the user.
+            if (UsesScreenshotCodec)
+            {
+                SetThumbnailError(ex is InvalidDataException ? ex.Message : "缩略图载入失败");
+            }
         }
+    }
+
+    private void SetThumbnailError(string reason)
+    {
+        ThumbnailError = reason;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ThumbnailError)));
     }
 
     public void SetStarred(bool isStarred)
@@ -796,8 +821,8 @@ public sealed class GalleryPhotoItemViewModel : INotifyPropertyChanged
         _isStarred = isStarred;
         _cardSource = null;
         var aspectRatioLoadVersion = ++_cardAspectRatioLoadVersion;
-        SetCardAspectRatio(GalleryFavoriteCardLayoutProjection.DefaultAspectRatio);
-        if (isStarred)
+        if (!UsesScreenshotCodec) SetCardAspectRatio(GalleryFavoriteCardLayoutProjection.DefaultAspectRatio);
+        if (isStarred && !UsesScreenshotCodec)
         {
             _ = LoadCardAspectRatioAsync(aspectRatioLoadVersion);
         }

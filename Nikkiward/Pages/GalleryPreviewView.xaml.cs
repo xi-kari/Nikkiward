@@ -23,6 +23,8 @@ public sealed partial class GalleryPreviewView : UserControl
     private CancellationTokenSource? _photoThemeCancellation;
     private CancellationTokenSource? _metadataCancellation;
     private long _photoThemeGeneration;
+    private SoftwareBitmapSource? _screenshotSource;
+    private CancellationTokenSource? _previewCancellation;
     private string? _connectedAnimationKey;
 
     public event EventHandler? CloseRequested;
@@ -48,9 +50,12 @@ public sealed partial class GalleryPreviewView : UserControl
         string? connectedAnimationKey = null)
     {
         _connectedAnimationKey = connectedAnimationKey;
-        GalleryPreviewImage.Source = new BitmapImage(
+        ReleaseScreenshotPreview();
+        GalleryPreviewImage.Source = photo.UsesScreenshotCodec ? null : new BitmapImage(
             new Uri(photo.FilePath, UriKind.Absolute));
         GalleryPreviewFileNameText.Text = photo.FileName;
+        GalleryPreviewErrorText.Text = string.Empty;
+        GallerySdrPreviewLabel.Visibility = photo.UsesScreenshotCodec ? Visibility.Visible : Visibility.Collapsed;
         GalleryPreviewMetadataText.Text = photo.MetadataText;
         GalleryPreviewIndexText.Text = $"{index + 1:N0} / {totalCount:N0}";
         GalleryPreviewPreviousButton.IsEnabled = index > 0;
@@ -79,13 +84,71 @@ public sealed partial class GalleryPreviewView : UserControl
         Visibility = Visibility.Visible;
         GalleryPreviewScrollViewer.ChangeView(0, 0, 1f, true);
         GalleryInfoPanel.RequestedTheme = ActualTheme;
-        StartMetadataLoad(photo.FilePath);
-        StartPhotoThemeAnalysis(photo.FilePath);
+        if (photo.UsesScreenshotCodec)
+        {
+            CancelMetadataLoad();
+            ApplyMetadata(GalleryPhotoMetadata.NoParameters(GalleryPhotoMetadataStatus.CameraParametersUnavailable));
+            CancelPhotoThemeAnalysis(resetTheme: true);
+            _previewCancellation = new CancellationTokenSource();
+            _ = LoadScreenshotAsync(photo, _previewCancellation);
+        }
+        else
+        {
+            StartMetadataLoad(photo.FilePath);
+            StartPhotoThemeAnalysis(photo.FilePath);
+        }
         _ = GalleryPreviewCloseButton.Focus(FocusState.Programmatic);
+    }
+
+    private void ReleaseScreenshotPreview()
+    {
+        _previewCancellation?.Cancel();
+        if (_screenshotSource is not null)
+        {
+            GalleryPreviewImage.Source = null;
+            _screenshotSource.Dispose();
+            _screenshotSource = null;
+        }
+    }
+
+    private async Task LoadScreenshotAsync(GalleryPhotoItemViewModel photo, CancellationTokenSource cancellation)
+    {
+        SoftwareBitmapSource? image = null;
+        try
+        {
+            using var bitmap = await StarwardScreenshotDecoder.ReadBitmapAsync(photo.FilePath, photo.Extension, cancellation.Token);
+            cancellation.Token.ThrowIfCancellationRequested();
+            image = new SoftwareBitmapSource();
+            await image.SetBitmapAsync(bitmap);
+            if (!cancellation.IsCancellationRequested)
+            {
+                GalleryPreviewImage.Source = image;
+                _screenshotSource = image;
+                image = null;
+                GalleryInfoDimensionsText.Text = $"分辨率：{bitmap.PixelWidth:N0} × {bitmap.PixelHeight:N0}";
+            }
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            if (!cancellation.IsCancellationRequested)
+            {
+                _connectedAnimationKey = null;
+                GalleryInfoDimensionsText.Text = "分辨率：不可用";
+                GalleryPreviewErrorText.Text = ex is InvalidDataException ? ex.Message : "图片载入失败";
+            }
+        }
+        finally
+        {
+            image?.Dispose();
+            if (_previewCancellation == cancellation) _previewCancellation = null;
+            cancellation.Dispose();
+        }
     }
 
     public void ClosePreview()
     {
+        ReleaseScreenshotPreview();
         CancelPhotoThemeAnalysis(resetTheme: true);
         CancelMetadataLoad();
         GalleryPreviewImage.Source = null;
@@ -230,6 +293,7 @@ public sealed partial class GalleryPreviewView : UserControl
 
     private void OnGalleryPreviewUnloaded(object sender, RoutedEventArgs e)
     {
+        ReleaseScreenshotPreview();
         CancelPhotoThemeAnalysis(resetTheme: true);
         CancelMetadataLoad();
     }

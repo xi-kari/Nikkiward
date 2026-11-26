@@ -13,8 +13,12 @@ public static class GalleryFileTypes
     /// </summary>
     public static readonly IReadOnlySet<string> SupportedExtensions =
         new HashSet<string>(
-            [".png", ".jpg", ".jpeg", ".webp", ".bmp"],
+            [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".avif", ".jxl"],
             StringComparer.OrdinalIgnoreCase);
+
+    public static bool UsesScreenshotCodec(string extension) =>
+        extension.Equals(".avif", StringComparison.OrdinalIgnoreCase) ||
+        extension.Equals(".jxl", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Case-insensitive, so <c>.JPG</c> is accepted.
