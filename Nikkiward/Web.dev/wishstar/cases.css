@@ -1,0 +1,7 @@
+.thumb[data-photo-id=p05]{width:135px}
+.thumb[data-photo-id=p04],.thumb[data-photo-id=p01]{width:122px}
+.thumb[data-photo-id=fae]{width:61px}
+.prow[data-profile-id=steam] .pst{--c:var(--ink3)}
+#win::after{content:"";position:absolute;right:16px;top:56px;bottom:16px;width:400px;transform:translateX(440px);border-radius:var(--petal-r);box-shadow:var(--shadow);pointer-events:none;z-index:42}
+#win.fx .thumb.more > span{will-change:transform}
+.miniring{position:relative;left:-.5px}
