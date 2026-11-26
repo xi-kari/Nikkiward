@@ -137,7 +137,9 @@ public static class LaunchProviderCatalog
     public static TrustedSignerRequirement PapergamesSigner { get; } = new()
     {
         DisplayName = "Suzhou Nikki Co.,Ltd.",
-        Thumbprints = ["6A57615C8DBED53A8BE5FF2533535AAEEAA1015A"],
+        // 6850080C… is the 2026-10 renewal (valid to 2028-01) that signs launcher 1.3.2;
+        // same subject, serial number and DigiCert G4 code-signing CA as 6A57615C….
+        Thumbprints = ["6A57615C8DBED53A8BE5FF2533535AAEEAA1015A", "6850080CB455A1BEF3462DA49073B6D3A25E6D86"],
         SubjectCommonName = "Suzhou Nikki Co.,Ltd.",
         SubjectSerialNumber = "91320594076301379M",
     };

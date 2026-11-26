@@ -87,7 +87,7 @@ B 服与 Steam 的实验直启沿用这五个组件及其签名者要求。两�
 
 | 签名者 | 适用组件 | 锚点 |
 |---|---|---|
-| Suzhou Nikki Co.,Ltd.（叠纸/苏州暖暖） | launcher.exe、xstarter.exe、InfinityNikki.exe、Shipping | 指纹 `6A57…015A`；CN + 统一社会信用代码 `91320594076301379M` |
+| Suzhou Nikki Co.,Ltd.（叠纸/苏州暖暖） | launcher.exe、xstarter.exe、InfinityNikki.exe、Shipping | 指纹 `6A57…015A`、`6850…6D86`（2026-10 续签，启动器 1.3.2 起使用）；CN + 统一社会信用代码 `91320594076301379M` |
 | ACEVILLE PTE LTD（ACE 反作弊） | ACE-Service64.exe | 指纹 `30D5…1466`；CN |
 
 失效场景，按发生频率排：
