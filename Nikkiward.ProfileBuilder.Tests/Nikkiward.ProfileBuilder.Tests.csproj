@@ -126,6 +126,11 @@
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryScreenshotDecoder.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryThumbnailFile.cs" />
     <Compile Include="GalleryIntegrationTests.cs" />
+    <Compile Include="GalleryIndexTests.cs" />
+    <Compile Include="..\Nikkiward\Features\Gallery\GalleryIndex.cs" />
+    <Compile Include="..\Nikkiward\Features\Gallery\GalleryIndex.Palette.cs" />
+    <Compile Include="..\Nikkiward\Features\Gallery\GalleryIndex.Metadata.cs" />
+    <Compile Include="..\Nikkiward\Features\Gallery\GalleryQuery.cs" />
     <Compile Include="GalleryFavoriteCardLayoutTests.cs" />
     <Compile Include="GalleryMetadataTests.cs" />
     <Compile Include="..\Nikkiward\Services\ScreenshotFrameHandoff.cs" />

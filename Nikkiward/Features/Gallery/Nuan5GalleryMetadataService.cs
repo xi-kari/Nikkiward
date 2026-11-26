@@ -63,7 +63,7 @@ internal interface INuan5GalleryNativeAdapter
     void FreeBytes(Nuan5CBytes bytes);
 }
 
-public sealed class Nuan5GalleryMetadataService
+public sealed partial class Nuan5GalleryMetadataService
 {
     public const uint ExpectedAbiVersion = 1;
     public const long MaximumFileSize = 10L * 1024 * 1024;
