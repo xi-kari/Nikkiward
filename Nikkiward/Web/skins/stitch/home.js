@@ -116,6 +116,11 @@ function renderPhotos(items) {
   }));
 }
 
+const artworkPalettes = {
+  tide:['#c7dbff','#27468f','#0c162e','#f5f2ea'],
+  blossom:['#a13a5c','#f7ccd5','#fff6f4','#8fb0e0']
+};
+
 function render(s) {
   const visual = s.visual;
   win.dataset.state = visual;
@@ -132,19 +137,22 @@ function render(s) {
     for (const name of ['--th','--disc','--hole']) win.style.removeProperty(name);
   }
   $('#bgName').textContent = [s.artName,s.artSource].filter(Boolean).join(' · ');
-  $('#pal').replaceChildren(...s.palette.map(color => {
+  $('#bgName').title = $('#bgName').textContent;
+  const palette = artworkPalettes[win.dataset.bg] || s.palette;
+  $('#pal').replaceChildren(...palette.map(color => {
     const chip = document.createElement('i');
     chip.style.background = color;
     return chip;
   }));
-  $('#bgNote').textContent = [s.palette.length ? '已按画面取色' : '', s.contrastPassed === true ? '对比度达标' : ''].filter(Boolean).join(' · ');
+  $('#bgNote').textContent = [palette.length ? '已按画面取色' : '', s.contrastPassed === true ? '对比度达标' : ''].filter(Boolean).join(' · ');
 
   $('#hT').textContent = s.launchLabel;
   const blocked = visual === 'blocked' || visual === 'notfound';
   let subtitle = s.detail;
   if (visual === 'ready') subtitle = s.readySummary;
+  if (visual === 'running' && s.detail === '目标进程已在运行，启动按钮已锁定。') subtitle = '';
   if (visual === 'blocked') subtitle = s.state === 'SignatureUntrusted' ? '这是安全拒绝，不是故障' : '';
-  if (visual === 'notfound') subtitle = '常见位置里没有找到「' + s.profile + '」';
+  if (visual === 'notfound') subtitle = s.profile ? '常见位置里没有找到「' + s.profile + '」' : '';
   $('#hS').textContent = subtitle;
   $('#hS').hidden = !subtitle;
   $('#hero').title = s.detail;
@@ -160,20 +168,27 @@ function render(s) {
   } else reason.textContent = s.detail;
   $('#reason').hidden = !blocked;
   $('#runningNote').hidden = visual !== 'running';
-  $('#runningNote').textContent = '游戏正在运行，动效和粒子已关闭。';
-  $('#runningNote').title = s.sessionMinutes == null ? '' : '已运行 ' + s.sessionMinutes + ' 分钟';
+  const duration = s.sessionMinutes == null ? '' : '已运行 ' + s.sessionMinutes + ' 分钟';
+  $('#runningNote').textContent = duration && !s.detail.includes(duration) ? duration : '游戏正在运行，动效和粒子已关闭。';
+  const chooseInstall = s.state === 'SelectionRequired';
+  const actions = chooseInstall ? ['locate',...s.nextActions] : s.nextActions;
+  $('#actions [data-action="recheck"]').classList.toggle('pri',!chooseInstall);
   for (const b of $('#actions').querySelectorAll('button')) {
-    b.hidden = b.dataset.action === 'close' ? !s.closeVisible : !s.nextActions.includes(b.dataset.action);
+    b.hidden = b.dataset.action === 'close' ? !s.closeVisible : !actions.includes(b.dataset.action);
   }
   const close = $('#actions [data-action="close"]');
   close.disabled = !s.closeEnabled;
   close.querySelector('span').textContent = s.closeLabel;
-  $('#actions').hidden = !(s.closeVisible || s.nextActions.length || visual === 'running');
+  $('#actions').hidden = !(s.closeVisible || actions.length || visual === 'running');
   $('#note').classList.toggle('show',blocked || !$('#actions').hidden);
 
-  $('#pName').textContent = s.profile;
-  $('#cChan').textContent = s.profile + ' / Windows';
-  $('#cChk').textContent = [s.check,s.checkTime].filter(Boolean).join(' · ');
+  $('#pName').textContent = s.profile || '选择档案';
+  const channel = $('#cChan');
+  channel.textContent = s.profile ? s.profile + ' / Windows' : '未配置';
+  const repeatedCheck = s.check === s.launchLabel;
+  $('#cChkLi > span').textContent = repeatedCheck ? '检查时间' : '启动检查';
+  $('#cChk').textContent = repeatedCheck ? s.checkTime : [s.check,s.checkTime].filter(Boolean).join(' · ');
+  $('#cChkLi').hidden = !$('#cChk').textContent;
   $('#cChkLi').classList.toggle('bad',blocked);
   $('#pDot').className = 'dot' + (visual === 'blocked' ? ' w' : ['notfound','checking'].includes(visual) ? ' n' : '');
   renderProfiles(s.profiles);
@@ -186,7 +201,10 @@ function render(s) {
   } else $('#official').textContent = s.officialDuration || '未同步';
   $('#local').textContent = s.localDuration;
   $('#local').closest('li').hidden = !s.localDuration;
-  $('#taskText').textContent = s.taskText;
+  const task = $('#taskText').parentElement;
+  const summary = s.progress == null ? s.taskText : s.taskText?.replace(/ · [\d,]+\/[\d,]+$/, '');
+  task.classList.toggle('counted-task',summary != null && summary !== s.taskText);
+  $('#taskText').textContent = summary;
   $('#taskText').closest('li').hidden = !s.taskText;
   $('#progress').hidden = $('.bar').hidden = s.progress == null;
   if (s.progress != null) {
@@ -194,6 +212,8 @@ function render(s) {
     $('.bar').style.setProperty('--progress',s.progress + '%');
   }
   for (const em of document.querySelectorAll('.care em')) em.title = em.textContent;
+  if (s.profile && channel.scrollWidth > channel.clientWidth) channel.textContent = s.profile;
+  task.title = [s.taskText,s.progress == null ? '' : Math.round(s.progress) + '%'].filter(Boolean).join(' · ');
   if (s.photos) renderPhotos(s.photos);
   $('.recent header span').textContent = s.lastSessionPhotos == null ? '' : '上次游玩拍了 ' + s.lastSessionPhotos + ' 张';
 }

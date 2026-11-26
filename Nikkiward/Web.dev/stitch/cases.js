@@ -9,7 +9,12 @@
     'x-home-photo05-launching':['photo05','launching'],
     'x-home-tide-notfound':['tide','notfound'],
     'x-home-blossom-checking':['blossom','checking'],
-    'switcher':['tide','ready']
+    'switcher':['tide','ready'],
+    'real-ready':['tide','ready'],
+    'real-blocked':['blossom','blocked'],
+    'real-notfound':['tide','notfound'],
+    'real-running':['tide','running'],
+    'real-long':['photo05','blocked']
   };
   const key = new URLSearchParams(location.search).get('mock');
   if (!Object.hasOwn(cases,key)) return;
@@ -44,6 +49,44 @@
   ].map(([id,src,time]) => ({
     id,thumbnail:assets + src,fileName:'2026-11-26_' + time + '.jpg',time:'2026.11.26  ' + time.slice(0,5).replace('-',':')
   }));
+  if (key.startsWith('real-')) {
+    const readySummary = '官方启动器 1.3.2 · 签名已核对';
+    const recent = [
+      ['p05','photo-05.jpg','2026-11-26_19-00-08.png','今天 19:00'],
+      ['p04','photo-04.jpg','2026-11-25_23-40-12.png','昨天 23:40'],
+      ['p01','photo-01.jpg','2026-11-21_19-00-08.png','11-21 19:00'],
+      ['fae','photo-fae.jpg','2026-11-03_04-45-12.png','11-03 04:45']
+    ].map(([id,src,fileName,time]) => ({id,thumbnail:assets + src,fileName,time}));
+    const selected = key === 'real-long' ? 'steam' : key === 'real-notfound' ? null : 'cn';
+    const options = profiles.map(p => ({
+      ...p, current:p.id === selected, available:p.id === selected,
+      reason:p.id === selected ? '已发现安装' : '未发现安装'
+    }));
+    const region = selected === 'steam' ? '国际服' : selected ? '国服' : null;
+    const realStates = {
+      'real-ready':{detail:'检测到启动器版本 1.3.2，组件签名验证通过；点击后构建瞬时 plan 并请求 UAC 提权。',readySummary,check:'检查通过'},
+      'real-blocked':{detail:'游戏组件的数字签名无效或签名者不受信任，为安全起见已拒绝启动。请用官方启动器校验游戏文件或重新安装后重试。',checkTime:'今天 06:45'},
+      'real-notfound':{detail:'请在游戏设置的「基本信息」中点「定位游戏」。'},
+      'real-running':{detail:'目标进程已在运行，启动按钮已锁定。',sessionMinutes:42,
+        taskText:'正在导入共享对象 · 1024/2048',progress:50,officialDuration:'1284 小时',localDuration:'96.5 小时'},
+      'real-long':{state:'SelectionRequired',launchLabel:'需要选择安装',check:'需要选择安装',
+        detail:'请在游戏设置的「基本信息」中点「定位游戏」，选择要使用的安装目录。',
+        artName:'2026-11-26_21-14-08_花愿镇的黄昏与晚风',artSource:'自定义背景',
+        taskText:'正在计算 SHA-256 · 20480/40960',progress:50,officialDuration:'1284 小时',localDuration:'96.5 小时',
+        palette:['#aae8f2','#16677f'],photos:recent.slice(-1)}
+    };
+    show({
+      state,visual,launchLabel,readySummary:null,check:launchLabel,checkTime:'今天 06:43',checkCount:null,
+      enabled:visual === 'ready',busy:false,running:visual === 'running',closeVisible:visual === 'running',
+      closeEnabled:visual === 'running',closeLabel:'关闭游戏',sessionMinutes:null,
+      nextActions:visual === 'blocked' ? ['status','recheck'] : visual === 'notfound' ? ['locate','rediscover'] : [],
+      profile:options.find(p => p.current)?.name ?? null,profiles:options,channel:region,platform:[region,'Windows'].filter(Boolean).join(' · '),
+      background:{type:'image',url:assets + file},artName,artSource,theme,accent:palette[0],onAccent:theme === 'dark' ? '#0c1530' : '#fff6f4',
+      palette:['#ce7b94','#e9a6b9'],contrastPassed:true,still:true,photos:recent,photoTotal:null,lastSessionPhotos:null,
+      officialDuration:null,localDuration:null,taskText:null,progress:null,checklist:null,tools:null,...realStates[key]
+    });
+    return;
+  }
   const sheet = document.createElement('link');
   sheet.rel = 'stylesheet';
   sheet.href = '../../../Web.dev/stitch/cases.css';
@@ -70,6 +113,10 @@
       cancel.className = 'btn sm';
       cancel.textContent = '模拟：在确认框里点了取消';
       $('#actions').append(cancel);
+    }
+    if (visual === 'notfound') {
+      $('#cChkLi > span').textContent = '启动检查';
+      $('#cChk').textContent = $('#cChk').title = check + ' · ' + checkTime;
     }
     if (key === 'switcher') switchProfiles(true);
   });
