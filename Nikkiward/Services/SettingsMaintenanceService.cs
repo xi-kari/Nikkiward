@@ -40,6 +40,7 @@ public sealed class SettingsMaintenanceService
     [
         "settings.pre-schema6.rollback.json",
         "settings.pre-schema7.rollback.json",
+        "settings.pre-schema8.rollback.json",
         "JournalCache/journal-snapshot.json",
         "JournalCache/resonance-history.json",
         "WishHistory/wish-history.json",
