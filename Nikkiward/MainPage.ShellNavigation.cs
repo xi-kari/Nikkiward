@@ -170,6 +170,8 @@ public sealed partial class MainPage
     private void SetShellNavigationSelection(string selectedItem)
     {
         ShellNavigation.Select(selectedItem);
+        HomeDataChanged -= RefreshWebJournal;
+        if (selectedItem == "library") HomeDataChanged += RefreshWebJournal;
     }
 
     private void CloseDetails()
