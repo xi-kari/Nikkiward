@@ -13,6 +13,6 @@ registerSettingsSection('Screenshot',(ui,s) => {
   ui.toggle('色彩管理','color',s.color,'应用于 SDR 输出，HDR 原图保留其色彩信息。');
   ui.toggle('复制截图到剪贴板','copy',s.copy);
   ui.toggle('同时保存 SDR 图片','sdr',s.sdr,'截取 HDR 画面时，额外保存一张 SDR 图片。');
-  ui.row('测试截图',action('截取当前窗口','test'),'窗口需保持可见，超出屏幕的部分可能缺失。');
+  ui.row('测试截图',action('截取当前显示器','test'),'将保存启动器所在显示器上的所有可见内容，包括其他窗口。开启自动复制后，截图文件也会复制到剪贴板。');
   ui.row('相册缩略图缓存',action('清除缓存','clear'));
 });

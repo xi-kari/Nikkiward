@@ -20,7 +20,7 @@ public sealed partial class MainPage
         {
             case "test":
                 var result = await _gameScreenshotService.CaptureTestAsync(WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow),
-                    ViewModel.ScreenshotSettings, ResolveScreenshotFolderPath(), token);
+                    ViewModel.ScreenshotSettings, ResolveScreenshotFolderPath(), () => ViewModel.GalleryReadOnlyRoots, token);
                 if (!result.Succeeded) throw new IOException(result.Message);
                 await CopyScreenshotToClipboardAsync(result);
                 await TryShowDialogAsync("测试截图完成", result.Message);
@@ -50,8 +50,7 @@ public sealed partial class MainPage
     {
         if (await ConfirmWebSettingsAsync("清除缩略图缓存？", "仅删除缓存的缩略图。下次浏览相册时会重新生成，原图会保留。", "清除"))
         {
-            var result = await GalleryThumbnailCache.ClearAsync(token);
-            if (result.FailedFileCount > 0) throw new IOException($"有 {result.FailedFileCount} 个缓存文件未能清除。");
+            await ClearGalleryThumbnailsAsync(token);
         }
     }
 

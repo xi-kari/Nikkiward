@@ -329,14 +329,24 @@ public sealed partial class MainPage
             "缓存统计刷新失败");
     }
 
+    private async Task<IReadOnlyList<string>> ThumbnailProtectedRootsAsync(CancellationToken token)
+    {
+        var preferences = await GalleryProtection.GetPreferencesAsync(token);
+        return [.. ViewModel.GalleryReadOnlyRoots, PhotoStudioView.Store.ExportRoot,
+            preferences.ActiveRootPath, .. preferences.KnownRootPaths];
+    }
+
+    private Task ClearGalleryThumbnailsAsync(CancellationToken token) => GalleryProtection.ChangeGalleryDirectoriesAsync(async () =>
+    {
+        var folder = GalleryThumbnailCache.FolderPath ?? throw new IOException("缩略图缓存目录不可用。");
+        var result = await GalleryThumbnailCache.ClearAsync(folder, await ThumbnailProtectedRootsAsync(token), token);
+        if (!result.IsAvailable) throw new IOException("无法读取缩略图缓存目录。");
+        if (result.FailedFileCount > 0) throw new IOException($"有 {result.FailedFileCount} 个缓存文件未能清除。");
+    }, token);
+
     private async void OnSettingsGalleryCacheClearRequested(object? sender, EventArgs e)
     {
-        await RunGallerySettingsOperationAsync(
-            async cancellationToken =>
-            {
-                _ = await GalleryThumbnailCache.ClearAsync(cancellationToken);
-            },
-            "缩略图缓存清理失败");
+        await RunGallerySettingsOperationAsync(ClearGalleryThumbnailsAsync, "缩略图缓存清理失败");
     }
 
     private async void OnSettingsNikkiGalleryRegisterRequested(object? sender, EventArgs e) => await NikkiGalleryRegisterAsync();

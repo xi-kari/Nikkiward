@@ -140,6 +140,8 @@
     <Compile Include="GalleryFavoriteCardLayoutTests.cs" />
     <Compile Include="GalleryMetadataTests.cs" />
     <Compile Include="..\Nikkiward\Services\ScreenshotFrameHandoff.cs" />
+    <Compile Include="..\Nikkiward\Services\PhotoDirectoryPolicy.cs" />
+    <Compile Include="..\Nikkiward\Features\Gallery\GalleryThumbnailCache.Maintenance.cs" />
     <Compile Include="..\Nikkiward\Services\ScreenshotOutput.cs" />
     <Compile Include="ScreenshotRuntimeContractTests.cs" />
     <Compile Include="JournalDomainTests.cs" />

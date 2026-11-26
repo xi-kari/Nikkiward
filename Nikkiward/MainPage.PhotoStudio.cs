@@ -62,9 +62,13 @@ public sealed partial class MainPage
         if (await picker.PickSingleFolderAsync() is not { } folder) return;
         try
         {
-            PhotoStudioStore.CheckDestination(folder.Path, ViewModel.GalleryReadOnlyRoots);
-            PhotoStudioStore.CheckDestination(PhotoStudioView.Store.Root, ViewModel.GalleryReadOnlyRoots);
-            PhotoStudioView.Store.ExportRoot = folder.Path;
+            await GalleryProtection.ChangeGalleryDirectoriesAsync(() =>
+            {
+                PhotoStudioStore.CheckDestination(folder.Path, ViewModel.GalleryReadOnlyRoots);
+                PhotoStudioStore.CheckDestination(PhotoStudioView.Store.Root, ViewModel.GalleryReadOnlyRoots);
+                PhotoStudioView.Store.ExportRoot = folder.Path;
+                return Task.CompletedTask;
+            }, _lifetimeCancellation?.Token ?? CancellationToken.None);
             CurrentWebPage?.Refresh();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

@@ -110,13 +110,19 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
 
     public string? GalleryRootPath => FindGalleryRoot(_profile?.ProfileId);
 
-    public IReadOnlyList<string> GalleryReadOnlyRoots => PersistedSettings.GalleryProfiles
-        .Select(item => GalleryAnnotationStore.NormalizeGalleryRoot(item.RootPath))
-        .Concat(PersistedSettings.Profiles.Select(item => item.GameRootPath))
-        .Concat(_channelStoreReadOnlyRoots)
-        .Concat(PersistedSettings.ChannelStore.Profiles.Select(item => item.GameRootPath))
-        .Concat(_profileBuildResult?.Candidates.Select(item => item.GameRootPath) ?? [])
-        .OfType<string>().Where(Path.IsPathFullyQualified).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    public IReadOnlyList<string> GalleryReadOnlyRoots
+    {
+        get
+        {
+            var gameRoots = PersistedSettings.Profiles.Select(item => item.GameRootPath)
+                .Concat(_channelStoreReadOnlyRoots)
+                .Concat(PersistedSettings.ChannelStore.Profiles.Select(item => item.GameRootPath))
+                .Concat(_profileBuildResult?.Candidates.Select(item => item.GameRootPath) ?? [])
+                .OfType<string>().Where(Path.IsPathFullyQualified).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            return PersistedSettings.GalleryProfiles.Select(item => GalleryAnnotationStore.NormalizeGalleryRoot(item.RootPath))
+                .Concat(gameRoots).Concat(gameRoots.Select(GalleryFiles.DefaultRoot)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        }
+    }
 
     public string XStarterPath => _selectedCandidate?.Provider?.BackendExecutablePath
         ?? "未绑定 provider";
@@ -1067,9 +1073,11 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     {
         var normalized = ApplicationSettingsValidator.Normalize(screenshot);
         var changesHotkey = normalized.Hotkey != ScreenshotSettings.Hotkey;
-        await _settingsStore.UpdateAsync(current => current with
+        await _settingsStore.UpdateAsync(current =>
         {
-            Screenshot = changesHotkey ? normalized : normalized with { Hotkey = current.Screenshot.Hotkey },
+            if (normalized.FolderPath is { } folder)
+                PhotoDirectoryPolicy.ScreenshotFolder(folder, GalleryReadOnlyRoots);
+            return current with { Screenshot = changesHotkey ? normalized : normalized with { Hotkey = current.Screenshot.Hotkey } };
         }, cancellationToken);
         OnPropertyChanged(nameof(ScreenshotSettings));
     }
