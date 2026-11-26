@@ -76,7 +76,11 @@
                     <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="最近错误" />
                     <TextBlock automation:AutomationProperties.LiveSetting="Polite" Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.LastErrorText}" />
                 </StackPanel>
-                <TextBlock Text="{x:Bind ViewModel.HomeFallback, Mode=OneWay}" Style="{StaticResource OnArtBodyTextStyle}" />
+                <StackPanel>
+                    <TextBlock Text="{x:Bind ViewModel.HomeFallback, Mode=OneWay}" Style="{StaticResource OnArtBodyTextStyle}" />
+                    <TextBlock x:Name="WebPageFallbackText" x:Load="{x:Bind HasText(ViewModel.WebPageFallback)}"
+                        Text="{x:Bind ViewModel.WebPageFallback}" TextWrapping="Wrap" Style="{StaticResource OnArtBodyTextStyle}" />
+                </StackPanel>
                 <Expander
                     x:Name="TechnicalDetailsExpander"
                     automation:AutomationProperties.Name="查看技术详情"

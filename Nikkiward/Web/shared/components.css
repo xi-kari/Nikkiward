@@ -9,11 +9,15 @@ svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.5;stro
   --wall3:color-mix(in srgb,var(--wall) 92%,var(--ink)); --cta:var(--ink); --cta-ink:var(--wall);
 }
 [data-skin=cinema]{--ink2:color-mix(in srgb,var(--ink) 76%,transparent);--line:color-mix(in srgb,var(--ink) 13%,transparent)}
+html[data-skin=wishstar][data-tone=dark]{background:#0a0d1c}
+html[data-skin=wishstar][data-tone=light]{background:#fff}
+html[data-skin=wishstar] body{min-height:100vh}
+*{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--nk-panel-ink-2) 70%,var(--nk-panel-line)) transparent}
 body{font:14px/1.5 var(--nk-font-ui);-webkit-font-smoothing:antialiased;background:var(--wall);color:var(--ink)}
 .m{font-family:var(--nk-font-num);font-variant-numeric:tabular-nums;letter-spacing:0}
 .top{app-region:drag}
 .top button,.top nav{app-region:no-drag}
-#page{position:absolute;inset:44px 0 0;overflow:auto;scrollbar-width:thin}
+#page{position:absolute;inset:44px 0 0;overflow:auto}
 .ph h1{font-family:var(--nk-font-display)}
 .hint{font-size:12px;color:var(--ink2);margin-top:10px;line-height:1.7}
 input,select{font:inherit;color:inherit}
@@ -82,7 +86,7 @@ table.t .r{text-align:right}
 #palette .pin{display:flex;align-items:center;gap:12px;height:56px;padding:0 18px;border-bottom:1px solid var(--line)}
 #palette input{flex:1;background:none;border:0;outline:0;font-size:17px}
 #palette input::placeholder{color:var(--ink3)}
-#plist{max-height:396px;overflow:auto;padding:6px;scrollbar-width:thin}
+#plist{max-height:396px;overflow:auto;padding:6px}
 #plist h4{font-size:12px;font-weight:500;letter-spacing:.14em;color:var(--ink3);padding:10px 12px 5px}
 #plist button{display:flex;align-items:center;gap:12px;width:100%;height:38px;padding:0 12px;border-radius:var(--nk-panel-radius-s);font-size:14px}
 #plist button span{flex:1}

@@ -51,6 +51,7 @@ const homeOverlays = (() => {
       ['生命周期',o.lifecycleText],['预检门',o.providerPreflightText],['观测边界',o.providerObservationPolicyText]];
     return '<h2>启动检查</h2><p class="ho-meta">'+escape(s.profile || '未选择档案')+' · 最后检查 '+numbers(s.checkTime)+'</p><div class="ho-scroll">'+
       (s.officialFlow!=null ? '<div class="ho-note"><b>'+escape(s.launchLabel)+'</b>'+escape(s.detail)+'</div>' : '')+
+      (o.webPageFallback ? '<div class="ho-note"><b>功能页面</b>'+escape(o.webPageFallback)+'</div>' : '')+
       rows.map(([label,check]) => {
         const mark = check.passed===true ? icon('check') : check.passed===false ? icon('shield') : icon('info');
         return '<div class="ho-row" data-result="'+(check.passed===false?'failed':check.passed===true?'passed':'info')+'">'+

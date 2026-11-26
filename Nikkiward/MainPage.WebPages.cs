@@ -30,7 +30,7 @@ public sealed partial class MainPage
     {
         if (view != CurrentWebPage) return;
         _webPagesFailed = true;
-        ViewModel.ReportUiError($"功能页面已回退到原生界面：{reason}");
+        ViewModel.WebPageFallback = $"功能页面已回退到原生界面（{page}）：{reason}";
         await NavigateWebPageAsync(page);
     }
 }

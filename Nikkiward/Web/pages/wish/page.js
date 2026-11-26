@@ -39,8 +39,9 @@
   function mount({root,send,commands}) {
     const section = node('section');
     section.id = 'wish';
-    section.innerHTML = '<header class="ph"><h1>心愿共鸣记录</h1><div class="meta"></div><div class="sp"></div><button class="btn solid"><svg class="i"><use href="#i-export"/></svg>导入 JSON</button></header><div class="cols"><section class="mod"><h2>合计</h2><div class="stats"></div><p class="hint import-hint"></p></section><section class="mod pools"><h2>按卡池</h2><div class="history"></div><div class="wardrobe"></div></section></div>';
+    section.innerHTML = '<header class="ph"><h1>心愿共鸣记录</h1><div class="meta"></div><div class="sp"></div><button class="btn" data-action="export">导出</button><button class="btn solid"><svg class="i"><use href="#i-export"/></svg>导入 JSON</button></header><div class="cols"><section class="mod"><h2>合计</h2><div class="stats"></div><p class="hint import-hint"></p></section><section class="mod pools"><h2>按卡池</h2><div class="history"></div><div class="wardrobe"></div></section></div>';
     root.append(section);
+    section.querySelector('[data-action="export"]').onclick = () => send('export');
     section.querySelector('.solid').onclick = () => send('import');
     commands.push(...[['导入 JSON','import'],['导出全部记录为 JSON','export'],['去官方手账同步','sync']]
       .map(([label,action]) => ['心愿共鸣',label,() => send(action)]));

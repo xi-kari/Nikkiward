@@ -116,7 +116,7 @@ public sealed partial class WebPagesView : Page
             core.Settings.IsZoomControlEnabled = false;
             core.Settings.IsNonClientRegionSupportEnabled = true;
             core.SetVirtualHostNameToFolderMapping(Host, Path.Combine(AppContext.BaseDirectory, "Web"), CoreWebView2HostResourceAccessKind.Deny);
-            core.SetVirtualHostNameToFolderMapping("wish-assets.nikkiward.invalid", _shell.WishAssetsPath, CoreWebView2HostResourceAccessKind.DenyCors);
+            core.SetVirtualHostNameToFolderMapping("wish-assets.nikkiward.invalid", _shell.EnsureWishAssetsDirectory(), CoreWebView2HostResourceAccessKind.DenyCors);
             core.NavigationStarting += (_, e) => e.Cancel = e.Uri != Address;
             core.FrameNavigationStarting += (_, e) => e.Cancel = true;
             core.NewWindowRequested += (_, e) => e.Handled = true;
