@@ -199,7 +199,7 @@ public sealed partial class MainPageViewModel
                 .GroupBy(profile => profile.ProfileId, StringComparer.Ordinal)
                 .Select(group => group.First())
                 .ToArray();
-            _channelStoreSettings = new ChannelStoreSettings
+            var channelStore = new ChannelStoreSettings
             {
                 StoreRootPath = _channelStorePlan.StoreRootPath,
                 LastReceiptId = _channelStoreReceipt.ReceiptId,
@@ -217,14 +217,13 @@ public sealed partial class MainPageViewModel
                     })
                     .ToArray(),
             };
-            var updatedSettings = _persistedSettings with
+            await _settingsStore.UpdateAsync(current => current with
             {
-                ChannelStore = _channelStoreSettings,
+                ChannelStore = channelStore,
                 Profiles = profiles,
                 SelectedProfileId = selectedProfileId,
-            };
-            await _settingsStore.SaveAsync(updatedSettings, cancellationToken);
-            _persistedSettings = updatedSettings;
+            }, cancellationToken);
+            _channelStoreSettings = channelStore;
             await ApplyDiscoveryResultAsync(materialized, selectedProfileId, cancellationToken);
             if (IsExternalChannelSelected)
             {
@@ -654,7 +653,7 @@ public sealed partial class MainPageViewModel
             return null;
         }
 
-        var seed = _persistedSettings.Profiles.FirstOrDefault(profile =>
+        var seed = PersistedSettings.Profiles.FirstOrDefault(profile =>
             string.Equals(profile.ProfileId, stored.ProfileId, StringComparison.Ordinal));
         if (seed is null)
         {

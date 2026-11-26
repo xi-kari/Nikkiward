@@ -99,6 +99,8 @@
     <Compile Include="MotionRuntimeHardeningContractTests.cs" />
     <Compile Include="DiagnosticTests.cs" />
     <Compile Include="UserSettingsTests.cs" />
+    <Compile Include="TestVisibility.cs" />
+    <Compile Include="..\Nikkiward\ViewModels\MainPageViewModel*.cs" LinkBase="ViewModels" />
     <Compile Include="AppearanceSettingsTests.cs" />
     <Compile Include="ApplicationSettingsTests.cs" />
     <Compile Include="WindowLifecycleTests.cs" />

@@ -7,6 +7,12 @@ using Nikkiward.Serialization;
 
 namespace Nikkiward.Services;
 
+internal sealed class UnsupportedSettingsVersionException(int version) : JsonException(
+    $"Unsupported settings schema version {version}; expected {UserSettings.CurrentSchemaVersion}.")
+{
+    public int Version => version;
+}
+
 public sealed class JsonUserSettingsStore : IUserSettingsStore
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
@@ -84,81 +90,7 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
                     cancellationToken: cancellationToken).ConfigureAwait(false);
             }
 
-            if (document is not JsonObject root)
-            {
-                throw new JsonException("The settings document must be a JSON object.");
-            }
-
-            var version = ReadSchemaVersion(root);
-            var migrated = false;
-            if (version == UserSettings.LegacySchemaVersion)
-            {
-                root = AppearanceSettingsMigration.MigrateSchema3To4(root);
-                migrated = true;
-                version = UserSettings.MotionBackgroundSchemaVersion;
-            }
-
-            if (version == UserSettings.MotionBackgroundSchemaVersion)
-            {
-                root = AppearanceSettingsMigration.MigrateSchema4To5(root);
-                migrated = true;
-                version = UserSettings.PreviousSchemaVersion;
-            }
-
-            if (version == UserSettings.PreviousSchemaVersion)
-            {
-                await PreserveMigrationRollbackAsync(
-                    MigrationRollbackFilePath,
-                    cancellationToken).ConfigureAwait(false);
-                root = AppearanceSettingsMigration.MigrateSchema5To6(root);
-                migrated = true;
-                version = UserSettings.HolographicCardSchemaVersion;
-            }
-
-            if (version == UserSettings.HolographicCardSchemaVersion)
-            {
-                await PreserveMigrationRollbackAsync(
-                    Schema7MigrationRollbackFilePath,
-                    cancellationToken).ConfigureAwait(false);
-                root = ApplicationSettingsMigration.MigrateSchema6To7(root);
-                migrated = true;
-                version = UserSettings.ApplicationSettingsSchemaVersion;
-            }
-
-            if (version == UserSettings.ApplicationSettingsSchemaVersion)
-            {
-                await PreserveMigrationRollbackAsync(
-                    Schema8MigrationRollbackFilePath,
-                    cancellationToken).ConfigureAwait(false);
-                root = ApplicationSettingsMigration.MigrateSchema7To8(root);
-                migrated = true;
-                version = UserSettings.CurrentSchemaVersion;
-            }
-
-            if (version != UserSettings.CurrentSchemaVersion)
-            {
-                throw new JsonException(
-                    $"Unsupported settings schema version {version}; " +
-                    $"expected {UserSettings.CurrentSchemaVersion}.");
-            }
-
-            EnsureChannelStoreSection(root);
-            RequireSettingsSections(root);
-
-            var settings = root.Deserialize(UserSettingsJsonTypeInfo);
-
-            if (settings is null)
-            {
-                throw new JsonException("The settings document is empty.");
-            }
-
-            var normalized = UserSettingsValidator.Normalize(settings);
-            if (migrated)
-            {
-                await SaveAsync(normalized, cancellationToken).ConfigureAwait(false);
-            }
-
-            return normalized;
+            return await ReadDocumentAsync(document, persistMigration: true, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -176,7 +108,115 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
         }
     }
 
-    public async Task SaveAsync(UserSettings settings, CancellationToken cancellationToken = default)
+    private async Task<UserSettings> ReadDocumentAsync(JsonNode? document, bool persistMigration,
+        CancellationToken cancellationToken)
+    {
+        if (document is not JsonObject root)
+        {
+            throw new JsonException("The settings document must be a JSON object.");
+        }
+
+        var version = ReadSchemaVersion(root);
+        var migrated = false;
+        if (version == UserSettings.LegacySchemaVersion)
+        {
+            root = AppearanceSettingsMigration.MigrateSchema3To4(root);
+            migrated = true;
+            version = UserSettings.MotionBackgroundSchemaVersion;
+        }
+
+        if (version == UserSettings.MotionBackgroundSchemaVersion)
+        {
+            root = AppearanceSettingsMigration.MigrateSchema4To5(root);
+            migrated = true;
+            version = UserSettings.PreviousSchemaVersion;
+        }
+
+        if (version == UserSettings.PreviousSchemaVersion)
+        {
+            if (persistMigration)
+            {
+                await PreserveMigrationRollbackAsync(
+                    MigrationRollbackFilePath,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            root = AppearanceSettingsMigration.MigrateSchema5To6(root);
+            migrated = true;
+            version = UserSettings.HolographicCardSchemaVersion;
+        }
+
+        if (version == UserSettings.HolographicCardSchemaVersion)
+        {
+            if (persistMigration)
+            {
+                await PreserveMigrationRollbackAsync(
+                    Schema7MigrationRollbackFilePath,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            root = ApplicationSettingsMigration.MigrateSchema6To7(root);
+            migrated = true;
+            version = UserSettings.ApplicationSettingsSchemaVersion;
+        }
+
+        if (version == UserSettings.ApplicationSettingsSchemaVersion)
+        {
+            if (persistMigration)
+            {
+                await PreserveMigrationRollbackAsync(
+                    Schema8MigrationRollbackFilePath,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            root = ApplicationSettingsMigration.MigrateSchema7To8(root);
+            migrated = true;
+            version = UserSettings.CurrentSchemaVersion;
+        }
+
+        if (version != UserSettings.CurrentSchemaVersion)
+        {
+            throw new UnsupportedSettingsVersionException(version);
+        }
+
+        EnsureChannelStoreSection(root);
+        RequireSettingsSections(root);
+
+        var settings = root.Deserialize(UserSettingsJsonTypeInfo);
+
+        if (settings is null)
+        {
+            throw new JsonException("The settings document is empty.");
+        }
+
+        var normalized = UserSettingsValidator.Normalize(settings);
+        if (migrated && persistMigration)
+        {
+            await SaveAsync(normalized, cancellationToken).ConfigureAwait(false);
+        }
+
+        return normalized;
+    }
+
+    internal async Task<UserSettings> RecoverUnreadableAsync(string? backupPath, CancellationToken cancellationToken)
+    {
+        var settings = new UserSettings();
+        if (backupPath is not null)
+        {
+            using var archive = System.IO.Compression.ZipFile.OpenRead(backupPath);
+            var entry = archive.GetEntry("settings.json") ?? throw new InvalidDataException("备份中缺少 settings.json。");
+            await using var input = entry.Open();
+            var document = await JsonNode.ParseAsync(input, cancellationToken: cancellationToken).ConfigureAwait(false);
+            settings = await ReadDocumentAsync(document, persistMigration: false, cancellationToken).ConfigureAwait(false);
+        }
+
+        var preservedPath = Path.Combine(Path.GetDirectoryName(SettingsFilePath)!,
+            $"settings.unreadable-{DateTime.UtcNow:yyyyMMdd-HHmmssfff}-{Guid.NewGuid():N}.json");
+        await WriteAsync(settings, preservedPath, cancellationToken).ConfigureAwait(false);
+        return settings;
+    }
+
+    public Task SaveAsync(UserSettings settings, CancellationToken cancellationToken = default) =>
+        WriteAsync(settings, null, cancellationToken);
+
+    private async Task WriteAsync(UserSettings settings, string? preservedPath, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(settings);
 
@@ -206,7 +246,15 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
 
-            File.Move(temporaryPath, SettingsFilePath, overwrite: true);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (preservedPath is null)
+            {
+                File.Move(temporaryPath, SettingsFilePath, overwrite: true);
+            }
+            else
+            {
+                File.Replace(temporaryPath, SettingsFilePath, preservedPath);
+            }
         }
         catch (OperationCanceledException)
         {
