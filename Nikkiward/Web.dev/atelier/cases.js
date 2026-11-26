@@ -7,6 +7,11 @@
     photo05: ['photo-05.jpg', '荷塘夜色', '来自相册 · 11 月 26 日', 'dark', '#F3BFAE', '#1D1310']
   };
   const cases = {
+    'real-ready': ['tide','ready'],
+    'real-blocked': ['blossom','blocked'],
+    'real-notfound': ['tide','notfound'],
+    'real-running': ['tide','running'],
+    'real-long': ['photo05','blocked'],
     'switcher': ['tide','ready'],
     'home-tide': ['tide','ready'],
     'home-blossom': ['blossom','ready'],
@@ -44,7 +49,7 @@
       <button tabindex="-1"><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9"/></svg></button>
       <button tabindex="-1"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
     </div>`);
-  show({
+  const sample = {
     nextActions:visual === 'blocked' ? ['status','recheck'] : visual === 'notfound' ? ['locate','rediscover'] : [],
     discoveryTime:"今天 21:40", profiles:[
       {id:'cn',channel:'官方',name:'国服 · 官方',available:true,current:true,reason:'可启动 · 官方启动器 1.6.2'},
@@ -59,5 +64,37 @@
     checklist:{completed:2,total:3,next:'拍一张晨曦滤镜'}, photoTotal:93, lastSessionPhotos:3,
     taskText:'后台 · 正在合并三渠道存储', progress:62,
     artName, artSource, theme, accent, onAccent, still:true, photos, date:'2026-11-26', issue:'二〇二六年十一月号'
-  }).then(() => { if (key === 'switcher') switchProfiles(true); });
+  };
+  if (key.startsWith('real-')) {
+    const missing = key === 'real-notfound', custom = key === 'real-long', running = key === 'real-running';
+    const times = ['今天 19:00','昨天 23:40','11-21 19:00','11-03 04:45'];
+    const files = ['2026-11-26_19-00-08.png','2026-11-25_23-40-08.png','2026-11-21_19-00-08.png','2026-11-03_04-45-08.png'];
+    const recent = photos.map((p,i) => ({...p,fileName:files[i],time:times[i]}));
+    const reasons = {
+      'real-ready':'检测到启动器版本 1.3.2，组件签名验证通过；点击后构建瞬时 plan 并请求 UAC 提权。',
+      'real-blocked':'游戏组件的数字签名无效或签名者不受信任，为安全起见已拒绝启动。请用官方启动器校验游戏文件或重新安装后重试。',
+      'real-notfound':'请在游戏设置的「基本信息」中点「定位游戏」。',
+      'real-running':'目标进程已在运行，启动按钮已锁定。',
+      'real-long':'请在游戏设置的「基本信息」中点「定位游戏」，选择要使用的安装目录。'
+    };
+    Object.assign(sample, {
+      detail:reasons[key], readySummary:visual === 'ready' ? '官方启动器 1.3.2 · 签名已核对' : null,
+      profile:missing ? null : custom ? '国际服 · Steam' : '国服 · 官方', channel:custom ? '国际服' : missing ? '' : '国服',
+      profiles:sample.profiles.map(p => {
+        const current = !missing && p.id === (custom ? 'steam' : 'cn');
+        return {...p,current,available:current,reason:current ? '已发现安装' : '未发现安装'};
+      }),
+      state:custom ? 'SelectionRequired' : state, launchLabel:custom ? '需要选择安装' : launchLabel,
+      check:custom ? '需要选择安装' : visual === 'ready' ? '检查通过' : launchLabel,
+      checkTime:key === 'real-blocked' ? '今天 06:45' : '今天 06:43', checkCount:null,
+      officialDuration:running || custom ? '1284 小时' : null, localDuration:running || custom ? '96.5 小时' : null,
+      sessionMinutes:running ? 42 : null, journalSnapshotDate:null, discoveryTime:null, checklist:null,
+      photoTotal:null, lastSessionPhotos:null, photos:custom ? recent.slice(-1) : recent,
+      taskText:running ? '正在导入共享对象 · 1024/2048' : custom ? '正在计算 SHA-256 · 20480/40960' : null,
+      progress:running || custom ? 50 : null,
+      artName:custom ? '2026-11-26_21-14-08_花愿镇的黄昏与晚风' : artName, artSource:custom ? '自定义背景' : artSource
+    });
+  }
+  if (key === 'home-tide-running') win.classList.add('quiet-sample');
+  show(sample).then(() => { if (key === 'switcher') switchProfiles(true); });
 })();
