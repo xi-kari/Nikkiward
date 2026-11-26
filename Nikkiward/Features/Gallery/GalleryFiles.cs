@@ -21,7 +21,7 @@ internal static class GalleryFiles
         }
     }
 
-    internal static IEnumerable<FileInfo> Recent(string root, CancellationToken token) =>
+    internal static IOrderedEnumerable<FileInfo> NewestFirst(string root, CancellationToken token) =>
         Enumerate(root, token).OrderByDescending(file => file.LastWriteTimeUtc)
-            .ThenBy(file => file.FullName, StringComparer.Ordinal).Take(4);
+            .ThenBy(file => file.FullName, StringComparer.Ordinal);
 }

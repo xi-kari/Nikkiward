@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Nikkiward.Features.Background;
 using Nikkiward.Models;
+using Nikkiward.Services;
 using Nikkiward.ViewModels;
 
 namespace Nikkiward.Features.Launcher.Skins;
@@ -39,10 +40,14 @@ internal sealed record HomeBackground(string Type, string Url, string? Poster = 
 }
 
 internal sealed record HomeProfileOption(string Id, string Name, string Region, string Channel, bool Available, string Reason, bool Current, string? Detail);
-internal sealed record HomePhoto(string Id, string FileName, string Time, string? Thumbnail);
-internal sealed record HomeChecklist(int Completed, int Total, string Next);
+internal sealed record HomePhoto(string Id, string FileName, string Time, string? Thumbnail, string? Session = null);
+internal sealed record HomeChecklist(int Completed, int Total, string? Next, ChecklistItem[] Items)
+{
+    internal static HomeChecklist? From(ChecklistItem[] items) => items.Length == 0 ? null :
+        new(items.Count(i => i.Done), items.Length, items.FirstOrDefault(i => !i.Done)?.Text, items);
+}
 internal sealed record HomeRect(double X, double Y, double Width, double Height);
-internal sealed record HomeAction(string Action, string? PhotoId = null, HomeRect? Rect = null, string? ProfileId = null);
+internal sealed record HomeAction(string Action, string? PhotoId = null, HomeRect? Rect = null, string? ProfileId = null, PlannerCommand? Planner = null);
 internal sealed record WebHomeState(LaunchButtonState State, string LaunchLabel, string Detail, bool Enabled, bool Busy,
     bool CloseVisible, bool CloseEnabled, string CloseLabel, string Profile, string Channel, string Check, string CheckTime,
     string? OfficialDuration, string? LocalDuration, string? TaskText, double? Progress, string ArtName, string ArtSource,
@@ -67,7 +72,7 @@ internal sealed record WebHomeState(LaunchButtonState State, string LaunchLabel,
             vm.HasHomeTask && vm.ChannelStoreProgressVisibility == Microsoft.UI.Xaml.Visibility.Visible ? vm.ChannelStoreProgressPercent : null,
             vm.HomeArtName, vm.HomeArtSource, paperTheme, fill, still, photos, DateOnly.FromDateTime(DateTime.Today))
         {
-            SessionMinutes = vm.HomeState == LaunchButtonState.Running ? vm.HomeSessionMinutes : null,
+            CheckCount = vm.HomeCheckCount,
             DiscoveryTime = vm.HomeCandidates.Count == 0 ? null : vm.HomeCandidates.Max(c => c.ObservedAtUtc).ToLocalTime().ToString("MM-dd HH:mm"),
             Profiles = ProfileRows(vm.HomeCandidates, vm.SelectedProfileId).ToArray(),
             ReadySummary = vm.HomeReadySummary,
@@ -120,7 +125,12 @@ internal sealed record WebHomeState(LaunchButtonState State, string LaunchLabel,
     public string Platform => Channel + " · Windows";
     public bool Running => State == LaunchButtonState.Running;
     public int? SessionMinutes { get; init; }
-    public string[]? Tools => null;
+    public LocalReminder[] Reminders { get; init; } = [];
+    public int ReminderCount => Reminders.Length;
+    public LocalReminder? NextReminder => Reminders.Where(r => r.Due.HasValue).MinBy(r => r.Due);
+    public PinnedLink[] Links { get; init; } = [];
+    public DateTimeOffset? SessionStarted { get; init; }
+    public int? CurrentSessionPhotos { get; init; }
     public string[] Palette { get; init; } = [];
     public bool ContrastPassed => ArtPaletteAnalyzer.ContrastRatio(Luminance(Accent), Luminance(OnAccent)) >= 4.5;
     private static double Luminance(string hex)
@@ -170,6 +180,7 @@ internal static class WebHomeBridge
         catch (JsonException) { return null; }
         return message?.Action switch
         {
+            "planner" when message.Planner?.Valid() == true => message,
             "profile" when message.Rect is { X: >= 0, Y: >= 0, Width: > 0, Height: > 0 } r &&
                 double.IsFinite(r.X + r.Width) && double.IsFinite(r.Y + r.Height) => message,
             "select-profile" when !string.IsNullOrEmpty(message.ProfileId) => message,

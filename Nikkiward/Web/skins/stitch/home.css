@@ -256,3 +256,5 @@ body.bare #win{left:0;top:0;margin:0;border-radius:0;box-shadow:none;transform:n
 .counted-task{display:flex;align-items:baseline;gap:4px}
 .counted-task #progress{flex:none}
 .counted-task .bar{display:none}
+
+#win{--planner-bg:rgba(var(--fab),.96);--planner-line:rgba(var(--th),.45);--planner-radius:14px;--planner-heading:var(--f-d)}

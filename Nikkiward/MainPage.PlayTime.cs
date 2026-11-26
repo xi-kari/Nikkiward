@@ -162,12 +162,15 @@ public sealed partial class MainPage
         RefreshPlayTimeViews();
     }
 
+    internal (PlaySession? Current, PlaySession? Previous, DateTimeOffset? Started) HomeSessions =>
+        ViewModel.GeneralSettings.RecordLocalPlayTime ? _playTime?.HomeSessions(ViewModel.PlayChannel) ?? default : default;
+
     private void RefreshPlayTimeViews()
     {
         var sessions = _playTime?.Sessions ?? [];
-        ViewModel.HomeSessionMinutes = ViewModel.GeneralSettings.RecordLocalPlayTime ? _playTime?.CurrentMinutes : null;
         ViewModel.LocalPlayDuration = ViewModel.GeneralSettings.RecordLocalPlayTime && sessions.Count > 0
             ? $"本机 {sessions.Sum(session => session.Duration.TotalHours):0.#} 小时" : null;
+        HomeDataChanged?.Invoke(this, EventArgs.Empty);
         _hostedSettingsPage?.ApplyPlayTimeState(sessions.Count > 0, _playTimeError);
         _hostedJournalPage?.ApplyPlayTime(ViewModel.GeneralSettings.RecordLocalPlayTime, sessions, _playTimeError);
     }

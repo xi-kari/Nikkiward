@@ -46,6 +46,7 @@ public sealed class SettingsMaintenanceService
         "JournalCache/journal-snapshot.json",
         "JournalCache/resonance-history.json",
         PlayTimeStore.RelativePath,
+        PlannerStore.RelativePath,
         "WishHistory/wish-history.json",
         "Gallery/stars.json",
         "Gallery/default-favorites-v1.seed",

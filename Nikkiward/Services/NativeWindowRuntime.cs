@@ -82,6 +82,7 @@ public sealed class NativeWindowRuntime : IDisposable
     private HotkeyGesture? _showWindowGesture;
     private HotkeyGesture? _screenshotGesture;
     private IntPtr _trayIconHandle;
+    private bool _trayRequested;
     private bool _ownsTrayIconHandle;
     private bool _trayVisible;
     private bool _applicationActive;
@@ -210,6 +211,7 @@ public sealed class NativeWindowRuntime : IDisposable
     public void SetTrayEnabled(bool enabled)
     {
         ThrowIfDisposed();
+        _trayRequested = enabled;
         if (enabled == _trayVisible)
         {
             return;
@@ -276,6 +278,11 @@ public sealed class NativeWindowRuntime : IDisposable
         else if (message == WmAppTray)
         {
             var mouseMessage = unchecked((uint)lParam.ToInt64()) & 0xFFFF;
+            if (!_trayRequested && mouseMessage is 0x403 or 0x404 or 0x405) // balloon hidden, timed out or clicked
+            {
+                RemoveTrayIcon();
+                return IntPtr.Zero;
+            }
             if (mouseMessage is WmLButtonUp or WmLButtonDoubleClick)
             {
                 ShowWindowRequested?.Invoke(this, EventArgs.Empty);
@@ -334,6 +341,22 @@ public sealed class NativeWindowRuntime : IDisposable
 
         _ = GetWindowThreadProcessId(foregroundWindow, out var processId);
         return processId == (uint)Environment.ProcessId;
+    }
+
+    internal void NotifyReminder(string message)
+    {
+        if (!_trayVisible) AddTrayIcon();
+        var data = CreateTrayData();
+        data.Flags = 0x10; // NIF_INFO
+        data.InfoTitle = "清单与提醒";
+        data.Info = message.Length <= 255 ? message : message[..254] + "…";
+        data.InfoFlags = 1;
+        if (!ShellNotifyIcon(NimModify, ref data))
+        {
+            int error = Marshal.GetLastWin32Error();
+            if (!_trayRequested) RemoveTrayIcon();
+            throw new InvalidOperationException($"无法显示提醒，Windows 错误码 {error}。");
+        }
     }
 
     private void AddTrayIcon()

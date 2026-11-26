@@ -136,7 +136,11 @@ public sealed partial class MainPage : Page
         get
         {
             var regions = new List<FrameworkElement>(2);
-            if (HomeInteractive && _hostedLauncherPage?.WebHome is { } web) regions.Add(web.Masthead);
+            if (HomeInteractive && _hostedLauncherPage?.WebHome is { } web)
+            {
+                regions.Add(web.Masthead);
+                if (web.MastheadTool.Width > 0) regions.Add(web.MastheadTool);
+            }
             if (ShellNavigation.IsEnabled && ShellNavigation.Visibility == Visibility.Visible && ShellNavigation.IsHitTestVisible) regions.AddRange(ShellNavigation.InteractiveRegions);
 
             if (ContentFrame.IsEnabled && ContentFrame.Visibility == Visibility.Visible &&

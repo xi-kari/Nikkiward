@@ -25,6 +25,8 @@ public sealed record GeneralSettings
 
     public CloseWindowBehavior CloseWindowBehavior { get; init; } = CloseWindowBehavior.Exit;
 
+    public TimeOnly ChecklistReset { get; init; } = new(4, 0);
+
     public bool RecordLocalPlayTime { get; init; }
 
     public AfterLaunchBehavior AfterLaunchBehavior { get; init; } = AfterLaunchBehavior.KeepWindow;

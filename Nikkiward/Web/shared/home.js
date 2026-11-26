@@ -69,11 +69,38 @@ function updateCover(state) {
   return backgroundReady;
 }
 
+function photoMarked(photo,index,count) {
+  return 'session' in photo ? photo.session === (currentState.currentSessionPhotos != null ? 'current' : 'previous') : index < count;
+}
+function sessionLabel(s, fallback) {
+  if (s.currentSessionPhotos != null) return '本次游玩';
+  return s.lastSessionPhotos != null && 'currentSessionPhotos' in s ? '上次游玩' : fallback;
+}
+function elapsedLabel(s) {
+  if (s.sessionMinutes == null) return '';
+  const start = s.sessionStarted ? new Date(s.sessionStarted).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',hour12:false})+' 开始 · ' : '';
+  return start+'已运行 '+s.sessionMinutes+' 分钟';
+}
+let minuteTimer;
+function updateClock(s) {
+  clearTimeout(minuteTimer);
+  if (!s.running || !s.sessionStarted) return;
+  const ms = Math.max(0,Date.now() - Date.parse(s.sessionStarted));
+  s.sessionMinutes = Math.floor(ms/60000);
+  minuteTimer = setTimeout(() => {
+    updateClock(s);
+    render({...s,photos:undefined});
+  },60000-ms%60000);
+}
+
 async function show(state) {
+  if (window.panelSample) Object.assign(state,window.panelSample);
+  updateClock(state);
   currentState = state;
   const ready = updateCover(state);
   if (!bridge) state.still = true;
   render(state);
+  planner.refresh();
   if (win.classList.contains('pending')) {
     void win.offsetWidth;
     try { await Promise.all([document.fonts.ready, ready]); }
@@ -85,6 +112,7 @@ async function show(state) {
     win.classList.remove('pending');
     if (!bridge) document.getAnimations().forEach(animation => { animation.pause(); animation.currentTime = 0; });
     bridge?.postMessage('ready');
+    if (window.panelSample) planner.open();
     if (!state.still) {
       win.classList.add('enter');
       setTimeout(() => win.classList.remove('enter'), 3200);
@@ -96,6 +124,9 @@ async function show(state) {
 }
 
 if (bridge) bridge.addEventListener('message', ({data}) => {
+  if (data === 'open-planner') return planner.open();
+  if (typeof data === 'string' && data.startsWith('planner-error:')) return planner.result(data.slice(14));
+  if (data === 'planner-saved') return planner.result();
   if (data === 'presented') {
     presented = true;
     playCover();
@@ -107,7 +138,13 @@ else if (location.protocol === 'file:' && new URLSearchParams(location.search).h
   script.src = '../../../Web.dev/' + id + '/cases.js';
   document.body.classList.add('bare','noanim');
   win.classList.add('still');
-  document.addEventListener('DOMContentLoaded', () => document.head.append(script), {once:true});
+  document.addEventListener('DOMContentLoaded', () => {
+    if (new URLSearchParams(location.search).get('mock') !== 'panel') return document.head.append(script);
+    const fixture = document.createElement('script');
+    fixture.src = '../../../Web.dev/panel.js';
+    fixture.onload = () => document.head.append(script);
+    document.head.append(fixture);
+  }, {once:true});
 }
 
 if (bridge) document.addEventListener('click', e => {

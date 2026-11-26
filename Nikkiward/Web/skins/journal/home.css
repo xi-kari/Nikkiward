@@ -80,7 +80,7 @@ body.bare #win{border-radius:0;box-shadow:none}
 .pola:nth-of-type(3){left:270px;transform:rotate(-1.6deg)}
 .pola:hover,.pola:focus-visible{transform:rotate(0) translateY(-10px) scale(1.04);z-index:5}
 .pola b{position:absolute;left:-7px;top:14px;z-index:1;box-shadow:0 1px 2px rgba(0,0,0,.2);font:700 12px var(--hand);background:var(--tape-2);color:#3b2d2a;padding:2px 7px;transform:rotate(-5deg);display:none}
-body[data-state="running"] .pola.now b{display:block}
+.pola.now b{display:block}
 
 /* right-bottom cluster */
 .dock{position:absolute;right:var(--edge);bottom:var(--edge);width:500px}
@@ -219,3 +219,5 @@ body[data-over="switcher"] .dock-top{opacity:0;pointer-events:none}
   .dock-top .note{display:none}
   .switcher .foot{flex-wrap:wrap}
 }
+
+#win{--planner-bg:var(--paper);--planner-line:var(--line);--planner-radius:var(--r-paper);--planner-heading:var(--hand)}

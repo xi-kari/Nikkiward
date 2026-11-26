@@ -103,6 +103,7 @@ public sealed partial class MainPage
                 e.Settings,
                 _lifetimeCancellation?.Token ?? CancellationToken.None);
             UpdatePlayTimeTimer(fromSettings: true);
+            if (_plannerTimer?.IsEnabled == true) RefreshPlanner();
             ApplicationLanguageRuntime.Apply(ViewModel.GeneralSettings.LanguageTag);
             App.MainWindow.ApplyCloseBehavior(e.Settings.CloseWindowBehavior);
             SyncLauncherChrome();

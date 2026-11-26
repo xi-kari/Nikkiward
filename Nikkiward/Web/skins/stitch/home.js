@@ -90,7 +90,8 @@ new ResizeObserver(sizeSeam).observe($('.hole'));
 new ResizeObserver(sizeSeam).observe($('.brand'));
 window.mastheadBounds = () => {
   const {left,right} = $('.nav').getBoundingClientRect();
-  return [left,right];
+  const tool = $('#btnTools').getBoundingClientRect();
+  return [left,right,tool.left,tool.right];
 };
 
 let photoKey;
@@ -113,6 +114,7 @@ function renderPhotos(items) {
       img.src = p.thumbnail;
     }
     b.append(img);
+    if (p.session) b.append(Object.assign(document.createElement('b'),{textContent:p.session === 'current' ? '本次' : '上次'}));
     return b;
   }));
 }
@@ -123,6 +125,8 @@ const artworkPalettes = {
 };
 
 function render(s) {
+  const tools = $('#btnTools');
+  tools.title = s.nextReminder ? '下次提醒：'+s.nextReminder.text+' · '+new Date(s.nextReminder.due).toLocaleString('zh-CN') : '工具与提醒';
   const visual = s.visual;
   win.dataset.state = visual;
   win.classList.toggle('light',s.theme === 'light');
@@ -169,7 +173,7 @@ function render(s) {
   } else reason.textContent = s.detail;
   $('#reason').hidden = !blocked;
   $('#runningNote').hidden = visual !== 'running';
-  const duration = s.sessionMinutes == null ? '' : '已运行 ' + s.sessionMinutes + ' 分钟';
+  const duration = elapsedLabel(s);
   $('#runningNote').textContent = duration && !s.detail.includes(duration) ? duration : '游戏正在运行，动效和粒子已关闭。';
   const chooseInstall = s.state === 'SelectionRequired';
   const actions = chooseInstall ? ['locate',...s.nextActions] : s.nextActions;
@@ -216,6 +220,7 @@ function render(s) {
   if (s.profile && channel.scrollWidth > channel.clientWidth) channel.textContent = s.profile;
   task.title = [s.taskText,s.progress == null ? '' : Math.round(s.progress) + '%'].filter(Boolean).join(' · ');
   if (s.photos) renderPhotos(s.photos);
-  $('.recent header span').textContent = s.lastSessionPhotos == null ? '' : '上次游玩拍了 ' + s.lastSessionPhotos + ' 张';
+  const count = s.currentSessionPhotos ?? s.lastSessionPhotos;
+  $('.recent header span').textContent = count == null ? '' : sessionLabel(s,'上次游玩')+'拍了 ' + count + ' 张';
 }
 

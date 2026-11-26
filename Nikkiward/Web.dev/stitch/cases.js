@@ -2,6 +2,7 @@
 (() => {
   const assets = 'file:///D:/Projects/nikkiward-worktrees/_briefs/redesign/concepts/assets/';
   const cases = {
+    panel:['tide','ready'],
     'home-tide':['tide','ready'],
     'home-blossom':['blossom','ready'],
     'home-tide-running':['tide','running'],
@@ -50,6 +51,7 @@
     id,thumbnail:assets + src,fileName:'2026-11-26_' + time + '.jpg',time:'2026.11.26  ' + time.slice(0,5).replace('-',':')
   }));
   if (key.startsWith('real-')) {
+    $('#btnTools').hidden = true;
     const readySummary = '官方启动器 1.3.2 · 签名已核对';
     const recent = [
       ['p05','photo-05.jpg','2026-11-26_19-00-08.png','今天 19:00'],
@@ -91,8 +93,7 @@
   sheet.rel = 'stylesheet';
   sheet.href = '../../../Web.dev/stitch/cases.css';
   document.head.append(sheet);
-  $('.symbols defs').insertAdjacentHTML('beforeend', '<symbol id="i-pin" viewBox="0 0 20 20"><path d="M7 3h6l-1 5 3 3H5l3-3zM10 11v6"/></symbol>');
-  $('.top').insertAdjacentHTML('beforeend', '<button class="ibtn" id="btnTools" disabled aria-label="工具与提醒" title="暂无工具与提醒"><svg class="i"><use href="#i-pin"/></svg></button><div class="cap" aria-hidden="true"><span><svg viewBox="0 0 11 11"><path d="M0 5.500h11"/></svg></span><span><svg viewBox="0 0 11 11"><rect x=".5" y=".5" width="10" height="10"/></svg></span><span><svg viewBox="0 0 11 11"><path d="M0 0l11 11M11 0L0 11"/></svg></span></div>');
+  $('.top').insertAdjacentHTML('beforeend', '<div class="cap" aria-hidden="true"><span><svg viewBox="0 0 11 11"><path d="M0 5.500h11"/></svg></span><span><svg viewBox="0 0 11 11"><rect x=".5" y=".5" width="10" height="10"/></svg></span><span><svg viewBox="0 0 11 11"><path d="M0 0l11 11M11 0L0 11"/></svg></span></div>');
   show({
     state,visual,launchLabel,detail:reasons[visual] || subtitle,readySummary:subtitle,
     enabled:visual === 'ready',busy:['launching','checking'].includes(visual),

@@ -11,9 +11,11 @@
 <link rel="stylesheet" href="home.css">
 <script defer src="../../shared/home.js"></script>
 <script defer src="home.js"></script>
+<link rel="stylesheet" href="../../shared/planner.css">
+<script defer src="../../shared/planner.js"></script>
 ```
 
-共用脚本在 DOM 解析后运行，提供 `$`、`win`、`bridge` 和 `show(state)`。页面需提供 `#win.pending`、无替代文字的 `img#coverImg`、`video#coverVideo[muted][loop][playsinline][hidden]` 和普通脚本全局函数 `render(state)`。根节点 pending 时不可见；首次封面和字体就绪后，共用脚本移除 pending，有动效时加 enter。皮肤把 still 应用到自己的动画，按设计稿设置背景层尺寸、裁切和遮罩。视频、静态帧、后台暂停及原生接管由共用脚本处理。顶部有交互元素时实现 `window.mastheadBounds()`，返回它们在页面坐标中的左右边界数组，单位为 CSS 像素。
+共用脚本在 DOM 解析后运行，提供 `$`、`win`、`bridge` 和 `show(state)`。页面需提供 `#win.pending`、无替代文字的 `img#coverImg`、`video#coverVideo[muted][loop][playsinline][hidden]` 和普通脚本全局函数 `render(state)`。根节点 pending 时不可见；首次封面和字体就绪后，共用脚本移除 pending，有动效时加 enter。皮肤把 still 应用到自己的动画，按设计稿设置背景层尺寸、裁切和遮罩。视频、静态帧、后台暂停及原生接管由共用脚本处理。顶部有交互元素时实现 `window.mastheadBounds()`，返回它们在页面坐标中的左右边界数组，单位为 CSS 像素。若导航以外还有独立的顶部工具按钮，在数组后追加其左右边界；两块之间仍可拖动窗口。
 
 ## 状态契约
 
@@ -34,7 +36,10 @@
 | artName、artSource、background | 画名、来源，及 {type,url,poster}；type 为 image/video，视频 poster 是静态帧地址。 |
 | theme、accent、onAccent、palette、contrastPassed | dark/light、织标底色、织标文字色、原生取色的亮/暗主题强调色数组、当前织标文字对底色的对比度是否达到 4.5。 |
 | photos、photoTotal、lastSessionPhotos | 最近照片的 id、fileName、time（今天 HH:mm、昨天 HH:mm、MM-dd HH:mm 或往年 yyyy-MM-dd）、thumbnail，以及可空的总数和上次游玩拍摄数。**photos 缺省时保留上次列表，空数组才清空。** |
-| checklist、tools | 清单 {completed,total,next}、工具与提醒。当前应用均给 null。 |
+| checklist | 无条目时为 null。其余为 {completed,total,next,items}，next 是首个未完成项的文字，全完成时为 null。items 按玩家顺序给出 {id,text,done}。 |
+| reminders、reminderCount、nextReminder | 全部提醒、条数、下一条待触发提醒。每项含 id、text、repeat（once/daily/weekly）、本地 time、一次性 date、周 weekday（0 为周日）、带时区 due。已结束提醒的 due 为空。 |
+| links | 玩家排序的固定链接 {id,text,url}，仅接受 HTTPS。 |
+| sessionStarted、currentSessionPhotos | 当前档案关联进程的启动时刻（含时区）及本次记录内的拍摄数。photos 每项的 session 为 current、previous 或 null。照片归属及本次、上次数量仅来自已启用的本机游玩记录。已绑定游戏进程的启动时刻可独立显示，未能确认时留空。 |
 | date、issue | 本机日期 YYYY-MM-DD、中文刊号。 |
 
 ## 动作
@@ -48,9 +53,13 @@
 - nav-launcher、nav-library、nav-gallery、nav-gallery-favorites、nav-resonance、nav-settings 对应首页、手账、相册、收藏、共鸣、设置。
 - 设计稿的命令面板组合这些动作。熄灯鉴赏、打开或收起命令面板等页面内交互由皮肤自行完成。
 
+面板由共享 planner.js 渲染，用 data-planner="check"、"reminder" 或 "link" 打开对应区段。编辑发送 {action:"planner",planner:{action,id,text,...}}。check 支持 add/edit/toggle/delete/move，link 支持 add/edit/delete/move/open，reminder 支持 add/edit/delete，以连字符拼接动作名。新增省略 id，编辑和新增带 text，链接带 url，提醒带 repeat、time 以及相应的 date 或 weekday；移动带 step（-1 或 1）。打开链接只发送已保存的 id。
+
 ## 对照与发布
 
 普通浏览器以 `file:///…/Nikkiward/Web/skins/<id>/index.html?mock=<用例名>` 打开。共用脚本在无 WebView2 时从 `../../../Web.dev/<id>/cases.js` 加载测试数据。脚本读取 mock，按设计稿调用 `show(state)`；需要展开切换器等终态时，用 `show(state).then(...)`。背景和示例照片使用设计素材的 file URL，仍走正式渲染逻辑。保留设计稿 bare 的 CSS 和确定性粒子位置；对照入口设置 bare、noanim、still，跳过入场，并在初始布局后固定动画时间。
+
+每套的 `?mock=panel` 叠加 Web.dev/panel.js 的统一示例，并打开共用面板。
 
 修改完页面后，从仓库根目录运行 `pwsh -File build/Update-WebManifests.ps1`，将生成的 `build/WebSkins.sha256` 与页面一起交付。清单包含 shared 和所有皮肤，合并并行分支时在合并后的文件树上再生成一次。Web.dev 只用于对照，不进入发布载荷。
 

@@ -34,7 +34,23 @@ function icon(name, cls = '') {
   return svg;
 }
 
+let clockTick;
+function sessionClock(started) {
+  const time = element('time');
+  time.dateTime = started;
+  time.title = new Date(started).toLocaleTimeString('zh-CN') + ' 启动';
+  function tick() {
+    const seconds = Math.max(0,Math.floor((Date.now()-Date.parse(started))/1000));
+    time.textContent = [Math.floor(seconds/3600),Math.floor(seconds/60)%60,seconds%60]
+      .map(n => String(n).padStart(2,'0')).join(':');
+  }
+  tick();
+  clockTick = setInterval(tick,1000);
+  return time;
+}
+
 function renderLaunch(s) {
+  clearInterval(clockTick);
   const kind = kinds[s.visual];
   if (cta.dataset.kind !== kind || cta.querySelector('.lbl').textContent !== s.launchLabel ||
       win.dataset.state !== s.visual) {
@@ -61,10 +77,11 @@ function renderLaunch(s) {
   note.classList.toggle('prose',kind !== 'go' && prose);
   if (kind === 'go') return;
   const heading = element('b');
-  const title = prose ? (kind === 'live' && s.sessionMinutes != null ? '本次游玩 ' + s.sessionMinutes + ' 分钟' : '') : lines.shift();
+  const title = prose ? (kind === 'live' && s.sessionMinutes != null ? (s.sessionStarted ? elapsedLabel(s) : '本次游玩 ' + s.sessionMinutes + ' 分钟') : '') : lines.shift();
   heading.hidden = !title || title === s.launchLabel;
   if (kind === 'stop') heading.append(icon('shield'));
-  heading.append(...withNumbers(title));
+  if (kind === 'live' && s.sessionStarted) heading.append('本次游玩 ',sessionClock(s.sessionStarted));
+  else heading.append(...withNumbers(title));
   const reason = element('p',lines.join('\n'));
   reason.title = reason.textContent;
   const links = prose ? element('div',null,'note-actions') : reason;
@@ -138,10 +155,10 @@ function renderPhotos(s) {
     old.forEach(b => b.remove());
   }
   ledge.hidden = !recentPhotos.length;
-  const count = s.lastSessionPhotos;
+  const count = s.currentSessionPhotos ?? s.lastSessionPhotos;
   $('#sessionShots').hidden = count == null;
-  if (count != null) $('#sessionShots').replaceChildren(...withNumbers('上次游玩 ' + count + ' 张'));
-  ledge.querySelectorAll('button').forEach((b,i) => b.lastChild.hidden = i >= (count ?? 0));
+  if (count != null) $('#sessionShots').replaceChildren(...withNumbers(sessionLabel(s,'上次游玩')+' ' + count + ' 张'));
+  ledge.querySelectorAll('button').forEach((b,i) => b.lastChild.hidden = !photoMarked(recentPhotos[i],i,count));
 }
 
 function render(s) {
@@ -213,12 +230,13 @@ function wake() {
 function updateIdle() {
   const s = currentState;
   const allowed = !!s && s.enabled && s.visual === 'ready' && !s.running && !s.still &&
-    !motion.matches && !win.dataset.ov && !document.hidden;
+    !motion.matches && !win.dataset.ov && !planner.dialog.open && !document.hidden;
   if (allowed === idleAllowed) return;
   idleAllowed = allowed;
   wake();
 }
 document.addEventListener('visibilitychange',updateIdle);
+document.addEventListener('DOMContentLoaded',() => planner.dialog.addEventListener('toggle',updateIdle));
 motion.addEventListener('change',updateIdle);
 for (const event of ['pointermove','pointerdown','wheel']) document.addEventListener(event,wake,{passive:true});
 
@@ -252,12 +270,14 @@ const commands = [
   ['前往','相册','nav-gallery'], ['前往','收藏','nav-gallery-favorites'], ['前往','最近一张照片','photo'],
   ['前往','奇想手账','nav-library'], ['前往','心愿共鸣记录','nav-resonance'], ['前往','设置','nav-settings'],
   ['背景','换成「花信」','blossom'], ['背景','换成「海月」','tide'], ['背景','恢复默认背景','reset'],
-  ['背景','进入鉴赏模式','idle','闲置 8 秒也会进入'], ['背景','更换背景','background'], ['工具','后台任务','download']
+  ['背景','进入鉴赏模式','idle','闲置 8 秒也会进入'], ['背景','更换背景','background'], ['工具','后台任务','download'],
+  ['工具','今日清单','check'], ['工具','提醒','reminder'], ['工具','固定链接','link']
 ];
 let selected = 0;
 function renderPalette() {
   const query = $('#pIn').value.trim().toLowerCase();
   const items = commands.filter(([group,label,action]) => (group+label).toLowerCase().includes(query) &&
+    (!['check','reminder','link'].includes(action) || currentState.links) &&
     (action !== 'photo' || recentPhotos.length) && (action !== 'download' || currentState.taskText));
   const list = $('#plist');
   list.replaceChildren();
@@ -279,6 +299,7 @@ function renderPalette() {
     b.onclick = () => {
       if (action === 'switcher') return setOverlay(action);
       setOverlay('');
+      if (['check','reminder','link'].includes(action)) return planner.open(action);
       if (action === 'idle') { clearTimeout(timer); setIdle(true); }
       else if (action === 'launch') cta.click();
       else if (action === 'photo') $('#ledge button').click();
@@ -299,7 +320,7 @@ function renderPalette() {
 }
 $('#pIn').oninput = () => { selected = 0; renderPalette(); };
 document.addEventListener('keydown',e => {
-  if (e.isComposing || !currentState) return;
+  if (planner.dialog.open || e.isComposing || !currentState) return;
   const ov = win.dataset.ov;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
     e.preventDefault();

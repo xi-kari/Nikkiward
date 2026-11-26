@@ -13,7 +13,33 @@ internal sealed class PlayTimeLedger(IReadOnlyList<PlaySession> history)
     private DateTimeOffset? _recordingBoundary = history.Count == 0 ? null : history.Max(s => s.EndUtc);
     public IReadOnlyList<PlaySession> Sessions => _sessions;
 
-    internal int? CurrentMinutes => _active.Count == 1 && _lastObservation is { } now ? (int)(now - _active.Keys.First().Item2).TotalMinutes : null;
+    internal (PlaySession? Current, PlaySession? Previous, DateTimeOffset? Started) HomeSessions(string? channel)
+    {
+        var active = _active.Where(k => _sessions[k.Value].Channel == channel).ToArray();
+        var current = active.Length == 1 ? _sessions[active[0].Value] : null;
+        var previous = _sessions.Where(s => s.Channel == channel && !active.Any(k => ReferenceEquals(s, _sessions[k.Value]))).MaxBy(s => s.EndUtc);
+        return (current, previous, active.Length == 1 ? active[0].Key.Item2 : null);
+    }
+
+    internal static bool ContainsPhoto(PlaySession session, DateTimeOffset time) => time >= session.StartUtc && time <= session.EndUtc;
+
+    internal static int? CountPhotos(DateTime[]? sortedTimes, PlaySession? session)
+    {
+        if (sortedTimes == null || session == null) return null;
+        int Bound(DateTime time, bool inclusive)
+        {
+            int low = 0, high = sortedTimes.Length;
+            while (low < high)
+            {
+                int mid = low + (high - low) / 2;
+                if (sortedTimes[mid] < time || inclusive && sortedTimes[mid] == time) low = mid + 1;
+                else high = mid;
+            }
+            return low;
+        }
+        return Bound(session.EndUtc.UtcDateTime, true) - Bound(session.StartUtc.UtcDateTime, false);
+    }
+
 
     public void Disconnect(DateTimeOffset now)
     {

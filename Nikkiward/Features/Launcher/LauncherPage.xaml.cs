@@ -17,6 +17,7 @@ public sealed partial class LauncherPage : PageBase
     private GalleryFolderWatcher? _watcher;
     private CancellationTokenSource? _scan;
     private (string? Profile, string? Root)? _scope;
+    internal DateTime[]? AlbumTimes { get; private set; }
     public ObservableCollection<GalleryPhotoItemViewModel> RecentPhotos { get; } = [];
     public event EventHandler<GalleryPhotoItemViewModel>? PhotoRequested;
     public MainPageViewModel ViewModel { get; private set; } = null!;
@@ -99,6 +100,7 @@ public sealed partial class LauncherPage : PageBase
         if (_scope != (profile, root))
         {
             _scope = (profile, root);
+            AlbumTimes = null;
             RecentPhotos.Clear();
             _watcher?.Watch(root);
         }
@@ -112,17 +114,19 @@ public sealed partial class LauncherPage : PageBase
             var items = await Task.Run(() =>
             {
                 var scope = GalleryAnnotationStore.CreateScopeId(profile, root);
-                return GalleryFiles.Recent(root, scan.Token)
-                    .Select(file => GalleryViewModel.CreatePhoto(file, root, scope)).ToArray();
+                var files = GalleryFiles.NewestFirst(root, scan.Token).ToArray();
+                return (Times: files.Select(f => GalleryTimestamp.Resolve(f.Name, f.LastWriteTimeUtc)).Order().ToArray(),
+                    Recent: files.Take(4).Select(file => GalleryViewModel.CreatePhoto(file, root, scope)).ToArray());
             }, scan.Token);
             if (scan.IsCancellationRequested) return;
             RecentPhotos.Clear();
-            foreach (var item in items) RecentPhotos.Add(item);
+            AlbumTimes = items.Times;
+            foreach (var item in items.Recent) RecentPhotos.Add(item);
         }
         catch (OperationCanceledException) when (scan.IsCancellationRequested) { }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
-            if (!scan.IsCancellationRequested) RecentPhotos.Clear();
+            if (!scan.IsCancellationRequested) { AlbumTimes = null; RecentPhotos.Clear(); }
         }
         finally
         {

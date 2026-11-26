@@ -482,6 +482,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
 
         if (observation.RunningProcessAlive)
         {
+            SetField(ref _observedStart, RunningStart(observation, binding.RunningProcessPath), nameof(HomeObservedStart));
             _lastObservedGameAtUtc = DateTimeOffset.UtcNow;
             _isLaunchCleanupRequired = false;
             if (!_isOfficialAssistedRunning)

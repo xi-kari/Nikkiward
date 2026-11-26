@@ -364,3 +364,5 @@ button:disabled{cursor:default}
 @container(max-width:238px){
   .thumb:not(.more){display:none}
 }
+
+#win{--planner-bg:var(--sheet-solid);--planner-line:var(--line);--planner-radius:var(--r3);--planner-heading:var(--f-disp)}

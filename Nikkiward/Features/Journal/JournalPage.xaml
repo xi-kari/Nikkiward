@@ -35,6 +35,7 @@
             Padding="24,0,20,24"
             VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="26">
+                <Button Content="清单与提醒" Click="OnPlannerClicked" />
                 <controls:GlassIsland
                     x:Name="EmptyStateIsland"
                     automation:AutomationProperties.Name="奇想手账空状态">

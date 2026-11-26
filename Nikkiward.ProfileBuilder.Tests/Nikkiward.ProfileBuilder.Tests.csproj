@@ -36,6 +36,7 @@
     <Compile Include="..\Nikkiward\Services\JsonUserSettingsStore.cs" Link="Services\JsonUserSettingsStore.cs" />
     <Compile Include="..\Nikkiward\Services\SettingsMaintenanceService.cs" Link="Services\SettingsMaintenanceService.cs" />
     <Compile Include="..\Nikkiward\Services\AtomicFile.cs" Link="Services\AtomicFile.cs" />
+    <Compile Include="..\Nikkiward\Services\HomePlanner.cs" Link="Services\HomePlanner.cs" />
     <Compile Include="..\Nikkiward\Services\PlayTimeLedger.cs" Link="Services\PlayTimeLedger.cs" />
     <Compile Include="..\Nikkiward\Services\PlayTimeStore.cs" Link="Services\PlayTimeStore.cs" />
     <Compile Include="..\Nikkiward\Features\GamepadControl\GameBarGuideOverride.cs" Link="Features\GamepadControl\GameBarGuideOverride.cs" />

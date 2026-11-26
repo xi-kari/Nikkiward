@@ -37,6 +37,13 @@ public sealed partial class MainPageViewModel
     }
     public Microsoft.UI.Xaml.Visibility HomeLocalTimeVisibility => LocalPlayDuration == null
         ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
+    private DateTimeOffset? _observedStart;
+    internal DateTimeOffset? HomeObservedStart => _isOfficialAssistedRunning && _activeProcessBinding?.ProfileId == SelectedProfileId ? _observedStart : null;
+    internal static DateTimeOffset? RunningStart(OfficialAssistedProcessObservation observation, string gamePath) =>
+        observation.GameProcesses.Where(p => string.Equals(p.ExecutablePath, gamePath, StringComparison.OrdinalIgnoreCase))
+            .Min(p => (DateTimeOffset?)p.StartTimeUtc);
+    internal string? PlayChannel => _selectedCandidate is { } c ? FormatDistribution(c.Identity.DistributionChannel) : null;
+    internal int? HomeCheckCount => _preflightResult?.Components.Count is > 0 and var count ? count : null;
     public string HomeCheckText => HomeState == LaunchButtonState.Ready ? "检查通过" : HomeState.Label();
     public bool HasHomeTask => IsChannelStoreBusy ||
         _profileBuildResult?.Candidates.Any(c => c.State == InstallationCandidateState.Downloading) == true;
@@ -98,8 +105,6 @@ public sealed partial class MainPageViewModel
         _ => SelectedLauncherVersionName is { } version ? $"官方启动器 {version} · 签名已核对" : "签名已核对"
     };
 
-    private int? _homeSessionMinutes;
-    internal int? HomeSessionMinutes { get => _homeSessionMinutes; set => SetField(ref _homeSessionMinutes, value); }
     private string _homeFallback = "";
     public string HomeFallback { get => _homeFallback; internal set => SetField(ref _homeFallback, value); }
     internal IReadOnlyList<InstallationProfileCandidate> HomeCandidates => _profileBuildResult?.Candidates ?? [];

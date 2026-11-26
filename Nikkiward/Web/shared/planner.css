@@ -1,0 +1,24 @@
+dialog.planner{box-sizing:border-box;margin:auto;width:min(620px,calc(100vw - 40px));max-height:calc(100vh - 112px);overflow:auto;padding:24px 28px;color:var(--ink);background:var(--planner-bg);border:1px solid var(--planner-line);border-radius:var(--planner-radius);font:inherit;letter-spacing:normal;box-shadow:0 16px 64px #0005;backdrop-filter:blur(22px);app-region:no-drag}
+.planner::backdrop{background:#090d194d;backdrop-filter:blur(4px)}
+.planner header,.planner-row{display:flex;align-items:center;gap:8px}
+.planner header{justify-content:space-between}
+.planner h2,.planner h3{margin:0;color:inherit;font-family:var(--planner-heading,inherit)}
+.planner h2{font-size:26px}.planner h3{font-size:17px}
+.planner section{margin-top:18px;border-top:1px solid var(--planner-line);padding-top:12px}
+.planner section header{margin-bottom:6px}
+.planner-row{min-height:36px}
+.planner-row>div{flex:1;min-width:0;overflow-wrap:anywhere}
+.planner-row small{display:block;opacity:.8}
+.planner button,.planner input,.planner select{font:inherit;color:inherit}
+.planner button{padding:4px 8px;border:1px solid var(--planner-line);background:transparent;border-radius:var(--planner-radius);cursor:pointer}
+.planner button:disabled{opacity:.35;cursor:default}
+.planner :focus-visible{outline:2px solid currentColor;outline-offset:2px}
+.planner input[type=checkbox]{margin-right:8px}
+.planner input:checked+span{text-decoration:line-through;opacity:.7}
+.planner form label{display:grid;gap:4px;margin:12px 0}
+.planner form input,.planner select{background:var(--planner-bg);padding:8px;border:1px solid var(--planner-line);border-radius:var(--planner-radius)}
+.planner form button+button{margin-left:8px}
+.planner [hidden],.planner [role=alert]:empty{display:none}
+
+.planner h3,.planner label,.planner strong,.planner-row button:first-child{overflow-wrap:anywhere}
+.planner [role=alert]{margin:10px 0}

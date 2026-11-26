@@ -23,11 +23,11 @@ function showPhotos(items, lastSessionPhotos) {
     const image = button.firstElementChild;
     if (p.thumbnail && image.getAttribute('src') !== p.thumbnail) image.src = p.thumbnail;
     let marker = button.querySelector('.new');
-    if (index < lastSessionPhotos && !marker) {
+    if (photoMarked(p,index,lastSessionPhotos) && !marker) {
       marker = document.createElement('span');
       marker.className = 'new';
       button.append(marker);
-    } else if (index >= lastSessionPhotos) marker?.remove();
+    } else if (!photoMarked(p,index,lastSessionPhotos)) marker?.remove();
     image.alt = p.thumbnail ? '' : p.fileName;
     button.title = p.fileName + ' · ' + p.time;
     button.setAttribute('aria-label', '在相册打开 ' + button.title);
@@ -59,7 +59,7 @@ function render(s) {
   win.dataset.state = tag.dataset.state = s.visual;
   tag.dataset.kind = ['ready','launching'].includes(s.visual) ? 'solid' : 'hollow';
   $('#tagTitle').textContent = s.launchLabel;
-  $('#tagSub').textContent = s.visual === 'ready' ? s.readySummary : s.sessionMinutes != null && s.visual === 'running' ? '已运行 ' + s.sessionMinutes + ' 分钟' : s.detail;
+  $('#tagSub').textContent = s.visual === 'ready' ? s.readySummary : s.sessionMinutes != null && s.visual === 'running' ? elapsedLabel(s) : s.detail;
   $('#launchDetail').textContent = $('#launch').title = s.detail;
   $('#tagKick').textContent = s.state === 'SignatureUntrusted' ? '暂不能启动 · 安全拒绝' : kicks[s.visual] || '';
   $('#launch').disabled = !s.enabled;
@@ -99,13 +99,15 @@ function render(s) {
   } else $('#journalInfo').removeAttribute('title');
   if (s.checklist) {
     $('#checklist').replaceChildren(number(s.checklist.completed), ' / ', number(s.checklist.total));
-    $('#nextTask').textContent = '还剩：' + s.checklist.next;
+    $('#nextTask').textContent = s.checklist.next ? '还剩：' + s.checklist.next : '今日已完成';
+    $('#nextTask').title = s.checklist.next || '';
   } else $('#checklist').textContent = '还没有清单';
   $('#nextTask').hidden = !s.checklist;
   $('#allPhotos').textContent = s.photoTotal == null ? '全部' : '全部 ' + s.photoTotal + ' 张';
   const last = $('#lastSession');
-  last.hidden = s.lastSessionPhotos == null;
-  if (!last.hidden) last.replaceChildren(document.createElement('b'), '上次游玩拍的 ' + s.lastSessionPhotos + ' 张');
+  const count = s.currentSessionPhotos ?? s.lastSessionPhotos;
+  last.hidden = count == null;
+  if (!last.hidden) last.replaceChildren(document.createElement('b'), sessionLabel(s,'上次游玩')+'拍的 ' + count + ' 张');
   $('#coverKick').textContent = s.artSource;
   const title = $('#coverTitle');
   const caption = s.artSource === '自定义背景'

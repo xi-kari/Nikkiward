@@ -37,6 +37,10 @@ internal static class AppearanceRuntimeContractTests
         (nameof(AtelierComparisonAssets), AtelierComparisonAssets),
         (nameof(AtelierArtworkAndIssue), AtelierArtworkAndIssue),
         (nameof(AtelierProfileNames), AtelierProfileNames),
+        (nameof(PlannerDayBoundary), PlannerDayBoundary),
+        (nameof(ReminderCalendarAndMissedBatch), ReminderCalendarAndMissedBatch),
+        (nameof(PlannerCommandsAndPersistence), PlannerCommandsAndPersistence),
+        (nameof(SessionPhotosAndHomeFields), SessionPhotosAndHomeFields),
         (nameof(WebHomeStateMatchesLauncher), WebHomeStateMatchesLauncher),
         (nameof(WebHomeActionsAreBounded), WebHomeActionsAreBounded),
         (nameof(AtelierPageUsesBridge), AtelierPageUsesBridge),
@@ -893,6 +897,103 @@ internal static class AppearanceRuntimeContractTests
             (RegionFamily.Overseas, DistributionChannel.Steam, "国际服 · Steam"),
             (RegionFamily.Overseas, DistributionChannel.Official, "国际服 · 官方") })
             Assert(MainPageViewModel.FormatHomeProfile(region, channel, "").Title == title, title);
+        return Task.CompletedTask;
+    }
+
+    private static Task PlannerDayBoundary()
+    {
+        var reset = new GeneralSettings().ChecklistReset;
+        DateTimeOffset before = new DateTime(2026, 11, 26, 3, 59, 0, DateTimeKind.Local);
+        var planner = PlannerData.Empty.Reset(before, reset) with { Items = [new("a", "拍照", true)] };
+        Assert(planner.Day.Day == 25 && planner.Reset(before, reset).Items[0].Done, "before 04:00");
+        var next = planner.Reset(before.AddMinutes(1), reset);
+        Assert(next.Day.Day == 26 && next.Items is [{ Done: false, Id: "a" }], "reset only completion");
+        Assert(planner.Reset(before.AddMinutes(1), new(5, 0)).Items[0].Done, "custom boundary");
+        return Task.CompletedTask;
+    }
+
+    private static Task ReminderCalendarAndMissedBatch()
+    {
+        DateTimeOffset now = new DateTime(2026, 11, 26, 19, 30, 0, DateTimeKind.Local);
+        var daily = new LocalReminder("a","拍照","daily",new(19,30),null,null,now);
+        var weekly = daily with { Id = "b", Repeat = "weekly", Weekday = DayOfWeek.Thursday };
+        var once = daily with { Id = "c", Repeat = "once", Date = new(2026,11,26) };
+        Assert(daily.Next(now) == now.AddDays(1) && weekly.Next(now) == now.AddDays(7) &&
+            once.Next(now.AddMinutes(-1)) == now && once.Next(now) == null, "next occurrence");
+        var data = PlannerData.Empty with { Reminders = [daily,weekly,once] };
+        var later = now.AddDays(10);
+        var advanced = data.Advance(later, out var batch);
+        Assert(batch.Length == 3 && advanced.Reminders[2].Due == null && advanced.Reminders[0].Due > later, "one batch after downtime");
+        advanced.Advance(later, out var again);
+        Assert(again.Length == 0, "no duplicate delivery");
+        return Task.CompletedTask;
+    }
+
+    private static Task PlannerCommandsAndPersistence()
+    {
+        var now = DateTimeOffset.Now;
+        var data = PlannerData.Empty.Reset(now,new(4,0));
+        HomeAction? Parse(PlannerCommand command) => WebHomeBridge.Parse(JsonSerializer.Serialize(new { action = "planner", planner = command }, WebHomeBridge.Json));
+        foreach (var group in new[] { "check", "link", "reminder" })
+        {
+            var add = new PlannerCommand(group+"-add", Text:"第一项", Url:"https://example.com/", Repeat:"daily", Time:new(8,0));
+            Assert(Parse(add) != null, group+" add");
+            data = data.Change(add,now);
+            var id = group switch { "check" => data.Items[0].Id, "link" => data.Links[0].Id, _ => data.Reminders[0].Id };
+            foreach (var action in group switch { "check" => new[] {"edit","toggle","move","delete"}, "link" => ["edit","open","move","delete"], _ => ["edit","delete"] })
+                Assert(Parse(add with { Action = group+"-"+action, Id = id, Step = 1 }) != null, action);
+        }
+        Assert(Parse(new("link-add", Text:"坏地址", Url:"file:///private")) == null &&
+            Parse(new("link-open", Url:"https://example.com")) == null && Parse(new("check-move",Id:"a",Step:2)) == null &&
+            Parse(new("reminder-add",Text:"提醒",Repeat:"weekly",Time:new(4,0))) == null &&
+            Parse(new("check-unknown")) == null, "reject malformed commands");
+        data = data.Change(new("check-add",Text:"第二项"),now);
+        var second = data.Items[1].Id;
+        data = data.Change(new("check-move",Id:second,Step:-1),now).Change(new("check-toggle",Id:second),now);
+        var folder = Directory.CreateTempSubdirectory();
+        try
+        {
+            var store = new PlannerStore(folder.FullName);
+            store.Save(data);
+            var saved = store.Load();
+            Assert(saved.Items[0] == new ChecklistItem(second,"第二项",true) && saved.Links.SequenceEqual(data.Links) &&
+                saved.Reminders.SequenceEqual(data.Reminders), "ordered offline round trip");
+            File.WriteAllText(Path.Combine(folder.FullName, PlannerStore.RelativePath), "{}");
+            try { store.Load(); throw new InvalidOperationException("invalid document accepted"); }
+            catch (JsonException) { }
+        }
+        finally { folder.Delete(true); }
+        return Task.CompletedTask;
+    }
+
+    private static Task SessionPhotosAndHomeFields()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var observed = new OfficialAssistedProcessObservation { GameProcesses = [
+            new() { ExecutablePath="game", StartTimeUtc=now }, new() { ExecutablePath="helper", StartTimeUtc=now.AddHours(-1) }] };
+        Assert(MainPageViewModel.RunningStart(observed,"GAME") == now && MainPageViewModel.RunningStart(observed,"other") == null,
+            "confirmed game creation time without a play ledger");
+        var prev = new PlaySession("官方",now.AddHours(-2),now.AddHours(-1),TimeSpan.FromHours(1));
+        var ledger = new PlayTimeLedger([prev]);
+        ledger.Observe(now,[new("game",1,now.AddSeconds(-10))],new Dictionary<string,string> { ["game"] = "官方" });
+        var (current, previous, started) = ledger.HomeSessions("官方");
+        Assert(previous == prev && started == now.AddSeconds(-10) && current != null && ledger.HomeSessions("Steam") == default, "channel-scoped history");
+        DateTime[] times = [prev.StartUtc.UtcDateTime, prev.EndUtc.UtcDateTime, prev.EndUtc.UtcDateTime, now.UtcDateTime];
+        Assert(PlayTimeLedger.CountPhotos(times,prev) == 3 && PlayTimeLedger.CountPhotos(times,current) == 1 &&
+            PlayTimeLedger.CountPhotos(times,null) == null && PlayTimeLedger.CountPhotos(null,prev) == null &&
+            PlayTimeLedger.ContainsPhoto(prev,prev.EndUtc) && !PlayTimeLedger.ContainsPhoto(prev,now), "inclusive full album counts");
+        Assert(HomeChecklist.From([]) == null && HomeChecklist.From([new("1","一",true),new("2","二",false)])
+            is { Completed:1, Total:2, Next:"二" }, "checklist projection");
+        var vm = new MainPageViewModel(new JsonUserSettingsStore(Path.GetTempPath()),new WindowsInstallationInspector(),new RedactedDiagnosticReportExporter());
+        var empty = WebHomeState.Create(vm,"dark",0,false,[]);
+        Assert(empty is { NextReminder:null, ReminderCount:0, SessionStarted:null, CurrentSessionPhotos:null, PhotoTotal:null, JournalSnapshotDate:null, CheckCount:null }, "missing evidence");
+        var next = new LocalReminder("1","提醒","daily",new(8,0),null,null,now);
+        var state = empty with { CheckCount=3, PhotoTotal=times.Length, JournalSnapshotDate=new(2026,11,26), SessionStarted=started,
+            CurrentSessionPhotos=1, LastSessionPhotos=3, Reminders=[next with { Due=null }, next] };
+        var json = JsonSerializer.SerializeToElement(state,WebHomeBridge.Json);
+        Assert(state.NextReminder == next && state.ReminderCount == 2 && json.GetProperty("checkCount").GetInt32()==3 &&
+            json.GetProperty("photoTotal").GetInt32()==4 && json.GetProperty("journalSnapshotDate").GetString()=="2026-11-26" &&
+            json.GetProperty("sessionStarted").GetDateTimeOffset()==started, "populated web fields");
         return Task.CompletedTask;
     }
 

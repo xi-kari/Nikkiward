@@ -23,6 +23,8 @@ public sealed partial class MainWindow : Window
     private InputNonClientPointerSource? _nonClientPointerSource;
     private readonly NativeWindowRuntime _nativeWindowRuntime;
     private MainPage? _mainPage;
+    internal void NotifyReminder(string text) => _nativeWindowRuntime.NotifyReminder(text);
+
     private readonly WindowTray _tray;
     private bool _allowClose;
     private bool _exitPending;

@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="../../fonts/bodoni-moda.css">
 <link rel="stylesheet" href="../../fonts/noto-serif-sc.css">
 <link rel="stylesheet" href="home.css"><script src="../../shared/home.js" defer></script><script src="home.js" defer></script>
+<link rel="stylesheet" href="../../shared/planner.css"><script defer src="../../shared/planner.js"></script>
 </head><body><div class="win pending" id="win">
   <!-- 封面 -->
   <div class="cover" aria-hidden="true">
@@ -50,7 +51,7 @@
         <span class="s" id="chkS"></span>
       </button>
       <button class="col" data-action="journal"><span class="kick">奇想手账</span><span class="v" id="official"></span><span class="s" id="journalInfo"></span><span class="s" id="local" hidden></span></button>
-      <div class="col checklist-col"><span class="kick">今日清单</span><span class="v" id="checklist"></span><span class="s" id="nextTask" hidden></span></div>
+      <button class="col checklist-col" data-planner="check" aria-haspopup="dialog"><span class="kick">今日清单</span><span class="v" id="checklist"></span><span class="s" id="nextTask" hidden></span></button>
       <div class="col recent">
         <div class="hd"><span class="kick">最近拍摄</span><span class="lg" id="lastSession" hidden></span><button class="lnk" id="allPhotos" data-action="gallery">全部</button></div>
         <div class="thumbs" id="recent"></div>

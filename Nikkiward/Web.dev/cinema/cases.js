@@ -2,6 +2,7 @@
 (() => {
   const assets = 'file:///D:/Projects/nikkiward-worktrees/_briefs/redesign/concepts/assets/';
   const cases = {
+    panel:['tide','ready'],
     'home-tide':['tide','ready'], 'home-blossom':['blossom','ready'],
     'home-tide-running':['tide','running'], 'home-blossom-blocked':['blossom','blocked'],
     'home-tide-launching':['tide','launching'], 'home-photo05-notfound':['photo05','notfound'],

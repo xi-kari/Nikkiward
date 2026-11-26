@@ -54,6 +54,9 @@ public sealed partial class JournalPage : PageBase
 
     public event EventHandler<JournalRouteChangedEventArgs>? RouteChanged;
 
+    internal event EventHandler? PlannerRequested;
+    private void OnPlannerClicked(object sender, RoutedEventArgs e) => PlannerRequested?.Invoke(this, EventArgs.Empty);
+
     public JournalPage()
     {
         InitializeComponent();

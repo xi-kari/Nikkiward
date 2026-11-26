@@ -72,6 +72,8 @@
             </StackPanel>
         </StackPanel>
 
+        <TimePicker x:Name="ChecklistReset" Header="每日清单重置时间" ClockIdentifier="24HourClock" TimeChanged="OnResetChanged" />
+
         <StackPanel Spacing="6">
             <StackPanel Orientation="Horizontal" Spacing="16">
                 <ToggleSwitch x:Name="PlayTimeToggle" Header="记录本机游玩时长"

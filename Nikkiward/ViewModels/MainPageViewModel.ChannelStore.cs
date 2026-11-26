@@ -456,6 +456,7 @@ public sealed partial class MainPageViewModel
                 return receipt;
             }
 
+            _observedStart = RunningStart(observation, binding.RunningProcessPath);
             _isOfficialAssistedRunning = true;
             _afterLaunchWindow.Begin(binding.AttemptId);
             _isLaunchCleanupRequired = false;

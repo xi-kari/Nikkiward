@@ -62,6 +62,7 @@ public sealed partial class MainPage
 
         if (_hostedJournalPage is { } previousJournalPage)
         {
+            previousJournalPage.PlannerRequested -= OnPlannerRequested;
             previousJournalPage.OpenRequested -= OnJournalOpenRequested;
             previousJournalPage.SyncRequested -= OnJournalSyncRequested;
             previousJournalPage.ExternalOpenRequested -= OnJournalExternalOpenRequested;
@@ -75,6 +76,7 @@ public sealed partial class MainPage
         if (_hostedJournalPage is { } currentJournalPage)
         {
             RefreshPlayTimeViews();
+            currentJournalPage.PlannerRequested += OnPlannerRequested;
             currentJournalPage.OpenRequested += OnJournalOpenRequested;
             currentJournalPage.SyncRequested += OnJournalSyncRequested;
             currentJournalPage.ExternalOpenRequested += OnJournalExternalOpenRequested;
@@ -442,6 +444,7 @@ public sealed partial class MainPage
             await LoadResonanceHistoryAsync(currentCancellation.Token);
             await LoadWishHistoryAsync(currentCancellation.Token);
             await ViewModel.InitializeAsync(currentCancellation.Token);
+            StartPlanner();
             await InitializePlayTimeAsync(currentCancellation.Token);
             var hotkeyRegistration = App.MainWindow.ApplyHotkeys(
                 ViewModel.GeneralSettings.MainWindowHotkey,
@@ -475,6 +478,7 @@ public sealed partial class MainPage
     {
         LauncherBackground.MotionPlaybackFailed -= OnMotionPlaybackFailed;
         _lifetimeCancellation?.Cancel();
+        _plannerTimer?.Stop();
         StopPlayTime();
         _launchStateTimer?.Stop();
         var shellNavigationCancellation = Interlocked.Exchange(

@@ -345,7 +345,7 @@ internal static class ApplicationSettingsTests
             File.WriteAllText(file, "");
             File.SetLastWriteTimeUtc(file, Epoch.AddDays(-age).UtcDateTime);
         }
-        Assert(GalleryFiles.Recent(fixture.Path, default).Select(f => f.Name)
+        Assert(GalleryFiles.NewestFirst(fixture.Path, default).Take(4).Select(f => f.Name)
             .SequenceEqual(new[] { "a.jpg", "b.png", "20991231.jpg" }), "mtime with stable ties");
         return Task.CompletedTask;
     }

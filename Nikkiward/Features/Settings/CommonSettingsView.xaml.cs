@@ -47,6 +47,7 @@ public sealed partial class CommonSettingsView : UserControl
             KeepWindowRadio.IsChecked = settings.AfterLaunchBehavior is AfterLaunchBehavior.KeepWindow;
             MinimizeRadio.IsChecked = settings.AfterLaunchBehavior is AfterLaunchBehavior.Minimize;
             HideToTrayRadio.IsChecked = settings.AfterLaunchBehavior is AfterLaunchBehavior.HideToTray;
+            ChecklistReset.Time = settings.ChecklistReset.ToTimeSpan();
             PlayTimeToggle.IsOn = settings.RecordLocalPlayTime;
         }
         finally
@@ -71,6 +72,7 @@ public sealed partial class CommonSettingsView : UserControl
                 (_, true) => AfterLaunchBehavior.HideToTray,
                 _ => AfterLaunchBehavior.KeepWindow,
             },
+            ChecklistReset = TimeOnly.FromTimeSpan(ChecklistReset.Time),
             RecordLocalPlayTime = PlayTimeToggle.IsOn,
         };
     }
@@ -99,6 +101,8 @@ public sealed partial class CommonSettingsView : UserControl
 
     private void OnClearPlayTimeClicked(object sender, RoutedEventArgs e) =>
         ClearPlayTimeRequested?.Invoke(this, EventArgs.Empty);
+
+    private void OnResetChanged(object sender, TimePickerValueChangedEventArgs e) => RaiseChanged();
 
     private void OnGeneralToggleChanged(object sender, RoutedEventArgs e) => RaiseChanged();
 

@@ -270,6 +270,7 @@ public sealed partial class MainPage
     private void ApplyJournalSnapshot(JournalSnapshot snapshot)
     {
         _journalSnapshot = snapshot;
+        HomeDataChanged?.Invoke(this, EventArgs.Empty);
         _journalDurationText = NormalizeJournalHours(snapshot.GameHours);
         _journalDurationSourceText = "来源：官方奇想手账 · 本地快照";
         _journalDurationDetailText =
@@ -293,6 +294,7 @@ public sealed partial class MainPage
             await _journalCache.ClearAsync(_lifetimeCancellation?.Token ?? CancellationToken.None);
             await _resonanceCache.ClearAsync(_lifetimeCancellation?.Token ?? CancellationToken.None);
             _journalSnapshot = null;
+            HomeDataChanged?.Invoke(this, EventArgs.Empty);
             _resonanceSnapshot = null;
             _journalDurationText = "奇想手账未同步";
             _journalDurationSourceText = "来源：官方手账 · 尚未同步";

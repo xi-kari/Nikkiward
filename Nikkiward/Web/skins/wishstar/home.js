@@ -146,9 +146,10 @@ function renderPhotos(s) {
     $('.recent').hidden = !s.photos.length;
     more.style.setProperty('--k', Math.min(4,s.photos.length));
   }
-  $('#sessionCount').textContent = s.lastSessionPhotos == null ? '' : '本次游玩拍了 ' + s.lastSessionPhotos + ' 张';
-  $('.recent-h .tag').hidden = s.lastSessionPhotos == null;
-  list.querySelectorAll('.new').forEach((mark, i) => mark.hidden = !(i < s.lastSessionPhotos));
+  const count = s.currentSessionPhotos ?? s.lastSessionPhotos;
+  $('#sessionCount').textContent = count == null ? '' : sessionLabel(s,'本次游玩')+'拍了 ' + count + ' 张';
+  $('.recent-h .tag').hidden = count == null;
+  if (s.photos) list.querySelectorAll('.new').forEach((mark, i) => mark.hidden = !photoMarked(s.photos[i],i,count));
 }
 
 function renderLaunch(s) {
@@ -180,7 +181,7 @@ function renderLaunch(s) {
   document.querySelectorAll('.sat').forEach(b => b.disabled = visual === 'launching');
   $('#stat').dataset.tone = ({ready:'ok',running:'ok',launching:'busy',checking:'busy',unsupported:'idle'})[visual] || 'warn';
   const heading = $('#statT'), summary = $('#statS');
-  heading.textContent = s.sessionMinutes != null && s.running ? '已运行 ' + s.sessionMinutes + ' 分钟' : s.check;
+  heading.textContent = s.sessionMinutes != null && s.running ? elapsedLabel(s) : s.check;
   heading.parentElement.hidden = !heading.textContent || heading.textContent === s.launchLabel;
   summary.textContent = visual === 'ready' ? s.readySummary : s.detail;
   summary.hidden = !summary.textContent || summary.textContent === s.launchLabel || summary.textContent === heading.textContent;

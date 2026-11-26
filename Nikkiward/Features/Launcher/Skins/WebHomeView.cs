@@ -21,6 +21,7 @@ internal sealed class WebHomeView : UserControl, IDisposable
     private readonly WebView2 _web = new() { Opacity = 0 };
     private readonly Border _anchor = new() { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false };
     internal Border Masthead { get; } = new() { Width = 0, Height = 52, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false };
+    internal Border MastheadTool { get; } = new() { Width = 0, Height = 46, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false };
     private readonly string _page;
     private LauncherPage _host = null!;
     private MainPage _shell = null!;
@@ -40,7 +41,7 @@ internal sealed class WebHomeView : UserControl, IDisposable
     internal WebHomeView(string skin)
     {
         _page = WebHomeBridge.Page(skin);
-        Content = new Grid { Children = { _web, Masthead, _anchor } };
+        Content = new Grid { Children = { _web, Masthead, MastheadTool, _anchor } };
         Loaded += OnLoaded;
         SizeChanged += (_, _) => MeasureMasthead();
     }
@@ -58,6 +59,7 @@ internal sealed class WebHomeView : UserControl, IDisposable
         App.MainWindow.ForegroundActivationChanged += OnActivation;
         _host.ViewModel.PropertyChanged += OnChanged;
         _shell.HomeBackdrop.PropertyChanged += OnChanged;
+        _shell.HomeDataChanged += OnHomeDataChanged;
         _shell.HomeInteractionChanged += OnInteraction;
         GlassCapabilities.Current.TierChanged += OnInteraction;
         _host.RecentPhotos.CollectionChanged += OnPhotosChanged;
@@ -155,6 +157,11 @@ internal sealed class WebHomeView : UserControl, IDisposable
         var edges = JsonSerializer.Deserialize<double[]>(bounds)!;
         Masthead.Margin = new Thickness(edges[0], 0, 0, 0);
         Masthead.Width = edges[1] - edges[0];
+        if (edges.Length == 4)
+        {
+            MastheadTool.Margin = new Thickness(edges[2], 0, 0, 0);
+            MastheadTool.Width = edges[3] - edges[2];
+        }
         Masthead.UpdateLayout();
         _host.RefreshMasthead();
     }
@@ -188,7 +195,7 @@ internal sealed class WebHomeView : UserControl, IDisposable
         }
     }
 
-    private void OnMessage(CoreWebView2 sender, CoreWebView2WebMessageReceivedEventArgs e)
+    private async void OnMessage(CoreWebView2 sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
         if (_disposed || !_ready || !WebHomeBridge.AllowsPage(_page, e.Source)) return;
         var json = e.WebMessageAsJson;
@@ -203,6 +210,12 @@ internal sealed class WebHomeView : UserControl, IDisposable
             _web.Opacity = 1;
             _shell.SyncLauncherChrome();
             sender.PostWebMessageAsString("presented");
+            if (_shell.PlannerRequested)
+            {
+                _shell.PlannerRequested = false;
+                sender.PostWebMessageAsString("open-planner");
+                _web.Focus(FocusState.Programmatic);
+            }
             MeasureMasthead();
             return;
         }
@@ -218,6 +231,23 @@ internal sealed class WebHomeView : UserControl, IDisposable
 #if DEBUG
         if (HomePreview.Active) return;
 #endif
+        if (request is { Action: "planner", Planner: { } command })
+        {
+            try
+            {
+                await _shell.PerformPlannerAction(command);
+                if (!_disposed && command.Action is not "link-open")
+                {
+                    SendState();
+                    sender.PostWebMessageAsString("planner-saved");
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException or COMException)
+            {
+                if (!_disposed) sender.PostWebMessageAsString("planner-error:" + ex.Message);
+            }
+            return;
+        }
         if (_shell.InvokeHomeCommand(request.Action, request.ProfileId)) return;
         _returnFocus = request.Action is "profile" or "settings" or "background" or "status";
         _host.InvokeAction(request.Action, _anchor, request.PhotoId is { } id ? _photoItems.GetValueOrDefault(id) : null);
@@ -233,6 +263,7 @@ internal sealed class WebHomeView : UserControl, IDisposable
         }
         QueueState();
     }
+    private void OnHomeDataChanged(object? sender, EventArgs e) => QueueState();
     private void OnChanged(object? sender, PropertyChangedEventArgs e) => QueueState();
 
     private void QueueState()
@@ -266,10 +297,31 @@ internal sealed class WebHomeView : UserControl, IDisposable
         var backdrop = _shell.HomeBackdrop;
         var theme = backdrop.IsReady ? backdrop.PreferredTheme : ArtPreferredTheme.Dark;
         var accent = ArtThemeAccentSelector.Select(backdrop.DerivedAccentLight, backdrop.DerivedAccentDark, theme);
-        var state = WebHomeState.Create(model, theme == ArtPreferredTheme.Dark ? "dark" : "light", accent, still, _photos) with { Background = _cover, Palette = [$"#{backdrop.DerivedAccentLight & 0xffffff:X6}", $"#{backdrop.DerivedAccentDark & 0xffffff:X6}"], ProfileOpen = _shell.HomeProfileOpen };
+        var (current, previous, started) = _shell.HomeSessions;
+        started = model.HomeObservedStart ?? started;
+        var times = _host.AlbumTimes;
+
+        for (int i = 0; i < _photos.Length; i++)
+        {
+            var photo = _photos[i];
+            var time = _photoItems[photo.Id].LastWriteTimeUtc;
+            var session = current != null && PlayTimeLedger.ContainsPhoto(current, time) ? "current" :
+                previous != null && PlayTimeLedger.ContainsPhoto(previous, time) ? "previous" : null;
+            if (photo.Session == session) continue;
+            if (ReferenceEquals(_last?.Photos, _photos)) _photos = _photos.ToArray();
+            _photos[i] = photo with { Session = session };
+        }
+        var planner = _shell.Planner;
+        var state = WebHomeState.Create(model, theme == ArtPreferredTheme.Dark ? "dark" : "light", accent, still, _photos) with {
+            Checklist = _last?.Checklist is { } saved && saved.Items == planner.Items ? saved : HomeChecklist.From(planner.Items),
+            Links = planner.Links, Reminders = planner.Reminders, PhotoTotal = times?.Length,
+            SessionMinutes = model.HomeState == LaunchButtonState.Running && started.HasValue ? (int)(DateTimeOffset.UtcNow - started.Value).TotalMinutes : null,
+            SessionStarted = model.HomeState == LaunchButtonState.Running ? started : null,
+            JournalSnapshotDate = _shell.SnapshotDay, LastSessionPhotos = PlayTimeLedger.CountPhotos(times, previous), CurrentSessionPhotos = PlayTimeLedger.CountPhotos(times, current),
+            Background = _cover, Palette = [$"#{backdrop.DerivedAccentLight & 0xffffff:X6}", $"#{backdrop.DerivedAccentDark & 0xffffff:X6}"], ProfileOpen = _shell.HomeProfileOpen };
         if (_last is { } last && state.Profiles.SequenceEqual(last.Profiles) && state.Palette.SequenceEqual(last.Palette) &&
             (state with { Profiles = last.Profiles, Palette = last.Palette }) == last) return;
-        var message = _last?.Photos == state.Photos ? state with { Photos = null } : state;
+        var message = _last?.Photos == state.Photos && _last?.CurrentSessionPhotos.HasValue == state.CurrentSessionPhotos.HasValue ? state with { Photos = null } : state;
         _web.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(message, WebHomeBridge.Json));
         _last = state;
     }
@@ -351,6 +403,7 @@ internal sealed class WebHomeView : UserControl, IDisposable
             _window.Changed -= OnWindowChanged;
             App.MainWindow.ForegroundActivationChanged -= OnActivation;
             _shell.HomeBackdrop.PropertyChanged -= OnChanged;
+            _shell.HomeDataChanged -= OnHomeDataChanged;
             _shell.HomeInteractionChanged -= OnInteraction;
             GlassCapabilities.Current.TierChanged -= OnInteraction;
             _host.ViewModel.PropertyChanged -= OnChanged;

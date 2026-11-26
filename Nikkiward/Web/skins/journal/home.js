@@ -21,6 +21,11 @@ function renderPhotos(items) {
     button.children[2].textContent = p.time.replace(/^\d{4}-(?=\d{2}-\d{2} )/, '');
     button.setAttribute('aria-label', '打开照片：' + p.fileName + ' · ' + p.time);
     button.title = p.fileName;
+    if ('session' in p) {
+      button.classList.toggle('now',!!p.session);
+      button.querySelector('b')?.remove();
+      if (p.session) button.append(Object.assign(document.createElement('b'),{textContent:p.session === 'current' ? '本次游玩' : '上次游玩'}));
+    }
     if (recent.children[i+1] !== button) recent.insertBefore(button, recent.children[i+1] || null);
     previous.delete(p.id);
   });
@@ -116,7 +121,7 @@ function render(s) {
   $('#stampTxt').setAttribute('y',stamp.length > 2 ? 57 : 59.5);
   $('#stubNote').textContent = note;
   $('#goTtl').textContent = s.launchLabel;
-  $('#goSub').textContent = s.visual === 'ready' && s.readySummary ? s.readySummary : s.detail;
+  $('#goSub').textContent = s.visual === 'ready' && s.readySummary ? s.readySummary : s.running && s.sessionStarted ? elapsedLabel(s) : s.detail;
   const go = $('#go');
   go.disabled = !s.enabled;
   go.title = s.detail;
