@@ -7,7 +7,6 @@
     photo05: ['photo-05.jpg', '荷塘夜色', '来自相册 · 11 月 26 日', 'dark', '#F3BFAE', '#1D1310']
   };
   const cases = {
-    panel:['tide','ready'],
     'real-ready': ['tide','ready'],
     'real-blocked': ['blossom','blocked'],
     'real-notfound': ['tide','notfound'],
@@ -22,7 +21,7 @@
     'home-tide-notfound': ['tide','notfound'],
     'home-blossom-blocked': ['blossom','blocked']
   };
-  const key = new URLSearchParams(location.search).get('mock');
+  const key = window.panelHomeCase ?? new URLSearchParams(location.search).get('mock');
   if (!Object.hasOwn(cases, key)) return;
   const [cover, visual] = cases[key];
   const [src, artName, artSource, theme, accent, onAccent] = covers[cover];

@@ -72,6 +72,7 @@ internal sealed record WebHomeState(LaunchButtonState State, string LaunchLabel,
             vm.HasHomeTask && vm.ChannelStoreProgressVisibility == Microsoft.UI.Xaml.Visibility.Visible ? vm.ChannelStoreProgressPercent : null,
             vm.HomeArtName, vm.HomeArtSource, paperTheme, fill, still, photos, DateOnly.FromDateTime(DateTime.Today))
         {
+            ChecklistReset = vm.GeneralSettings.ChecklistReset,
             CheckCount = vm.HomeCheckCount,
             DiscoveryTime = vm.HomeCandidates.Count == 0 ? null : vm.HomeCandidates.Max(c => c.ObservedAtUtc).ToLocalTime().ToString("MM-dd HH:mm"),
             Profiles = ProfileRows(vm.HomeCandidates, vm.SelectedProfileId).ToArray(),
@@ -145,6 +146,8 @@ internal sealed record WebHomeState(LaunchButtonState State, string LaunchLabel,
     public DateOnly? JournalSnapshotDate { get; init; }
     public int? PhotoTotal { get; init; }
     public int? LastSessionPhotos { get; init; }
+    public string? Skin { get; init; }
+    public TimeOnly ChecklistReset { get; init; }
     public HomeChecklist? Checklist { get; init; }
     private static readonly string[] Months = "一 二 三 四 五 六 七 八 九 十 十一 十二".Split();
     public string Issue => string.Concat(Date.Year.ToString("D4").Select(c => "〇一二三四五六七八九"[c - '0']))

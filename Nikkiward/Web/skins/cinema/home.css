@@ -212,4 +212,3 @@ body:not(.bare) #plist button:disabled{color:var(--ink3)}
   .note.prose+.launch{margin:0}
 }
 
-#win{--planner-bg:var(--wall2);--planner-line:var(--line2);--planner-radius:8px;--planner-heading:inherit}

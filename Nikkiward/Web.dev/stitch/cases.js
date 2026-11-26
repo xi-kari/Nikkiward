@@ -2,7 +2,6 @@
 (() => {
   const assets = 'file:///D:/Projects/nikkiward-worktrees/_briefs/redesign/concepts/assets/';
   const cases = {
-    panel:['tide','ready'],
     'home-tide':['tide','ready'],
     'home-blossom':['blossom','ready'],
     'home-tide-running':['tide','running'],
@@ -17,7 +16,7 @@
     'real-running':['tide','running'],
     'real-long':['photo05','blocked']
   };
-  const key = new URLSearchParams(location.search).get('mock');
+  const key = window.panelHomeCase ?? new URLSearchParams(location.search).get('mock');
   if (!Object.hasOwn(cases,key)) return;
   const [bg,visual] = cases[key];
   const covers = {
@@ -47,8 +46,8 @@
   const photos = [
     ['p05','photo-05.jpg','21-14-08'], ['p04','photo-04.jpg','20-52-31'],
     ['tide','bg-tide.jpg','19-30-12'], ['fae','photo-fae.jpg','18-05-44']
-  ].map(([id,src,time]) => ({
-    id,thumbnail:assets + src,fileName:'2026-11-26_' + time + '.jpg',time:'2026.11.26  ' + time.slice(0,5).replace('-',':')
+  ].map(([id,src,time],i) => ({
+    id,session:i < 2 ? 'current' : null,thumbnail:assets + src,fileName:'2026-11-26_' + time + '.jpg',time:'2026.11.26  ' + time.slice(0,5).replace('-',':')
   }));
   if (key.startsWith('real-')) {
     $('#btnTools').hidden = true;
@@ -100,12 +99,10 @@
     running:visual === 'running',closeVisible:visual === 'running',closeEnabled:true,closeLabel:'关闭游戏',
     nextActions:visual === 'blocked' ? ['recheck','status'] : visual === 'notfound' ? ['locate','rediscover'] : [],
     profiles,profile:profiles[0].name,channel:'国服',platform:'国服 · Windows',check,checkTime,sessionMinutes:12,
-    officialDuration:'128h',localDuration:'未开启',taskText:'合并存储',progress:62,photos,lastSessionPhotos:2,
+    officialDuration:'128h',localDuration:'未开启',taskText:'合并存储',progress:62,photos,currentSessionPhotos:2,
     background:{type:'image',url:assets + file},artName,artSource,theme,accent:palette[0],onAccent:theme === 'dark' ? '#0c1530' : '#fff6f4',
     palette,contrastPassed:true,tools:null,still:true
   }).then(() => {
-    $('.recent header span').textContent = '本次游玩拍了 2 张';
-    for (const b of [...$('#shots').children].slice(0,2)) b.append(Object.assign(document.createElement('b'),{textContent:'本次'}));
     if (visual === 'launching') {
       $('#note').classList.add('show');
       $('#reason').hidden = $('#actions').hidden = false;

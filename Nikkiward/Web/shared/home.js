@@ -94,7 +94,9 @@ function updateClock(s) {
 }
 
 async function show(state) {
-  if (window.panelSample) Object.assign(state,window.panelSample);
+  const root = document.documentElement;
+  if (state.skin) root.dataset.skin = state.skin;
+  root.dataset.tone = state.theme;
   updateClock(state);
   currentState = state;
   const ready = updateCover(state);
@@ -112,7 +114,10 @@ async function show(state) {
     win.classList.remove('pending');
     if (!bridge) document.getAnimations().forEach(animation => { animation.pause(); animation.currentTime = 0; });
     bridge?.postMessage('ready');
-    if (window.panelSample) planner.open();
+    if (window.panelSample) {
+      planner.open('check',window.panelEdit);
+      await document.fonts.ready;
+    }
     if (!state.still) {
       win.classList.add('enter');
       setTimeout(() => win.classList.remove('enter'), 3200);
@@ -139,7 +144,10 @@ else if (location.protocol === 'file:' && new URLSearchParams(location.search).h
   document.body.classList.add('bare','noanim');
   win.classList.add('still');
   document.addEventListener('DOMContentLoaded', () => {
-    if (new URLSearchParams(location.search).get('mock') !== 'panel') return document.head.append(script);
+    const mock = new URLSearchParams(location.search).get('mock');
+    if (!(mock === 'panel' || mock === 'panel-light' || id === 'atelier' && mock === 'panel-edit')) return document.head.append(script);
+    window.panelHomeCase = mock === 'panel-light' ? 'home-blossom' : 'home-tide';
+    window.panelEdit = mock === 'panel-edit';
     const fixture = document.createElement('script');
     fixture.src = '../../../Web.dev/panel.js';
     fixture.onload = () => document.head.append(script);

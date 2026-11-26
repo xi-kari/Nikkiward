@@ -940,7 +940,7 @@ internal static class AppearanceRuntimeContractTests
             Assert(Parse(add) != null, group+" add");
             data = data.Change(add,now);
             var id = group switch { "check" => data.Items[0].Id, "link" => data.Links[0].Id, _ => data.Reminders[0].Id };
-            foreach (var action in group switch { "check" => new[] {"edit","toggle","move","delete"}, "link" => ["edit","open","move","delete"], _ => ["edit","delete"] })
+            foreach (var action in group switch { "check" => new[] {"edit","toggle","move","delete"}, "link" => ["edit","open","move","delete"], _ => ["edit","move","delete"] })
                 Assert(Parse(add with { Action = group+"-"+action, Id = id, Step = 1 }) != null, action);
         }
         Assert(Parse(new("link-add", Text:"坏地址", Url:"file:///private")) == null &&
@@ -948,6 +948,10 @@ internal static class AppearanceRuntimeContractTests
             Parse(new("reminder-add",Text:"提醒",Repeat:"weekly",Time:new(4,0))) == null &&
             Parse(new("check-unknown")) == null, "reject malformed commands");
         data = data.Change(new("check-add",Text:"第二项"),now);
+        data = data.Change(new("reminder-add",Text:"第二条",Repeat:"daily",Time:new(9,0)),now);
+        var reminder = data.Reminders[1];
+        data = data.Change(new("reminder-move",Id:reminder.Id,Step:-1),now);
+        Assert(data.Reminders[0] == reminder, "reorder without changing the reminder schedule");
         var second = data.Items[1].Id;
         data = data.Change(new("check-move",Id:second,Step:-1),now).Change(new("check-toggle",Id:second),now);
         var folder = Directory.CreateTempSubdirectory();

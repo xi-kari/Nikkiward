@@ -2,7 +2,6 @@
 (() => {
   const assets = 'file:///D:/Projects/nikkiward-worktrees/_briefs/redesign/concepts/assets/';
   const cases = {
-    panel:['tide','ready'],
     'home-tide':['tide','ready'], 'home-blossom':['blossom','ready'],
     'home-tide-running':['tide','running'], 'home-blossom-blocked':['blossom','blocked'],
     'home-tide-launching':['tide','launching'], 'home-photo05-notfound':['photo05','notfound'],
@@ -10,7 +9,7 @@
     'real-notfound':['tide','notfound'], 'real-running':['tide','running'], 'real-long':['photo05','blocked'],
     'home-tide-idle':['tide','ready'], switcher:['tide','ready'], palette:['tide','ready']
   };
-  const key = new URLSearchParams(location.search).get('mock');
+  const key = window.panelHomeCase ?? new URLSearchParams(location.search).get('mock');
   if (!Object.hasOwn(cases,key)) return;
   const [bg,visual] = cases[key];
   const covers = {

@@ -60,6 +60,7 @@ internal sealed record PlannerData(DateOnly Day, ChecklistItem[] Items, LocalRem
             case "link-edit": return this with { Links = Links.Select(i => i.Id == id ? new PinnedLink(id, title, c.Url!) : i).ToArray() };
             case "link-delete": return this with { Links = Links.Where(i => i.Id != id).ToArray() };
             case "link-move": return this with { Links = Move(Links, Array.FindIndex(Links, i => i.Id == id), c.Step!.Value) };
+            case "reminder-move": return this with { Reminders = Move(Reminders, Array.FindIndex(Reminders, i => i.Id == id), c.Step!.Value) };
             case "reminder-delete": return this with { Reminders = Reminders.Where(i => i.Id != id).ToArray() };
             case "reminder-add":
             case "reminder-edit":
@@ -96,7 +97,7 @@ internal record PlannerCommand(string Action, string? Id = null, string? Text = 
             "link-add" or "link-edit" => existing == (Action == "link-edit") && named && PlannerData.IsHttps(Url),
             "reminder-add" or "reminder-edit" => existing == (Action == "reminder-edit") && named && schedule,
             "check-toggle" or "check-delete" or "link-delete" or "link-open" or "reminder-delete" => existing,
-            "check-move" or "link-move" => existing && Step is -1 or 1,
+            "check-move" or "link-move" or "reminder-move" => existing && Step is -1 or 1,
             _ => false
         };
     }

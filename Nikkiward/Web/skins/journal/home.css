@@ -220,4 +220,3 @@ body[data-over="switcher"] .dock-top{opacity:0;pointer-events:none}
   .switcher .foot{flex-wrap:wrap}
 }
 
-#win{--planner-bg:var(--paper);--planner-line:var(--line);--planner-radius:var(--r-paper);--planner-heading:var(--hand)}

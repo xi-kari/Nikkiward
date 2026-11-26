@@ -365,4 +365,3 @@ button:disabled{cursor:default}
   .thumb:not(.more){display:none}
 }
 
-#win{--planner-bg:var(--sheet-solid);--planner-line:var(--line);--planner-radius:var(--r3);--planner-heading:var(--f-disp)}

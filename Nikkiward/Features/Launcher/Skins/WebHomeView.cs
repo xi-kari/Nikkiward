@@ -22,7 +22,7 @@ internal sealed class WebHomeView : UserControl, IDisposable
     private readonly Border _anchor = new() { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false };
     internal Border Masthead { get; } = new() { Width = 0, Height = 52, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false };
     internal Border MastheadTool { get; } = new() { Width = 0, Height = 46, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false };
-    private readonly string _page;
+    private readonly string _skin, _page;
     private LauncherPage _host = null!;
     private MainPage _shell = null!;
     private AppWindow _window = null!;
@@ -40,6 +40,7 @@ internal sealed class WebHomeView : UserControl, IDisposable
 
     internal WebHomeView(string skin)
     {
+        _skin = skin;
         _page = WebHomeBridge.Page(skin);
         Content = new Grid { Children = { _web, Masthead, MastheadTool, _anchor } };
         Loaded += OnLoaded;
@@ -313,6 +314,7 @@ internal sealed class WebHomeView : UserControl, IDisposable
         }
         var planner = _shell.Planner;
         var state = WebHomeState.Create(model, theme == ArtPreferredTheme.Dark ? "dark" : "light", accent, still, _photos) with {
+            Skin = _skin,
             Checklist = _last?.Checklist is { } saved && saved.Items == planner.Items ? saved : HomeChecklist.From(planner.Items),
             Links = planner.Links, Reminders = planner.Reminders, PhotoTotal = times?.Length,
             SessionMinutes = model.HomeState == LaunchButtonState.Running && started.HasValue ? (int)(DateTimeOffset.UtcNow - started.Value).TotalMinutes : null,
