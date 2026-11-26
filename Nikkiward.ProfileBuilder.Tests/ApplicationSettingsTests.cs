@@ -25,6 +25,7 @@ internal static class ApplicationSettingsTests
         (nameof(HomeCheckTimeUsesLocalCalendarDay), HomeCheckTimeUsesLocalCalendarDay),
         (nameof(HomeFactsNotifyAndUseActualArtwork), HomeFactsNotifyAndUseActualArtwork),
         (nameof(RecentPhotosUseFileModificationTime), RecentPhotosUseFileModificationTime),
+        (nameof(MissingChecklistResetDefaultsToFour), MissingChecklistResetDefaultsToFour),
         (nameof(Schema8DefaultsToStitch), Schema8DefaultsToStitch),
         (nameof(ArtworkTitlesStayWithTheirSource), ArtworkTitlesStayWithTheirSource),
         (nameof(Schema7StartsWithoutWindowPlacement), Schema7StartsWithoutWindowPlacement),
@@ -348,6 +349,28 @@ internal static class ApplicationSettingsTests
         Assert(GalleryFiles.NewestFirst(fixture.Path, default).Take(4).Select(f => f.Name)
             .SequenceEqual(new[] { "a.jpg", "b.png", "20991231.jpg" }), "mtime with stable ties");
         return Task.CompletedTask;
+    }
+
+    private static async Task MissingChecklistResetDefaultsToFour()
+    {
+        using var fixture = new TemporaryFolder();
+        var store = new JsonUserSettingsStore(fixture.Path);
+        await store.SaveAsync(new UserSettings());
+        var json = JsonNode.Parse(await File.ReadAllTextAsync(store.SettingsFilePath))!.AsObject();
+        json["schemaVersion"] = 9;
+        json["general"]!.AsObject().Remove("checklistReset");
+        await File.WriteAllTextAsync(store.SettingsFilePath, json.ToJsonString());
+
+        var settings = await store.LoadAsync();
+        var reset = settings.General.ChecklistReset;
+        AssertEqual(new TimeOnly(4, 0), reset, "missing reset time");
+        var before = new DateTimeOffset(new DateTime(2026, 11, 26, 3, 59, 0, DateTimeKind.Local));
+        var planner = PlannerData.Empty with { Day = new(2026, 11, 25), Items = [new("a", "拍照", true)] };
+        Assert(planner.Reset(before, reset).Items[0].Done, "keep completion at 03:59");
+        Assert(!planner.Reset(before.AddMinutes(1), reset).Items[0].Done, "clear completion at 04:00");
+
+        await store.SaveAsync(settings with { General = settings.General with { ChecklistReset = TimeOnly.MinValue } });
+        AssertEqual(TimeOnly.MinValue, (await store.LoadAsync()).General.ChecklistReset, "explicit midnight");
     }
 
     private static async Task Schema8DefaultsToStitch()

@@ -199,6 +199,7 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
 
         EnsureChannelStoreSection(root);
         RequireSettingsSections(root);
+        (root["general"] as JsonObject)?.TryAdd("checklistReset", new GeneralSettings().ChecklistReset.ToString("O"));
 
         var settings = root.Deserialize(UserSettingsJsonTypeInfo);
 
