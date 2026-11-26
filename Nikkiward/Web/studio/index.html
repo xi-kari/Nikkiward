@@ -31,11 +31,11 @@
       <div class="sp"></div>
       <button class="btn ghost" id="sHold" title="按住对比原图"><svg class="i"><use href="#i-eye"/></svg>按住看原图</button>
       <button class="btn ghost" id="sCmp" aria-pressed="false"><svg class="i"><use href="#i-compare"/></svg>连拍选片</button>
-      <button class="btn ghost" id="sFav" aria-pressed="false" aria-label="收藏"><svg class="i"><use href="#i-star"/></svg>收藏</button>
+      <button class="btn ghost" id="sFav" aria-pressed="false" aria-label="收藏"><svg class="i"><use href="#i-star"/></svg><span>收藏</span></button>
       <button id="locate" class="btn ghost"><svg class="i"><use href="#i-folder"/></svg>在文件夹中定位</button>
     </div>
     <div class="stage" id="stage">
-      <div id="frame"><canvas id="preview" aria-label="当前照片"></canvas><div id="frameCaption" aria-hidden="true"><div><b class="m"></b><span></span></div><div><b class="m"></b><span></span></div></div></div>
+      <div id="frame"><canvas id="preview" aria-label="当前照片"></canvas><canvas id="frameCaption" aria-hidden="true"></canvas><button id="removeMask" aria-label="删除选中的遮挡块" title="删除遮挡块" hidden>×</button></div>
       <button class="navb p" id="sPrev" aria-label="上一张"><svg class="i" style="width:22px;height:22px"><use href="#i-left"/></svg></button>
       <button class="navb n" id="sNext" aria-label="下一张"><svg class="i" style="width:22px;height:22px"><use href="#i-right"/></svg></button>
       <div class="cmpv" aria-label="连拍选片台">
@@ -48,8 +48,8 @@
         <button data-tab="info" aria-selected="true">参数</button><button data-tab="adjust">调整</button><button data-tab="frame">边框</button><button data-tab="codes">分享码</button>
       </div>
       <div class="pane on" data-pane="info">
-        <div class="fn m" id="sName"></div><p id="sDim" tabindex="0"></p><h3>拍摄参数 <span>点一项，找同条件的照片</span></h3>
-        <div class="pg" id="params"></div><p id="missing"></p><h3>服装部件</h3><div class="tagl" id="outfit"></div>
+        <div class="fn m" id="sName"></div><p id="sDim" tabindex="0"></p><h3>拍摄参数 <span id="paramHint">点一项，找同条件的照片</span></h3>
+        <div class="pg" id="params"></div><p id="missing"></p><h3 id="outfitHeading">服装部件</h3><div class="tagl" id="outfit"></div>
         <h3>主色 <span>点一下找同色</span></h3><div class="pal" id="sPal"></div>
       </div>
       <div class="pane" data-pane="adjust">
@@ -67,14 +67,18 @@
         <div class="pre" id="sPre"></div>
       </div>
       <div class="pane" data-pane="frame">
-        <details><summary title="边框和导出的更多选项">参数卡边框</summary><button class="btn" data-f="bar">底栏</button><label class="code">标题<input id="title" maxlength="80"></label><h3>导出选项</h3><div class="options"><button id="addMask">添加遮挡块</button><label>格式 <select id="format"><option>PNG</option><option>JPEG</option></select></label></div></details>
-        <div class="seg" id="segFrame"><button data-f="on" aria-pressed="true">展签 · 纸白</button><button data-f="ink">展签 · 墨黑</button><button data-f="off">不加边框</button></div>
+        <h3>参数卡边框</h3>
+        <div class="seg" id="segFrame" role="group" aria-label="参数卡边框"><button data-f="on">展签 · 纸白</button><button data-f="ink">展签 · 墨黑</button><button data-f="bar">底栏</button><button data-f="off">不加边框</button></div>
+        <h3><label for="title">标题</label></h3><input id="title" maxlength="80" placeholder="可不填">
         <h3>显示哪些字段</h3>
         <label class="ckl"><input type="checkbox" checked data-fld="date">拍摄时间</label>
         <label class="ckl"><input type="checkbox" checked data-fld="lens">焦距与光圈</label>
         <label class="ckl"><input type="checkbox" checked data-fld="filter">滤镜</label>
         <label class="ckl"><input type="checkbox" checked data-fld="outfit">服装部件<small>只写主件</small></label>
         <label class="ckl"><input type="checkbox" data-fld="code">搭配码<small>来自分享码</small></label>
+        <h3>导出格式</h3>
+        <div class="seg" role="group" aria-label="导出格式"><button data-format="PNG" aria-pressed="true">PNG</button><button data-format="JPEG" aria-pressed="false">JPEG</button></div>
+        <p class="hint">PNG 无损、文件大；JPEG 小，适合发到社交平台</p>
         <p class="hint">边框只加在导出的副本上。版式和首页的展签是同一套：左边是何时何物，右边是镜头。</p>
       </div>
       <div class="pane" data-pane="codes">
@@ -90,7 +94,7 @@
       <div class="exp">
         <h3>分享前检查</h3>
         <label class="ckl"><input type="checkbox" checked aria-disabled="true" id="xMeta">去掉元数据<small>拍摄参数不随文件外流</small></label>
-        <label class="ckl"><input type="checkbox" id="xUid">遮住画面里的 UID<small>可拖动位置</small></label>
+        <div class="ckl"><input type="checkbox" id="xUid"><label for="xUid">遮住画面里的 UID</label><small id="maskHint">可拖动位置</small><button class="lnk" id="addMask" hidden>再加一块</button></div>
         <div class="bt">
           <button class="btn solid" id="xExport"><svg class="i"><use href="#i-export"/></svg>导出副本</button>
           <button class="btn" id="xCopy"><svg class="i"><use href="#i-copy"/></svg>复制</button>

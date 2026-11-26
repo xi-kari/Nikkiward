@@ -3,6 +3,7 @@ const $=s=>document.querySelector(s), all=s=>[...document.querySelectorAll(s)];
 const web=window.chrome?.webview, stage=$('#stage'), canvas=$('#preview'), frame=$('#frame');
 let photos=[], selected='', current=null, image=null, edit=initialEdits(), zoom=0, dx=0, dy=0;
 let raw=false, queued=false, drag=null, compared=[], compareZoom=1, cx=50, cy=50;
+let selectedMask=null, format='PNG', captionKey='';
 const thumbnails=new Map(), thumbsRequested=new Set(), flags=new Map();
 function send(action,extra={},id=selected) {
   const msg={action,id,...extra};
@@ -45,11 +46,37 @@ function paint() {
   const caption=$('#frameCaption'), unit=g.unit*size;
   caption.hidden=!g.foot;
   if(g.foot) {
-    const inset=g.pad*size+4*unit;
-    Object.assign(caption.style,{left:inset+'px',right:inset+'px',height:g.foot*size+'px',fontSize:unit+'px'});
-    caption.classList.toggle('narrow',g.w<g.h);
-    const labels=caption.querySelectorAll('b,span'), values=frameText(e,current);
-    labels.forEach((label,i)=>label.textContent=values[i]);
+    const rows=captionLayout(g,e,current), key=JSON.stringify(rows.map(r=>[r.text,r.font]));
+    if(key!==captionKey) {
+      captionKey=key;
+      loadCaption(rows).then(()=>{
+        if(captionKey===key) paint();
+      }).catch(()=>{if(captionKey===key)status('展签字体载入失败，请重新打开照片工坊。');});
+    }
+    const footerTop=height-g.foot*size;
+    const x=Math.max(0,-left), y=Math.max(0,-top-footerTop);
+    const visibleWidth=Math.min(width,stage.clientWidth-left)-x;
+    const visibleHeight=Math.min(g.foot*size,stage.clientHeight-top-footerTop)-y;
+    caption.hidden=visibleWidth<=0 || visibleHeight<=0;
+    if(!caption.hidden) {
+      const dpi=devicePixelRatio;
+      const pixelWidth=Math.ceil(visibleWidth*dpi), pixelHeight=Math.ceil(visibleHeight*dpi);
+      if(caption.width!==pixelWidth) caption.width=pixelWidth;
+      if(caption.height!==pixelHeight) caption.height=pixelHeight;
+      Object.assign(caption.style,{left:x+'px',top:footerTop+y+'px',width:visibleWidth+'px',height:visibleHeight+'px'});
+      const ctx=caption.getContext('2d',{alpha:false});
+      ctx.resetTransform();
+      ctx.fillStyle=framePaper(e.frame);
+      ctx.fillRect(0,0,pixelWidth,pixelHeight);
+      ctx.translate(-x*dpi,-y*dpi);
+      drawCaption(ctx,rows,unit*dpi,0,e.frame);
+    }
+  }
+  const remove=$('#removeMask');
+  remove.hidden=raw || !e.masks.includes(selectedMask);
+  if(!remove.hidden) {
+    remove.style.left=(g.pad+(selectedMask.x+selectedMask.w)*g.w)*size+'px';
+    remove.style.top=(g.pad+selectedMask.y*g.h)*size+'px';
   }
   const direct=!e.crop && !e.turns && !e.masks.length && Object.keys(neutral).every(k=>!e[k]);
   image.hidden=!direct;
@@ -70,6 +97,7 @@ function controls() {
   all('[data-f]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.f===edit.frame));
   all('[data-fld]').forEach(b=>b.checked=edit.fields[b.dataset.fld]);
   all('.code input[id^=c]').forEach((b,i)=>b.value=edit.codes[i]);
+  $('#addMask').hidden=!edit.masks.length; $('#maskHint').hidden=!!edit.masks.length;
   $('#title').value=edit.title; $('#xUid').checked=edit.masks.length>0;
   $('#sPre').replaceChildren(...presets.map(([name,values])=>{
     const b=button(name,()=>{Object.assign(edit,neutral,{rot:edit.rot},values);changed();});
@@ -91,6 +119,7 @@ function strip() {
   }));
 }
 function openPhoto(id) {
+  selectedMask=null;$('#removeMask').hidden=true;
   searchVersion++;
   $('#frameCaption').hidden=true; image?.remove(); frame.dataset.frame='off'; selected=id; current=null; image=null; canvas.hidden=true; zoom=dx=dy=0; raw=false;
   $('.side').inert=true; $('#sHold').disabled=$('#sFav').disabled=true;
@@ -147,6 +176,11 @@ async function receive(m) {
     $('#backLabel').textContent=m.origin;
     photos=m.photos; $('#sCmp').disabled=photos.length<2; openPhoto(m.id);return;
   }
+  if(m.type==='exported') {
+    status('已导出 '+m.name);
+    $('#status').append(button('在文件夹中显示',()=>send('reveal-export'),'lnk'));
+    return;
+  }
   if(m.type==='status'||m.type==='error') {status(m.message);return;}
   if(m.type==='thumb') {
     thumbnails.set(m.id,m.url);
@@ -179,19 +213,24 @@ async function receive(m) {
   im.className='source-photo'; im.alt='当前照片'; im.draggable=false; frame.prepend(im); image=im; current=m; canvas.hidden=false; $('.side').inert=false; $('#sHold').disabled=$('#sFav').disabled=false;
   edit=Object.assign(initialEdits(),m.edits||{}); flags.set(selected,{favorite:m.starred,reject:m.rejected});
   const summary=$('#sDim');
-  summary.replaceChildren(element('span',m.dim||im.naturalWidth+' × '+im.naturalHeight,'m'),' · ',element('span',m.size,'m'));
+  const kilobytes=m.sizeBytes/1024;
+  const size=kilobytes<1024?Math.round(kilobytes)+' KB':(kilobytes/1024).toFixed(1)+' MB';
+  summary.replaceChildren(element('span',m.dim||im.naturalWidth+' × '+im.naturalHeight,'m'),
+    ' · ',element('span',size,'m'),' · ',element('span',m.date,'m'));
   if(m.hasParameters) summary.append(' · 拍照模式');
   summary.title='来源目录 · '+m.folder;
   summary.setAttribute('aria-label',summary.textContent+'，'+summary.title);
+  $('#paramHint').hidden=$('#params').hidden=!m.hasParameters;
+  $('#outfitHeading').hidden=$('#outfit').hidden=!m.hasParameters || !m.outfit.length;
   $('#outfit').replaceChildren(...m.outfit.map((name,i)=>{
     const tag=button('',()=>findNext('outfit',name));
     if(m.slots?.[i]) tag.append(element('em',m.slots[i]));
     tag.append(name); return tag;
   }));
   const facts=[['焦距',m.lens!=null?m.lens+' mm':''],['光圈',m.aperture!=null?'f/'+m.aperture:''],['滤镜',m.filter],['时间',photos.find(p=>p.id===selected).time]];
-  $('#params').replaceChildren(...facts.filter(x=>x[1]).map(([k,v])=>{
+  $('#params').replaceChildren(...(m.hasParameters?facts:[]).map(([k,v])=>{
     const field={'焦距':'lens','光圈':'aperture','滤镜':'filter','时间':'date'}[k];
-    const cell=button('',()=>findNext(field,m[field])); cell.append(element('small',k),element('b',v,k==='滤镜'?'':'m'));return cell;
+    const cell=button('',()=>findNext(field,m[field])); cell.disabled=!v; cell.append(element('small',k),element('b',v||'—',k==='滤镜'?'':'m'));return cell;
   }));
   $('#missing').textContent=m.hasParameters?'':'这张照片没有拍摄参数';
   $('#sPal').replaceChildren(...(m.palette||palette(im)).map(color=>{
@@ -204,7 +243,9 @@ function step(n) {
   const p=photos[photos.findIndex(p=>p.id===selected)+n]; if(p) openPhoto(p.id);
 }
 function markButtons() {
-  $('#sFav').setAttribute('aria-pressed',!!flags.get(selected)?.favorite);
+  const favorite=!!flags.get(selected)?.favorite, label=favorite?'已收藏':'收藏';
+  $('#sFav').setAttribute('aria-pressed',favorite);
+  $('#sFav').setAttribute('aria-label',label);$('#sFav span').textContent=label;
   for(const f of all('.cmpv figure')) for(const b of f.querySelectorAll('[data-mark]'))
     b.setAttribute('aria-pressed',!!flags.get(f.dataset.id)?.[b.dataset.mark]);
 }
@@ -257,6 +298,10 @@ all('[data-k]').forEach(i=>{
   i.onchange=()=>changed();
 });
 all('#segCrop button').forEach((b,i)=>b.onclick=()=>{if(i===4) edit.turns=(edit.turns+1)%4;else edit.crop=i; changed();});
+all('[data-format]').forEach(b=>b.onclick=()=>{
+  format=b.dataset.format;
+  all('[data-format]').forEach(item=>item.setAttribute('aria-pressed',item===b));
+});
 all('[data-f]').forEach(b=>b.onclick=()=>{edit.frame=b.dataset.f;changed();});
 all('[data-fld]').forEach(b=>b.onchange=()=>{edit.fields[b.dataset.fld]=b.checked;changed();});
 $('#title').oninput=e=>{edit.title=e.target.value;save();repaint();};
@@ -283,10 +328,15 @@ hold.onkeydown=e=>{if(e.key===' '){e.preventDefault();raw=true;repaint();}};
 hold.onkeyup=hold.onblur=()=>{raw=false;repaint();};
 function addMask() {
   if(edit.masks.length>=32) {status('最多可添加 32 个遮挡块');return;}
-  edit.masks.push({x:.79-edit.masks.length%4*.04,y:.88-edit.masks.length%6*.08,w:.17,h:.06});changed();
+  selectedMask={x:.79-edit.masks.length%4*.04,y:.88-edit.masks.length%6*.08,w:.17,h:.06};
+  edit.masks.push(selectedMask);changed();
 }
 $('#xMeta').onclick=e=>e.preventDefault();
 $('#addMask').onclick=addMask;
+$('#removeMask').onclick=()=>{
+  edit.masks=edit.masks.filter(m=>m!==selectedMask);
+  selectedMask=null;changed();
+};
 $('#xUid').onchange=e=>{if(e.target.checked)addMask();else{edit.masks=[];changed();}};
 function point(e) {
   const r=frame.getBoundingClientRect(),g=geometry(image,edit);
@@ -297,6 +347,7 @@ stage.onpointerdown=e=>{
   drag={x:e.clientX,y:e.clientY,dx,dy,cx,cy};
   if(!compared.length && e.target===canvas) {
     const p=point(e), m=edit.masks.findLast(m=>p.x>=m.x && p.x<=m.x+m.w && p.y>=m.y && p.y<=m.y+m.h);
+    selectedMask=m||null;repaint();
     if(m) Object.assign(drag,{m,start:{...m},p,resize:p.x>m.x+m.w*.75 && p.y>m.y+m.h*.55});
   }
   stage.setPointerCapture(e.pointerId);
@@ -317,17 +368,17 @@ for(const [id,action] of [['xExport','export'],['xCopy','copy'],['copyAll','copy
   $('#'+id).onclick=async()=>{
     if(!image)return;
     const codes=id==='copyAll'?edit.codes.map((value,i)=>value && ['搭配码','染色码','家园码','相机码'][i]+' '+value).filter(Boolean).join('\n'):'';
-    const g=geometry(image,edit);
-    if(g.width*g.height>32*1024*1024 || Math.max(g.width,g.height)>16384){status('导出上限为 3355 万像素，最长边 16384 像素。');return;}
-    const out=document.createElement('canvas'),photoId=selected;
+    const photoId=selected, type=action==='export' && format==='JPEG'?'image/jpeg':'image/png';
+    const edits=structuredClone(edit);
+    if(action==='background') {edits.frame='off';edits.title='';}
+    let out;
     try {
-      drawPhoto(out,image,edit,current,1);
-      const type=action==='export' && $('#format').value==='JPEG'?'image/jpeg':'image/png';
+      out=await renderOutput(image,edits,current);
       const blob=await new Promise(resolve=>out.toBlob(resolve,type,.94));
       if(!blob || blob.size>72*1024*1024){status('编码超过 72 MiB，请缩小裁切范围或改用 JPEG。');return;}
       const reader=new FileReader(); reader.onload=()=>send(action,{image:reader.result,text:codes},photoId);reader.readAsDataURL(blob);
-    } catch {status('图像编码失败，请缩小裁切范围后重试。');}
-    finally {out.width=out.height=0;}
+    } catch(error) {status(error.message||'图像编码失败，请缩小裁切范围后重试。');}
+    finally {if(out)out.width=out.height=0;}
   };
 }
 document.onkeydown=e=>{

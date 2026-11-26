@@ -104,13 +104,13 @@ h3,.ttl{font-family:var(--nk-font-label,var(--nk-font-display))}.stage{touch-act
 #frame{line-height:0;position:relative;box-shadow:0 30px 70px #0008}canvas{display:block}.strip .f{min-width:0;overflow:hidden}.strip .f button{flex-shrink:0}
 .pg>div{background:var(--wall);padding:10px 12px}.pg small{display:block;color:var(--ink3)}.pg b{font-size:16px;font-weight:500}
 .tagl span{border:1px solid var(--line2);border-radius:var(--nk-chip-radius);padding:4px 10px;font-size:12px}.pal i{height:30px;flex:1;border-radius:2px}
-.options{display:flex;justify-content:space-between;font-size:12px}.options button{color:var(--accent)}select{background:var(--wall);color:var(--ink)}#source{overflow-wrap:anywhere;font-size:12px}.side{overflow:auto}.pane{min-height:80px}
+select{background:var(--wall);color:var(--ink)}#source{overflow-wrap:anywhere;font-size:12px}.side{overflow:hidden}.pane{min-height:0}
 .cmpv figure{overflow:hidden}.cmpv figure div{background-repeat:no-repeat}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 @media(max-width:1000px){.strip .k{display:none}.strip .z{width:auto}.sbar{padding-right:145px}.sbar .btn{padding-inline:6px}.sbar .ttl{margin:0}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 
-#preview[hidden]{display:none}#frame canvas{touch-action:none}.options select{border:0}.exp{background:var(--wall)}
+#preview[hidden]{display:none}#frame canvas{touch-action:none}.exp{background:var(--wall)}
 
 #frame,#preview{position:absolute}
 
@@ -132,30 +132,12 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 #frame[data-frame=on]{background:#f6f3ee;color:#1b1418;box-shadow:0 30px 70px rgba(0,0,0,.55)}
 #frame[data-frame=ink],#frame[data-frame=bar]{background:#0e0f13;color:#f1f1f1;box-shadow:0 0 0 1px rgba(255,255,255,.14),0 30px 70px rgba(0,0,0,.55)}
 .source-photo{position:absolute;display:block;pointer-events:none}.source-photo[hidden]{display:none}
-#frameCaption{position:absolute;bottom:0;display:flex;justify-content:space-between;align-items:center;gap:20em;line-height:1.5;pointer-events:none}
-#frameCaption[hidden]{display:none}
-#frameCaption b{font-weight:500}
-#frameCaption div:first-child b{display:block;font-size:13em;line-height:1.3}
-#frameCaption div:first-child span{font-size:12em;opacity:.7}
-#frameCaption div:last-child{text-align:right;line-height:1.25}
-#frameCaption div:last-child b{font-size:17em;white-space:nowrap}
-#frameCaption div:last-child span{display:block;font-size:11em;opacity:.65;letter-spacing:.06em}
-#frameCaption.narrow div span{display:none}
-#frameCaption.narrow div:last-child b{font-size:13em}
 .pg small{font-size:12px}
 .tagl span{display:inline-flex;align-items:center;height:28px;padding:0 10px;border:1px solid var(--line2);border-radius:14px;color:var(--ink2)}
 .tagl em{font-style:normal;color:var(--ink3);margin-right:5px}
 .pal i{box-shadow:inset 0 0 0 1px var(--line2)}
 .stage .navb{color:var(--ink2)}
 
-#frameCaption>div{font-size:14em}
-#frameCaption div:first-child b{font-size:calc(13em / 14)}
-#frameCaption div:first-child span{font-size:calc(12em / 14)}
-#frameCaption div:last-child b{font-size:calc(17em / 14)}
-#frameCaption div:last-child span{font-size:calc(11em / 14)}
-#frameCaption.narrow div:last-child b{font-size:calc(13em / 14)}
-.pane details>summary{list-style:none;cursor:pointer;font-size:12px;font-weight:500;letter-spacing:.14em;color:var(--ink3);margin:0 0 8px}
-.pane details>summary:hover{text-decoration:underline}.pane details[open]{margin-bottom:16px}
 .source-photo{filter:brightness(1) contrast(1) saturate(1);transform:scale(1) rotate(0deg)}
 
 @scope (html:not([data-skin=cinema])) {
@@ -188,3 +170,14 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
     --accent:var(--ink);
   }
 }
+
+[hidden]{display:none!important}
+#frameCaption{position:absolute;pointer-events:none}
+#removeMask{position:absolute;transform:translate(-100%,0);width:20px;height:20px;border:1px solid #fff;border-radius:50%;background:#17181c;color:#fff;font:16px/18px sans-serif;text-align:center}
+#title{width:100%;padding:6px 10px;background:var(--wall);border:1px solid var(--line2);border-radius:min(var(--nk-panel-radius-s),10px)}
+#missing{font-size:12px;color:var(--ink2)}
+#addMask{margin-left:auto}
+#sFav[aria-pressed=true]{color:var(--accent)}
+#sFav[aria-pressed=true] svg{fill:currentColor}
+.cmpv button[aria-pressed=true]::before{content:"✓";font-weight:700}
+#status{overflow-wrap:anywhere}

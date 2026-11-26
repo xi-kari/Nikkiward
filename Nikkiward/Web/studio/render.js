@@ -16,7 +16,7 @@ function geometry(image, edit) {
   h = Math.min(h,w/ratio);
   const unit = Math.max(w/880,h/520);
   const pad = ['on','ink'].includes(edit.frame) ? 16*unit : 0;
-  const foot = edit.frame === 'off' ? 0 : 70*unit;
+  const foot = edit.frame === 'off' ? 0 : (edit.frame === 'bar' ? 54 : 70)*unit;
   return {w,h,unit,pad,foot,width:w+2*pad,height:h+pad+foot};
 }
 function grade(ctx,x,y,w,h,e) {
@@ -34,14 +34,61 @@ function grade(ctx,x,y,w,h,e) {
   ctx.putImageData(pixels,x,y);
 }
 function frameText(e,photo) {
+  const date=photo.date.replaceAll('-','.');
   return [
-    e.title || (e.fields.date?photo.date:''),
-    [e.title && e.fields.date && photo.date,e.fields.filter && photo.filter && '滤镜 · '+photo.filter,e.fields.outfit && photo.outfit[0],e.fields.code && e.codes[0]].filter(Boolean).join('　'),
-    e.fields.lens?[photo.lens && photo.lens+'mm',photo.aperture && 'f/'+photo.aperture].filter(Boolean).join('  '):'',
-    photo.hasParameters?'INFINITY NIKKI · 拍照模式':''
+    e.title || (e.fields.date?date:''),
+    [e.title && e.fields.date && date,e.fields.filter && photo.filter && '滤镜 · '+photo.filter,e.fields.outfit && photo.outfit[0],e.fields.code && e.codes[0]].filter(Boolean).join('　'),
+    photo.hasParameters && e.fields.lens?[photo.lens && photo.lens+'mm',photo.aperture && 'f/'+photo.aperture].filter(Boolean).join(' '):'',
+    photo.hasParameters?'INFINITY NIKKI · 拍照模式':'INFINITY NIKKI'
   ];
 }
-function drawPhoto(canvas,image,e,photo,scale,clip) {
+function captionLayout(g,e,photo) {
+  const style=getComputedStyle(document.documentElement);
+  const num=style.getPropertyValue('--nk-font-num').trim().replace(/,\s*(monospace|sans-serif)$/,', "Noto Serif SC", $1');
+  const ui='Manrope, "Noto Sans SC", sans-serif';
+  const [heading,detail,lens,mode]=frameText(e,photo);
+  const right=(g.width-g.pad)/g.unit-4, left=g.pad/g.unit+4;
+  const width=right-left, mid=g.foot/g.unit/2;
+  if(g.w<g.h && !e.title && lens && heading) {
+    const font='500 13px '+num;
+    return [
+      {text:heading,font,x:left,y:mid+4,max:width*.58},
+      {text:lens,font,x:right,y:mid+4,max:width*.40,right:true}
+    ];
+  }
+  return [
+    {text:heading,font:'500 13px '+num,x:left,y:mid-7,max:width*.58},
+    {text:detail,font:'400 12px '+ui,x:left,y:mid+13,max:width*.58,alpha:.7},
+    {text:lens,font:'500 '+(g.w<g.h?13:17)+'px '+num,x:right,y:mid-2,max:width*.40,right:true},
+    {text:mode,font:'400 11px '+ui,x:right,y:mid+15,max:width*.40,right:true,alpha:.65,spacing:'.66px'}
+  ];
+}
+function loadCaption(rows) {
+  return Promise.all(rows.filter(row=>row.text).map(row=>document.fonts.load(row.font,row.text)));
+}
+function framePaper(frame) {return frame==='on'?'#f6f3ee':'#0e0f13';}
+function drawCaption(ctx,rows,unit,top,frame) {
+  ctx.save();
+  ctx.translate(0,top);ctx.scale(unit,unit);
+  ctx.fillStyle=frame==='on'?'#1b1418':'#f1f1f1';
+  for(const row of rows) {
+    ctx.font=row.font;ctx.textAlign=row.right?'right':'left';ctx.globalAlpha=row.alpha??1;
+    ctx.letterSpacing=row.spacing||'0px';
+    if(row.max>0) ctx.fillText(row.text,row.x,row.y,row.max);
+  }
+  ctx.restore();
+}
+async function renderOutput(image,e,photo) {
+  const g=geometry(image,e);
+  if(g.width*g.height>32*1024*1024 || Math.max(g.width,g.height)>16384)
+    throw new Error('导出上限为 3355 万像素，最长边 16384 像素。');
+  const rows=g.foot?captionLayout(g,e,photo):[];
+  await loadCaption(rows);
+  const output=document.createElement('canvas');
+  drawPhoto(output,image,e,photo,1,null,rows);
+  return output;
+}
+function drawPhoto(canvas,image,e,photo,scale,clip,rows) {
   const g=geometry(image,e);
   const px=n=>Math.round(n*scale);
   const fullWidth=Math.max(1,px(g.width)), fullHeight=Math.max(1,px(g.height));
@@ -50,7 +97,7 @@ function drawPhoto(canvas,image,e,photo,scale,clip) {
   const ctx=canvas.getContext('2d',{willReadFrequently:true});
   ctx.translate(-area.x,-area.y);
   const pad=px(g.pad), w=Math.max(1,px(g.w)), h=Math.max(1,px(g.h));
-  ctx.fillStyle=['bar','ink'].includes(e.frame)?'#0e0f13':'#f6f3ee';
+  ctx.fillStyle=framePaper(e.frame);
   if(e.frame!=='off') ctx.fillRect(0,0,fullWidth,fullHeight);
   ctx.save(); ctx.beginPath(); ctx.rect(pad,pad,w,h); ctx.clip();
   ctx.translate(pad+w/2,pad+h/2);
@@ -64,21 +111,7 @@ function drawPhoto(canvas,image,e,photo,scale,clip) {
   if(visibleW>0 && visibleH>0) grade(ctx,x,y,visibleW,visibleH,e);
   ctx.fillStyle='#17181c';
   for(const m of e.masks) ctx.fillRect(pad+m.x*w,pad+m.y*h,m.w*w,m.h*h);
-  if(g.foot && !clip) {
-    const [heading,detail,lens,mode]=frameText(e,photo);
-    const u=g.unit*scale, left=pad+4*u, right=fullWidth-left, y=pad+h;
-    ctx.fillStyle=['bar','ink'].includes(e.frame)?'#f6f3ee':'#17181c';
-    ctx.font='500 '+(13*u)+'px "JetBrains Mono", monospace';
-    ctx.fillText(heading,left,y+(g.w<g.h?39:28)*u,w*.6);
-    ctx.font=(12*u)+'px "Noto Sans SC", sans-serif';
-    ctx.globalAlpha=.7;
-    const narrow=g.w<g.h;
-    if(!narrow) ctx.fillText(detail,left,y+48*u,w*.6);
-    ctx.globalAlpha=1; ctx.textAlign='right'; ctx.font='500 '+((narrow?13:17)*u)+'px "JetBrains Mono", monospace';
-    ctx.fillText(lens,right,y+(narrow?39:33)*u,w*.38);
-    ctx.globalAlpha=.65; ctx.font=(11*u)+'px Manrope, sans-serif';
-    if(!narrow) ctx.fillText(mode,right,y+50*u,w*.38);
-  }
+  if(g.foot && !clip) drawCaption(ctx,rows,g.unit*scale,pad+h,e.frame);
   return g;
 }
 function palette(image) {
