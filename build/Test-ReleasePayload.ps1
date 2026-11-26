@@ -143,8 +143,6 @@ $allowedMediaPaths = $webHomeFiles + @($webHashes.Keys) + @(
     'Assets\NikkiGameIcon.png',
     'Assets\NikkiwardIcon.ico',
     'Assets\XikariAvatar.jpg',
-    'Assets\HomeSkins\JournalPaperGrain.png',
-    'Assets\HomeSkins\WishStarIrisRing.png',
     'Assets\DefaultFavorites\01.jpg',
     'Assets\DefaultFavorites\02.jpg',
     'Assets\DefaultFavorites\03.jpg',
@@ -188,10 +186,8 @@ $requiredHashes = [ordered]@{
     'Web\art\HomeSkins\Atelier.jpg' = '9BC42BE066032CC82136972A848FC5CE8C863B31A9915FAD087535AA8856323C'
     'Web\art\HomeSkins\Cinema.jpg' = 'F13B54720F724FD7527A02DEAD0385A75C8F548392214D65AEFA220AFF06F0C4'
     'Web\art\HomeSkins\Journal.jpg' = '9C45C1640617821353253CF5307E37D8ADF49AA4096F470E5DB9173DDE597A98'
-    'Assets\HomeSkins\JournalPaperGrain.png' = '13EAF5D97C175E39D790B5F405050C31FC750DBF185680037195AE6C786ED1FE'
     'Web\art\HomeSkins\Stitch.jpg' = '56C85EFC9171D6117DAF743C4E698B913A12C9A8EBDA445F1FF1FF29C458239C'
     'Web\art\HomeSkins\WishStar.jpg' = '5F55CFABFAD81C059E1E222AA95F2BEF478E5F238542A605A4F180CB1765E928'
-    'Assets\HomeSkins\WishStarIrisRing.png' = '1F7DE8F8A1F79B725B6AF6FD57D31467B66BD640607C07584416FBE2E17A1C4C'
     'Assets\DefaultFavorites\01.jpg' = '21093DD12A21385F76AD57819FF1EB2A80AF751579CB50EAF3C598BC0768F902'
     'Assets\DefaultFavorites\02.jpg' = '0FC974EE740B09D5E620F2AC34EB23126D56E8E957422BC580CB35C5AADBBB22'
     'Assets\DefaultFavorites\03.jpg' = '79E98642EC260C9CA8F4A89A12D8294B0474B78658DAB6DE330BFCB192514880'

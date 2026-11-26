@@ -8,7 +8,8 @@ public sealed partial class MainPage
 {
     private readonly PlannerStore _plannerStore = new(ApplicationDataPaths.Root);
     private DispatcherTimer? _plannerTimer;
-    internal PlannerData Planner { get; private set; } = PlannerData.Empty;
+    private PlannerSession? _plannerSession;
+    internal PlannerData Planner => _plannerSession?.Current ?? PlannerData.Empty;
     internal bool PlannerRequested { get; set; }
     internal event EventHandler? HomeDataChanged;
     internal DateOnly? SnapshotDay => _journalSnapshot == null ? null : DateOnly.FromDateTime(_journalSnapshot.CapturedAtUtc.LocalDateTime);
@@ -21,7 +22,7 @@ public sealed partial class MainPage
 
     private void StartPlanner()
     {
-        try { Planner = _plannerStore.Load(); }
+        try { _plannerSession ??= new(_plannerStore.Load(), _plannerStore.Save); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
             ViewModel.ReportUiError("无法读取清单与提醒：" + ex.Message);
@@ -39,17 +40,14 @@ public sealed partial class MainPage
 
     private void RefreshPlanner(bool startup = false)
     {
-        var now = DateTimeOffset.Now;
-        var data = Planner.Reset(now, ViewModel.GeneralSettings.ChecklistReset).Advance(now, out var due);
-        if (ReferenceEquals(data, Planner)) return;
         try
         {
-            if (due.Length != 0)
+            if (_plannerSession!.Refresh(DateTimeOffset.Now, ViewModel.GeneralSettings.ChecklistReset, due =>
             {
                 var message = startup ? $"错过 {due.Length} 条提醒：" : "";
                 App.MainWindow.NotifyReminder(message + string.Join("、", due.Select(r => r.Text)));
-            }
-            SavePlanner(data);
+            }))
+                HomeDataChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
@@ -59,8 +57,7 @@ public sealed partial class MainPage
 
     private void SavePlanner(PlannerData data)
     {
-        _plannerStore.Save(data);
-        Planner = data;
+        _plannerSession!.Save(data);
         HomeDataChanged?.Invoke(this, EventArgs.Empty);
     }
 

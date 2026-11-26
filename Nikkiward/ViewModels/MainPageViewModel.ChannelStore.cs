@@ -96,6 +96,7 @@ public sealed partial class MainPageViewModel
         _lastChannelActivationReceipt is { Succeeded: true, ConfigChanged: true };
 
     public bool CanAttemptExternalChannelLaunch =>
+        RuntimeBlockCode is null &&
         !IsBusy &&
         _preflightResult is { StaticIdentityPassed: true } &&
         !_isLaunchAttemptInProgress &&

@@ -67,10 +67,6 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
-    <Content Update="Assets\HomeSkins\*.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </Content>
     <Content Update="Assets\HomeSkins\*.jpg">
       <Link>Web\art\HomeSkins\%(Filename)%(Extension)</Link>
       <TargetPath>Web\art\HomeSkins\%(Filename)%(Extension)</TargetPath>

@@ -39,6 +39,7 @@ internal static class AppearanceRuntimeContractTests
         (nameof(AtelierProfileNames), AtelierProfileNames),
         (nameof(PlannerDayBoundary), PlannerDayBoundary),
         (nameof(ReminderCalendarAndMissedBatch), ReminderCalendarAndMissedBatch),
+        (nameof(ReminderDeliverySurvivesSaveFailure), ReminderDeliverySurvivesSaveFailure),
         (nameof(PlannerCommandsAndPersistence), PlannerCommandsAndPersistence),
         (nameof(SessionPhotosAndHomeFields), SessionPhotosAndHomeFields),
         (nameof(PageStateFailureRequestsFallback), PageStateFailureRequestsFallback),
@@ -934,6 +935,32 @@ internal static class AppearanceRuntimeContractTests
         Assert(batch.Length == 3 && advanced.Reminders[2].Due == null && advanced.Reminders[0].Due > later, "one batch after downtime");
         advanced.Advance(later, out var again);
         Assert(again.Length == 0, "no duplicate delivery");
+        return Task.CompletedTask;
+    }
+
+    private static Task ReminderDeliverySurvivesSaveFailure()
+    {
+        DateTimeOffset now = new DateTime(2026, 11, 26, 12, 0, 0, DateTimeKind.Local);
+        var daily = new LocalReminder("daily", "拍照", "daily", new(12, 0), null, null, now);
+        var once = daily with { Id = "once", Repeat = "once", Date = new(2026, 11, 26) };
+        int saves = 0;
+        var delivered = new List<LocalReminder>();
+        PlannerData? saved = null;
+        var session = new PlannerSession(PlannerData.Empty with { Reminders = [once, daily] }, data =>
+        {
+            if (++saves <= 2) throw new IOException("disk full");
+            saved = data;
+        });
+        for (int i = 0; i < 2; i++)
+        {
+            try { session.Refresh(now.AddSeconds(10 * i), default, delivered.AddRange); throw new Exception("save failure hidden"); }
+            catch (IOException ex) when (ex.Message == "disk full") { }
+        }
+        Assert(session.Refresh(now.AddSeconds(20), default, delivered.AddRange) && saves == 3 &&
+            delivered.SequenceEqual(new[] { once, daily }) && saved!.Reminders[0].Due == null, "retry saves without resending");
+        Assert(!session.Refresh(now.AddSeconds(30), default, delivered.AddRange) && saves == 3, "successful save clears retry");
+        session.Refresh(now.AddDays(1), default, delivered.AddRange);
+        Assert(delivered.Count == 3 && delivered[2].Id == daily.Id && delivered[2].Due == now.AddDays(1), "next occurrence fires");
         return Task.CompletedTask;
     }
 

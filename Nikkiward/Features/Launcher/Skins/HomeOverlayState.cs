@@ -103,14 +103,12 @@ internal sealed record HomeOverlayState(string GameRootPath, string ChannelText,
         var ready = state == LaunchButtonState.Ready;
         var processes = state switch
         {
-            LaunchButtonState.Ready when vm.HomeProcessesClear == true => new HomeCheck("没有上次留下的游戏进程", true),
-            LaunchButtonState.Ready when vm.HomeProcessesClear == false => new("仍有游戏或启动程序在运行。请先退出，再重新检查。", false),
-            LaunchButtonState.CleanupRequired => new("上次的游戏程序仍在运行。请先关闭游戏，再重新检查。", false),
+            LaunchButtonState.Ready when vm.HomeProcessesClear => new HomeCheck("没有上次留下的游戏进程", true),
+            LaunchButtonState.CleanupRequired => new(reason, false),
             LaunchButtonState.Running or LaunchButtonState.Launching => new(reason),
             _ => new("尚未确认是否有残留进程。")
         };
-        var gate = ready && vm.HomeProcessesClear == false ? processes :
-            ready ? new HomeCheck("只有你点「启动游戏」时才会启动；每次启动 Windows 都会请你确认管理员权限", true)
+        var gate = ready ? new HomeCheck("只有你点「启动游戏」时才会启动；每次启动 Windows 都会请你确认管理员权限", true)
             : new HomeCheck(reason, state is LaunchButtonState.Checking or LaunchButtonState.Running or LaunchButtonState.Launching ? null : false);
         var complete = result is { Components.Count: > 0 } && result.Components.All(c => c.Passed) &&
             (result.StaticIdentityPassed || result.Contract is { RequiredComponents.Count: > 0 } contract &&
@@ -138,7 +136,7 @@ internal sealed record HomeOverlayState(string GameRootPath, string ChannelText,
             provider?.WorkingDirectory ?? direct?.WorkingDirectory ?? "尚未定位",
             args == null ? "尚未确定" : args.Count == 0 ? "无附加参数" : string.Join(" ", args),
             vm.HomeArtKey, vm.AppearanceSettings.ArtworkTitles.GetValueOrDefault(vm.HomeArtKey)?.Name ?? "",
-            vm.CanNameArtwork, vm.CanDiscover, vm.CanExport, vm.CanRefresh, vm.CanAttemptOfficialAssistedLaunch && vm.HomeProcessesClear != false, checks, technical, vm.WebPageFallback);
+            vm.CanNameArtwork, vm.CanDiscover, vm.CanExport, vm.CanRefresh, vm.CanAttemptOfficialAssistedLaunch, checks, technical, vm.WebPageFallback);
     }
 
     private static HomeCheck SignatureCheck(PreflightComponentResult? receipt, AuthenticodeSignatureStatus? inspected, string repair)
@@ -164,7 +162,6 @@ internal sealed record HomeOverlayState(string GameRootPath, string ChannelText,
         var discovery = vm.HomeDiscoveryFailure?.FailureCode;
         return state switch
         {
-            LaunchButtonState.Ready when vm.HomeProcessesClear == false => "这份安装仍有游戏或启动程序在运行。请先退出，再重新检查。",
             LaunchButtonState.Ready => vm.SelectedChannelUsesOfficialAssisted
                 ? $"可以启动。官方启动器 {version}，签名已核对。点「启动游戏」后 Windows 会请你确认管理员权限。"
                 : $"可以启动。{vm.HomeProfile.Channel}版游戏的签名已核对。请回到首页点「启动游戏」，并确认 Windows 管理员权限。",
@@ -188,9 +185,9 @@ internal sealed record HomeOverlayState(string GameRootPath, string ChannelText,
                 HomeComponent.Name(failed.ComponentId) + "：" +
                 SignatureCheck(failed, null, repair).Text,
             LaunchButtonState.SignatureUntrusted => "游戏组件的签名无法确认为官方发布，已拒绝启动。" + repair,
+            LaunchButtonState.CleanupRequired when vm.RuntimeBlockCode == "Preflight.BaselineDirty" => vm.LaunchButtonDetail,
             LaunchButtonState.CleanupRequired => "上次的启动程序还没有退出。请先点「关闭游戏」，再重新检查。",
-            LaunchButtonState.Running when vm.RuntimeBlockCode != null => "检测到已有游戏或启动程序在运行。请先退出，再重新检查。",
-            LaunchButtonState.Running => "游戏已在运行。请切回游戏，或退出后再启动。",
+            LaunchButtonState.Running => "游戏正在运行。",
             LaunchButtonState.Launching => "正在启动游戏，请留意 Windows 的管理员确认窗口，等待游戏打开。",
             LaunchButtonState.Blocked when vm.RuntimeBlockCode == "Preflight.ObserverUnavailable" =>
                 "无法确认正在运行的程序是否属于这份安装。请先关闭游戏和启动器，再重新检查。",

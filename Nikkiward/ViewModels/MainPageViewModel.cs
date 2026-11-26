@@ -213,8 +213,8 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
 
     public string LifecycleText => SelectedRuntimeRefusal?.Block switch
     {
-        ("Preflight.BaselineDirty", var detail) => $"Running · {detail}",
-        ({ } code, var detail) => $"Blocked · {code} · {detail}",
+        (_, var detail, true) => $"Running · {detail}",
+        ({ } code, var detail, _) => $"Blocked · {code} · {detail}",
         _ => _launchLifecycleText,
     };
 
@@ -461,7 +461,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         var binding = _activeProcessBinding;
         if (binding is null)
         {
-            await RefreshRefusedBaselineAsync(cancellationToken);
+            await RefreshRefusedBaselineAsync(ObserveBaseline, cancellationToken);
             return;
         }
 
@@ -1433,14 +1433,15 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 _preflightResult = await _channelEntryLauncher.VerifyIdentityAsync(_selectedCandidate!, cancellationToken);
             }
 
-            if (_preflightResult is { Components.Count: > 0 } verified)
+            if (_activeProcessBinding is null && _preflightResult is { StaticIdentityPassed: true, Components.Count: > 0 } verified)
             {
-                var paths = verified.Components.Where(c => c.Passed && Path.GetExtension(c.FilePath).Equals(".exe", StringComparison.OrdinalIgnoreCase))
-                    .Select(c => c.FilePath).ToArray();
-                if (paths.Length > 0 && verified.StaticIdentityPassed)
+                var components = verified.Components.Where(c => c.Passed && Path.GetExtension(c.FilePath).Equals(".exe", StringComparison.OrdinalIgnoreCase)).ToArray();
+                if (components.Length > 0)
                 {
-                    _observedProcessCode = (await Task.Run(() => ObserveBaseline(paths), cancellationToken)).Code;
-                    _observedInstall = verified;
+                    var observation = await Task.Run(() => ObserveBaseline(components), cancellationToken);
+                    _observedInstall = observation.Code is null ? verified : null;
+                    if (observation.Code is { } code)
+                        RecordRuntimeRefusal(code, observation.Detail!, components, observation.ClientRunning);
                 }
             }
             Components.Clear();
@@ -1638,8 +1639,9 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 }
                 else if (_selectedCandidate is not null)
                 {
-                    var paths = preparation.Preflight?.Components.Select(component => component.FilePath).ToArray() ?? [];
-                    RecordRuntimeRefusal(preparation.FailureCode, preparation.Detail, paths);
+                    RecordRuntimeRefusal(preparation.FailureCode, preparation.Detail, preparation.Preflight?.Components ?? []);
+                    if (preparation.FailureCode == "Preflight.BaselineDirty")
+                        await RefreshRefusedBaselineAsync(ObserveBaseline, cancellationToken);
                 }
 
                 _launchAttemptStatusText =
@@ -1729,7 +1731,9 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             }
             else
             {
-                RecordRuntimeRefusal(receipt.FailureCode, receipt.Detail, preparation.ObservedProcessPaths);
+                RecordRuntimeRefusal(receipt.FailureCode, receipt.Detail, preparation.Preflight?.Components ?? []);
+                if (receipt.FailureCode == "Preflight.BaselineDirty")
+                    await RefreshRefusedBaselineAsync(ObserveBaseline, CancellationToken.None);
                 _launchAttemptStatusText =
                     $"{receipt.FailureCode} · RootPid=null · 未创建 provider";
                 _launchLifecycleText =
