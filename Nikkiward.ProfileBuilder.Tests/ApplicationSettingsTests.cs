@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using Nikkiward.Features.Gallery;
 using Nikkiward.Models;
 using Nikkiward.Services;
+using Nikkiward.ViewModels;
 
 internal static class ApplicationSettingsTests
 {
@@ -18,6 +19,12 @@ internal static class ApplicationSettingsTests
         ("application settings round trip through the current schema", SettingsRoundTrip),
         ("language preference and default install root drive runtime consumers", LanguageAndDefaultStoreRoot),
         ("schema 6 adds application settings with a rollback copy", Schema6MigrationAddsSections),
+        (nameof(OnlyReadyAllowsHomeIdle), OnlyReadyAllowsHomeIdle),
+        (nameof(HomeCheckTimeUsesLocalCalendarDay), HomeCheckTimeUsesLocalCalendarDay),
+        (nameof(HomeFactsNotifyAndUseActualArtwork), HomeFactsNotifyAndUseActualArtwork),
+        (nameof(RecentPhotosUseFileModificationTime), RecentPhotosUseFileModificationTime),
+        (nameof(Schema8DefaultsToStitch), Schema8DefaultsToStitch),
+        (nameof(ArtworkTitlesStayWithTheirSource), ArtworkTitlesStayWithTheirSource),
         (nameof(Schema7StartsWithoutWindowPlacement), Schema7StartsWithoutWindowPlacement),
         (nameof(WindowPlacementAndPreferencesSurviveConcurrentSaves), WindowPlacementAndPreferencesSurviveConcurrentSaves),
         (nameof(WindowClosePreservesReplacedSettingsFile), WindowClosePreservesReplacedSettingsFile),
@@ -134,7 +141,6 @@ internal static class ApplicationSettingsTests
         AssertEqual(UserSettings.CurrentSchemaVersion, settings.SchemaVersion, "schema version");
         AssertEqual("zh-CN", settings.General.LanguageTag, "language");
         AssertEqual("Alt+S", settings.General.MainWindowHotkey, "main window hotkey");
-        Assert(settings.General.EnableProfileQuickSwitcher, "profile quick switcher");
         Assert(settings.Download.EnableHardLinks, "hard links");
         AssertEqual(0, settings.Download.SpeedLimitKbps, "speed limit");
         AssertEqual("Alt+D", settings.Screenshot.Hotkey, "screenshot hotkey");
@@ -157,7 +163,6 @@ internal static class ApplicationSettingsTests
                 LanguageTag = " system ",
                 MainWindowHotkey = " Ctrl+Shift+N ",
                 CloseWindowBehavior = CloseWindowBehavior.MinimizeToTray,
-                EnableProfileQuickSwitcher = false,
                 RecordLocalPlayTime = true,
             },
             Download = new DownloadSettings
@@ -188,7 +193,6 @@ internal static class ApplicationSettingsTests
         AssertEqual("Ctrl+Shift+N", loaded.General.MainWindowHotkey, "main window hotkey");
         AssertEqual(CloseWindowBehavior.MinimizeToTray, loaded.General.CloseWindowBehavior, "close behavior");
         Assert(loaded.General.RecordLocalPlayTime, "play time opt-in");
-        Assert(!loaded.General.EnableProfileQuickSwitcher, "profile quick switcher");
         AssertEqual("D:\\Games\\Nikki", loaded.Download.DefaultGameInstallPath, "install path");
         Assert(!loaded.Download.EnableHardLinks, "hard link setting");
         AssertEqual(4096, loaded.Download.SpeedLimitKbps, "speed limit");
@@ -261,6 +265,95 @@ internal static class ApplicationSettingsTests
             "schema 6 rollback bytes");
     }
 
+    private static Task OnlyReadyAllowsHomeIdle()
+    {
+        var eligible = Enum.GetValues<LaunchButtonState>().Where(state => state.AllowsHomeIdle());
+        Assert(eligible.SequenceEqual(new[] { LaunchButtonState.Ready }), "every state needing attention stays visible");
+        return Task.CompletedTask;
+    }
+
+    private static Task HomeCheckTimeUsesLocalCalendarDay()
+    {
+        var stamp = new DateTimeOffset(2026, 11, 25, 21, 40, 30, TimeSpan.FromHours(-8));
+        AssertEqual("尚未刷新", MainPageViewModel.FormatHomeCheckTime(null, stamp.Date), "before check");
+        AssertEqual("今天 21:40", MainPageViewModel.FormatHomeCheckTime(stamp, stamp.Date), "local today");
+        AssertEqual("11-25 21:40", MainPageViewModel.FormatHomeCheckTime(stamp, stamp.Date.AddDays(1)), "after midnight");
+        return Task.CompletedTask;
+    }
+
+    private static async Task HomeFactsNotifyAndUseActualArtwork()
+    {
+        using var fixture = new TemporaryFolder();
+        var page = new MainPageViewModel(new JsonUserSettingsStore(fixture.Path),
+            new WindowsInstallationInspector(), new RedactedDiagnosticReportExporter());
+        var notifications = new List<string?>();
+        page.PropertyChanged += (_, e) => notifications.Add(e.PropertyName);
+        page.OfficialJournalDuration = "16h";
+        page.LocalPlayDuration = "本机 1 小时";
+        Assert(notifications.Contains(nameof(page.OfficialJournalDuration)) &&
+            notifications.Contains(nameof(page.HomeLocalTimeVisibility)), "duration notifications");
+        page.LocalPlayDuration = null;
+        AssertEqual(Microsoft.UI.Xaml.Visibility.Collapsed, page.HomeLocalTimeVisibility, "local time hidden");
+        page.ShowArtwork(AppearanceBackgroundPresets.Preset2Source);
+        AssertEqual("花信", page.HomeArtName, "preset title");
+        Assert(!page.CanNameArtwork, "preset has a fixed title");
+        page.ShowArtwork("imported.jpg");
+        AssertEqual("自定义背景", page.HomeArtName, "unknown original filename");
+        var settings = new AppearanceSettings().WithArtworkTitle("imported.jpg", original: "晚霞.jpg");
+        await page.SaveAppearanceSettingsAsync(settings);
+        AssertEqual("晚霞", page.HomeArtName, "known original filename without extension");
+        await page.SaveAppearanceSettingsAsync(settings.WithArtworkTitle("imported.jpg", name: "天空"));
+        AssertEqual("天空", page.HomeArtName, "player title wins");
+        AssertEqual(page.LaunchButtonLabel, page.HomeLaunchLabel, "live state label");
+        AssertEqual(page.CanAttemptSelectedChannelLaunch, page.HomeLaunchEnabled, "live action gate");
+    }
+
+    private static Task RecentPhotosUseFileModificationTime()
+    {
+        using var fixture = new TemporaryFolder();
+        foreach (var (name, age) in new[] { ("20991231.jpg", 2), ("a.jpg", 0), ("b.png", 0), ("ignored.txt", -1) })
+        {
+            var file = Path.Combine(fixture.Path, name);
+            File.WriteAllText(file, "");
+            File.SetLastWriteTimeUtc(file, Epoch.AddDays(-age).UtcDateTime);
+        }
+        Assert(GalleryFiles.Recent(fixture.Path, default).Select(f => f.Name)
+            .SequenceEqual(new[] { "a.jpg", "b.png", "20991231.jpg" }), "mtime with stable ties");
+        return Task.CompletedTask;
+    }
+
+    private static async Task Schema8DefaultsToStitch()
+    {
+        using var fixture = new TemporaryFolder();
+        var store = new JsonUserSettingsStore(fixture.Path);
+        await store.SaveAsync(new UserSettings());
+        var json = JsonNode.Parse(await File.ReadAllTextAsync(store.SettingsFilePath))!.AsObject();
+        json["schemaVersion"] = 8;
+        json["appearance"]!["launcherCapsuleStyle"] = "ocean";
+        json["general"]!["enableProfileQuickSwitcher"] = false;
+        json["appearance"]!.AsObject().Remove("homeSkin");
+        var original = json.ToJsonString();
+        await File.WriteAllTextAsync(store.SettingsFilePath, original);
+        var loaded = await store.LoadAsync();
+        AssertEqual("Stitch", loaded.Appearance.HomeSkin, "requested skin survives the Cinema fallback");
+        AssertEqual(original, await File.ReadAllTextAsync(store.Schema9MigrationRollbackFilePath), "rollback bytes");
+        await store.SaveAsync(loaded with { Appearance = loaded.Appearance with { HomeSkin = "future" } });
+        AssertEqual("future", (await store.LoadAsync()).Appearance.HomeSkin, "unknown skin remains readable");
+    }
+
+    private static async Task ArtworkTitlesStayWithTheirSource()
+    {
+        using var fixture = new TemporaryFolder();
+        var store = new JsonUserSettingsStore(fixture.Path);
+        var art = new AppearanceSettings().WithArtworkTitle("one", original: "晨.jpg")
+            .WithArtworkTitle("one", name: " 晨光 ").WithArtworkTitle("two", original: "夜.jpg");
+        await store.SaveAsync(new UserSettings { Appearance = art });
+        var loaded = (await store.LoadAsync()).Appearance;
+        AssertEqual("晨光", loaded.ArtworkTitles["one"].Name!, "trim title");
+        AssertEqual("晨.jpg", loaded.WithArtworkTitle("one", name: "").ArtworkTitles["one"].OriginalFileName!, "reset keeps filename");
+        AssertEqual("夜.jpg", loaded.ArtworkTitles["two"].OriginalFileName!, "second artwork");
+    }
+
     private static async Task Schema7StartsWithoutWindowPlacement()
     {
         using var fixture = new TemporaryFolder();
@@ -273,11 +366,11 @@ internal static class ApplicationSettingsTests
         await File.WriteAllTextAsync(store.SettingsFilePath, original);
 
         var loaded = await store.LoadAsync();
-        AssertEqual(8, loaded.SchemaVersion, "migrated schema");
+        AssertEqual(9, loaded.SchemaVersion, "migrated schema");
         Assert(loaded.DeveloperModeEnabled, "unrelated settings survive migration");
         var persisted = JsonNode.Parse(await File.ReadAllTextAsync(store.SettingsFilePath))!;
         Assert(persisted["windowPlacement"] is null, "old settings use first-open placement");
-        AssertEqual(8, persisted["schemaVersion"]!.GetValue<int>(), "persisted schema");
+        AssertEqual(9, persisted["schemaVersion"]!.GetValue<int>(), "persisted schema");
         AssertEqual(original, await File.ReadAllTextAsync(Path.Combine(
             Path.GetDirectoryName(store.SettingsFilePath)!, "settings.pre-schema8.rollback.json")), "rollback bytes");
     }

@@ -48,7 +48,7 @@ public sealed partial class MainPage
     {
         try
         {
-            SetShellNavigationSelection(LibraryNavigationItem);
+            SetShellNavigationSelection("library");
             ShowLibrary();
             var journalPage = ContentFrame.Content as JournalPage
                 ?? throw new InvalidOperationException("Journal page navigation did not complete.");
@@ -202,7 +202,7 @@ public sealed partial class MainPage
         var returnToResonance = IsResonanceHistoryUri(_hostedJournalPage?.LastContentUri);
         if (returnToResonance)
         {
-            SetShellNavigationSelection(ResonanceNavigationItem);
+            SetShellNavigationSelection("resonance");
             ShowResonance();
         }
 

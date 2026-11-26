@@ -18,7 +18,6 @@ public sealed partial class MainWindow : Window
     private const int DesignHeight = 810;
 
     private const double TitleBarStripHeight = 48;
-    private const double NavigationRailWidth = 56;
     private const double CaptionButtonsWidth = 160;
 
     private InputNonClientPointerSource? _nonClientPointerSource;
@@ -44,13 +43,8 @@ public sealed partial class MainWindow : Window
         Title = "Nikkiward";
         ExtendsContentIntoTitleBar = true;
 
-        // Deliberately not SetTitleBar(AppTitleBar): a XAML drag element wins
-        // over Passthrough regions, so page headers drawn in the same strip
-        // become undraggable-but-unclickable. The Caption region is declared
-        // from geometry below instead, carved around those headers.
-
         AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
-        AppWindow.TitleBar.IconShowOptions = IconShowOptions.ShowIconAndSystemMenu;
+        AppWindow.TitleBar.IconShowOptions = IconShowOptions.HideIconAndSystemMenu;
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
         AppWindow.TitleBar.BackgroundColor = Colors.Transparent;
         AppWindow.TitleBar.InactiveBackgroundColor = Colors.Transparent;
@@ -288,6 +282,10 @@ public sealed partial class MainWindow : Window
             var top = checked((int)Math.Floor(bounds.Y * scale));
             var right = checked((int)Math.Ceiling((bounds.X + bounds.Width) * scale));
             var bottom = checked((int)Math.Ceiling((bounds.Y + bounds.Height) * scale));
+            left = Math.Max(0, left);
+            right = Math.Min(right, AppWindow.ClientSize.Width);
+            if (top < TitleBarStripHeight * scale)
+                right = Math.Min(right, AppWindow.ClientSize.Width - AppWindow.TitleBar.RightInset);
             if (right <= left || bottom <= top)
             {
                 continue;
@@ -316,9 +314,10 @@ public sealed partial class MainWindow : Window
 
         var scale = _mainPage.XamlRoot.RasterizationScale;
         var stripHeight = checked((int)Math.Ceiling(TitleBarStripHeight * scale));
-        var leftReserve = checked((int)Math.Ceiling(NavigationRailWidth * scale));
+        const int leftReserve = 0;
         var windowWidth = AppWindow.ClientSize.Width;
-        var captionWidth = checked((int)Math.Ceiling(CaptionButtonsWidth * scale));
+        var captionWidth = AppWindow.TitleBar.RightInset;
+        if (captionWidth == 0) captionWidth = checked((int)Math.Ceiling(CaptionButtonsWidth * scale));
         var right = Math.Max(leftReserve, windowWidth - captionWidth);
         if (right <= leftReserve)
         {

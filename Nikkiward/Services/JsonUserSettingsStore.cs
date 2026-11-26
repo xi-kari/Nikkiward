@@ -46,6 +46,7 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
         Schema7MigrationRollbackFilePath = Path.Combine(
             Path.GetDirectoryName(SettingsFilePath)!,
             "settings.pre-schema7.rollback.json");
+        Schema9MigrationRollbackFilePath = Path.Combine(applicationRoot, "settings.pre-schema9.rollback.json");
         Schema8MigrationRollbackFilePath = Path.Combine(applicationRoot, "settings.pre-schema8.rollback.json");
     }
 
@@ -54,6 +55,8 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
     public string MigrationRollbackFilePath { get; }
 
     public string Schema7MigrationRollbackFilePath { get; }
+
+    public string Schema9MigrationRollbackFilePath { get; }
 
     public string Schema8MigrationRollbackFilePath { get; }
 
@@ -167,6 +170,24 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
                     cancellationToken).ConfigureAwait(false);
             }
             root = ApplicationSettingsMigration.MigrateSchema7To8(root);
+            migrated = true;
+            version = UserSettings.WindowPlacementSchemaVersion;
+        }
+
+        if (version == UserSettings.WindowPlacementSchemaVersion)
+        {
+            if (persistMigration)
+            {
+                await PreserveMigrationRollbackAsync(Schema9MigrationRollbackFilePath, cancellationToken).ConfigureAwait(false);
+            }
+            if (root["appearance"] is JsonObject appearance)
+            {
+                foreach (var key in new[] { "launcherCapsuleStyle", "launcherMastheadLabel", "launcherMastheadTitle", "launcherMastheadSubtitle", "showLauncherUtilityPanels" })
+                    appearance.Remove(key);
+                appearance["homeSkin"] = "Stitch";
+            }
+            (root["general"] as JsonObject)?.Remove("enableProfileQuickSwitcher");
+            root["schemaVersion"] = UserSettings.CurrentSchemaVersion;
             migrated = true;
             version = UserSettings.CurrentSchemaVersion;
         }

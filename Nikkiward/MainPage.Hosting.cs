@@ -57,9 +57,7 @@ public sealed partial class MainPage
         if (_hostedLauncherPage is { } currentLauncherPage)
         {
             SubscribeLauncherPage(currentLauncherPage);
-            currentLauncherPage.ApplyJournalDuration(
-                _journalDurationText,
-                _journalDurationDetailText);
+
         }
 
         if (_hostedJournalPage is { } previousJournalPage)
@@ -101,8 +99,6 @@ public sealed partial class MainPage
         {
             previousProfilePage.DiscoverRequested -= OnProfileDiscoverRequested;
             previousProfilePage.ProfileSelected -= OnProfileSelected;
-            previousProfilePage.DetailsRequested -= OnProfileDetailsRequested;
-            previousProfilePage.CloseRequested -= OnProfileCloseRequested;
             previousProfilePage.ChooseGameRootRequested -= OnProfileChooseGameRootRequested;
             previousProfilePage.ChooseLauncherRootRequested -= OnProfileChooseLauncherRootRequested;
             previousProfilePage.ChooseChannelStoreRootRequested -= OnProfileChooseChannelStoreRootRequested;
@@ -117,8 +113,6 @@ public sealed partial class MainPage
         {
             currentProfilePage.DiscoverRequested += OnProfileDiscoverRequested;
             currentProfilePage.ProfileSelected += OnProfileSelected;
-            currentProfilePage.DetailsRequested += OnProfileDetailsRequested;
-            currentProfilePage.CloseRequested += OnProfileCloseRequested;
             currentProfilePage.ChooseGameRootRequested += OnProfileChooseGameRootRequested;
             currentProfilePage.ChooseLauncherRootRequested += OnProfileChooseLauncherRootRequested;
             currentProfilePage.ChooseChannelStoreRootRequested += OnProfileChooseChannelStoreRootRequested;
@@ -182,6 +176,9 @@ public sealed partial class MainPage
 
     private void SubscribeLauncherPage(LauncherPage page)
     {
+        page.PhotoRequested += OnRecentPhotoRequested;
+        page.StatusRequested += OnSkinStatusRequested;
+        page.BackgroundRequested += OnSkinBackgroundRequested;
         page.DownloadStatusRequested += OnLauncherDownloadStatusRequested;
         page.PlayTimeRequested += OnLauncherPlayTimeRequested;
         page.OfficialFlowRequested += OnLauncherOfficialFlowRequested;
@@ -195,6 +192,9 @@ public sealed partial class MainPage
 
     private void UnsubscribeLauncherPage(LauncherPage page)
     {
+        page.PhotoRequested -= OnRecentPhotoRequested;
+        page.StatusRequested -= OnSkinStatusRequested;
+        page.BackgroundRequested -= OnSkinBackgroundRequested;
         page.DownloadStatusRequested -= OnLauncherDownloadStatusRequested;
         page.PlayTimeRequested -= OnLauncherPlayTimeRequested;
         page.OfficialFlowRequested -= OnLauncherOfficialFlowRequested;
@@ -230,8 +230,22 @@ public sealed partial class MainPage
     private void OnLauncherBackgroundResetRequested(object? sender, EventArgs e) =>
         OnResetBackgroundClicked(sender ?? this, new RoutedEventArgs());
 
+    private async void OnRecentPhotoRequested(object? sender, GalleryPhotoItemViewModel photo)
+    {
+        SetShellNavigationSelection("gallery");
+        await ShowGalleryAsync(photo: photo);
+    }
+
+    private void OnSkinStatusRequested(object? sender, EventArgs e) => ShowStatusDrawer();
+
+    private void OnSkinBackgroundRequested(object? sender, EventArgs e)
+    {
+        ShowLaunchSettings();
+        _hostedLaunchSettingsPage?.ShowBackgroundSection();
+    }
+
     private void OnLauncherProfileRequested(object? sender, EventArgs e) =>
-        ShowProfileOverlay();
+        ShowProfileOverlay((FrameworkElement)sender!);
 
     private void SubscribeSettingsPage(SettingsPage page)
     {
@@ -501,6 +515,12 @@ public sealed partial class MainPage
         AppearanceSettings settings,
         CancellationToken cancellationToken)
     {
+#if DEBUG
+        if (HomePreview.Art is { } previewArt)
+        {
+            settings = settings with { Background = new BackgroundArtSettings { SelectedSource = previewArt } };
+        }
+#endif
         ApplyAppearanceSettings(settings);
         var projection = AppearanceProjector.ProjectBackground(
             settings.Background,

@@ -33,7 +33,10 @@ public sealed partial class MainPageViewModel
         get => _settingsStore.ProtectionMessage is { } protection
             ? $"{_channelStoreStatusText} · 无法创建单本体：{protection}"
             : _channelStoreStatusText;
-        private set => SetField(ref _channelStoreStatusText, value);
+        private set
+        {
+            if (SetField(ref _channelStoreStatusText, value)) OnPropertyChanged(nameof(HomeTaskText));
+        }
     }
 
     public string ChannelStoreCapacityText => _channelStorePlan?.GetCapacityText()
@@ -55,6 +58,8 @@ public sealed partial class MainPageViewModel
         {
             if (SetField(ref _isChannelStoreBusy, value))
             {
+                OnPropertyChanged(nameof(HasHomeTask));
+                OnPropertyChanged(nameof(HomeTaskText));
                 OnPropertyChanged(nameof(ChannelStoreProgressVisibility));
                 OnPropertyChanged(nameof(CanPlanChannelStore));
                 OnPropertyChanged(nameof(CanBuildChannelStore));

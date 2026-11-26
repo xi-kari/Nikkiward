@@ -12,6 +12,7 @@ using Nikkiward.Features.Gallery;
 using Nikkiward.Features.GamepadControl;
 using Nikkiward.Features.Journal;
 using Nikkiward.Features.Launcher;
+using Nikkiward.Features.Launcher.Skins;
 using Nikkiward.Features.Profile;
 using Nikkiward.Features.Settings;
 using Nikkiward.Features.Shell;
@@ -135,10 +136,7 @@ public sealed partial class MainPage : Page
         get
         {
             var regions = new List<FrameworkElement>(2);
-            if (ProfileQuickSwitchHost.Visibility == Visibility.Visible)
-            {
-                regions.Add(ProfileQuickSwitchHost);
-            }
+            if (ShellNavigation.IsHitTestVisible) regions.AddRange(ShellNavigation.InteractiveRegions);
 
             if (ContentFrame.Visibility == Visibility.Visible &&
                 ContentFrame.Content is ITitleBarMasthead masthead &&
@@ -160,9 +158,12 @@ public sealed partial class MainPage : Page
 
     public MainPage()
     {
+        HomeSkins.TokensFor(HomeSkins.Resolve(ViewModel.AppearanceSettings.HomeSkin));
         InitializeComponent();
         ApplyLaunchSettingsHostLayout(RootGrid.ActualWidth);
-        AppearanceRuntimeValues.ApplyOpacityTransition(ProfileQuickSwitchRail);
+        ShellNavigation.Invoked += OnNavigationItemInvoked;
+        ShellNavigation.RegionsChanged += (_, _) => NotifyTitleBarPassthroughChanged();
+        ApplyHomeSkin(ViewModel.AppearanceSettings.HomeSkin);
         _xamlInitialized = true;
         ContentFrame.Navigated += OnContentFrameNavigated;
         LaunchSettingsFrame.Navigated += OnLaunchSettingsFrameNavigated;
@@ -172,17 +173,38 @@ public sealed partial class MainPage : Page
         ContentFrame.Navigate(
             typeof(LauncherPage),
             new LauncherNavigationContext(ViewModel));
-        SetShellNavigationSelection(LauncherNavigationItem);
+        SetShellNavigationSelection("launcher");
         UpdateJournalDurationUi();
 
         RefreshOnArtSurfaceRegistration();
     }
 
-    private void OnRootGridSizeChanged(object sender, SizeChangedEventArgs e) =>
+    private HomeSkin? _homeSkin;
+
+    private void ApplyHomeSkin(string id)
+    {
+        var skin = HomeSkins.Resolve(id);
+        if (skin == _homeSkin) return;
+        var tokens = HomeSkins.TokensFor(skin);
+        LauncherBackground.ApplyArtFrame((Thickness)tokens["HomeArtInset"], (CornerRadius)tokens["HomeArtRadius"]);
+        ShellNavigation.Apply(skin, tokens);
+        ShellNavigation.Fit(RootGrid.ActualWidth);
+        ContentFrame.Margin = skin.LeftEdge ? new Thickness(90, 0, 0, 0) : default;
+        _homeSkin = skin;
+        NotifyTitleBarPassthroughChanged();
+    }
+
+    private void OnHomeNavigationSizeChanged(object sender, SizeChangedEventArgs e) =>
+        NotifyTitleBarPassthroughChanged();
+
+    private void OnRootGridSizeChanged(object sender, SizeChangedEventArgs e)
+    {
         ApplyLaunchSettingsHostLayout(e.NewSize.Width);
+        ShellNavigation.Fit(e.NewSize.Width);
+    }
 
     private void ApplyLaunchSettingsHostLayout(double width) =>
         LaunchSettingsFrame.Margin = width < CompactLaunchSettingsHostWidth
-            ? new Thickness(56, 48, 8, 8)
-            : new Thickness(56, 60, 24, 24);
+            ? new Thickness(8, 48, 8, 8)
+            : new Thickness(24, 60, 24, 24);
 }

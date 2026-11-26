@@ -202,7 +202,7 @@ public sealed partial class MainPage
 
     private async void OnSettingsGalleryOpenRequested(object? sender, EventArgs e)
     {
-        SetShellNavigationSelection(GalleryNavigationItem);
+        SetShellNavigationSelection("gallery");
         await ShowGalleryAsync(returnToSettings: true);
     }
 

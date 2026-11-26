@@ -254,10 +254,7 @@ internal static class UserSettingsTests
         var settings = new UserSettings();
         AssertEqual(UserSettings.CurrentSchemaVersion, settings.SchemaVersion, "schema version");
         AssertEqual(ThemeMode.WarmDark, settings.Appearance.ThemeMode, "theme mode");
-        AssertEqual(
-            LauncherCapsuleStyle.Ocean,
-            settings.Appearance.LauncherCapsuleStyle,
-            "launcher capsule style");
+        AssertEqual("Stitch", settings.Appearance.HomeSkin, "home skin");
         AssertEqual(0, settings.GalleryProfiles.Count, "gallery profile count");
         Assert(!settings.DeveloperModeEnabled, "developer mode must default off");
         return Task.CompletedTask;
@@ -279,11 +276,7 @@ internal static class UserSettingsTests
                     FixedAccent = FixedAccentColor.Gold,
                     CustomAccentArgb = 0x00776655,
                     UseSerifTitles = false,
-                    LauncherMastheadLabel = " 标签 ",
-                    LauncherMastheadTitle = " 自定义标题 ",
-                    LauncherMastheadSubtitle = " 自定义副标题 ",
-                    ShowLauncherUtilityPanels = true,
-                    LauncherCapsuleStyle = LauncherCapsuleStyle.Ultraviolet,
+                    HomeSkin = "Cinema",
                     Motion = AppearanceMotionMode.Reduced,
                     Density = InterfaceDensity.Compact,
                     Background = new BackgroundArtSettings
@@ -311,14 +304,7 @@ internal static class UserSettingsTests
             AssertEqual(AppearanceMotionMode.Reduced, loaded.Appearance.Motion, "motion mode");
             AssertEqual(InterfaceDensity.Compact, loaded.Appearance.Density, "density");
             AssertEqual(0xFF776655u, loaded.Appearance.CustomAccentArgb, "custom accent");
-            AssertEqual("标签", loaded.Appearance.LauncherMastheadLabel, "masthead label");
-            AssertEqual("自定义标题", loaded.Appearance.LauncherMastheadTitle, "masthead title");
-            AssertEqual("自定义副标题", loaded.Appearance.LauncherMastheadSubtitle, "masthead subtitle");
-            Assert(loaded.Appearance.ShowLauncherUtilityPanels, "utility panels setting");
-            AssertEqual(
-                LauncherCapsuleStyle.Ultraviolet,
-                loaded.Appearance.LauncherCapsuleStyle,
-                "launcher capsule style");
+            AssertEqual("Cinema", loaded.Appearance.HomeSkin, "home skin");
             AssertEqual("D:\\Art\\one.png", loaded.Appearance.Background.SelectedSource, "source");
             Assert(!loaded.Appearance.Background.HolographicCardEnabled, "holographic card");
             Assert(loaded.Appearance.Background.MotionEnabled, "motion enabled");
@@ -340,8 +326,8 @@ internal static class UserSettingsTests
                 json.Contains("\"themeMode\": \"warmDark\"", StringComparison.Ordinal),
                 "appearance theme must serialize as camel-case enum text");
             Assert(
-                json.Contains("\"launcherCapsuleStyle\": \"ultraviolet\"", StringComparison.Ordinal),
-                "launcher capsule style must serialize as camel-case enum text");
+                json.Contains("\"homeSkin\": \"Cinema\"", StringComparison.Ordinal),
+                "home skin id must round-trip");
             Assert(
                 json.Contains("\"holographicCardEnabled\": false", StringComparison.Ordinal),
                 "holographic card setting must serialize");
@@ -681,10 +667,7 @@ internal static class UserSettingsTests
             AssertEqual("Ctrl+G", loaded.Gamepad.GuideMapKeys, "guide map");
             Assert(!loaded.Appearance.Background.MotionEnabled, "migrated motion default");
             AssertEqual(30, loaded.Appearance.Background.MotionFpsCap, "migrated motion FPS");
-            AssertEqual(
-                LauncherCapsuleStyle.Ocean,
-                loaded.Appearance.LauncherCapsuleStyle,
-                "migrated launcher capsule style");
+            AssertEqual("Stitch", loaded.Appearance.HomeSkin, "home skin");
         }
         finally
         {
@@ -718,8 +701,8 @@ internal static class UserSettingsTests
             Assert(json.Contains($"\"schemaVersion\": {UserSettings.CurrentSchemaVersion}", StringComparison.Ordinal), "current schema output");
             Assert(json.Contains("\"appearance\"", StringComparison.Ordinal), "appearance output");
             Assert(
-                json.Contains("\"launcherCapsuleStyle\": \"ocean\"", StringComparison.Ordinal),
-                "launcher capsule default output");
+                json.Contains("\"homeSkin\": \"Stitch\"", StringComparison.Ordinal),
+                "default home skin output");
             Assert(!json.Contains("\n  \"themeMode\"", StringComparison.Ordinal), "legacy theme removed");
             AssertEqual(ThemeMode.WarmLight, (await store.LoadAsync()).Appearance.ThemeMode, "saved theme");
         }
@@ -765,7 +748,7 @@ internal static class UserSettingsTests
             "[]",
             "{\"schemaVersion\":6}",
             "{\"schemaVersion\":6,\"appearance\":{\"motion\":99},\"profiles\":[],\"galleryProfiles\":[],\"gamepad\":{}}",
-            "{\"schemaVersion\":6,\"appearance\":{\"launcherCapsuleStyle\":\"unknown\"},\"profiles\":[],\"galleryProfiles\":[],\"gamepad\":{}}",
+            "{\"schemaVersion\":6,\"appearance\":{\"accentMode\":\"unknown\"},\"profiles\":[],\"galleryProfiles\":[],\"gamepad\":{}}",
             "{\"schemaVersion\":6,\"appearance\":{},\"profiles\":[],\"galleryProfiles\":[],\"gamepad\":{},\"unknownSection\":true}",
         };
 
@@ -809,7 +792,7 @@ internal static class UserSettingsTests
                 {
                     Appearance = new AppearanceSettings
                     {
-                        LauncherCapsuleStyle = (LauncherCapsuleStyle)99,
+                        Density = (InterfaceDensity)99,
                     },
                 }));
             Assert(!File.Exists(store.SettingsFilePath), "invalid settings should not be written");

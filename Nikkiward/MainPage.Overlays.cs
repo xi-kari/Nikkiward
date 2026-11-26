@@ -32,7 +32,7 @@ public sealed partial class MainPage
 {
     private void OnShowDetailsClicked(object sender, RoutedEventArgs e)
     {
-        SetShellNavigationSelection(LauncherNavigationItem);
+        SetShellNavigationSelection("launcher");
         if (StatusDrawer.Visibility == Visibility.Visible)
         {
             CloseDetails();
@@ -159,7 +159,7 @@ public sealed partial class MainPage
             previous.ChooseGameRootRequested -= OnLaunchSettingsChooseGameRootRequested;
             previous.WallpaperImportRequested -= OnLaunchSettingsWallpaperImportRequested;
             previous.BackgroundResetRequested -= OnLaunchSettingsBackgroundResetRequested;
-            previous.MastheadSubtitleSaveRequested -= OnLaunchSettingsMastheadSubtitleSaveRequested;
+            previous.ArtworkTitleSaveRequested -= OnLaunchSettingsArtworkTitleSaveRequested;
             previous.MastheadInteractionRegionChanged -= OnMastheadRegionChanged;
         }
 
@@ -170,7 +170,7 @@ public sealed partial class MainPage
             current.ChooseGameRootRequested += OnLaunchSettingsChooseGameRootRequested;
             current.WallpaperImportRequested += OnLaunchSettingsWallpaperImportRequested;
             current.BackgroundResetRequested += OnLaunchSettingsBackgroundResetRequested;
-            current.MastheadSubtitleSaveRequested += OnLaunchSettingsMastheadSubtitleSaveRequested;
+            current.ArtworkTitleSaveRequested += OnLaunchSettingsArtworkTitleSaveRequested;
             current.MastheadInteractionRegionChanged += OnMastheadRegionChanged;
         }
 
@@ -189,17 +189,14 @@ public sealed partial class MainPage
         WallpaperImportRequestedEventArgs e) =>
         await ChooseWallpaperAsync(e.Mode);
 
-    private async void OnLaunchSettingsMastheadSubtitleSaveRequested(
+    private async void OnLaunchSettingsArtworkTitleSaveRequested(
         object? sender,
-        MastheadSubtitleChangedEventArgs e)
+        ArtworkTitleChangedEventArgs e)
     {
         try
         {
             await SaveAndApplyAppearanceAsync(
-                ViewModel.AppearanceSettings with
-                {
-                    LauncherMastheadSubtitle = e.Subtitle,
-                });
+                ViewModel.AppearanceSettings.WithArtworkTitle(e.Source, e.Title));
             _hostedLaunchSettingsPage?.ApplyAppearanceSettings(
                 ViewModel.AppearanceSettings);
         }
@@ -208,7 +205,7 @@ public sealed partial class MainPage
         }
         catch (Exception ex)
         {
-            ViewModel.ReportUiError($"主页文案保存失败：{ex.GetType().Name}: {ex.Message}");
+            ViewModel.ReportUiError($"画名保存失败：{ex.GetType().Name}: {ex.Message}");
             _hostedLaunchSettingsPage?.ApplyAppearanceSettings(
                 ViewModel.AppearanceSettings);
         }

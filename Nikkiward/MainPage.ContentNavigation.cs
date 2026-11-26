@@ -62,13 +62,14 @@ public sealed partial class MainPage
         {
             ApplyMotionPreference(ViewModel.AppearanceSettings.Motion);
             LauncherBackground.ConfigureAppearance(ViewModel.AppearanceSettings);
+            HomeInteractionChanged?.Invoke(this, EventArgs.Empty);
             SyncLauncherChrome();
         });
     }
 
     private async Task ShowGalleryAsync(
         bool returnToSettings = false,
-        GalleryViewMode viewMode = GalleryViewMode.All)
+        GalleryViewMode viewMode = GalleryViewMode.All, GalleryPhotoItemViewModel? photo = null)
     {
         CloseProfileOverlay();
         HideLibrary();
@@ -91,7 +92,7 @@ public sealed partial class MainPage
                 ViewModel.GalleryRootPath,
                 cancellationToken,
                 viewMode,
-                forceReload: false);
+                forceReload: photo != null, photo: photo);
             return;
         }
 
@@ -104,7 +105,7 @@ public sealed partial class MainPage
                 GalleryProtection,
                 cancellationToken,
                 viewMode,
-                ViewModel.AppearanceSettings),
+                ViewModel.AppearanceSettings, photo),
             AppearanceRuntimeValues.CreateNavigationTransitionInfo());
     }
 
@@ -183,23 +184,29 @@ public sealed partial class MainPage
     /// path calls this instead of toggling elements itself, so adding a page
     /// cannot leave launcher content bleeding through it.
     /// </summary>
+    internal event EventHandler? HomeInteractionChanged;
+    internal bool HomeInteractive { get; private set; }
+
+    internal void SetHomeDimmed(bool dimmed)
+    {
+        AppearanceRuntimeValues.ApplyOpacityTransition(ShellNavigation);
+        ShellNavigation.IsHitTestVisible = !dimmed;
+        ShellNavigation.Opacity = dimmed ? 0 : 1;
+        NotifyTitleBarPassthroughChanged();
+    }
+
     private void SyncLauncherChrome()
     {
         EnsureSystemMotionSubscription();
         bool contentOpen = ContentFrame.Visibility == Visibility.Visible;
         bool launcherOpen = contentOpen && ContentFrame.Content is LauncherPage;
-        var profilePage = contentOpen ? ContentFrame.Content as ProfilePage : null;
-        bool profileOpen = profilePage is not null;
-        bool profilePickerOpen = profilePage is { IsDetailsVisible: false };
-        bool pageOpen =
-            contentOpen &&
-            (profilePage?.IsDetailsVisible == true ||
-             ContentFrame.Content is not ProfilePage and not LauncherPage);
+        bool profilePickerOpen = _profileFlyout?.IsOpen == true;
+        bool pageOpen = contentOpen && !launcherOpen;
 
         bool blockingOverlayOpen =
             StatusDrawer.Visibility == Visibility.Visible ||
             LaunchSettingsFrame.Visibility == Visibility.Visible;
-        bool overlayOpen = blockingOverlayOpen || profileOpen;
+        bool overlayOpen = blockingOverlayOpen || profilePickerOpen;
         bool launcherSurfaceVisible =
             launcherOpen &&
             !blockingOverlayOpen &&
@@ -209,17 +216,17 @@ public sealed partial class MainPage
             !overlayOpen &&
             !profilePickerOpen;
 
+        if (HomeInteractive != launcherSurfaceInteractive)
+        {
+            HomeInteractive = launcherSurfaceInteractive;
+            HomeInteractionChanged?.Invoke(this, EventArgs.Empty);
+        }
         LauncherBackground.SetLauncherSurfaceState(
             launcherSurfaceVisible,
             launcherSurfaceInteractive);
 
         PageHostBackdrop.Visibility = Visible(pageOpen);
-        ProfileQuickSwitchHost.Visibility =
-            Visible(profilePickerOpen || launcherSurfaceVisible);
-        if (!ViewModel.GeneralSettings.EnableProfileQuickSwitcher)
-        {
-            ProfileQuickSwitchHost.Visibility = Visibility.Collapsed;
-        }
+
         if (_hostedLauncherPage is { } launcherPage)
         {
             launcherPage.IsHitTestVisible = launcherOpen && !overlayOpen;
@@ -234,11 +241,12 @@ public sealed partial class MainPage
 
     private void RefreshOnArtSurfaceRegistration()
     {
-        var hosts = new List<FrameworkElement>
-        {
-            ProfileQuickSwitchRail,
-            ProfileOverlayMask,
-        };
+        var hosts = new List<FrameworkElement>();
+        if (ContentFrame.Content is LauncherPage)
+            hosts.Add(ShellNavigation);
+        else
+            ShellNavigation.RequestedTheme = ElementTheme.Default;
+        if (_profileFlyout?.Content is FrameworkElement picker) hosts.Add(picker);
 
         if (ContentFrame.Visibility == Visibility.Visible &&
             ContentFrame.Content is LauncherPage { OnArtHost: { } launcherOnArtHost })
@@ -250,14 +258,6 @@ public sealed partial class MainPage
             LaunchSettingsFrame.Content is LaunchSettingsPage { OnArtHost: { } launchSettingsOnArtHost })
         {
             hosts.Add(launchSettingsOnArtHost);
-        }
-
-        if (ContentFrame.Visibility == Visibility.Visible &&
-            ContentFrame.Content is ProfilePage profilePage &&
-            !profilePage.IsDetailsVisible &&
-            profilePage.OnArtHost is { } profileOnArtHost)
-        {
-            hosts.Add(profileOnArtHost);
         }
 
         if (StatusDrawer.Visibility == Visibility.Visible)

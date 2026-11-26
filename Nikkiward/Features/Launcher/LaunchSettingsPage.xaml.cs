@@ -25,7 +25,7 @@ public sealed partial class LaunchSettingsPage : PageBase
     public event EventHandler? ChooseGameRootRequested;
     public event EventHandler<WallpaperImportRequestedEventArgs>? WallpaperImportRequested;
     public event EventHandler? BackgroundResetRequested;
-    public event EventHandler<MastheadSubtitleChangedEventArgs>? MastheadSubtitleSaveRequested;
+    public event EventHandler<ArtworkTitleChangedEventArgs>? ArtworkTitleSaveRequested;
 
     public LaunchSettingsPage()
     {
@@ -52,9 +52,15 @@ public sealed partial class LaunchSettingsPage : PageBase
     public void ApplyBackgroundPreview(ImageSource? source) =>
         BackgroundPreviewImage.Source = source;
 
+    private string _editedArtKey = string.Empty;
+
     public void ApplyAppearanceSettings(AppearanceSettings settings)
     {
-        MastheadSubtitleBox.Text = settings.LauncherMastheadSubtitle;
+        ArtworkTitleBox.IsEnabled = ViewModel.CanNameArtwork;
+        SaveTitle.IsEnabled = ResetTitle.IsEnabled = ViewModel.CanNameArtwork;
+        _editedArtKey = ViewModel.HomeArtKey;
+        settings.ArtworkTitles.TryGetValue(_editedArtKey, out var title);
+        ArtworkTitleBox.Text = title?.Name ?? string.Empty;
         var motionMode = settings.Background.WallpaperEnginePresentation switch
         {
             WallpaperEnginePresentation.MotionBackdrop => true,
@@ -64,6 +70,8 @@ public sealed partial class LaunchSettingsPage : PageBase
         MotionImportModeButton.IsChecked = motionMode;
         HolographicImportModeButton.IsChecked = !motionMode;
     }
+
+    public void ShowBackgroundSection() => ShowSection(BackgroundSection, BackgroundNavigationItem);
 
     public void ResetToBasic() =>
         ShowSection(BasicSection, BasicNavigationItem);
@@ -85,17 +93,17 @@ public sealed partial class LaunchSettingsPage : PageBase
     private void OnResetBackgroundClicked(object sender, RoutedEventArgs e) =>
         BackgroundResetRequested?.Invoke(this, EventArgs.Empty);
 
-    private void OnSaveMastheadSubtitleClicked(object sender, RoutedEventArgs e) =>
-        MastheadSubtitleSaveRequested?.Invoke(
+    private void OnSaveArtworkTitleClicked(object sender, RoutedEventArgs e) =>
+        ArtworkTitleSaveRequested?.Invoke(
             this,
-            new MastheadSubtitleChangedEventArgs(MastheadSubtitleBox.Text));
+            new ArtworkTitleChangedEventArgs(_editedArtKey, ArtworkTitleBox.Text));
 
-    private void OnResetMastheadSubtitleClicked(object sender, RoutedEventArgs e)
+    private void OnResetArtworkTitleClicked(object sender, RoutedEventArgs e)
     {
-        MastheadSubtitleBox.Text = AppearanceSettings.DefaultLauncherMastheadSubtitle;
-        MastheadSubtitleSaveRequested?.Invoke(
+        ArtworkTitleBox.Text = string.Empty;
+        ArtworkTitleSaveRequested?.Invoke(
             this,
-            new MastheadSubtitleChangedEventArgs(MastheadSubtitleBox.Text));
+            new ArtworkTitleChangedEventArgs(_editedArtKey, ArtworkTitleBox.Text));
     }
 
     private void OnMastheadLoaded(object sender, RoutedEventArgs e) =>
@@ -219,9 +227,10 @@ public sealed partial class LaunchSettingsPage : PageBase
     }
 }
 
-public sealed class MastheadSubtitleChangedEventArgs(string subtitle) : EventArgs
+public sealed class ArtworkTitleChangedEventArgs(string source, string title) : EventArgs
 {
-    public string Subtitle { get; } = subtitle;
+    public string Source { get; } = source;
+    public string Title { get; } = title;
 }
 
 public sealed class WallpaperImportRequestedEventArgs(WallpaperImportMode mode) : EventArgs

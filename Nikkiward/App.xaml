@@ -25,29 +25,24 @@
             <ResourceDictionary.ThemeDictionaries>
 
                 <ResourceDictionary x:Key="Light">
-                    <SolidColorBrush x:Key="LauncherPaneAcrylicBrush" Color="#B8F6F1EA" />
                     <StaticResource x:Key="PrimaryActionFillBrush" ResourceKey="PrimaryActionSolidBrush" />
 
                     <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="#B8F6F1EA" />
                 </ResourceDictionary>
 
                 <ResourceDictionary x:Key="Dark">
-                    <SolidColorBrush x:Key="LauncherPaneAcrylicBrush" Color="#B8241E1B" />
                     <StaticResource x:Key="PrimaryActionFillBrush" ResourceKey="PrimaryActionSolidBrush" />
 
                     <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="#B8241E1B" />
                 </ResourceDictionary>
 
                 <ResourceDictionary x:Key="HighContrast">
-                    <SolidColorBrush x:Key="LauncherPaneAcrylicBrush" Color="{ThemeResource SystemColorWindowColor}" />
                     <SolidColorBrush x:Key="PrimaryActionFillBrush" Color="{ThemeResource SystemColorHighlightColor}" />
 
                     <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="{ThemeResource SystemColorWindowColor}" />
                 </ResourceDictionary>
 
             </ResourceDictionary.ThemeDictionaries>
-
-            <ThemeShadow x:Key="LauncherThemeShadow" />
 
             <Thickness x:Key="NavigationViewBorderThickness">0</Thickness>
             <StaticResource

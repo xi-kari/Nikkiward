@@ -369,12 +369,18 @@ internal static class UpdateReleaseTests
             "Assets\\NikkiDefaultBackgroundBlur.jpg",
             "Assets\\NikkiGameIcon.png",
             "Assets\\XikariAvatar.jpg",
+            "Assets\\HomeSkins\\Atelier.jpg",
+            "Assets\\HomeSkins\\Cinema.jpg",
+            "Assets\\HomeSkins\\Journal.jpg",
+            "Assets\\HomeSkins\\JournalPaperGrain.png",
+            "Assets\\HomeSkins\\Stitch.jpg",
+            "Assets\\HomeSkins\\WishStar.jpg",
+            "Assets\\HomeSkins\\WishStarIrisRing.png",
             "Assets\\DefaultFavorites\\01.jpg",
             "Assets\\DefaultFavorites\\02.jpg",
             "Assets\\DefaultFavorites\\03.jpg",
             "Assets\\DefaultFavorites\\04.jpg",
             "Assets\\DefaultFavorites\\05.jpg",
-            "Shaders\\LauncherNebula.bin",
             "runtimes\\win-x64\\native\\nuan5_decryption.dll",
             "LICENSE",
             "PRIVACY.md",
@@ -382,7 +388,6 @@ internal static class UpdateReleaseTests
         })
         {
             var sourceRoot = relativePath.StartsWith("Assets\\", StringComparison.OrdinalIgnoreCase)
-                || relativePath.StartsWith("Shaders\\", StringComparison.OrdinalIgnoreCase)
                 || relativePath.StartsWith("runtimes\\", StringComparison.OrdinalIgnoreCase)
                 ? Path.Combine(root, "Nikkiward")
                 : root;

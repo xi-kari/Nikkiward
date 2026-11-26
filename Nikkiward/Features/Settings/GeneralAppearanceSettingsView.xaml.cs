@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Nikkiward.Models;
+using Nikkiward.Features.Launcher.Skins;
 using Windows.UI;
 
 namespace Nikkiward.Features.Settings;
@@ -23,6 +24,7 @@ public sealed partial class GeneralAppearanceSettingsView : UserControl
     public GeneralAppearanceSettingsView()
     {
         InitializeComponent();
+        SkinChoices.ItemsSource = HomeSkins.Available;
         ApplySettings(new AppearanceSettings());
     }
 
@@ -58,11 +60,7 @@ public sealed partial class GeneralAppearanceSettingsView : UserControl
         try
         {
             _settings = settings;
-            LauncherMastheadLabelBox.Text = settings.LauncherMastheadLabel;
-            LauncherMastheadTitleBox.Text = settings.LauncherMastheadTitle;
-            LauncherMastheadSubtitleBox.Text = settings.LauncherMastheadSubtitle;
-            LauncherUtilityPanelsToggle.IsOn = settings.ShowLauncherUtilityPanels;
-            ApplyCapsuleStyleSelection(settings.LauncherCapsuleStyle);
+            SkinChoices.SelectedItem = HomeSkins.Resolve(settings.HomeSkin);
             ApplyBackgroundPresetSelection(settings.Background.SelectedSource);
             FollowArtworkThemeButton.IsChecked =
                 settings.ThemeMode == ThemeMode.FollowArtwork;
@@ -116,6 +114,12 @@ public sealed partial class GeneralAppearanceSettingsView : UserControl
     public void ApplyThemeMode(ThemeMode mode) =>
         ApplySettings(_settings with { ThemeMode = mode });
 
+    private void OnSkinSelected(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_uiLoading && SkinChoices.SelectedItem is HomeSkin skin)
+            Commit(_settings with { HomeSkin = skin.Id });
+    }
+
     private void OnThemeModeChecked(object sender, RoutedEventArgs e)
     {
         if (_uiLoading || sender is not RadioButton { Tag: string tag })
@@ -148,8 +152,6 @@ public sealed partial class GeneralAppearanceSettingsView : UserControl
 
         var settings = _settings with
         {
-            ThemeMode = preset.SurfaceThemeMode ?? _settings.ThemeMode,
-            LauncherCapsuleStyle = preset.CapsuleStyle,
             Background = new BackgroundArtSettings
             {
                 SelectedSource = preset.Source,
@@ -161,73 +163,6 @@ public sealed partial class GeneralAppearanceSettingsView : UserControl
 
     private void OnResetClicked(object sender, RoutedEventArgs e) =>
         ResetBackgroundRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnMastheadCopyLostFocus(object sender, RoutedEventArgs e)
-    {
-        if (_uiLoading || sender is not TextBox { Tag: string tag } textBox)
-        {
-            return;
-        }
-
-        var value = tag == "subtitle"
-            ? textBox.Text.Trim()
-            : string.IsNullOrWhiteSpace(textBox.Text)
-                ? tag == "title"
-                    ? AppearanceSettings.DefaultLauncherMastheadTitle
-                    : AppearanceSettings.DefaultLauncherMastheadLabel
-                : textBox.Text.Trim();
-
-        Commit(tag switch
-        {
-            "title" => _settings with { LauncherMastheadTitle = value },
-            "subtitle" => _settings with { LauncherMastheadSubtitle = value },
-            _ => _settings with { LauncherMastheadLabel = value },
-        });
-    }
-
-    private void OnLauncherUtilityPanelsToggled(object sender, RoutedEventArgs e)
-    {
-        if (!_uiLoading)
-        {
-            Commit(_settings with
-            {
-                ShowLauncherUtilityPanels = LauncherUtilityPanelsToggle.IsOn,
-            });
-        }
-    }
-
-    private void OnLauncherCapsuleStyleChecked(object sender, RoutedEventArgs e)
-    {
-        if (_uiLoading || sender is not RadioButton { Tag: string tag })
-        {
-            return;
-        }
-
-        Commit(_settings with
-        {
-            LauncherCapsuleStyle = tag switch
-            {
-                "ocean" => LauncherCapsuleStyle.Ocean,
-                "klein" => LauncherCapsuleStyle.Klein,
-                "ultraviolet" => LauncherCapsuleStyle.Ultraviolet,
-                "chrome" => LauncherCapsuleStyle.Chrome,
-                "plus" => LauncherCapsuleStyle.Plus,
-                _ => LauncherCapsuleStyle.Original,
-            },
-        });
-    }
-
-    private void OnResetLauncherMastheadClicked(object sender, RoutedEventArgs e)
-    {
-        var settings = _settings with
-        {
-            LauncherMastheadLabel = AppearanceSettings.DefaultLauncherMastheadLabel,
-            LauncherMastheadTitle = AppearanceSettings.DefaultLauncherMastheadTitle,
-            LauncherMastheadSubtitle = AppearanceSettings.DefaultLauncherMastheadSubtitle,
-        };
-        ApplySettings(settings);
-        Commit(settings);
-    }
 
     private void OnBackgroundOptionChanged(object sender, RoutedEventArgs e)
     {
@@ -495,16 +430,6 @@ public sealed partial class GeneralAppearanceSettingsView : UserControl
         LilacAccentButton.IsEnabled = enabled;
         ClayAccentButton.IsEnabled = enabled;
         CustomAccentButton.IsEnabled = enabled;
-    }
-
-    private void ApplyCapsuleStyleSelection(LauncherCapsuleStyle style)
-    {
-        OriginalCapsuleStyleButton.IsChecked = style == LauncherCapsuleStyle.Original;
-        OceanCapsuleStyleButton.IsChecked = style == LauncherCapsuleStyle.Ocean;
-        KleinCapsuleStyleButton.IsChecked = style == LauncherCapsuleStyle.Klein;
-        UltravioletCapsuleStyleButton.IsChecked = style == LauncherCapsuleStyle.Ultraviolet;
-        ChromeCapsuleStyleButton.IsChecked = style == LauncherCapsuleStyle.Chrome;
-        PlusCapsuleStyleButton.IsChecked = style == LauncherCapsuleStyle.Plus;
     }
 
     private void ApplyBackgroundPresetSelection(string? selectedSource)

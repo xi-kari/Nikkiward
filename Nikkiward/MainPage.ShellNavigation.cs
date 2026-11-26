@@ -29,18 +29,11 @@ namespace Nikkiward;
 
 public sealed partial class MainPage
 {
-    private async void OnNavigationItemInvoked(
-        NavigationView sender,
-        NavigationViewItemInvokedEventArgs args)
+    private async void OnNavigationItemInvoked(object? sender, string tag)
     {
-        var isSettingsInvoked = args.IsSettingsInvoked;
-        var item = args.InvokedItemContainer as NavigationViewItem;
-        var tag = item?.Tag as string;
-        if (!isSettingsInvoked && (item is null || tag is null))
-        {
-            return;
-        }
-
+#if DEBUG
+        if (HomePreview.Active) return;
+#endif
         var cancellation = new CancellationTokenSource();
         var previous = Interlocked.Exchange(
             ref _shellNavigationDebounceCancellation,
@@ -55,7 +48,7 @@ public sealed partial class MainPage
                 return;
             }
 
-            await ExecuteShellNavigationAsync(isSettingsInvoked, item, tag);
+            await ExecuteShellNavigationAsync(tag);
         }
         catch (OperationCanceledException)
         {
@@ -74,46 +67,43 @@ public sealed partial class MainPage
         }
     }
 
-    private async Task ExecuteShellNavigationAsync(
-        bool isSettingsInvoked,
-        NavigationViewItem? item,
-        string? tag)
+    private async Task ExecuteShellNavigationAsync(string tag)
     {
         if (_launchSettingsOpen)
         {
             CloseLaunchSettings();
         }
 
-        if (isSettingsInvoked)
+        if (tag == "settings")
         {
             if (ContentFrame.Visibility == Visibility.Visible &&
                 ContentFrame.Content is SettingsPage)
             {
                 CloseDetails();
-                SetShellNavigationSelection(LauncherNavigationItem);
+                SetShellNavigationSelection("launcher");
             }
             else
             {
                 ShowSettingsPage();
-                SetShellNavigationSelection(ShellNavigation.SettingsItem);
+                SetShellNavigationSelection("settings");
             }
             return;
         }
 
         CloseProfileOverlay();
-        object selectedItem = item!;
+        var selectedItem = tag;
         switch (tag)
         {
             case "launcher":
                 ShowLauncher();
-                selectedItem = LauncherNavigationItem;
+                selectedItem = "launcher";
                 break;
             case "library":
                 if (ContentFrame.Visibility == Visibility.Visible &&
                     ContentFrame.Content is JournalPage)
                 {
                     CloseDetails();
-                    selectedItem = LauncherNavigationItem;
+                    selectedItem = "launcher";
                 }
                 else
                 {
@@ -126,7 +116,7 @@ public sealed partial class MainPage
                     allGalleryPage.ViewModel.ViewMode == GalleryViewMode.All)
                 {
                     CloseDetails();
-                    selectedItem = LauncherNavigationItem;
+                    selectedItem = "launcher";
                 }
                 else
                 {
@@ -139,7 +129,7 @@ public sealed partial class MainPage
                     favoritesGalleryPage.ViewModel.ViewMode == GalleryViewMode.Favorites)
                 {
                     CloseDetails();
-                    selectedItem = LauncherNavigationItem;
+                    selectedItem = "launcher";
                 }
                 else
                 {
@@ -151,7 +141,7 @@ public sealed partial class MainPage
                     ContentFrame.Content is PhotoPluginPage)
                 {
                     CloseDetails();
-                    selectedItem = LauncherNavigationItem;
+                    selectedItem = "launcher";
                 }
                 else
                 {
@@ -163,7 +153,7 @@ public sealed partial class MainPage
                     ContentFrame.Content is WishPage)
                 {
                     CloseDetails();
-                    selectedItem = LauncherNavigationItem;
+                    selectedItem = "launcher";
                 }
                 else
                 {
@@ -177,9 +167,9 @@ public sealed partial class MainPage
         SetShellNavigationSelection(selectedItem);
     }
 
-    private void SetShellNavigationSelection(object selectedItem)
+    private void SetShellNavigationSelection(string selectedItem)
     {
-        ShellNavigation.SelectedItem = selectedItem;
+        ShellNavigation.Select(selectedItem);
     }
 
     private void CloseDetails()
@@ -201,12 +191,9 @@ public sealed partial class MainPage
         HidePhotoPlugin();
         HideStatusDrawer();
         ContentFrame.Visibility = Visibility.Visible;
-        SetShellNavigationSelection(LauncherNavigationItem);
-        if (ContentFrame.Content is LauncherPage page)
+        SetShellNavigationSelection("launcher");
+        if (ContentFrame.Content is LauncherPage)
         {
-            page.ApplyJournalDuration(
-                _journalDurationText,
-                _journalDurationDetailText);
             SyncLauncherChrome();
             return;
         }

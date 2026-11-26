@@ -47,12 +47,9 @@
 
             <Grid x:Name="ArtVignette" Background="{ThemeResource ArtVignetteBrush}" />
 
-            <!-- Sharp inset art. -->
             <Border
                 x:Name="ArtSharpHost"
-                Margin="{ThemeResource IslandInsetThickness}"
-                Background="Transparent"
-                CornerRadius="{ThemeResource RadiusArtInset}">
+                Background="Transparent">
                 <Grid>
                     <Image
                         x:Name="ArtSharp"
@@ -73,8 +70,7 @@
 
                     <controls:HolographicBackdropOverlay
                         x:Name="HolographicOverlay"
-                        Intensity="1.16"
-                        MaterialCornerRadius="20" />
+                        Intensity="1.16" />
                 </Grid>
             </Border>
         </Grid>

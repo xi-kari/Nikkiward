@@ -1,9 +1,10 @@
-using System.Numerics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using Nikkiward.Features.Gallery;
 using Microsoft.UI.Xaml.Navigation;
+using Nikkiward.Features.Launcher.Skins;
 using Nikkiward.Features.Shell;
 using Nikkiward.Models;
 using Nikkiward.ViewModels;
@@ -12,25 +13,23 @@ namespace Nikkiward.Features.Launcher;
 
 public sealed partial class LauncherPage : PageBase
 {
-    private const double ShellRailWidth = 56;
-    private const double MediumWindowBreakpoint = 780;
-    private const double WideWindowBreakpoint = 1100;
-
-    private bool _xamlInitialized;
+    private HomeSkin? _skin;
+    private GalleryFolderWatcher? _watcher;
+    private CancellationTokenSource? _scan;
+    private (string? Profile, string? Root)? _scope;
+    public ObservableCollection<GalleryPhotoItemViewModel> RecentPhotos { get; } = [];
+    public event EventHandler<GalleryPhotoItemViewModel>? PhotoRequested;
+    public MainPageViewModel ViewModel { get; private set; } = null!;
+    public FrameworkElement OnArtHost => SkinHost;
+    public event EventHandler? StatusRequested;
+    public event EventHandler? BackgroundRequested;
 
     public LauncherPage()
     {
         InitializeComponent();
-        _xamlInitialized = true;
-        AppearanceRuntimeValues.ApplyScaleTransition(PrimaryActionSurface);
-        SizeChanged += OnPageSizeChanged;
+        Loaded += (_, _) => Activate();
+        Unloaded += (_, _) => Deactivate();
     }
-
-    public MainPageViewModel ViewModel { get; private set; } = null!;
-
-    public override string PageTitle => "启动管理";
-
-    public FrameworkElement OnArtHost => LauncherRoot;
 
     public event EventHandler? DownloadStatusRequested;
 
@@ -52,157 +51,121 @@ public sealed partial class LauncherPage : PageBase
 
     protected override void OnEntering(NavigationEventArgs e)
     {
-        if (e.Parameter is not LauncherNavigationContext context)
-        {
-            throw new InvalidOperationException("Launcher navigation context is required.");
-        }
+        ViewModel = ((LauncherNavigationContext)e.Parameter).ViewModel;
+        Activate();
+    }
 
-        ViewModel = context.ViewModel;
-        Bindings.Update();
-        UpdatePrimaryActionState();
-        MastheadHost.Bind(ViewModel);
+    private void Activate()
+    {
+        if (_watcher != null || ViewModel == null) return;
         ApplyAppearanceSettings(ViewModel.AppearanceSettings);
-        NoticeHost.Bind(ViewModel);
-        ApplyResponsiveLayout(ActualWidth);
-        base.OnEntering(e);
+        _watcher = new GalleryFolderWatcher(DispatcherQueue, () => RefreshRecentPhotos(force: true));
+        ViewModel.PropertyChanged += OnModelChanged;
+        RefreshRecentPhotos();
+    }
+
+    protected override void OnExiting(NavigationEventArgs e) => Deactivate();
+
+    private void Deactivate()
+    {
+        if (_watcher == null) return;
+        ViewModel.PropertyChanged -= OnModelChanged;
+        _scan?.Cancel();
+        _watcher?.Dispose();
+        _watcher = null;
+        _scope = null;
+        RecentPhotos.Clear();
+        ReleaseSkin();
+    }
+
+    private void OnModelChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ViewModel.GalleryRootPath) or nameof(ViewModel.SelectedProfileId) or nameof(ViewModel.GameRootPath))
+            RefreshRecentPhotos();
+    }
+
+    private async void RefreshRecentPhotos(bool force = false)
+    {
+        var root = ViewModel.GalleryRootPath ?? (Path.IsPathFullyQualified(ViewModel.GameRootPath)
+            ? GalleryFiles.DefaultRoot(ViewModel.GameRootPath) : null);
+        var profile = ViewModel.SelectedProfileId;
+        if (_scope != (profile, root))
+        {
+            _scope = (profile, root);
+            RecentPhotos.Clear();
+            _watcher?.Watch(root);
+        }
+        else if (!force) return;
+        _scan?.Cancel();
+        if (root == null) return;
+        using var scan = new CancellationTokenSource();
+        _scan = scan;
+        try
+        {
+            var items = await Task.Run(() =>
+            {
+                var scope = GalleryAnnotationStore.CreateScopeId(profile, root);
+                return GalleryFiles.Recent(root, scan.Token)
+                    .Select(file => GalleryViewModel.CreatePhoto(file, root, scope)).ToArray();
+            }, scan.Token);
+            if (scan.IsCancellationRequested) return;
+            RecentPhotos.Clear();
+            foreach (var item in items) RecentPhotos.Add(item);
+        }
+        catch (OperationCanceledException) when (scan.IsCancellationRequested) { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            if (!scan.IsCancellationRequested) RecentPhotos.Clear();
+        }
+        finally
+        {
+            if (_scan == scan) _scan = null;
+        }
+    }
+
+    private void ReleaseSkin()
+    {
+        if (SkinHost.Content is IDisposable disposable) disposable.Dispose();
+        SkinHost.Content = null;
+        _skin = null;
     }
 
     public void ApplyAppearanceSettings(AppearanceSettings settings)
     {
-        MastheadHost.ApplySettings(settings);
-        NoticeHost.Visibility = Visibility.Collapsed;
-        ActionCluster.Visibility = Visibility.Visible;
-        PrimaryCapsuleVisual.ApplyStyle(settings.LauncherCapsuleStyle);
-        UtilityCapsuleVisual.ApplyStyle(settings.LauncherCapsuleStyle);
-        PrimaryCapsuleVisual.ApplyMotion(settings.Motion);
-        UtilityCapsuleVisual.ApplyMotion(settings.Motion);
-        var identity = ResolveCapsuleIdentity(settings.LauncherCapsuleStyle);
-        LauncherCapsuleCode.Text = $"{identity.Code} /";
-        LauncherCapsuleName.Text = identity.Name;
-        PrimaryActionCodeText.Text = identity.Code;
+        var skin = HomeSkins.Resolve(settings.HomeSkin);
+        if (skin == _skin) return;
+        ReleaseSkin();
+        var view = skin.Create();
+        view.DataContext = ViewModel;
+        SkinHost.Content = view;
+        _skin = skin;
     }
 
-    public void ApplyJournalDuration(string text, string detail)
+    internal void InvokeAction(Button button)
     {
-        NoticeHost.ApplyJournalDuration(text, detail);
-    }
-
-    private void OnPageSizeChanged(object sender, SizeChangedEventArgs e) =>
-        ApplyResponsiveLayout(e.NewSize.Width);
-
-    private void ApplyResponsiveLayout(double width)
-    {
-        var windowWidth = width + ShellRailWidth;
-        if (windowWidth < MediumWindowBreakpoint)
+#if DEBUG
+        if (HomePreview.Active) return;
+#endif
+        if (Equals(button.Tag, "photo") && button.DataContext is GalleryPhotoItemViewModel photo)
         {
-            MastheadHost.ApplyCompactLayout();
-            NoticeHost.ApplyCompactLayout();
+            if (RecentPhotos.Contains(photo)) PhotoRequested?.Invoke(this, photo);
+            return;
         }
-        else if (windowWidth < WideWindowBreakpoint)
+        var action = button.Tag switch
         {
-            MastheadHost.ApplyMediumLayout();
-            NoticeHost.ApplyMediumLayout();
-        }
-        else
-        {
-            MastheadHost.ApplyWideLayout();
-            NoticeHost.ApplyWideLayout();
-        }
+            "launch" => OfficialFlowRequested,
+            "close" => CloseGameRequested,
+            "settings" => LaunchSettingsRequested,
+            "profile" => ProfileRequested,
+            "gallery" => GalleryRequested,
+            "journal" => JournalRequested,
+            "background" => BackgroundRequested,
+            "reset" => BackgroundResetRequested,
+            "status" => StatusRequested,
+            "download" => DownloadStatusRequested,
+            "time" => PlayTimeRequested,
+            _ => null
+        };
+        action?.Invoke(button, EventArgs.Empty);
     }
-
-    private void OnNoticeDownloadRequested(object? sender, EventArgs e) =>
-        DownloadStatusRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnNoticePlayTimeRequested(object? sender, EventArgs e) =>
-        PlayTimeRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnNoticeProfileRequested(object? sender, EventArgs e) =>
-        ProfileRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnOfficialFlowClicked(object sender, RoutedEventArgs e) =>
-        OfficialFlowRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnCloseGameClicked(object sender, RoutedEventArgs e) =>
-        CloseGameRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnLaunchSettingsClicked(object sender, RoutedEventArgs e) =>
-        LaunchSettingsRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnPrimaryActionPointerEntered(object sender, PointerRoutedEventArgs e) =>
-        SetPrimaryActionScaleIfEnabled(
-            AppearanceRuntimeValues.ReadScale("ButtonHoverScale"));
-
-    private void OnPrimaryActionPointerExited(object sender, PointerRoutedEventArgs e) =>
-        SetPrimaryActionScale(1f);
-
-    private void OnPrimaryActionPointerPressed(object sender, PointerRoutedEventArgs e) =>
-        SetPrimaryActionScaleIfEnabled(
-            AppearanceRuntimeValues.ReadScale("PressScale"));
-
-    private void OnPrimaryActionPointerReleased(object sender, PointerRoutedEventArgs e) =>
-        SetPrimaryActionScaleIfEnabled(
-            AppearanceRuntimeValues.ReadScale("ButtonHoverScale"));
-
-    private void OnPrimaryActionIsEnabledChanged(
-        object sender,
-        DependencyPropertyChangedEventArgs e)
-    {
-        if (_xamlInitialized)
-        {
-            UpdatePrimaryActionState();
-        }
-    }
-
-    private void SetPrimaryActionScaleIfEnabled(float scale) =>
-        SetPrimaryActionScale(PrimaryActionButton.IsEnabled ? scale : 1f);
-
-    private void UpdatePrimaryActionState()
-    {
-        var enabled = PrimaryActionButton.IsEnabled;
-        PrimaryActionDisabledPlate.Visibility = enabled
-            ? Visibility.Collapsed
-            : Visibility.Visible;
-        var foreground = (Brush)Application.Current.Resources[
-            enabled ? "InkOnAccentBrush" : "InkSecondaryBrush"];
-        PrimaryActionLabel.Foreground = foreground;
-        PrimaryActionCodeText.Foreground = foreground;
-        LauncherCapsuleStudy.Foreground = foreground;
-        PrimaryActionProgressRing.Foreground = foreground;
-        if (!enabled)
-        {
-            SetPrimaryActionScale(1f);
-        }
-    }
-
-    private void SetPrimaryActionScale(float scale)
-    {
-        PrimaryActionSurface.CenterPoint = new Vector3(
-            (float)PrimaryActionSurface.ActualWidth / 2f,
-            (float)PrimaryActionSurface.ActualHeight / 2f,
-            0f);
-        PrimaryActionSurface.Scale = new Vector3(scale, scale, 1f);
-    }
-
-    private void OnJournalClicked(object sender, RoutedEventArgs e) =>
-        JournalRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnProfileClicked(object sender, RoutedEventArgs e) =>
-        ProfileRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnGalleryClicked(object sender, RoutedEventArgs e) =>
-        GalleryRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnBackgroundResetClicked(object sender, RoutedEventArgs e) =>
-        BackgroundResetRequested?.Invoke(this, EventArgs.Empty);
-
-    private static (string Code, string Name) ResolveCapsuleIdentity(
-        LauncherCapsuleStyle style) => style switch
-    {
-        LauncherCapsuleStyle.Ocean => ("NC-02", "OCEAN"),
-        LauncherCapsuleStyle.Klein => ("NC-03", "KLEIN"),
-        LauncherCapsuleStyle.Ultraviolet => ("NC-04", "ULTRAVIOLET"),
-        LauncherCapsuleStyle.Chrome => ("NC-05", "CHROME"),
-        LauncherCapsuleStyle.Plus => ("NC-06", "PLUS"),
-        _ => ("NC-01", "ORIGINAL"),
-    };
 }

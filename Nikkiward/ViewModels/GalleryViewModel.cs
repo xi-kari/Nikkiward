@@ -25,16 +25,6 @@ public enum GalleryViewMode
 
 public sealed class GalleryViewModel : INotifyPropertyChanged
 {
-    /// <summary>
-    /// <c>FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS</c>, not in the BCL enum.
-    /// </summary>
-    private const FileAttributes RecallOnDataAccess = (FileAttributes)0x400000;
-
-    /// <summary>
-    /// <c>FILE_ATTRIBUTE_RECALL_ON_OPEN</c>, not in the BCL enum.
-    /// </summary>
-    private const FileAttributes RecallOnOpen = (FileAttributes)0x40000;
-
     private static readonly IReadOnlyDictionary<string, string> CategoryNames =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -149,11 +139,7 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
             return;
         }
 
-        var defaultRoot = Path.Combine(
-            gameRootPath,
-            "X6Game",
-            "Saved",
-            "GamePlayPhotos");
+        var defaultRoot = GalleryFiles.DefaultRoot(gameRootPath);
 
         if (!Directory.Exists(defaultRoot))
         {
@@ -419,50 +405,25 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
         string scopeId,
         CancellationToken cancellationToken)
     {
-        var options = new EnumerationOptions
-        {
-            AttributesToSkip = FileAttributes.System | FileAttributes.ReparsePoint,
-            IgnoreInaccessible = true,
-            RecurseSubdirectories = true,
-            ReturnSpecialDirectories = false,
-        };
-
-        var items = new List<GalleryPhotoItemViewModel>();
-        foreach (var file in new DirectoryInfo(rootPath).EnumerateFiles("*", options))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!GalleryFileTypes.IsSupported(file.Extension))
-            {
-                continue;
-            }
-
-            if (IsCloudPlaceholder(file.Attributes))
-            {
-                continue;
-            }
-
-            var relativePath = Path.GetRelativePath(rootPath, file.FullName);
-            var (categoryId, categoryName) = ResolveCategory(relativePath);
-            items.Add(new GalleryPhotoItemViewModel(
-                file.FullName,
-                relativePath,
-                file.Name,
-                categoryId,
-                categoryName,
-                file.Length,
-                GalleryTimestamp.Resolve(file.Name, file.LastWriteTimeUtc),
-                scopeId, rootPath));
-        }
-
-        return items;
+        return GalleryFiles.Enumerate(rootPath, cancellationToken)
+            .Select(file => CreatePhoto(file, rootPath, scopeId))
+            .ToList();
     }
 
-    /// <summary>
-    /// Skips OneDrive-style dehydrated files. Reading one triggers a download, so
-    /// a recursive scan over a synced folder would silently pull gigabytes.
-    /// </summary>
-    private static bool IsCloudPlaceholder(FileAttributes attributes) =>
-        (attributes & (RecallOnDataAccess | RecallOnOpen)) != 0;
+    internal static GalleryPhotoItemViewModel CreatePhoto(FileInfo file, string rootPath, string scopeId)
+    {
+        var relativePath = Path.GetRelativePath(rootPath, file.FullName);
+        var (categoryId, categoryName) = ResolveCategory(relativePath);
+        return new GalleryPhotoItemViewModel(
+            file.FullName,
+            relativePath,
+            file.Name,
+            categoryId,
+            categoryName,
+            file.Length,
+            GalleryTimestamp.Resolve(file.Name, file.LastWriteTimeUtc),
+            scopeId, rootPath);
+    }
 
     private static (string Id, string DisplayName) ResolveCategory(string relativePath)
     {

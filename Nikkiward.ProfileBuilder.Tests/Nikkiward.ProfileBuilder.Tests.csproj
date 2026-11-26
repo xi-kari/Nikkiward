@@ -117,6 +117,7 @@
     <Compile Include="HolographicBackdropProjectionTests.cs" />
     <Compile Include="AuthorProfileDepthProjectionTests.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryFileTypes.cs" />
+    <Compile Include="..\Nikkiward\Features\Gallery\GalleryFiles.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryScreenshotDecoder.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryThumbnailFile.cs" />
     <Compile Include="GalleryIntegrationTests.cs" />

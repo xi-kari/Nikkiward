@@ -191,7 +191,7 @@ public sealed partial class MainPage
         var installation = _photoPluginInstallation;
         var installed = installation?.IsInstalled is true;
         var canUninstall = installation is { IsInstalled: true } or { IsBroken: true };
-        PhotoPluginNavigationItem.Visibility = Visibility.Collapsed;
+
         _hostedSettingsPage?.ApplyPhotoPluginState(
             installation?.StatusText ?? "尚未安装",
             !_photoPluginOperationInProgress,

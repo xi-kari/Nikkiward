@@ -7,7 +7,6 @@
     <CornerRadius x:Key="RadiusCard">10</CornerRadius>
     <CornerRadius x:Key="RadiusWindow">12</CornerRadius>
     <CornerRadius x:Key="RadiusIsland">16</CornerRadius>
-    <CornerRadius x:Key="RadiusArtInset">20</CornerRadius>
     <CornerRadius x:Key="RadiusPill">22</CornerRadius>
     <CornerRadius x:Key="RadiusAction">28</CornerRadius>
     <CornerRadius x:Key="RadiusActionLeading">28,0,0,28</CornerRadius>
@@ -46,7 +45,6 @@
     <x:Double x:Key="MediaOverscanScale">1.002</x:Double>
 
     <!-- Thickness helpers -->
-    <Thickness x:Key="IslandInsetThickness">20</Thickness>
     <Thickness x:Key="IslandPaddingThickness">24,20</Thickness>
     <Thickness x:Key="MastheadPaddingThickness">28,24</Thickness>
     <Thickness x:Key="CardPaddingThickness">16</Thickness>

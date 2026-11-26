@@ -62,6 +62,7 @@ public sealed class HolographicBackdropOverlay : Grid
 
     public double Intensity { get; set; } = 1.16d;
 
+    public bool HasFrame { get; set; } = true;
     public double MaterialCornerRadius { get; set; } = 20d;
 
     public bool IsIntroAnimationEnabled { get; set; } = true;
@@ -503,15 +504,10 @@ public sealed class HolographicBackdropOverlay : Grid
                 height,
                 strength * intensity);
         }
-        DrawBevel(
-            resourceCreator,
-            args,
-            surface,
-            projection,
-            width,
-            height,
-            radius,
-            strength * intensity);
+        if (HasFrame)
+        {
+            DrawBevel(resourceCreator, args, surface, projection, width, height, radius, strength * intensity);
+        }
     }
 
     private static void DrawFoil(

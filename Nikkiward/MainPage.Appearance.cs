@@ -157,7 +157,7 @@ public sealed partial class MainPage
 
             await CommitStillBackgroundAsync(
                 frame.ImportedPath,
-                $"{displayName}（预览帧）",
+                displayName,
                 cancellationToken);
             return;
         }
@@ -222,7 +222,7 @@ public sealed partial class MainPage
                 .Where(path => !string.IsNullOrWhiteSpace(path))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
-            var updated = previousAppearance with
+            var updated = previousAppearance.WithArtworkTitle(importedPath, original: displayName) with
             {
                 Background = previousAppearance.Background with
                 {
@@ -266,8 +266,6 @@ public sealed partial class MainPage
             await SaveAndApplyAppearanceAsync(
                 appearance with
                 {
-                    LauncherCapsuleStyle = LauncherCapsuleStyle.Ocean,
-                    ThemeMode = ThemeMode.WarmDark,
                     Background = new BackgroundArtSettings(),
                 },
                 restoreDefaultBackground: true);
@@ -446,7 +444,8 @@ public sealed partial class MainPage
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToArray()
                 : previousAppearance.Background.CarouselSources;
-            var updated = previousAppearance with
+            ViewModel.ShowArtwork(importedPackage.ImportedPath);
+            var updated = previousAppearance.WithArtworkTitle(importedPackage.ImportedPath, original: displayName) with
             {
                 Background = previousAppearance.Background with
                 {
@@ -525,7 +524,8 @@ public sealed partial class MainPage
             await AnalyzeMotionOrFallbackAsync(descriptor, cancellationToken);
 
             _backgroundStatusText = $"动态壁纸：{displayName}";
-            var updated = previousAppearance with
+            ViewModel.ShowArtwork(imported.ImportedPath);
+            var updated = previousAppearance.WithArtworkTitle(imported.ImportedPath, original: displayName) with
             {
                 Background = previousAppearance.Background with
                 {
@@ -760,6 +760,7 @@ public sealed partial class MainPage
                 source,
                 StringComparison.OrdinalIgnoreCase))
         {
+            ViewModel.ShowArtwork(source);
             _backgroundStatusText = $"视频背景：{Path.GetFileName(source)}";
             return true;
         }
@@ -773,6 +774,7 @@ public sealed partial class MainPage
         }
 
         await AnalyzeMotionOrFallbackAsync(descriptor, cancellationToken);
+        ViewModel.ShowArtwork(source);
 
         _backgroundStatusText = $"视频背景：{Path.GetFileName(source)}";
         ApplySettingsPageState(_hostedSettingsPage);
@@ -829,6 +831,7 @@ public sealed partial class MainPage
                 appearanceGateHeld);
         }
 
+        ViewModel.ShowArtwork(importedPackage.ImportedPath);
         _backgroundStatusText = presentation == WallpaperEnginePresentation.HolographicCard
             ? $"Wallpaper Engine 卡片：{Path.GetFileName(importedPackage.ImportedPath)}"
             : $"Wallpaper Engine 动态背景：{Path.GetFileName(importedPackage.ImportedPath)}";

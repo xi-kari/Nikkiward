@@ -39,7 +39,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     private DateTimeOffset? _lastObservedGameAtUtc;
     private string _activityText = "等待初始化";
     private string _staticReadinessText = "尚未检查";
-    private string _lastUpdatedText = "尚未刷新";
+    private DateTimeOffset? _lastUpdated;
     private string _lastErrorText = "尚未刷新";
     private string _settingsStatusText = "尚未读取设置";
     private string _manualDiscoveryStatusText = "自动发现在启动时运行；也可在此手动定位游戏目录。";
@@ -357,10 +357,29 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         private set => SetField(ref _staticReadinessText, value);
     }
 
-    public string LastUpdatedText
+    public string LastUpdatedText => _lastUpdated?.ToString("yyyy-MM-dd HH:mm:ss zzz") ?? "尚未刷新";
+
+    private DateTime _homeCheckDay;
+    public string HomeCheckTime => FormatHomeCheckTime(_lastUpdated, DateTime.Today);
+
+    internal void RefreshHomeCheckDay()
     {
-        get => _lastUpdatedText;
-        private set => SetField(ref _lastUpdatedText, value);
+        var today = DateTime.Today;
+        if (_homeCheckDay == today) return;
+        _homeCheckDay = today;
+        OnPropertyChanged(nameof(HomeCheckTime));
+    }
+
+    internal static string FormatHomeCheckTime(DateTimeOffset? local, DateTime today) =>
+        local?.ToString(local.Value.Date == today ? "'今天' HH:mm" : "MM-dd HH:mm",
+            System.Globalization.CultureInfo.InvariantCulture) ?? "尚未刷新";
+
+    private void UpdateCheckTime(DateTimeOffset captured)
+    {
+        _lastUpdated = captured.ToLocalTime();
+        _homeCheckDay = DateTime.Today;
+        OnPropertyChanged(nameof(LastUpdatedText));
+        OnPropertyChanged(nameof(HomeCheckTime));
     }
 
     public string LastErrorText
@@ -1285,7 +1304,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 { FailureCode: var code } => $"静态身份未通过 · {FormatPreflightFailure(code)}",
                 _ => $"候选已发现 · {FormatCandidateState(_selectedCandidate.State)}",
             };
-        LastUpdatedText = DateTimeOffset.UtcNow.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss zzz");
+        UpdateCheckTime(DateTimeOffset.UtcNow);
         ActivityText = "空闲";
         OnPropertyChanged(nameof(CanRefresh));
     }
@@ -1460,7 +1479,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                     _ => "静态身份未通过 · 检查结果不完整",
                 },
             };
-            LastUpdatedText = capturedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss zzz");
+            UpdateCheckTime(capturedAtUtc);
             LastErrorText = CombineErrors(_settingsErrorText,
                 _preflightResult is { StaticIdentityPassed: false } ? failureReason : componentFailure)
                 ?? "无（本次只读检查）";

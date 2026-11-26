@@ -193,7 +193,9 @@ public sealed partial class MainPageViewModel
     /// One line under the button. Explains what to do, not what went wrong
     /// internally; the raw failure code stays in diagnostics.
     /// </summary>
-    public string LaunchButtonDetail => LaunchButtonState switch
+    public string LaunchButtonDetail => DescribeLaunchState(LaunchButtonState);
+
+    private string DescribeLaunchState(LaunchButtonState state) => state switch
     {
         LaunchButtonState.Checking =>
             "正在核对本机安装与组件签名。",
@@ -284,6 +286,16 @@ public sealed partial class MainPageViewModel
             AfterLaunchWindowRequested?.Invoke(action);
         }
 
+        OnPropertyChanged(nameof(HomeCheckText));
+        OnPropertyChanged(nameof(HasHomeTask));
+        OnPropertyChanged(nameof(HomeTaskText));
+        OnPropertyChanged(nameof(HomeState));
+        OnPropertyChanged(nameof(HomeLaunchLabel));
+        OnPropertyChanged(nameof(HomeLaunchDetail));
+        OnPropertyChanged(nameof(HomeLaunchEnabled));
+        OnPropertyChanged(nameof(HomeBusy));
+        OnPropertyChanged(nameof(HomeCloseEnabled));
+        OnPropertyChanged(nameof(HomeCloseVisibility));
         OnPropertyChanged(nameof(ProfileVersionText));
         OnPropertyChanged(nameof(LaunchButtonState));
         OnPropertyChanged(nameof(LaunchButtonLabel));

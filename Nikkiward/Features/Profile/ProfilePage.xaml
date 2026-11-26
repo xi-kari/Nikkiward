@@ -15,8 +15,6 @@
             Margin="0,48,0,0"
             HorizontalScrollBarVisibility="Disabled"
             VerticalScrollBarVisibility="Auto"
-            Padding="24,12,24,32"
-            Visibility="Collapsed" />
-        <Grid x:Name="PageRoot" Margin="0,48,0,0" Background="Transparent" />
+            Padding="24,12,24,32" />
     </Grid>
 </shell:PageBase>

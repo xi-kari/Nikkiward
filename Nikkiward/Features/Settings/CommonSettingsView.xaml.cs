@@ -48,7 +48,6 @@ public sealed partial class CommonSettingsView : UserControl
             MinimizeRadio.IsChecked = settings.AfterLaunchBehavior is AfterLaunchBehavior.Minimize;
             HideToTrayRadio.IsChecked = settings.AfterLaunchBehavior is AfterLaunchBehavior.HideToTray;
             PlayTimeToggle.IsOn = settings.RecordLocalPlayTime;
-            ProfileSwitcherToggle.IsOn = settings.EnableProfileQuickSwitcher;
         }
         finally
         {
@@ -73,7 +72,6 @@ public sealed partial class CommonSettingsView : UserControl
                 _ => AfterLaunchBehavior.KeepWindow,
             },
             RecordLocalPlayTime = PlayTimeToggle.IsOn,
-            EnableProfileQuickSwitcher = ProfileSwitcherToggle.IsOn,
         };
     }
 

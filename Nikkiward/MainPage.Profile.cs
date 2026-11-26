@@ -132,16 +132,6 @@ public sealed partial class MainPage
         }
     }
 
-    private async void OnProfileCandidateClicked(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: string profileId })
-        {
-            return;
-        }
-
-        await SelectProfileAsync(profileId);
-    }
-
     private async void OnProfileSelected(object? sender, ProfileSelectedEventArgs e)
     {
         await SelectProfileAsync(e.ProfileId);
@@ -159,7 +149,6 @@ public sealed partial class MainPage
                 return;
             }
 
-            SetProfileQuickSwitchRailVisibility(false);
             ShowLauncher();
         }
         catch (OperationCanceledException)
@@ -171,73 +160,14 @@ public sealed partial class MainPage
         }
     }
 
-    private void OnProfileButtonClicked(object sender, RoutedEventArgs e)
-    {
-        SetProfileQuickSwitchRailVisibility(false);
-
-        if (ContentFrame.Visibility == Visibility.Visible &&
-            ContentFrame.Content is ProfilePage)
-        {
-            ShowLauncher();
-            return;
-        }
-
-        ShowProfileOverlay();
-    }
-
-    private void OnProfileQuickSwitchHostPointerEntered(
-        object sender,
-        PointerRoutedEventArgs e)
-    {
-        if (ProfileOverlayScrim.Visibility == Visibility.Visible)
-        {
-            SetProfileQuickSwitchRailVisibility(false);
-            return;
-        }
-
-        SetProfileQuickSwitchRailVisibility(true);
-    }
-
-    private void OnProfileQuickSwitchHostPointerExited(
-        object sender,
-        PointerRoutedEventArgs e)
-    {
-        if (ProfileOverlayScrim.Visibility == Visibility.Visible)
-        {
-            return;
-        }
-
-        SetProfileQuickSwitchRailVisibility(false);
-    }
-
-    private void OnProfileQuickSwitchHostSizeChanged(
-        object sender,
-        SizeChangedEventArgs e)
-    {
-        NotifyTitleBarPassthroughChanged();
-    }
-
-    private void SetProfileQuickSwitchRailVisibility(bool isVisible)
-    {
-        ProfileQuickSwitchRail.Visibility = isVisible
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-        ProfileQuickSwitchRail.IsHitTestVisible = isVisible;
-        ProfileQuickSwitchRail.Opacity = isVisible ? 1 : 0;
-    }
-
-    private void OnProfileOverlayMaskTapped(object sender, TappedRoutedEventArgs e)
-    {
-        ShowLauncher();
-    }
+    private Flyout? _profileFlyout;
 
     private void OnProfileDetailsRequested(object? sender, EventArgs e)
     {
-        SetShellNavigationSelection(LauncherNavigationItem);
+        CloseProfileOverlay();
+        ContentFrame.Navigate(typeof(ProfilePage), new ProfileNavigationContext(ViewModel),
+            AppearanceRuntimeValues.CreateNavigationTransitionInfo());
         _hostedProfilePage?.ShowDetails();
-        SetProfileQuickSwitchRailVisibility(false);
-        ProfileOverlayScrim.Visibility = Visibility.Collapsed;
-        ProfileOverlayMask.Visibility = Visibility.Collapsed;
         SyncLauncherChrome();
     }
 
@@ -363,42 +293,21 @@ public sealed partial class MainPage
         }
     }
 
-    private void OnProfileCloseRequested(object? sender, EventArgs e) =>
-        ShowLauncher();
-
-    private void ShowProfileOverlay()
+    private void ShowProfileOverlay(FrameworkElement anchor)
     {
-        HideLibrary();
-        HideGallery();
-        HideResonance();
-        HidePhotoPlugin();
-        HideStatusDrawer();
-        SetProfileQuickSwitchRailVisibility(false);
-        ProfileOverlayScrim.Visibility = Visibility.Visible;
-        ProfileOverlayMask.Visibility = Visibility.Visible;
-        ContentFrame.Visibility = Visibility.Visible;
-        SyncLauncherChrome();
-        if (ContentFrame.Content is ProfilePage)
+        if (_profileFlyout is null)
         {
-            _hostedProfilePage?.ShowPicker();
-            return;
+            var picker = new ProfilePickerView(ViewModel);
+            picker.DiscoverRequested += OnProfileDiscoverRequested;
+            picker.ProfileSelected += OnProfileSelected;
+            picker.DetailsRequested += OnProfileDetailsRequested;
+            picker.CloseRequested += (_, _) => CloseProfileOverlay();
+            _profileFlyout = new Flyout { Content = picker };
+            _profileFlyout.Opened += (_, _) => SyncLauncherChrome();
+            _profileFlyout.Closed += (_, _) => SyncLauncherChrome();
         }
-
-        ContentFrame.Navigate(
-            typeof(ProfilePage),
-            new ProfileNavigationContext(ViewModel),
-            AppearanceRuntimeValues.CreateNavigationTransitionInfo());
+        _profileFlyout.ShowAt(anchor);
     }
 
-    private void CloseProfileOverlay()
-    {
-        if (ContentFrame.Content is ProfilePage)
-        {
-            ContentFrame.Visibility = Visibility.Collapsed;
-        }
-        SyncLauncherChrome();
-        SetProfileQuickSwitchRailVisibility(false);
-        ProfileOverlayScrim.Visibility = Visibility.Collapsed;
-        ProfileOverlayMask.Visibility = Visibility.Collapsed;
-    }
+    private void CloseProfileOverlay() => _profileFlyout?.Hide();
 }

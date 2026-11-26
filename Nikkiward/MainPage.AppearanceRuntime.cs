@@ -15,6 +15,8 @@ public sealed partial class MainPage
 
     private void ApplyAppearanceSettings(AppearanceSettings settings)
     {
+        ViewModel.ShowArtwork(ViewModel.HomeArtKey);
+        ApplyHomeSkin(settings.HomeSkin);
         ApplyThemeMode(settings.ThemeMode);
         if (settings.AccentMode == AccentColorMode.Fixed)
         {
@@ -323,6 +325,7 @@ public sealed partial class MainPage
 
     private void SetCurrentBackgroundSource(string source)
     {
+        ViewModel.ShowArtwork(source);
         if (string.Equals(
             source,
             _currentBackgroundSource,

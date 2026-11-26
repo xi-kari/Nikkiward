@@ -22,11 +22,11 @@
             Padding="10"
             HorizontalAlignment="Left"
             VerticalAlignment="Top"
-            Background="{ThemeResource GlassIslandBrush}"
-            BorderBrush="{ThemeResource IslandEdgeHighlightBrush}"
+            Background="{ThemeResource HomeSurfaceBrush}"
+            BorderBrush="{ThemeResource HomeStrokeBrush}"
             BorderThickness="1"
             CornerRadius="8"
-            Shadow="{ThemeResource LauncherThemeShadow}"
+            Shadow="{ThemeResource HomeElevation}"
             Tapped="OnPanelTapped"
             Translation="0,0,16">
             <StackPanel>

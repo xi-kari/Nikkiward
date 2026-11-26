@@ -1216,7 +1216,7 @@ public sealed partial class ArtBackdropView : UserControl
 
         // Translation only. Animating Margin or Width would leave the compositor
         // thread and re-run layout on every pointer sample.
-        ArtSharpHost.Translation = _parallaxCurrent;
+        if (!FullBleed) ArtSharpHost.Translation = _parallaxCurrent;
         if (_motionReady && _appearanceSettings.Background.MotionPanEnabled)
         {
             MotionHost.Translation = _parallaxCurrent;
@@ -1280,6 +1280,7 @@ public sealed partial class ArtBackdropView : UserControl
         var tiltEnabled =
             _launcherSurfaceActive &&
             _holographicCardEnabled &&
+            !FullBleed &&
             pointerOverCard &&
             !_motionReady &&
             _motionMode == AppearanceMotionMode.Full &&
@@ -1855,6 +1856,18 @@ public sealed partial class ArtBackdropView : UserControl
         _stillSourcePixelHeight = bitmap.PixelHeight;
     }
 
+    public void ApplyArtFrame(Thickness inset, CornerRadius radius)
+    {
+        ArtSharpHost.Margin = inset;
+        ArtSharpHost.CornerRadius = radius;
+        HolographicOverlay.HasFrame = !FullBleed;
+        HolographicOverlay.MaterialCornerRadius = radius.TopLeft;
+        ResetParallax();
+        UpdateStillArtworkLayout();
+    }
+
+    private bool FullBleed => ArtSharpHost.Margin == default(Thickness);
+
     private void UpdateStillArtworkLayout()
     {
         var margin = ArtSharpHost.Margin;
@@ -1865,7 +1878,8 @@ public sealed partial class ArtBackdropView : UserControl
             _stillSourcePixelHeight,
             viewportWidth,
             viewportHeight);
-        if (layout.UsesBoundedSurface)
+        ArtSharp.Stretch = WallpaperEngineCardFrame.Stretch = FullBleed ? Stretch.UniformToFill : Stretch.Uniform;
+        if (!FullBleed && layout.UsesBoundedSurface)
         {
             ArtSharpHost.HorizontalAlignment = HorizontalAlignment.Center;
             ArtSharpHost.VerticalAlignment = VerticalAlignment.Center;
@@ -1880,9 +1894,8 @@ public sealed partial class ArtBackdropView : UserControl
         ArtSharpHost.VerticalAlignment = VerticalAlignment.Stretch;
         ArtSharpHost.Width = double.NaN;
         ArtSharpHost.Height = double.NaN;
-        ArtSharp.Stretch = Stretch.Uniform;
-        HolographicOverlay.Width = layout.IsValid ? layout.Width : double.NaN;
-        HolographicOverlay.Height = layout.IsValid ? layout.Height : double.NaN;
+        HolographicOverlay.Width = !FullBleed && layout.IsValid ? layout.Width : double.NaN;
+        HolographicOverlay.Height = !FullBleed && layout.IsValid ? layout.Height : double.NaN;
     }
 
     private static double ReadDoubleResource(string key, double fallback) =>

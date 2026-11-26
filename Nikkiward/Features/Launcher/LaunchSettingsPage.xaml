@@ -85,11 +85,11 @@
         x:Name="SurfaceRoot"
         HorizontalAlignment="Stretch"
         VerticalAlignment="Stretch"
-        Background="{ThemeResource GlassOverlayBrush}"
-        BorderBrush="{ThemeResource HairlineSoftBrush}"
+        Background="{ThemeResource HomeSurfaceBrush}"
+        BorderBrush="{ThemeResource HomeStrokeBrush}"
         BorderThickness="1"
         CornerRadius="16"
-        Shadow="{ThemeResource WarmThemeShadow}">
+        Shadow="{ThemeResource HomeElevation}">
         <Grid
             x:Name="LayoutRoot"
             Loaded="OnLayoutRootLoaded"
@@ -400,29 +400,29 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBox
-                                    x:Name="MastheadSubtitleBox"
+                                    x:Name="ArtworkTitleBox"
                                     Height="Auto"
                                     MaxLength="120"
-                                    automation:AutomationProperties.Name="主页副标题文案"
-                                    Header="主页副标题"
-                                    PlaceholderText="无限暖暖启动！"
+                                    automation:AutomationProperties.Name="自定义背景画名"
+                                    Header="自定义背景画名"
+                                    PlaceholderText="使用原文件名"
                                     TextWrapping="Wrap" />
                                 <Button
                                     Grid.Column="1"
                                     VerticalAlignment="Bottom"
-                                    automation:AutomationProperties.Name="保存主页副标题"
-                                    Click="OnSaveMastheadSubtitleClicked"
+                                    automation:AutomationProperties.Name="保存自定义背景画名"
+                                    x:Name="SaveTitle" Click="OnSaveArtworkTitleClicked"
                                     Style="{StaticResource OnArtIconButtonStyle}"
-                                    ToolTipService.ToolTip="保存主页副标题">
+                                    ToolTipService.ToolTip="保存自定义背景画名">
                                     <FontIcon Glyph="&#xE74E;" />
                                 </Button>
                                 <Button
                                     Grid.Column="2"
                                     VerticalAlignment="Bottom"
-                                    automation:AutomationProperties.Name="恢复默认主页副标题"
-                                    Click="OnResetMastheadSubtitleClicked"
+                                    automation:AutomationProperties.Name="恢复默认自定义背景画名"
+                                    x:Name="ResetTitle" Click="OnResetArtworkTitleClicked"
                                     Style="{StaticResource OnArtIconButtonStyle}"
-                                    ToolTipService.ToolTip="恢复默认主页副标题">
+                                    ToolTipService.ToolTip="恢复默认自定义背景画名">
                                     <FontIcon Glyph="&#xE777;" />
                                 </Button>
                             </Grid>

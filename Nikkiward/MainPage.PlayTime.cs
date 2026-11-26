@@ -165,6 +165,8 @@ public sealed partial class MainPage
     private void RefreshPlayTimeViews()
     {
         var sessions = _playTime?.Sessions ?? [];
+        ViewModel.LocalPlayDuration = ViewModel.GeneralSettings.RecordLocalPlayTime && sessions.Count > 0
+            ? $"本机 {sessions.Sum(session => session.Duration.TotalHours):0.#} 小时" : null;
         _hostedSettingsPage?.ApplyPlayTimeState(sessions.Count > 0, _playTimeError);
         _hostedJournalPage?.ApplyPlayTime(ViewModel.GeneralSettings.RecordLocalPlayTime, sessions, _playTimeError);
     }

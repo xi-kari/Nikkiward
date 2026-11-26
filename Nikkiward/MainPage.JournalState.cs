@@ -338,10 +338,5 @@ public sealed partial class MainPage
         return match.Success ? $"{match.Groups[1].Value.Replace(',', '.')}h" : value.Trim();
     }
 
-    private void UpdateJournalDurationUi()
-    {
-        _hostedLauncherPage?.ApplyJournalDuration(
-            _journalDurationText,
-            _journalDurationDetailText);
-    }
+    private void UpdateJournalDurationUi() => ViewModel.OfficialJournalDuration = _journalDurationText;
 }

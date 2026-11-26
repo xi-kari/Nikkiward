@@ -42,39 +42,27 @@ public enum InterfaceDensity
     Comfortable,
 }
 
-public enum LauncherCapsuleStyle
-{
-    Original,
-    Ocean,
-    Klein,
-    Ultraviolet,
-    Chrome,
-    Plus,
-}
-
 public sealed record AppearanceSettings
 {
-    public const string LegacyLauncherMastheadLabel = "启动契约 1.3.1";
+    public string HomeSkin { get; init; } = "Stitch";
 
-    public const string DefaultLauncherMastheadLabel = "NIKKIWARD";
+    public Dictionary<string, ArtworkTitle> ArtworkTitles { get; init; } = new();
 
-    public const string DefaultLauncherMastheadTitle = "无限暖暖";
-
-    public const string DefaultLauncherMastheadSubtitle = "无限暖暖启动！";
+    public AppearanceSettings WithArtworkTitle(string source, string? name = null, string? original = null)
+    {
+        ArtworkTitles.TryGetValue(source, out var existing);
+        var title = name?.Trim() ?? existing?.Name;
+        if (title?.Length > 120) title = title[..120];
+        var titles = new Dictionary<string, ArtworkTitle>(ArtworkTitles)
+        {
+            [source] = new(title, original ?? existing?.OriginalFileName)
+        };
+        return this with { ArtworkTitles = titles };
+    }
 
     public ThemeMode ThemeMode { get; init; } = ThemeMode.WarmDark;
 
     public BackgroundArtSettings Background { get; init; } = new();
-
-    public string LauncherMastheadLabel { get; init; } = DefaultLauncherMastheadLabel;
-
-    public string LauncherMastheadTitle { get; init; } = DefaultLauncherMastheadTitle;
-
-    public string LauncherMastheadSubtitle { get; init; } = DefaultLauncherMastheadSubtitle;
-
-    public bool ShowLauncherUtilityPanels { get; init; }
-
-    public LauncherCapsuleStyle LauncherCapsuleStyle { get; init; } = LauncherCapsuleStyle.Ocean;
 
     public AccentColorMode AccentMode { get; init; } = AccentColorMode.Adaptive;
 
@@ -88,6 +76,8 @@ public sealed record AppearanceSettings
 
     public InterfaceDensity Density { get; init; } = InterfaceDensity.Standard;
 }
+
+public sealed record ArtworkTitle(string? Name, string? OriginalFileName);
 
 public sealed record BackgroundArtSettings
 {
@@ -131,9 +121,7 @@ public sealed record BackgroundArtSettings
 public readonly record struct AppearanceBackgroundPreset(
     string Id,
     string Title,
-    string Source,
-    LauncherCapsuleStyle CapsuleStyle,
-    ThemeMode? SurfaceThemeMode);
+    string Source);
 
 public static class AppearanceBackgroundPresets
 {
@@ -151,16 +139,12 @@ public static class AppearanceBackgroundPresets
     [
         new(
             Preset1Id,
-            "默认预设背景 1",
-            Preset1Source,
-            LauncherCapsuleStyle.Ocean,
-            ThemeMode.WarmDark),
+            "海月",
+            Preset1Source),
         new(
             Preset2Id,
-            "默认预设背景 2",
-            Preset2Source,
-            LauncherCapsuleStyle.Plus,
-            ThemeMode.WarmLight),
+            "花信",
+            Preset2Source),
     ];
 
     public static bool IsBuiltInSource(string? source) =>
@@ -405,7 +389,6 @@ public static class AppearanceSettingsValidator
         EnsureDefined(settings.FixedAccent, nameof(settings.FixedAccent));
         EnsureDefined(settings.Motion, nameof(settings.Motion));
         EnsureDefined(settings.Density, nameof(settings.Density));
-        EnsureDefined(settings.LauncherCapsuleStyle, nameof(settings.LauncherCapsuleStyle));
 
         var background = settings.Background ??
             throw new ArgumentException("Background settings are required.", nameof(settings));
@@ -470,43 +453,12 @@ public static class AppearanceSettingsValidator
 
         return settings with
         {
+            ArtworkTitles = settings.ArtworkTitles ?? new(),
             Background = normalizedBackground,
-            LauncherMastheadLabel = NormalizeLauncherMastheadLabel(
-                settings.LauncherMastheadLabel),
-            LauncherMastheadTitle = NormalizeMastheadText(
-                settings.LauncherMastheadTitle,
-                AppearanceSettings.DefaultLauncherMastheadTitle),
-            LauncherMastheadSubtitle = NormalizeOptionalMastheadText(
-                settings.LauncherMastheadSubtitle),
             CustomAccentArgb = settings.CustomAccentArgb is uint custom
                 ? custom | 0xFF000000
                 : null,
         };
-    }
-
-    private static string NormalizeMastheadText(string? value, string fallback)
-    {
-        var normalized = string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
-        return normalized.Length <= 120 ? normalized : normalized[..120];
-    }
-
-    private static string NormalizeLauncherMastheadLabel(string? value)
-    {
-        var normalized = NormalizeMastheadText(
-            value,
-            AppearanceSettings.DefaultLauncherMastheadLabel);
-        return string.Equals(
-            normalized,
-            AppearanceSettings.LegacyLauncherMastheadLabel,
-            StringComparison.Ordinal)
-                ? AppearanceSettings.DefaultLauncherMastheadLabel
-                : normalized;
-    }
-
-    private static string NormalizeOptionalMastheadText(string? value)
-    {
-        var normalized = value?.Trim() ?? string.Empty;
-        return normalized.Length <= 120 ? normalized : normalized[..120];
     }
 
     private static void EnsureDefined<TEnum>(TEnum value, string propertyName)

@@ -41,7 +41,7 @@ public sealed partial class MainPage
         HideStatusDrawer();
         ContentFrame.Visibility = Visibility.Visible;
         SyncLauncherChrome();
-        SetShellNavigationSelection(ShellNavigation.SettingsItem);
+        SetShellNavigationSelection("settings");
         var target = restoreDestination ? _activeSettingsDestination : destination;
         if (ContentFrame.Content is SettingsPage page)
         {
@@ -150,7 +150,7 @@ public sealed partial class MainPage
     private async void OnBackgroundGalleryClicked(object sender, RoutedEventArgs e)
     {
         var returnToSettings = ContentFrame.Content is SettingsPage;
-        SetShellNavigationSelection(GalleryNavigationItem);
+        SetShellNavigationSelection("gallery");
         await ShowGalleryAsync(returnToSettings);
     }
 

@@ -29,7 +29,6 @@ public sealed record GeneralSettings
 
     public AfterLaunchBehavior AfterLaunchBehavior { get; init; } = AfterLaunchBehavior.KeepWindow;
 
-    public bool EnableProfileQuickSwitcher { get; init; } = true;
 }
 
 public sealed record DownloadSettings
@@ -249,7 +248,7 @@ public static class ApplicationSettingsMigration
 
         var migrated = (JsonObject)schema7Settings.DeepClone();
         migrated.Remove("windowPlacement");
-        migrated["schemaVersion"] = UserSettings.CurrentSchemaVersion;
+        migrated["schemaVersion"] = UserSettings.WindowPlacementSchemaVersion;
         return migrated;
     }
 

@@ -16,7 +16,7 @@ public sealed record GalleryNavigationContext(
     GalleryFavoriteProtectionService FavoriteProtection,
     CancellationToken HostCancellationToken,
     GalleryViewMode ViewMode = GalleryViewMode.All,
-    AppearanceSettings? AppearanceSettings = null);
+    AppearanceSettings? AppearanceSettings = null, GalleryPhotoItemViewModel? Photo = null);
 
 public sealed partial class GalleryPage : PageBase
 {
@@ -88,7 +88,7 @@ public sealed partial class GalleryPage : PageBase
                 context.PersistedGalleryRootPath,
                 context.HostCancellationToken,
                 context.ViewMode,
-                forceReload: false);
+                forceReload: context.Photo != null, photo: context.Photo);
         }
     }
 
@@ -98,7 +98,7 @@ public sealed partial class GalleryPage : PageBase
         string? persistedGalleryRootPath,
         CancellationToken hostCancellationToken,
         GalleryViewMode viewMode = GalleryViewMode.All,
-        bool forceReload = false)
+        bool forceReload = false, GalleryPhotoItemViewModel? photo = null)
     {
         if (!forceReload &&
             string.Equals(
@@ -165,6 +165,12 @@ public sealed partial class GalleryPage : PageBase
                 await LoadStarredStateAsync(cancellationToken);
                 SetViewMode(viewMode);
                 ResetGalleryControls();
+                if (photo != null && _surfaceActive && ReferenceEquals(Frame?.Content, this) && !cancellationToken.IsCancellationRequested)
+                {
+                    var item = ViewModel.Photos.FirstOrDefault(p => p.AnnotationScopeId == photo.AnnotationScopeId &&
+                        string.Equals(p.RelativePath, photo.RelativePath, StringComparison.OrdinalIgnoreCase));
+                    if (item != null && File.Exists(item.FilePath)) ShowGalleryPreviewAt(ViewModel.Photos.IndexOf(item));
+                }
                 _folderWatcher.Watch(ViewModel.WatchableRootPath);
             }
             catch (OperationCanceledException)

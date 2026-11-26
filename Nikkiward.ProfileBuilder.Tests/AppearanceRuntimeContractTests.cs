@@ -18,14 +18,13 @@ internal static class AppearanceRuntimeContractTests
         ("CJK page titles retain their full line bounds", CjkPageTitlesRetainFullLineBounds),
         ("custom background exposes the motion wallpaper importer", CustomBackgroundExposesMotionImporter),
         ("Wallpaper package recovery persists canonical paths and authoritative modes", WallpaperPackageRecoveryPersistsCanonicalState),
-        ("custom background exposes the launcher subtitle editor", CustomBackgroundExposesSubtitleEditor),
+        ("custom background exposes the artwork title editor", CustomBackgroundExposesArtworkTitleEditor),
         ("high contrast focus uses the system focus color", HighContrastFocusUsesSystemColor),
         ("every custom transition consumes the live motion authority", CustomTransitionsConsumeMotionAuthority),
         ("interactive scale and connected animation obey motion off", InteractiveMotionObeysMotionOff),
         ("journal cached images use typed XAML sources", JournalCachedImagesUseTypedSources),
-        ("launcher chrome exposes customizable masthead and synchronized capsule styles", LauncherChromeExposesCustomization),
-        ("launcher nebula renderer preserves the six reference presets and shader equations", LauncherNebulaRendererPreservesReference),
-        ("launcher capsules preserve the compact reference chrome and shared style", LauncherCapsulesUseCompactReferenceChrome),
+        (nameof(HomePreviewGuardsAllCommands), HomePreviewGuardsAllCommands),
+        ("home skin catalog reserves five extension points", HomeSkinCatalogReservesAllDesigns),
         ("developer surfaces stay hidden until explicit opt in", DeveloperSurfacesRequireOptIn),
         ("journal resource gallery stays hidden from the reader", JournalResourceGalleryStaysHidden),
         ("launcher resources use the shared theme authority outside the shell rail", LauncherResourcesUseSharedThemeAuthority),
@@ -288,18 +287,12 @@ internal static class AppearanceRuntimeContractTests
 
     private static Task StaticVisualTokensHaveOneAuthority()
     {
-        var masthead = ReadSource("Nikkiward", "Features", "Launcher", "LauncherMasthead.xaml");
-        var notice = ReadSource("Nikkiward", "Features", "Launcher", "LauncherNoticeIsland.xaml");
         var backdrop = ReadSource(
             "Nikkiward",
             "Features",
             "Background",
             "ArtBackdropService.cs");
         Assert(
-            masthead.Contains("LocalScrimBrush", StringComparison.Ordinal) &&
-            masthead.Contains("ReadabilityRegion=\"Masthead\"", StringComparison.Ordinal) &&
-            notice.Contains("LocalScrimBrush", StringComparison.Ordinal) &&
-            notice.Contains("ReadabilityRegion=\"Notice\"", StringComparison.Ordinal) &&
             backdrop.Contains("ResolveDoubleResource", StringComparison.Ordinal) &&
             backdrop.Contains("\"LocalScrimReferenceAlpha\"", StringComparison.Ordinal) &&
             backdrop.Contains("required / Math.Max(0.01, reference)", StringComparison.Ordinal) &&
@@ -565,7 +558,7 @@ internal static class AppearanceRuntimeContractTests
         return Task.CompletedTask;
     }
 
-    private static Task CustomBackgroundExposesSubtitleEditor()
+    private static Task CustomBackgroundExposesArtworkTitleEditor()
     {
         var settingsXaml = ReadSource(
             "Nikkiward",
@@ -583,25 +576,25 @@ internal static class AppearanceRuntimeContractTests
         var runtime = ReadSource("Nikkiward", "MainPage.AppearanceRuntime.cs");
 
         Assert(
-            settingsXaml.Contains("MastheadSubtitleBox", StringComparison.Ordinal) &&
-            settingsXaml.Contains("主页副标题", StringComparison.Ordinal) &&
-            settingsXaml.Contains("OnSaveMastheadSubtitleClicked", StringComparison.Ordinal) &&
-            settingsXaml.Contains("OnResetMastheadSubtitleClicked", StringComparison.Ordinal),
-            "custom background must expose save and reset controls for the homepage subtitle");
+            settingsXaml.Contains("ArtworkTitleBox", StringComparison.Ordinal) &&
+            settingsXaml.Contains("自定义背景画名", StringComparison.Ordinal) &&
+            settingsXaml.Contains("OnSaveArtworkTitleClicked", StringComparison.Ordinal) &&
+            settingsXaml.Contains("OnResetArtworkTitleClicked", StringComparison.Ordinal),
+            "custom background must expose save and reset controls for the artwork title");
         var subtitleBox = settingsDocument
             .Descendants()
             .SingleOrDefault(element =>
                 element.Name.LocalName == "TextBox" &&
-                element.Attribute(xaml + "Name")?.Value == "MastheadSubtitleBox");
+                element.Attribute(xaml + "Name")?.Value == "ArtworkTitleBox");
         Assert(
             subtitleBox?.Attribute("Height")?.Value == "Auto",
-            "the headered homepage subtitle editor must not inherit the fixed 44px TextBox height");
+            "the headered artwork title editor must not inherit the fixed 44px TextBox height");
         Assert(
-            settingsCode.Contains("MastheadSubtitleSaveRequested", StringComparison.Ordinal) &&
-            overlay.Contains("OnLaunchSettingsMastheadSubtitleSaveRequested", StringComparison.Ordinal) &&
-            overlay.Contains("LauncherMastheadSubtitle = e.Subtitle", StringComparison.Ordinal) &&
+            settingsCode.Contains("ArtworkTitleSaveRequested", StringComparison.Ordinal) &&
+            overlay.Contains("OnLaunchSettingsArtworkTitleSaveRequested", StringComparison.Ordinal) &&
+            overlay.Contains("WithArtworkTitle(e.Source, e.Title)", StringComparison.Ordinal) &&
             runtime.Contains("_hostedLaunchSettingsPage?.ApplyAppearanceSettings(settings)", StringComparison.Ordinal),
-            "the subtitle editor must save through appearance settings and stay synchronized");
+            "the artwork title editor must save through appearance settings and stay synchronized");
         return Task.CompletedTask;
     }
 
@@ -690,11 +683,6 @@ internal static class AppearanceRuntimeContractTests
             "Features",
             "Journal",
             "JournalSnapshotPanel.xaml.cs");
-        var launcher = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Launcher",
-            "LauncherPage.xaml.cs");
         var profile = ReadSource(
             "Nikkiward",
             "Features",
@@ -710,7 +698,7 @@ internal static class AppearanceRuntimeContractTests
             shellValues.Contains("SuppressNavigationTransitionInfo", StringComparison.Ordinal) &&
             shellValues.Contains("ReadScale", StringComparison.Ordinal),
             "navigation and pointer targets must share the live appearance authority");
-        foreach (var source in new[] { journal, launcher, gallery })
+        foreach (var source in new[] { journal, gallery })
         {
             Assert(
                 source.Contains("AppearanceRuntimeValues.ReadScale", StringComparison.Ordinal),
@@ -762,243 +750,21 @@ internal static class AppearanceRuntimeContractTests
         return Task.CompletedTask;
     }
 
-    private static Task LauncherChromeExposesCustomization()
+    private static Task HomePreviewGuardsAllCommands()
     {
-        var masthead = ReadSource("Nikkiward", "Features", "Launcher", "LauncherMasthead.xaml");
-        var mastheadCode = ReadSource("Nikkiward", "Features", "Launcher", "LauncherMasthead.xaml.cs");
-        var launcher = ReadSource("Nikkiward", "Features", "Launcher", "LauncherPage.xaml.cs");
-        var launcherXaml = ReadSource("Nikkiward", "Features", "Launcher", "LauncherPage.xaml");
-        var settings = ReadSource("Nikkiward", "Models", "AppearanceSettings.cs");
-        var appearanceView = ReadSource("Nikkiward", "Features", "Settings", "GeneralAppearanceSettingsView.xaml");
-        var appearanceCode = ReadSource("Nikkiward", "Features", "Settings", "GeneralAppearanceSettingsView.xaml.cs");
-        var appearanceRuntime = ReadSource("Nikkiward", "MainPage.AppearanceRuntime.cs");
-        var applyAppearance = FindMethod(launcher, "ApplyAppearanceSettings");
-        var applySettings = FindMethod(appearanceCode, "ApplySettings");
-        var styleHandler = FindMethod(appearanceCode, "OnLauncherCapsuleStyleChecked");
-
-        Assert(
-            masthead.Contains("EyebrowText", StringComparison.Ordinal) &&
-            masthead.Contains("SubtitleText", StringComparison.Ordinal) &&
-            mastheadCode.Contains("ApplySettings(AppearanceSettings", StringComparison.Ordinal),
-            "masthead must expose typed customizable copy");
-        Assert(
-            masthead.Contains("Text=\"无限暖暖启动！\"", StringComparison.Ordinal) &&
-            settings.Contains("DefaultLauncherMastheadSubtitle = \"无限暖暖启动！\"", StringComparison.Ordinal),
-            "the launcher first frame and clean-settings subtitle must stay synchronized");
-        Assert(
-            launcher.Contains("NoticeHost.Visibility = Visibility.Collapsed", StringComparison.Ordinal) &&
-            launcher.Contains(
-                "ActionCluster.Visibility = Visibility.Visible",
-                StringComparison.Ordinal) &&
-            launcherXaml.Contains("Click=\"OnOfficialFlowClicked\"", StringComparison.Ordinal) &&
-            launcherXaml.Contains("Click=\"OnLaunchSettingsClicked\"", StringComparison.Ordinal) &&
-            launcherXaml.Contains("x:Name=\"PrimaryActionDisabledPlate\"", StringComparison.Ordinal) &&
-            launcherXaml.Contains("IsEnabledChanged=\"OnPrimaryActionIsEnabledChanged\"", StringComparison.Ordinal) &&
-            launcher.Contains("SetPrimaryActionScaleIfEnabled", StringComparison.Ordinal) &&
-            launcherXaml.Contains("Glyph=\"&#xE8F1;\"", StringComparison.Ordinal),
-            "launcher must hide only the notice panel, preserve launch actions, and use a visible journal glyph");
-        Assert(
-            settings.Contains("LauncherMastheadLabel", StringComparison.Ordinal) &&
-            settings.Contains("ShowLauncherUtilityPanels", StringComparison.Ordinal) &&
-            settings.Contains("enum LauncherCapsuleStyle", StringComparison.Ordinal) &&
-            settings.Contains("LauncherCapsuleStyle LauncherCapsuleStyle", StringComparison.Ordinal) &&
-            appearanceView.Contains("LauncherMastheadTitleBox", StringComparison.Ordinal) &&
-            appearanceView.Contains("Header=\"副标题（可留空）\"", StringComparison.Ordinal) &&
-            appearanceView.Contains("x:Name=\"LauncherUtilityPanelsToggle\"", StringComparison.Ordinal) &&
-            appearanceView.Contains("Visibility=\"Collapsed\"", StringComparison.Ordinal),
-            "appearance settings must persist optional masthead copy and keep the retired notice toggle hidden");
-        var capsuleTags = new[] { "original", "ocean", "klein", "ultraviolet", "chrome", "plus" };
-        Assert(
-            capsuleTags.All(tag =>
-                appearanceView.Contains($"Tag=\"{tag}\"", StringComparison.Ordinal)) &&
-            Count(appearanceView, "GroupName=\"LauncherCapsuleStyle\"") == capsuleTags.Length &&
-            Count(appearanceView, "Checked=\"OnLauncherCapsuleStyleChecked\"") == capsuleTags.Length,
-            "appearance settings must expose six mutually exclusive clickable capsule styles");
-        Assert(
-            applySettings.Contains(
-                "ApplyCapsuleStyleSelection(settings.LauncherCapsuleStyle)",
-                StringComparison.Ordinal) &&
-            capsuleTags.Skip(1).All(tag =>
-                styleHandler.Contains(
-                    $"LauncherCapsuleStyle.{char.ToUpperInvariant(tag[0])}{tag[1..]}",
-                    StringComparison.Ordinal)) &&
-            styleHandler.Contains("Commit(_settings with", StringComparison.Ordinal),
-            "the selector must restore persisted state and commit every non-default style");
-        Assert(
-            launcherXaml.Contains("x:Name=\"PrimaryCapsuleVisual\"", StringComparison.Ordinal) &&
-            launcherXaml.Contains("x:Name=\"UtilityCapsuleVisual\"", StringComparison.Ordinal) &&
-            applyAppearance.Contains(
-                "PrimaryCapsuleVisual.ApplyStyle(settings.LauncherCapsuleStyle)",
-                StringComparison.Ordinal) &&
-            applyAppearance.Contains(
-                "UtilityCapsuleVisual.ApplyStyle(settings.LauncherCapsuleStyle)",
-                StringComparison.Ordinal) &&
-            appearanceRuntime.Contains(
-                "_hostedLauncherPage?.ApplyAppearanceSettings(settings)",
-                StringComparison.Ordinal),
-            "one persisted style must update both launcher capsules without restarting");
+        var host = ReadSource("Nikkiward", "Features", "Launcher", "LauncherPage.xaml.cs");
+        var commands = ReadSource("Nikkiward", "MainPage.LaunchCommands.cs");
+        foreach (var method in new[] { FindMethod(host, "InvokeAction"), FindMethod(commands, "OnOfficialFlowClicked"),
+            FindMethod(commands, "OnCloseGameClicked") })
+            Assert(method.ReplaceLineEndings("\n").Contains("#if DEBUG\n        if (HomePreview.Active) return;"), "preview must guard the action entry");
         return Task.CompletedTask;
     }
 
-    private static Task LauncherNebulaRendererPreservesReference()
+    private static Task HomeSkinCatalogReservesAllDesigns()
     {
-        var renderer = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Launcher",
-            "LauncherNebulaFrameRenderer.cs");
-        var shader = ReadSource("Nikkiward", "Shaders", "LauncherNebula.hlsl");
-        var capsuleVisual = ReadSource("Nikkiward", "Controls", "LauncherCapsuleVisual.cs");
-        var compactRenderer = Regex.Replace(
-            renderer,
-            @"\s+",
-            string.Empty,
-            RegexOptions.CultureInvariant);
-
-        var expectedPresets = new[]
-        {
-            (Branch: "_", Seed: "1.7f", Speed: "0.50f", Colors: new[] { "FFF3EA", "F5B27A", "F67BC6", "A978E8" }),
-            (Branch: "LauncherCapsuleStyle.Ocean", Seed: "8.2f", Speed: "0.48f", Colors: new[] { "EAF6FF", "8FD0FF", "3B87F6", "6B58E9" }),
-            (Branch: "LauncherCapsuleStyle.Klein", Seed: "14.1f", Speed: "0.49f", Colors: new[] { "EDF2FF", "2F58D5", "1B2040", "E07A43" }),
-            (Branch: "LauncherCapsuleStyle.Ultraviolet", Seed: "23.4f", Speed: "0.47f", Colors: new[] { "F2EEFF", "B99AF1", "8F74DB", "D7D85C" }),
-            (Branch: "LauncherCapsuleStyle.Chrome", Seed: "37.8f", Speed: "0.42f", Colors: new[] { "F5F6F8", "B9C0CC", "7F8793", "4A4F59" }),
-            (Branch: "LauncherCapsuleStyle.Plus", Seed: "51.3f", Speed: "0.50f", Colors: new[] { "FFF0E6", "F6C26B", "F98A64", "E86D74" }),
-        };
-        foreach (var preset in expectedPresets)
-        {
-            var expected =
-                $"{preset.Branch}=>new({preset.Seed},{preset.Speed}," +
-                $"\"{preset.Colors[0]}\",\"{preset.Colors[1]}\"," +
-                $"\"{preset.Colors[2]}\",\"{preset.Colors[3]}\")";
-            Assert(
-                compactRenderer.Contains(expected, StringComparison.Ordinal),
-                $"launcher nebula preset '{preset.Branch}' must preserve its exact seed, speed, and four colors");
-        }
-
-        Assert(
-            Regex.Matches(
-                compactRenderer,
-                @"(?:LauncherCapsuleStyle\.\w+|_)=>new\(",
-                RegexOptions.CultureInvariant).Count == expectedPresets.Length,
-            "the launcher nebula renderer must expose exactly six preset branches");
-
-        var compactShader = Regex.Replace(
-            shader,
-            @"\s+",
-            string.Empty,
-            RegexOptions.CultureInvariant);
-        foreach (var formula in new[]
-        {
-            "p=frac(p*float2(123.34,456.21));",
-            "p+=dot(p,p+45.32+seed);",
-            "f=f*f*(3.0-2.0*f);",
-            "floatamplitude=0.52;",
-            "for(inti=0;i<6;i++)",
-            "0.80*p.x-0.60*p.y",
-            "0.60*p.x+0.80*p.y)*2.03+17.7",
-            "float3shadow=lerp(colorA,colorB,smoothstep(0.06,0.62,t));",
-            "float3body=lerp(colorB,colorC,smoothstep(0.30,0.82,t));",
-            "float3highlight=lerp(colorC,colorD,smoothstep(0.74,1.0,t));",
-            "float2drift=float2(t*0.22,-t*0.13);",
-            "fbm(p*1.35+drift+seed)",
-            "fbm(p*2.0+3.6*q+float2(1.7,9.2)+t*0.10)",
-            "floatcloud=fbm(p*1.7+4.2*r);",
-            "floatveins=fbm(p*4.0-2.0*q+t*0.065);",
-            "smoothstep(0.18,0.91,cloud*0.9+veins*0.22)",
-            "float2(132.0,58.0)",
-            "step(0.989,starRandom)",
-            "smoothstep(0.94,0.18,length((uv-0.5)*float2(1.0,1.35)))",
-            "color=pow(max(color,0.0),0.88);",
-            "D2D_PS_ENTRY(main)",
-        })
-        {
-            Assert(
-                compactShader.Contains(formula, StringComparison.Ordinal),
-                $"LauncherNebula.hlsl must preserve the reference equation '{formula}'");
-        }
-
-        Assert(
-            capsuleVisual.Contains("PixelShaderEffect", StringComparison.Ordinal) &&
-            capsuleVisual.Contains("LauncherNebula.bin", StringComparison.Ordinal) &&
-            capsuleVisual.Contains("_shader.Properties[\"seed\"]", StringComparison.Ordinal) &&
-            capsuleVisual.Contains("_shader.Properties[\"colorD\"]", StringComparison.Ordinal),
-            "the capsule visual must execute the compiled HLSL with the selected preset uniforms");
-        return Task.CompletedTask;
-    }
-
-    private static Task LauncherCapsulesUseCompactReferenceChrome()
-    {
-        var launcherXaml = ReadSource("Nikkiward", "Features", "Launcher", "LauncherPage.xaml");
-        var launcherCode = ReadSource("Nikkiward", "Features", "Launcher", "LauncherPage.xaml.cs");
-        var capsuleVisual = ReadSource("Nikkiward", "Controls", "LauncherCapsuleVisual.cs");
-        var capsuleRenderer = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Launcher",
-            "LauncherNebulaFrameRenderer.cs");
-        var document = XDocument.Parse(launcherXaml);
-        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
-        XElement FindNamed(string name) => document
-            .Descendants()
-            .SingleOrDefault(element =>
-                string.Equals(
-                    (string?)element.Attribute(xaml + "Name"),
-                    name,
-                    StringComparison.Ordinal))
-            ?? throw new InvalidOperationException($"Launcher element '{name}' was not found.");
-
-        var actionCluster = FindNamed("ActionCluster");
-        var primarySurface = FindNamed("PrimaryActionSurface");
-        var utilitySurface = FindNamed("ActionUtilityPill");
-        Assert(
-            (string?)actionCluster.Attribute("Width") == "300" &&
-            (string?)primarySurface.Attribute("Height") == "56" &&
-            (string?)utilitySurface.Attribute("Width") == "252" &&
-            (string?)utilitySurface.Attribute("Height") == "44" &&
-            (string?)utilitySurface.Attribute("HorizontalAlignment") == "Right",
-            "launcher capsule chrome must keep a dominant 300px primary action and a compact 252px utility row");
-
-        var referenceChrome = string.Join(
-            Environment.NewLine,
-            launcherXaml,
-            launcherCode,
-            capsuleVisual,
-            capsuleRenderer);
-        Assert(
-            referenceChrome.Contains("MonoFontFamily", StringComparison.Ordinal) &&
-            referenceChrome.Contains("LauncherCapsuleCode", StringComparison.Ordinal) &&
-            referenceChrome.Contains("LauncherCapsuleName", StringComparison.Ordinal) &&
-            referenceChrome.Contains("LauncherCapsuleStudy", StringComparison.Ordinal) &&
-            referenceChrome.Contains("LIVE COSMIC STUDY", StringComparison.Ordinal),
-            "each compact capsule must expose mono NC code, theme name, and LIVE COSMIC STUDY fields");
-
-        foreach (var (code, name) in new[]
-        {
-            ("NC-01", "ORIGINAL"),
-            ("NC-02", "OCEAN"),
-            ("NC-03", "KLEIN"),
-            ("NC-04", "ULTRAVIOLET"),
-            ("NC-05", "CHROME"),
-            ("NC-06", "PLUS"),
-        })
-        {
-            Assert(
-                referenceChrome.Contains(code, StringComparison.Ordinal) &&
-                referenceChrome.Contains(name, StringComparison.Ordinal),
-                $"capsule chrome must map {code} to {name}");
-        }
-
-        var applyAppearance = FindMethod(launcherCode, "ApplyAppearanceSettings");
-        Assert(
-            launcherXaml.Contains("x:Name=\"PrimaryCapsuleVisual\"", StringComparison.Ordinal) &&
-            launcherXaml.Contains("x:Name=\"UtilityCapsuleVisual\"", StringComparison.Ordinal) &&
-            applyAppearance.Contains(
-                "PrimaryCapsuleVisual.ApplyStyle(settings.LauncherCapsuleStyle)",
-                StringComparison.Ordinal) &&
-            applyAppearance.Contains(
-                "UtilityCapsuleVisual.ApplyStyle(settings.LauncherCapsuleStyle)",
-                StringComparison.Ordinal),
-            "primary and utility capsules must consume the same persisted launcher style");
+        var registry = ReadSource("Nikkiward", "Features", "Launcher", "Skins", "HomeSkins.cs");
+        foreach (var id in new[] { "Cinema", "Stitch", "Atelier", "Journal", "WishStar" })
+            Assert(registry.Contains($"Register(\"{id}\""), $"{id} needs a reserved entry");
         return Task.CompletedTask;
     }
 
@@ -1007,7 +773,6 @@ internal static class AppearanceRuntimeContractTests
         var settingsXaml = ReadSource("Nikkiward", "Features", "Settings", "SettingsPage.xaml");
         var settingsCode = ReadSource("Nikkiward", "Features", "Settings", "SettingsPage.xaml.cs");
         var homeXaml = ReadSource("Nikkiward", "Features", "Settings", "SettingsHomeView.xaml");
-        var launcherXaml = ReadSource("Nikkiward", "Features", "Launcher", "LauncherPage.xaml");
         var launcherCode = ReadSource("Nikkiward", "Features", "Launcher", "LauncherPage.xaml.cs");
 
         foreach (var itemName in new[]
@@ -1049,11 +814,7 @@ internal static class AppearanceRuntimeContractTests
                 RegexOptions.CultureInvariant) &&
             settingsCode.Contains("ApplyDeveloperMode(bool enabled)", StringComparison.Ordinal),
             "developer-only settings need an explicit toggle, collapsed navigation, and a guarded path");
-        Assert(
-            !launcherXaml.Contains("当前运行状态", StringComparison.Ordinal) &&
-            !launcherXaml.Contains("OnStatusClicked", StringComparison.Ordinal) &&
-            !launcherCode.Contains("public event EventHandler? StatusRequested;", StringComparison.Ordinal),
-            "the launcher must not expose the technical status control");
+        Assert(launcherCode.Contains("StatusRequested"), "the skin host must route player-requested diagnostics");
         return Task.CompletedTask;
     }
 
@@ -1203,7 +964,6 @@ internal static class AppearanceRuntimeContractTests
                 $"{retiredKey} must be replaced by the shared theme authority: {string.Join(", ", consumers)}");
         }
 
-        var app = XDocument.Parse(ReadSource("Nikkiward", "App.xaml"));
         var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
         var launcherKeys = sourceXaml
             .SelectMany(file => XDocument.Parse(file.Source).Descendants())
@@ -1211,27 +971,7 @@ internal static class AppearanceRuntimeContractTests
             .Where(key => key?.StartsWith("Launcher", StringComparison.Ordinal) == true)
             .Cast<string>()
             .ToHashSet(StringComparer.Ordinal);
-        Assert(
-            launcherKeys.SetEquals(new[] { "LauncherPaneAcrylicBrush", "LauncherThemeShadow" }),
-            $"only shell rail compatibility keys may remain: {string.Join(", ", launcherKeys.Order())}");
-
-        foreach (var themeName in new[] { "Light", "Dark", "HighContrast" })
-        {
-            var theme = FindThemeDictionary(app, themeName);
-            Assert(
-                FindResource(theme, "LauncherPaneAcrylicBrush") is not null &&
-                FindResource(theme, "NavigationViewDefaultPaneBackground") is not null,
-                $"{themeName} must preserve the shell rail resources");
-        }
-
-        var main = ReadSource("Nikkiward", "MainPage.xaml");
-        Assert(
-            main.Contains("Width=\"56\"", StringComparison.Ordinal) &&
-            main.Contains(
-                "Background=\"{ThemeResource LauncherPaneAcrylicBrush}\"",
-                StringComparison.Ordinal) &&
-            Count(main, "{ThemeResource LauncherThemeShadow}") == 2,
-            "the preserved 56px shell rail must keep its dedicated background and profile shadow resources");
+        Assert(launcherKeys.Count == 0, "old launcher resources are retired");
         return Task.CompletedTask;
     }
 
@@ -1264,83 +1004,20 @@ internal static class AppearanceRuntimeContractTests
                 StringComparison.Ordinal) == true,
             "HighContrast primary action fill must use the system highlight color");
 
-        var launcher = ReadSource("Nikkiward", "Features", "Launcher", "LauncherPage.xaml");
-        var launcherCode = ReadSource("Nikkiward", "Features", "Launcher", "LauncherPage.xaml.cs");
-        var capsuleVisualCode = ReadSource(
-            "Nikkiward",
-            "Controls",
-            "LauncherCapsuleVisual.cs");
-        var controls = ReadSource("Nikkiward", "Themes", "Controls.xaml");
-        var service = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Background",
-            "ArtBackdropService.cs");
-        Assert(
-            launcher.Contains(
-                "{ThemeResource PrimaryActionFillBrush}",
-                StringComparison.Ordinal) &&
-            controls.Contains(
-                "{ThemeResource PrimaryActionFillBrush}",
-                StringComparison.Ordinal) &&
-            controls.Contains(
-                "x:Key=\"PrimaryActionButtonStyle\"",
-                StringComparison.Ordinal) &&
-            service.Contains(
-                "ActionAccentBrushKey = \"PrimaryActionSolidBrush\"",
-                StringComparison.Ordinal),
-            "the page, shared button style, and runtime accent publisher must use the same resource chain");
-        var launcherDocument = XDocument.Parse(launcher);
-        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
-        XElement FindLauncherElement(string name) => launcherDocument
-            .Descendants()
-            .Single(element => element.Attribute(xaml + "Name")?.Value == name);
-        var primaryAction = FindLauncherElement("PrimaryActionSurface");
-        var utilityAction = FindLauncherElement("ActionUtilityPill");
-        var settingsButton = FindLauncherElement("PrimarySettingsButton");
-        static bool HasDuplicateOutline(XElement element) => element
-            .Descendants()
-            .Any(descendant =>
-                descendant.Attribute("BorderBrush")?.Value ==
-                    "{ThemeResource OnArtStrokeBrush}");
-        Assert(
-            !HasDuplicateOutline(primaryAction) &&
-            !HasDuplicateOutline(utilityAction) &&
-            primaryAction.Attribute("Shadow") is null &&
-            utilityAction.Attribute("Shadow") is null &&
-            primaryAction.Attribute("Translation")?.Value == "0,0,32" &&
-            utilityAction.Attribute("Translation")?.Value == "0,0,4",
-            "the two launcher capsules must avoid duplicate outlines and rectangular ThemeShadow spill while keeping their own elevation values");
-        Assert(
-            capsuleVisualCode.Contains(
-                "CanvasGeometry.CreateRoundedRectangle",
-                StringComparison.Ordinal) &&
-            capsuleVisualCode.Contains(
-                "DrawingSession.CreateLayer(1, roundedClip)",
-                StringComparison.Ordinal) &&
-            capsuleVisualCode.IndexOf(
-                "DrawingSession.CreateLayer(1, roundedClip)",
-                StringComparison.Ordinal) < capsuleVisualCode.IndexOf(
-                "DrawingSession.DrawImage(_shader)",
-                StringComparison.Ordinal),
-            "the animated Win2D surface must clip its shader output to rounded bounds before drawing");
-        Assert(
-            settingsButton.Attribute("Foreground")?.Value == "{ThemeResource InkPrimaryBrush}" &&
-            !launcherCode.Contains("PrimarySettingsButton.Foreground", StringComparison.Ordinal),
-            "the launcher settings icon must retain its live ThemeResource foreground");
+        var tokens = XDocument.Parse(ReadSource("Nikkiward", "Features", "Launcher", "Skins", "Cinema", "Tokens.xaml"));
+        foreach (var mode in new[] { "HighContrast", "Dark", "Light" })
+        {
+            var theme = FindThemeDictionary(tokens, mode);
+            foreach (var key in new[] { "HomeSurfaceBrush", "HomeInkBrush", "HomeStrokeBrush" })
+                Assert(FindResource(theme, key) != null, $"{mode} needs {key}");
+        }
         return Task.CompletedTask;
     }
 
     private static Task FocusedFeedbackSurfacesStayCompact()
     {
-        var main = ReadSource("Nikkiward", "MainPage.xaml");
         var navigation = ReadSource("Nikkiward", "MainPage.ShellNavigation.cs");
         var chrome = ReadSource("Nikkiward", "MainPage.ContentNavigation.cs");
-        var backdrop = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Background",
-            "ArtBackdropView.xaml.cs");
         var status = ReadSource("Nikkiward", "Features", "Diagnostics", "StatusPage.xaml");
         var statusCode = ReadSource("Nikkiward", "Features", "Diagnostics", "StatusPage.xaml.cs");
         var settings = ReadSource("Nikkiward", "Features", "Settings", "SettingsPage.xaml");
@@ -1360,7 +1037,6 @@ internal static class AppearanceRuntimeContractTests
             "Features",
             "Settings",
             "GallerySettingsView.xaml");
-        var photoPluginCode = ReadSource("Nikkiward", "MainPage.PhotoPlugin.cs");
         var appearanceSettings = ReadSource(
             "Nikkiward",
             "Features",
@@ -1369,38 +1045,9 @@ internal static class AppearanceRuntimeContractTests
         var gallery = ReadSource("Nikkiward", "Pages", "GalleryPage.xaml");
         var galleryResources = ReadSource("Nikkiward", "Styles", "GalleryResources.xaml");
 
-        Assert(
-            !main.Contains("IsSelected=\"True\"", StringComparison.Ordinal) &&
-            navigation.Contains("SetShellNavigationSelection", StringComparison.Ordinal) &&
-            main.Contains("x:Name=\"ProfileQuickSwitchHost\"", StringComparison.Ordinal) &&
-            main.Contains("x:Name=\"ProfileButton\"", StringComparison.Ordinal) &&
-            main.Contains("Click=\"OnProfileButtonClicked\"", StringComparison.Ordinal) &&
-            chrome.Contains(
-                "profilePickerOpen || launcherSurfaceVisible",
-                StringComparison.Ordinal) &&
-            chrome.Contains("!profilePickerOpen", StringComparison.Ordinal) &&
-            chrome.Contains("SetLauncherSurfaceState(", StringComparison.Ordinal) &&
-            backdrop.Contains(
-                "SetLauncherSurfaceState(bool visible, bool interactionEnabled)",
-                StringComparison.Ordinal),
-            "shell selection must have one programmatic authority and keep the profile switch launcher-scoped");
-        var galleryNavigationIndex = main.IndexOf(
-            "x:Name=\"GalleryNavigationItem\"",
-            StringComparison.Ordinal);
-        var favoritesNavigationIndex = main.IndexOf(
-            "x:Name=\"FavoritesNavigationItem\"",
-            StringComparison.Ordinal);
-        Assert(
-            galleryNavigationIndex >= 0 &&
-            favoritesNavigationIndex > galleryNavigationIndex &&
-            main.Contains(
-                "automation:AutomationProperties.AutomationId=\"GalleryFavoritesNavigationItem\"",
-                StringComparison.Ordinal) &&
-            main.Contains("Tag=\"gallery-favorites\"", StringComparison.Ordinal) &&
-            !main.Contains("x:Name=\"ProfilesNavigationItem\"", StringComparison.Ordinal) &&
-            !main.Contains("Tag=\"profiles\"", StringComparison.Ordinal) &&
-            !navigation.Contains("case \"profiles\":", StringComparison.Ordinal),
-            "the favorites navigation item must follow gallery and the profile picker must stay out of the shell rail");
+        var shell = ReadSource("Nikkiward", "Features", "Shell", "HomeNavigation.xaml");
+        Assert(shell.IndexOf("Tag=\"gallery\"") < shell.IndexOf("Tag=\"gallery-favorites\"") &&
+            navigation.Contains("SetShellNavigationSelection"), "gallery and favorites must keep their order and selection");
         Assert(
             navigation.Contains("case \"gallery-favorites\":", StringComparison.Ordinal) &&
             navigation.Contains(
@@ -1414,13 +1061,6 @@ internal static class AppearanceRuntimeContractTests
                 StringComparison.Ordinal) &&
             chrome.Contains("new GalleryNavigationContext(", StringComparison.Ordinal),
             "gallery and favorites navigation must reuse GalleryPage with explicit view modes");
-        var launcherCode = ReadSource("Nikkiward", "Features", "Launcher", "LauncherPage.xaml.cs");
-        var launcherXaml = ReadSource("Nikkiward", "Features", "Launcher", "LauncherPage.xaml");
-        Assert(
-            launcherCode.Contains("ShellRailWidth = 56", StringComparison.Ordinal) &&
-            launcherCode.Contains("windowWidth = width + ShellRailWidth", StringComparison.Ordinal) &&
-            !launcherXaml.Contains("AdaptiveTrigger MinWindowWidth", StringComparison.Ordinal),
-            "launcher breakpoints must use actual window width from one authority");
         Assert(
             status.Contains("x:Name=\"TechnicalDetailsExpander\"", StringComparison.Ordinal) &&
             status.Contains("IsExpanded=\"False\"", StringComparison.Ordinal) &&
@@ -1448,11 +1088,7 @@ internal static class AppearanceRuntimeContractTests
             gallerySettings.Contains("x:Name=\"RegisterNikkiGalleryButton\"", StringComparison.Ordinal) &&
             gallerySettings.Contains("x:Name=\"OpenNikkiGalleryButton\"", StringComparison.Ordinal) &&
             gallerySettings.Contains("x:Name=\"DisconnectNikkiGalleryButton\"", StringComparison.Ordinal) &&
-            main.Contains("x:Name=\"PhotoPluginNavigationItem\"", StringComparison.Ordinal) &&
-            main.Contains("Visibility=\"Collapsed\"", StringComparison.Ordinal) &&
-            photoPluginCode.Contains(
-                "PhotoPluginNavigationItem.Visibility = Visibility.Collapsed",
-                StringComparison.Ordinal),
+            shell.Contains("Tag=\"photo-plugin\"") && shell.Contains("Visibility=\"Collapsed\""),
             "low-frequency gallery management must remain in settings and outside the primary rail");
         Assert(
             settings.Contains("OpenPaneLength=\"260\"", StringComparison.Ordinal) &&
@@ -1496,8 +1132,6 @@ internal static class AppearanceRuntimeContractTests
             "GallerySettingsView.xaml");
         var gallerySettings = ReadSource("Nikkiward", gallerySettingsPath);
         var gallerySettingsDocument = XDocument.Parse(gallerySettings);
-        var main = XDocument.Parse(ReadSource("Nikkiward", "MainPage.xaml"));
-        var photoPluginCode = ReadSource("Nikkiward", "MainPage.PhotoPlugin.cs");
         var galleryPage = ReadSource("Nikkiward", "Pages", "GalleryPage.xaml");
         var galleryPageCode = string.Join(
             Environment.NewLine,
@@ -1565,16 +1199,9 @@ internal static class AppearanceRuntimeContractTests
                 StringComparison.OrdinalIgnoreCase),
             "favorite protection cleanup must have one explicit entry in gallery settings only");
 
-        var photoPluginItem = FindNamed(main, "PhotoPluginNavigationItem");
-        Assert(
-            string.Equals(
-                (string?)photoPluginItem.Attribute("Visibility"),
-                "Collapsed",
-                StringComparison.Ordinal) &&
-            photoPluginCode.Contains(
-                "PhotoPluginNavigationItem.Visibility = Visibility.Collapsed",
-                StringComparison.Ordinal),
-            "the PhotoPlugin navigation item must remain collapsed in XAML and runtime projection");
+        var shell = XDocument.Parse(ReadSource("Nikkiward", "Features", "Shell", "HomeNavigation.xaml"));
+        Assert((string?)FindNamed(shell, "PhotoPluginNavigationItem").Attribute("Visibility") == "Collapsed",
+            "the plugin entry must stay hidden");
 
         var retiredScreenshotEntries = Directory
             .EnumerateFiles(sourceRoot, "*.xaml", SearchOption.AllDirectories)
@@ -1788,10 +1415,10 @@ internal static class AppearanceRuntimeContractTests
                 StringComparison.Ordinal) &&
             main.ToString().Contains("x:Name=\"NarrowLaunchSettingsHost\"", StringComparison.Ordinal) &&
             main.ToString().Contains(
-                "Target=\"LaunchSettingsFrame.Margin\" Value=\"56,48,8,8\"",
+                "Target=\"LaunchSettingsFrame.Margin\" Value=\"8,48,8,8\"",
                 StringComparison.Ordinal) &&
             mainCode.Contains("ApplyLaunchSettingsHostLayout(e.NewSize.Width)", StringComparison.Ordinal) &&
-            mainCode.Contains("new Thickness(56, 48, 8, 8)", StringComparison.Ordinal),
+            mainCode.Contains("new Thickness(8, 48, 8, 8)", StringComparison.Ordinal),
             "the launch-settings host must shrink with the shell instead of retaining a fixed desktop size");
         Assert(
             launchSettings.ToString().Contains(
@@ -1850,16 +1477,13 @@ internal static class AppearanceRuntimeContractTests
 
     private static Task LauncherCloseActionStaysSeparate()
     {
-        var launcher = ReadSource("Nikkiward", "Features", "Launcher", "LauncherPage.xaml");
+        var launcher = ReadSource("Nikkiward", "Features", "Launcher", "Skins", "Cinema", "CinemaView.xaml");
         var launcherCode = ReadSource("Nikkiward", "Features", "Launcher", "LauncherPage.xaml.cs");
         var commands = ReadSource("Nikkiward", "MainPage.LaunchCommands.cs");
         var hosting = ReadSource("Nikkiward", "MainPage.Hosting.cs");
 
         Assert(
-            launcher.Contains("x:Name=\"CloseGameButton\"", StringComparison.Ordinal) &&
-            launcher.Contains("Click=\"OnCloseGameClicked\"", StringComparison.Ordinal) &&
-            launcher.Contains("automation:AutomationProperties.Name=\"关闭游戏\"", StringComparison.Ordinal) &&
-            launcher.Contains("Visibility=\"{x:Bind ViewModel.CloseGameButtonVisibility}\"", StringComparison.Ordinal),
+            launcher.Contains("Tag=\"close\"") && launcher.Contains("HomeCloseVisibility") && launcher.Contains("HomeCloseEnabled"),
             "the launcher needs an independent close-game button bound to runtime state");
         Assert(
             launcherCode.Contains("CloseGameRequested", StringComparison.Ordinal) &&
@@ -1929,75 +1553,12 @@ internal static class AppearanceRuntimeContractTests
 
     private static Task ProfilePickerUsesSingleAnchoredServerSurface()
     {
-        var picker = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Profile",
-            "ProfilePickerView.xaml");
-        var pickerCode = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Profile",
-            "ProfilePickerView.xaml.cs");
-        var page = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Profile",
-            "ProfilePage.xaml");
-        var pageCode = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Profile",
-            "ProfilePage.xaml.cs");
-        var main = ReadSource("Nikkiward", "MainPage.xaml");
         var profile = ReadSource("Nikkiward", "MainPage.Profile.cs");
-        var showProfileOverlay = FindMethod(profile, "ShowProfileOverlay");
-        var profileButtonHandler = FindMethod(profile, "OnProfileButtonClicked");
-        var quickSwitchVisibility = FindMethod(
-            profile,
-            "SetProfileQuickSwitchRailVisibility");
-        var quickSwitchRailStart = main.IndexOf(
-            "x:Name=\"ProfileQuickSwitchRail\"",
-            StringComparison.Ordinal);
-        var quickSwitchRailContentStart = main.IndexOf(
-            "<ScrollViewer",
-            quickSwitchRailStart,
-            StringComparison.Ordinal);
-        Assert(
-            quickSwitchRailStart >= 0 && quickSwitchRailContentStart > quickSwitchRailStart,
-            "the quick-switch rail header must remain discoverable");
-        var quickSwitchRailHeader = main[quickSwitchRailStart..quickSwitchRailContentStart];
-
-        Assert(
-            picker.Contains("x:Name=\"ServerSelectorSurface\"", StringComparison.Ordinal) &&
-            picker.Contains("Width=\"280\"", StringComparison.Ordinal) &&
-            picker.Contains("Margin=\"12,8,12,12\"", StringComparison.Ordinal) &&
-            picker.Contains("Background=\"{ThemeResource GlassIslandBrush}\"", StringComparison.Ordinal) &&
-            picker.Contains("x:Name=\"ServerCountText\"", StringComparison.Ordinal) &&
-            picker.Contains("x:Name=\"ServerOptionButton\"", StringComparison.Ordinal) &&
-            picker.Contains("Height=\"48\"", StringComparison.Ordinal) &&
-            picker.Contains("ItemsSource=\"{x:Bind ServerOptions}\"", StringComparison.Ordinal) &&
-            Count(picker, "Source=\"Assets/NikkiGameIcon.png\"") == 2 &&
-            picker.Contains("<Style TargetType=\"ContentPresenter\">", StringComparison.Ordinal) &&
-            picker.Contains("Property=\"HorizontalAlignment\" Value=\"Stretch\"", StringComparison.Ordinal) &&
-            picker.Contains("Property=\"HorizontalContentAlignment\" Value=\"Stretch\"", StringComparison.Ordinal) &&
-            picker.Contains("Text=\"{x:Bind ServerName}\"", StringComparison.Ordinal) &&
-            picker.Contains("Tag=\"{x:Bind ProfileId}\"", StringComparison.Ordinal) &&
-            picker.Contains("SubtleFillColorSecondaryBrush", StringComparison.Ordinal) &&
-            picker.Contains("Visibility=\"{x:Bind SelectionVisibility}\"", StringComparison.Ordinal) &&
-            !picker.Contains("ActualWidth", StringComparison.Ordinal) &&
-            !picker.Contains("GameServerCard", StringComparison.Ordinal) &&
-            !picker.Contains("<Button.Flyout>", StringComparison.Ordinal) &&
-            !picker.Contains("<Flyout", StringComparison.Ordinal) &&
-            !picker.Contains("Width=\"420\"", StringComparison.Ordinal) &&
-            !picker.Contains("DiscoveredServersText", StringComparison.Ordinal),
-            "the everyday profile surface must expose direct server rows in one compact anchored panel");
-        Assert(
-            !picker.Contains("CapabilitySummary", StringComparison.Ordinal) &&
-            !picker.Contains("PlatformEvidence", StringComparison.Ordinal) &&
-            !picker.Contains("GameRootPath", StringComparison.Ordinal) &&
-            !picker.Contains("VerifiedOneClick", StringComparison.Ordinal),
-            "technical capability and path evidence must stay out of the everyday server picker");
+        var shell = ReadSource("Nikkiward", "MainPage.xaml");
+        Assert(profile.Contains("new ProfilePickerView(ViewModel)") && profile.Contains("_profileFlyout.ShowAt(anchor)") &&
+            profile.Contains("picker.ProfileSelected += OnProfileSelected") && !shell.Contains("ProfileQuickSwitchRail"),
+            "all home skins must open the shared profile selector at the invoking button");
+        var pickerCode = ReadSource("Nikkiward", "Features", "Profile", "ProfilePickerView.xaml.cs");
         Assert(
             pickerCode.Contains("\"中国服\"", StringComparison.Ordinal) &&
             pickerCode.Contains("\"国际服\"", StringComparison.Ordinal) &&
@@ -2005,41 +1566,6 @@ internal static class AppearanceRuntimeContractTests
             pickerCode.Contains("ViewModel.DeveloperModeEnabled", StringComparison.Ordinal) &&
             pickerCode.Contains("ServerCountText.Text = $\"{ServerOptions.Count} 个服务器\"", StringComparison.Ordinal),
             "the picker must project the three user-facing channels and keep details developer-gated");
-        Assert(
-            page.Contains("HorizontalContentAlignment=\"Stretch\"", StringComparison.Ordinal) &&
-            page.Contains("VerticalContentAlignment=\"Stretch\"", StringComparison.Ordinal) &&
-            pageCode.Contains("_picker.HorizontalAlignment = HorizontalAlignment.Stretch", StringComparison.Ordinal) &&
-            pageCode.Contains("_picker.VerticalAlignment = VerticalAlignment.Stretch", StringComparison.Ordinal) &&
-            main.Contains("Margin=\"56,0,0,0\"", StringComparison.Ordinal),
-            "the compact selector must remain anchored beside the shell game icon");
-        Assert(
-            main.Contains("x:Name=\"ProfileOverlayScrim\"", StringComparison.Ordinal) &&
-            main.Contains("Background=\"#30000000\"", StringComparison.Ordinal) &&
-            Count(main, "Source=\"Assets/NikkiGameIcon.png\"") == 2 &&
-            main.Contains("Canvas.ZIndex=\"10\"", StringComparison.Ordinal) &&
-            quickSwitchRailHeader.Contains("Visibility=\"Collapsed\"", StringComparison.Ordinal) &&
-            profileButtonHandler.Contains("ShowProfileOverlay();", StringComparison.Ordinal) &&
-            profileButtonHandler.Contains("ShowLauncher();", StringComparison.Ordinal) &&
-            !profile.Contains("selectNavigationItem", StringComparison.Ordinal) &&
-            !profile.Contains("ProfilesNavigationItem", StringComparison.Ordinal) &&
-            profile.Contains(
-                "if (ProfileOverlayScrim.Visibility == Visibility.Visible)",
-                StringComparison.Ordinal) &&
-            showProfileOverlay.Contains(
-                "SetProfileQuickSwitchRailVisibility(false)",
-                StringComparison.Ordinal) &&
-            !showProfileOverlay.Contains(
-                "SetProfileQuickSwitchRailVisibility(true)",
-                StringComparison.Ordinal) &&
-            quickSwitchVisibility.Contains(
-                "ProfileQuickSwitchRail.Visibility = isVisible",
-                StringComparison.Ordinal) &&
-            profile.Contains("OnProfileOverlayMaskTapped", StringComparison.Ordinal) &&
-            profile.Contains("OnProfileCloseRequested", StringComparison.Ordinal) &&
-            Count(profile, "ShowLauncher();") >= 3 &&
-            profile.Contains("ProfileOverlayScrim.Visibility = Visibility.Visible", StringComparison.Ordinal) &&
-            profile.Contains("ProfileOverlayScrim.Visibility = Visibility.Collapsed", StringComparison.Ordinal),
-            "the selector must preserve one top-left game icon, suppress the shortcut rail, and use a light scrim");
         return Task.CompletedTask;
     }
 

@@ -12,22 +12,6 @@
             x:Name="RootFrame"
             IsNavigationStackEnabled="False" />
 
-        <Grid
-            Height="48"
-            VerticalAlignment="Top"
-            IsHitTestVisible="False">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="56" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="160" />
-            </Grid.ColumnDefinitions>
-
-            <Border
-                x:Name="AppTitleBar"
-                Grid.Column="1"
-                Background="Transparent"
-                IsHitTestVisible="True" />
-        </Grid>
         <InfoBar
             x:Name="TrayError"
             Margin="16,0,16,16"

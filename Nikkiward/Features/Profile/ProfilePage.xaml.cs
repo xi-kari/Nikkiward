@@ -6,23 +6,13 @@ namespace Nikkiward.Features.Profile;
 
 public sealed partial class ProfilePage : PageBase
 {
-    private ProfilePickerView? _picker;
     private ProfileDetailsView? _detailsView;
 
     public override string PageTitle => "Profile 与渠道";
 
-    public FrameworkElement? OnArtHost => _picker;
-
-    public bool IsDetailsVisible =>
-        DetailsScrollViewer.Visibility == Visibility.Visible;
-
     public event EventHandler? DiscoverRequested;
 
     public event EventHandler<ProfileSelectedEventArgs>? ProfileSelected;
-
-    public event EventHandler? DetailsRequested;
-
-    public event EventHandler? CloseRequested;
 
     public event EventHandler? ChooseGameRootRequested;
 
@@ -50,18 +40,6 @@ public sealed partial class ProfilePage : PageBase
             throw new InvalidOperationException("Profile navigation context is required.");
         }
 
-        if (_picker is null)
-        {
-            _picker = new ProfilePickerView(context.ViewModel);
-            _picker.HorizontalAlignment = HorizontalAlignment.Stretch;
-            _picker.VerticalAlignment = VerticalAlignment.Stretch;
-            _picker.DiscoverRequested += OnDiscoverRequested;
-            _picker.ProfileSelected += OnProfileSelected;
-            _picker.DetailsRequested += OnDetailsRequested;
-            _picker.CloseRequested += OnCloseRequested;
-            PageRoot.Children.Add(_picker);
-        }
-
         if (_detailsView is null)
         {
             _detailsView = new ProfileDetailsView(context.ViewModel);
@@ -86,23 +64,9 @@ public sealed partial class ProfilePage : PageBase
     private void OnProfileSelected(object? sender, ProfileSelectedEventArgs e) =>
         ProfileSelected?.Invoke(this, e);
 
-    private void OnDetailsRequested(object? sender, EventArgs e) =>
-        DetailsRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnCloseRequested(object? sender, EventArgs e) =>
-        CloseRequested?.Invoke(this, EventArgs.Empty);
-
     public void ShowDetails()
     {
-        PageRoot.Visibility = Visibility.Collapsed;
-        DetailsScrollViewer.Visibility = Visibility.Visible;
         DetailsScrollViewer.ChangeView(null, 0, null, true);
-    }
-
-    public void ShowPicker()
-    {
-        DetailsScrollViewer.Visibility = Visibility.Collapsed;
-        PageRoot.Visibility = Visibility.Visible;
     }
 
     private void OnChooseGameRootRequested(object? sender, EventArgs e) =>
