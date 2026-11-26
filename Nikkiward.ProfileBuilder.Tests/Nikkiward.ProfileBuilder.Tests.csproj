@@ -142,6 +142,9 @@
     <Compile Include="JournalDomainTests.cs" />
     <Compile Include="JournalSnapshotTests.cs" />
     <Compile Include="WishHistoryDomainTests.cs" />
+    <Compile Include="..\Nikkiward\Features\Pages\Settings\*.cs" Exclude="..\Nikkiward\Features\Pages\Settings\*.Native.cs" LinkBase="Features\Pages\Settings" />
+    <Compile Include="..\Nikkiward\Features\Settings\SettingsNavigationContext.cs" LinkBase="Features\Settings" />
+    <Compile Include="SettingsPageTests.cs" />
     <Compile Include="UpdateReleaseTests.cs" />
     <Compile Include="AboutSettingsContractTests.cs" />
     <Compile Include="ContractRefreshTool.cs" />

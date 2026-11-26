@@ -251,7 +251,7 @@ internal static class UpdateReleaseTests
         {
             CreateValidPayloadFixture(root, payloadRoot);
             var valid = await RunPayloadValidatorAsync(root, payloadRoot);
-            AssertEqual(0, valid.ExitCode, "valid release payload");
+            AssertEqual(0, valid.ExitCode, $"valid release payload: {valid.Output}");
             AssertContains(valid.Output, "PAYLOAD_VERIFY=PASS", "valid release payload result");
 
             foreach (var name in new[] { "index.html", "home.css", "home.js" })
@@ -284,6 +284,9 @@ internal static class UpdateReleaseTests
                 ("ProtectedFavorites\\object.bin", "object"),
                 ("ArtCache\\blur.jpg", "cache"),
                 ("settings.json", "{}"),
+                ("Web\\pages\\settings\\private.json", "{}"),
+                ("Settings\\page.js", "private"),
+                ("Assets\\HomeSkins\\Cinema.jpg", "duplicate preview"),
                 ("Web\\skins\\atelier\\extra.js", ""),
                 ("Web.dev\\atelier\\cases.js", ""),
                 ("Web\\fonts\\extra.woff2", ""),
@@ -393,6 +396,11 @@ internal static class UpdateReleaseTests
         foreach (var file in new[] { "NikkiDefaultBackground.jpg", "NikkiPresetBackground2.jpg" })
             File.Copy(Path.Combine(root, "Nikkiward", "Assets", file), Path.Combine(art.FullName, file));
 
+        var previews = art.CreateSubdirectory("HomeSkins");
+        foreach (var id in new[] { "Atelier", "Cinema", "Journal", "Stitch", "WishStar" })
+            File.Copy(Path.Combine(root, "Nikkiward", "Assets", "HomeSkins", id + ".jpg"),
+                Path.Combine(previews.FullName, id + ".jpg"));
+
         foreach (var relativePath in new[]
         {
             "Assets\\NikkiwardIcon.ico",
@@ -404,12 +412,7 @@ internal static class UpdateReleaseTests
             "Web\\skins\\atelier\\index.html",
             "Web\\skins\\atelier\\home.css",
             "Web\\skins\\atelier\\home.js",
-            "Assets\\HomeSkins\\Atelier.jpg",
-            "Assets\\HomeSkins\\Cinema.jpg",
-            "Assets\\HomeSkins\\Journal.jpg",
             "Assets\\HomeSkins\\JournalPaperGrain.png",
-            "Assets\\HomeSkins\\Stitch.jpg",
-            "Assets\\HomeSkins\\WishStar.jpg",
             "Assets\\HomeSkins\\WishStarIrisRing.png",
             "Assets\\DefaultFavorites\\01.jpg",
             "Assets\\DefaultFavorites\\02.jpg",

@@ -53,6 +53,12 @@ foreach ($file in $files) {
     }
 }
 
+$webHashes = @{}
+foreach ($line in Get-Content -LiteralPath (Join-Path $PSScriptRoot 'WebFonts.sha256'), (Join-Path $PSScriptRoot 'WebSkins.sha256')) {
+    $hash, $path = $line -split '  ', 2
+    $webHashes.Add($path.Replace('/', '\'), $hash)
+}
+
 $blockedDirectoryNames = @(
     'Plugins',
     'Web.dev',
@@ -80,6 +86,9 @@ $blockedExtensionPattern = '(?i)^(\.pdb|\.log|\.cache|\.cookie|\.token|\.sqlite|
 $blockedPathRecords = @(
     $records.Values | Where-Object {
         $parts = $_.RelativePath -split '\\'
+        if ($_.RelativePath -like 'Web\pages\settings\*' -and $webHashes.ContainsKey($_.RelativePath)) {
+            $parts = $parts | Select-Object -Skip 3
+        }
         ($parts | Where-Object { $blockedDirectoryNames -contains $_ }).Count -gt 0 -or
         $blockedFileNames -contains ([IO.Path]::GetFileName($_.RelativePath).ToLowerInvariant()) -or
         ([IO.Path]::GetExtension($_.RelativePath) -match $blockedExtensionPattern) -or
@@ -121,29 +130,20 @@ if ($unexpectedExecutablePaths.Count -gt 0) {
 }
 
 $webArt = @('Web\art\NikkiDefaultBackground.jpg', 'Web\art\NikkiPresetBackground2.jpg')
-$webHomeFiles = $webArt
-$webHashes = @{}
-foreach ($line in Get-Content -LiteralPath (Join-Path $PSScriptRoot 'WebFonts.sha256'), (Join-Path $PSScriptRoot 'WebSkins.sha256')) {
-    $hash, $path = $line -split '  ', 2
-    $webHashes.Add($path.Replace('/', '\'), $hash)
-}
+$webPreviews = 'Atelier','Cinema','Journal','Stitch','WishStar' | ForEach-Object { "Web\art\HomeSkins\$_.jpg" }
+$webHomeFiles = $webArt + $webPreviews
 $extraWebFiles = @($records.Keys | Where-Object { $_ -like 'Web\*' -and $_ -notin $webHomeFiles -and !$webHashes.ContainsKey($_) })
 if ($extraWebFiles.Count) {
     throw "Release payload web home allowlist rejected: $($extraWebFiles -join ', ')"
 }
-$allowedMediaPaths = $webArt + @($webHashes.Keys) + @(
+$allowedMediaPaths = $webHomeFiles + @($webHashes.Keys) + @(
     'Assets\NikkiDefaultBackground.jpg',
     'Assets\NikkiPresetBackground2.jpg',
     'Assets\NikkiDefaultBackgroundBlur.jpg',
     'Assets\NikkiGameIcon.png',
     'Assets\NikkiwardIcon.ico',
     'Assets\XikariAvatar.jpg',
-    'Assets\HomeSkins\Atelier.jpg',
-    'Assets\HomeSkins\Cinema.jpg',
-    'Assets\HomeSkins\Journal.jpg',
     'Assets\HomeSkins\JournalPaperGrain.png',
-    'Assets\HomeSkins\Stitch.jpg',
-    'Assets\HomeSkins\WishStar.jpg',
     'Assets\HomeSkins\WishStarIrisRing.png',
     'Assets\DefaultFavorites\01.jpg',
     'Assets\DefaultFavorites\02.jpg',
@@ -185,12 +185,12 @@ $requiredHashes = [ordered]@{
     'Assets\NikkiGameIcon.png' = '58F6FF748453DF0509C050D35FF1B109D96DFCBB2910F8076FA604E1D1A4E103'
     'Assets\NikkiwardIcon.ico' = '984927AC315620ED7F3668B157C5CB11D5127C4E19217CAADEAC17B7EC3280BE'
     'Assets\XikariAvatar.jpg' = '56AD9D85D6AAB0828BA7BF279AFE1D0AE4271DCD3550C835C7BB0394E46CEEED'
-    'Assets\HomeSkins\Atelier.jpg' = '9BC42BE066032CC82136972A848FC5CE8C863B31A9915FAD087535AA8856323C'
-    'Assets\HomeSkins\Cinema.jpg' = 'F13B54720F724FD7527A02DEAD0385A75C8F548392214D65AEFA220AFF06F0C4'
-    'Assets\HomeSkins\Journal.jpg' = '9C45C1640617821353253CF5307E37D8ADF49AA4096F470E5DB9173DDE597A98'
+    'Web\art\HomeSkins\Atelier.jpg' = '9BC42BE066032CC82136972A848FC5CE8C863B31A9915FAD087535AA8856323C'
+    'Web\art\HomeSkins\Cinema.jpg' = 'F13B54720F724FD7527A02DEAD0385A75C8F548392214D65AEFA220AFF06F0C4'
+    'Web\art\HomeSkins\Journal.jpg' = '9C45C1640617821353253CF5307E37D8ADF49AA4096F470E5DB9173DDE597A98'
     'Assets\HomeSkins\JournalPaperGrain.png' = '13EAF5D97C175E39D790B5F405050C31FC750DBF185680037195AE6C786ED1FE'
-    'Assets\HomeSkins\Stitch.jpg' = '56C85EFC9171D6117DAF743C4E698B913A12C9A8EBDA445F1FF1FF29C458239C'
-    'Assets\HomeSkins\WishStar.jpg' = '5F55CFABFAD81C059E1E222AA95F2BEF478E5F238542A605A4F180CB1765E928'
+    'Web\art\HomeSkins\Stitch.jpg' = '56C85EFC9171D6117DAF743C4E698B913A12C9A8EBDA445F1FF1FF29C458239C'
+    'Web\art\HomeSkins\WishStar.jpg' = '5F55CFABFAD81C059E1E222AA95F2BEF478E5F238542A605A4F180CB1765E928'
     'Assets\HomeSkins\WishStarIrisRing.png' = '1F7DE8F8A1F79B725B6AF6FD57D31467B66BD640607C07584416FBE2E17A1C4C'
     'Assets\DefaultFavorites\01.jpg' = '21093DD12A21385F76AD57819FF1EB2A80AF751579CB50EAF3C598BC0768F902'
     'Assets\DefaultFavorites\02.jpg' = '0FC974EE740B09D5E620F2AC34EB23126D56E8E957422BC580CB35C5AADBBB22'

@@ -11,7 +11,7 @@ const note = $('#note');
 const overlayButtons = {switcher:$('#profileBtn'), palette:$('#cmdBtn')};
 const motion = matchMedia('(prefers-reduced-motion: reduce)');
 let recentPhotos = [];
-let profileKey, timer, idleAllowed = false;
+let profileKey, timer, idleAllowed = false, idleSeconds = 8;
 
 function element(tag, value, cls) {
   const node = document.createElement(tag);
@@ -204,6 +204,10 @@ function render(s) {
   renderProfiles(s);
   renderPhotos(s);
   if (win.dataset.ov === 'palette') renderPalette();
+  if (idleSeconds !== (s.idleSeconds ?? 8)) {
+    idleSeconds = s.idleSeconds ?? 8;
+    wake();
+  }
   updateIdle();
 }
 
@@ -225,7 +229,7 @@ function setIdle(on) {
 function wake() {
   if (win.classList.contains('idle')) setIdle(false);
   clearTimeout(timer);
-  if (idleAllowed) timer = setTimeout(() => setIdle(true),8000);
+  if (idleAllowed && idleSeconds) timer = setTimeout(() => setIdle(true),idleSeconds * 1000);
 }
 function updateIdle() {
   const s = currentState;
@@ -270,7 +274,7 @@ const commands = [
   ['前往','相册','nav-gallery'], ['前往','收藏','nav-gallery-favorites'], ['前往','照片工坊 · 最近一张','photo'],
   ['前往','奇想手账','nav-library'], ['前往','心愿共鸣记录','nav-resonance'], ['前往','设置','nav-settings'],
   ['背景','换成「花信」','blossom'], ['背景','换成「海月」','tide'], ['背景','恢复默认背景','reset'],
-  ['背景','进入鉴赏模式','idle','闲置 8 秒也会进入'], ['背景','更换背景','background'], ['工具','后台任务','download'],
+  ['背景','进入鉴赏模式','idle'], ['背景','更换背景','background'], ['工具','后台任务','download'],
   ['工具','今日清单','check'], ['工具','提醒','reminder'], ['工具','固定链接','link']
 ];
 let selected = 0;

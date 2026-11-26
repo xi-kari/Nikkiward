@@ -296,6 +296,8 @@ internal sealed class WebHomeView : UserControl, IDisposable
         });
     }
 
+    private int? _sentIdleSeconds;
+
     private void SendState()
     {
         var art = _host.ViewModel.HomeArtKey;
@@ -331,7 +333,7 @@ internal sealed class WebHomeView : UserControl, IDisposable
             _photos[i] = photo with { Session = session };
         }
         var planner = _shell.Planner;
-        var state = WebHomeState.Create(model, theme == ArtPreferredTheme.Dark ? "dark" : "light", accent, still, _photos) with {
+        var state = WebHomeState.Create(model, theme == ArtPreferredTheme.Dark ? "dark" : "light", accent, still, model.AppearanceSettings.ShowRecentPhotos ? _photos : Array.Empty<HomePhoto>()) with {
             Skin = _skin,
             Checklist = _last?.Checklist is { } saved && saved.Items == planner.Items ? saved : HomeChecklist.From(planner.Items),
             Links = planner.Links, Reminders = planner.Reminders, PhotoTotal = times?.Length,
@@ -339,10 +341,18 @@ internal sealed class WebHomeView : UserControl, IDisposable
             SessionStarted = model.HomeState == LaunchButtonState.Running ? started : null,
             JournalSnapshotDate = _shell.SnapshotDay, LastSessionPhotos = PlayTimeLedger.CountPhotos(times, previous), CurrentSessionPhotos = PlayTimeLedger.CountPhotos(times, current),
             Background = _cover, Palette = [$"#{backdrop.DerivedAccentLight & 0xffffff:X6}", $"#{backdrop.DerivedAccentDark & 0xffffff:X6}"], ProfileOpen = _shell.HomeProfileOpen };
-        if (_last is { } last && state.Profiles.SequenceEqual(last.Profiles) && state.Palette.SequenceEqual(last.Palette) && state.Components.SequenceEqual(last.Components) &&
+        var idleSeconds = model.AppearanceSettings.AppreciationDelaySeconds;
+        if ((_skin != "cinema" || idleSeconds == _sentIdleSeconds) && _last is { } last && state.Profiles.SequenceEqual(last.Profiles) && state.Palette.SequenceEqual(last.Palette) && state.Components.SequenceEqual(last.Components) &&
             (state with { Profiles = last.Profiles, Palette = last.Palette, Components = last.Components }) == last) return;
         var message = _last?.Photos == state.Photos && _last?.CurrentSessionPhotos.HasValue == state.CurrentSessionPhotos.HasValue ? state with { Photos = null } : state;
-        _web.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(message, WebHomeBridge.Json));
+        if (_skin == "cinema")
+        {
+            var json = JsonSerializer.SerializeToNode(message, WebHomeBridge.Json)!;
+            json["idleSeconds"] = idleSeconds;
+            _web.CoreWebView2.PostWebMessageAsJson(json.ToJsonString());
+            _sentIdleSeconds = idleSeconds;
+        }
+        else _web.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(message, WebHomeBridge.Json));
         _last = state;
     }
 

@@ -5,7 +5,7 @@ namespace Nikkiward.Features.Launcher.Skins;
 
 public sealed record HomeSkin(string Id, string Name, Func<UserControl> Create)
 {
-    public string Preview => $"ms-appx:///Assets/HomeSkins/{Id}.jpg";
+    public string Preview => $"ms-appx:///Web/art/HomeSkins/{Id}.jpg";
     public Uri Tokens => new($"ms-appx:///Features/Launcher/Skins/{(Id == "Atelier" ? Id : "Cinema")}/Tokens.xaml");
     public bool LeftEdge => Id == "Journal";
 }
