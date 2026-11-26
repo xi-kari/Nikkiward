@@ -241,7 +241,7 @@ public static class WishHistoryProjector
     }
 }
 
-public sealed class WishHistoryStore
+public sealed partial class WishHistoryStore
 {
     public const int CurrentSchemaVersion = 1;
 
@@ -271,11 +271,6 @@ public sealed class WishHistoryStore
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!File.Exists(HistoryPath))
-        {
-            return new WishHistoryStoreSnapshot();
-        }
-
         try
         {
             await using var stream = new FileStream(
@@ -285,17 +280,16 @@ public sealed class WishHistoryStore
                 FileShare.Read | FileShare.Delete,
                 32 * 1024,
                 FileOptions.Asynchronous | FileOptions.SequentialScan);
-            var snapshot = await JsonSerializer.DeserializeAsync<WishHistoryStoreSnapshot>(
-                stream,
-                WishHistoryJsonTypeInfo,
-                cancellationToken).ConfigureAwait(false);
-            return snapshot?.SchemaVersion == CurrentSchemaVersion
-                ? snapshot
-                : new WishHistoryStoreSnapshot();
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
+            return ReadSnapshot(document.RootElement, "本机心愿历史");
         }
-        catch (JsonException)
+        catch (IOException ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
         {
             return new WishHistoryStoreSnapshot();
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidDataException("本机心愿历史 JSON 损坏，原文件已保留。", ex);
         }
     }
 
@@ -319,18 +313,29 @@ public sealed class WishHistoryStore
         var root = document.RootElement;
         if (root.ValueKind != JsonValueKind.Object ||
             !root.TryGetProperty("format", out var format) || format.ValueKind != JsonValueKind.String || !format.ValueEquals("nikkiward-wish-v1") ||
-            !root.TryGetProperty("history", out var history) || history.ValueKind != JsonValueKind.Object ||
-            !history.TryGetProperty("schemaVersion", out var version) || version.ValueKind != JsonValueKind.Number ||
-            !version.TryGetInt32(out var schema) || schema != CurrentSchemaVersion ||
-            !history.TryGetProperty("entries", out var entries) || entries.ValueKind != JsonValueKind.Array)
+            !root.TryGetProperty("history", out var history))
             throw new InvalidDataException("请选择 Nikkiward 导出的心愿共鸣 JSON 文件。");
+
+        var snapshot = ReadSnapshot(history, "导入文件");
+        return await SaveAsync(snapshot.Entries, snapshot.Summary, DateTimeOffset.UtcNow, true, default);
+    }
+
+    private static WishHistoryStoreSnapshot ReadSnapshot(JsonElement history, string source)
+    {
+        if (history.ValueKind != JsonValueKind.Object ||
+            !history.TryGetProperty("schemaVersion", out var version) || version.ValueKind != JsonValueKind.Number ||
+            !version.TryGetInt32(out var schema))
+            throw new InvalidDataException($"{source}缺少有效版本号，未修改本机历史。");
+        if (schema != CurrentSchemaVersion)
+            throw new InvalidDataException($"{source}版本 {schema} 不受支持，未修改本机历史。");
+        if (!history.TryGetProperty("entries", out var entries) || entries.ValueKind != JsonValueKind.Array)
+            throw new InvalidDataException($"{source}的 entries 应为记录数组，未修改本机历史。");
 
         var snapshot = history.Deserialize(WishHistoryJsonTypeInfo)!;
         if (snapshot.Entries.Any(e => e == null || string.IsNullOrWhiteSpace(e.StableId) ||
             e.TimestampUtc == default || e.Rarity is < 1 or > 5))
-            throw new InvalidDataException("文件包含无效的共鸣记录。");
-
-        return await SaveAsync(snapshot.Entries, snapshot.Summary, DateTimeOffset.UtcNow, true, default);
+            throw new InvalidDataException($"{source}包含无效的共鸣记录，未修改本机历史。");
+        return snapshot;
     }
 
     public Task<WishHistoryStoreSnapshot> MergeAndSaveAsync(

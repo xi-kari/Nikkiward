@@ -10,19 +10,37 @@ namespace Nikkiward.Services;
 /// </summary>
 internal static class Win32FolderDialog
 {
+    private const uint FosStrictFileTypes = 0x4;
+    private const uint FosNoTestFileCreate = 0x10000;
+    private const uint FosOverwritePrompt = 0x2;
     private const uint FosPickFolders = 0x20;
     private const uint FosForceFileSystem = 0x40;
     private const uint SigdnFileSysPath = 0x80058000;
     private const int HResultCancelled = unchecked((int)0x800704C7);
 
-    public static string? PickFolder(nint ownerWindowHandle, string title)
+    public static string? PickFolder(nint ownerWindowHandle, string title) =>
+        Pick(ownerWindowHandle, title, null);
+
+    internal static string? PickJsonSavePath(nint ownerWindowHandle, string suggestedName) =>
+        Pick(ownerWindowHandle, "导出心愿共鸣记录", suggestedName);
+
+    private static string? Pick(nint ownerWindowHandle, string title, string? suggestedName)
     {
         IFileDialog? dialog = null;
         try
         {
-            dialog = (IFileDialog)new FileOpenDialogRcw();
+            dialog = suggestedName is null ? (IFileDialog)new FileOpenDialogRcw() : (IFileDialog)new FileSaveDialogRcw();
             dialog.GetOptions(out var options);
-            dialog.SetOptions(options | FosPickFolders | FosForceFileSystem);
+            if (suggestedName is null)
+                options |= FosPickFolders;
+            else
+            {
+                options |= FosNoTestFileCreate | FosOverwritePrompt | FosStrictFileTypes;
+                dialog.SetFileTypes(1, [new FilterSpec { Name = "JSON", Pattern = "*.json" }]);
+                dialog.SetDefaultExtension("json");
+                dialog.SetFileName(suggestedName);
+            }
+            dialog.SetOptions(options | FosForceFileSystem);
             dialog.SetTitle(title);
 
             var hr = dialog.Show(ownerWindowHandle);
@@ -67,6 +85,19 @@ internal static class Win32FolderDialog
     {
     }
 
+    [ComImport]
+    [Guid("C0B4E2F3-BA21-4773-8DBA-335EC946EB8B")]
+    private class FileSaveDialogRcw
+    {
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct FilterSpec
+    {
+        [MarshalAs(UnmanagedType.LPWStr)] public string Name;
+        [MarshalAs(UnmanagedType.LPWStr)] public string Pattern;
+    }
+
     // Vtable order mirrors IModalWindow + IFileDialog exactly; unused members
     // are declared only to keep the slots aligned.
     [ComImport]
@@ -77,7 +108,7 @@ internal static class Win32FolderDialog
         [PreserveSig]
         int Show(nint parent);
 
-        void SetFileTypes(uint cFileTypes, nint rgFilterSpec);
+        void SetFileTypes(uint cFileTypes, [In, MarshalAs(UnmanagedType.LPArray, SizeParamIndex = 0)] FilterSpec[] rgFilterSpec);
 
         void SetFileTypeIndex(uint iFileType);
 

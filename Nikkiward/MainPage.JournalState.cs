@@ -145,42 +145,11 @@ public sealed partial class MainPage
         }
 
         var imported = WishHistoryCaptureAdapter.FromRows(rows, snapshot.CapturedAtUtc);
-        await MergeWishHistoryAsync(
-            imported,
-            BuildWishSummary(snapshot),
-            snapshot.CapturedAtUtc,
-            cancellationToken);
-    }
-
-    private async Task MergeWishHistoryAsync(
-        IEnumerable<WishHistoryEntry> imported,
-        WishHistorySummary? summary,
-        DateTimeOffset capturedAtUtc,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var snapshot = await _wishHistoryStore.MergeAndSaveAsync(
-                imported,
-                summary,
-                capturedAtUtc,
-                cancellationToken);
-            _wishHistoryProjection = WishHistoryProjector.Project(
-                snapshot.Entries,
-                snapshot.Summary,
-                TimeZoneInfo.Local);
-            _wishHistoryCapturedAtUtc = snapshot.CapturedAtUtc;
-            ApplyWishHistoryProjection(_wishHistoryProjection, snapshot.CapturedAtUtc);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            ViewModel.ReportUiError(
-                $"心愿历史保存失败：{ex.GetType().Name}: {ex.Message}");
-        }
+        var history = await _wishHistoryStore.MergeAndSaveAsync(
+            imported, BuildWishSummary(snapshot), snapshot.CapturedAtUtc, cancellationToken);
+        _wishHistoryProjection = WishHistoryProjector.Project(history.Entries, history.Summary, TimeZoneInfo.Local);
+        _wishHistoryCapturedAtUtc = history.CapturedAtUtc;
+        ApplyWishHistoryProjection(_wishHistoryProjection, history.CapturedAtUtc);
     }
 
     private void ApplyWishHistoryProjection(
