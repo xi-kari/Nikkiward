@@ -59,6 +59,7 @@ internal static class Program
             .Concat(AppearanceSettingsTests.All)
             .Concat(ApplicationSettingsTests.All)
             .Concat(WindowLifecycleTests.All)
+            .Concat(GameBarGuideTests.All)
             .Concat(AppearanceRuntimeContractTests.All)
             .Concat(CardBorderGlowProjectionTests.All)
             .Concat(HolographicBackdropProjectionTests.All)

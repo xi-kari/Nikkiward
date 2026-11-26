@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Nikkiward.Features.Gallery;
 using Nikkiward.Models;
 using Nikkiward.Services;
 
@@ -18,6 +19,10 @@ internal static class ApplicationSettingsTests
         (nameof(ExitAfterSettingsDeletionKeepsFileDeleted), ExitAfterSettingsDeletionKeepsFileDeleted),
         ("cache clearing preserves the browser session and optional backgrounds", CacheClearingPreservesSession),
         ("data backup contains durable settings records", BackupContainsDurableRecords),
+        ("data backup skips an overlapping browser profile", BackupSkipsBrowserProfile),
+        ("data backup includes registered protection manifests inside the data folder", BackupIncludesLocalProtectionManifest),
+        ("cancelling an in-progress backup leaves no partial archive", CancelInProgressBackup),
+        ("a failed backup leaves no partial archive", FailedBackupLeavesNoArchive),
         ("data backups remain unique within the same timestamp", BackupsRemainUnique),
         ("data root selection requires a migrated settings file", DataRootSelectionRequiresSettings),
     ];
@@ -262,20 +267,146 @@ internal static class ApplicationSettingsTests
         var dataRoot = Path.Combine(fixture.Path, "Nikkiward");
         var settingsPath = Path.Combine(dataRoot, "settings.json");
         var browserPath = Path.Combine(dataRoot, "JournalWebView2");
-        WriteBytes(settingsPath, 23);
-        WriteBytes(Path.Combine(dataRoot, "JournalCache", "journal-snapshot.json"), 29);
-        WriteBytes(Path.Combine(dataRoot, "GalleryCache", "Thumbnails", "thumb.jpg"), 31);
+        string[] records =
+        [
+            "settings.json",
+            "settings.pre-schema6.rollback.json",
+            "settings.pre-schema7.rollback.json",
+            "JournalCache/journal-snapshot.json",
+            "JournalCache/resonance-history.json",
+            "WishHistory/wish-history.json",
+            "Gallery/stars.json",
+            "Gallery/default-favorites-v1.seed",
+            "Gallery/protection-settings.json",
+            "Gallery/ProtectedFavorites/manifest.json",
+            "ExternalTools/nikkigallery.json",
+            "Plugins/nikkiward.photo-album-importer/plugin.json",
+        ];
+        foreach (var record in records)
+        {
+            WriteBytes(Path.Combine(dataRoot, record), 23);
+        }
+
+        foreach (var excluded in new[]
+        {
+            "JournalWebView2/EBWebView/Default/sample.db",
+            "JournalWebView2/EBWebView/Default/preferences.json",
+            "JournalCache/Assets/sample.json",
+            "GalleryCache/Thumbnails/thumb.jpg",
+            "Gallery/ProtectedFavorites/objects/photo.jpg",
+            "Plugins/nikkiward.photo-album-importer/companion.json",
+            "Logs/sample.txt",
+            "unrelated.sqlite",
+        })
+        {
+            WriteBytes(Path.Combine(dataRoot, excluded), 31);
+        }
 
         var service = new SettingsMaintenanceService(settingsPath, browserPath);
         var receipt = await service.CreateBackupAsync();
 
         Assert(File.Exists(receipt.FilePath), "backup file");
-        AssertEqual(2, receipt.FileCount, "backup record count");
+        AssertEqual(records.Length, receipt.FileCount, "backup record count");
         using var archive = ZipFile.OpenRead(receipt.FilePath);
-        var names = archive.Entries.Select(entry => entry.FullName).ToArray();
-        Assert(names.Contains("settings.json", StringComparer.Ordinal), "settings entry");
-        Assert(names.Contains("JournalCache/journal-snapshot.json", StringComparer.Ordinal), "journal entry");
-        Assert(!names.Any(name => name.EndsWith("thumb.jpg", StringComparison.Ordinal)), "thumbnail cache excluded");
+        Assert(records.ToHashSet(StringComparer.Ordinal).SetEquals(archive.Entries.Select(entry => entry.FullName)),
+            "only application-owned records belong in the archive");
+    }
+
+    private static async Task BackupSkipsBrowserProfile()
+    {
+        using var fixture = new TemporaryFolder();
+        var settings = Path.Combine(fixture.Path, "settings.json");
+        var browser = Path.Combine(fixture.Path, "JournalCache");
+        WriteBytes(settings, 5);
+        var browserFile = Path.Combine(browser, "journal-snapshot.json");
+        WriteBytes(browserFile, 7);
+        using var locked = File.Open(browserFile, FileMode.Open, FileAccess.Read, FileShare.None);
+
+        var receipt = await new SettingsMaintenanceService(settings, browser).CreateBackupAsync();
+        using var archive = ZipFile.OpenRead(receipt.FilePath);
+        AssertEqual("settings.json", archive.Entries.Single().FullName, "browser subtree is never opened");
+    }
+
+    private static async Task CancelInProgressBackup()
+    {
+        using var fixture = new TemporaryFolder();
+        var settings = Path.Combine(fixture.Path, "settings.json");
+        WriteBytes(settings, 10);
+        WriteBytes(Path.Combine(fixture.Path, "JournalCache", "journal-snapshot.json"), 20);
+        var service = new SettingsMaintenanceService(settings, Path.Combine(fixture.Path, "browser"));
+        using var cancellation = new CancellationTokenSource();
+        var progress = new InlineProgress(count =>
+        {
+            AssertEqual(1, count, "cancel after copying the first entry");
+            Assert(Directory.EnumerateFiles(service.BackupFolder).Any(), "the writer must have started");
+            Assert(!Directory.EnumerateFiles(service.BackupFolder, "*.zip").Any(), "an unfinished ZIP must not be published");
+            cancellation.Cancel();
+        });
+        try
+        {
+            await service.CreateBackupAsync(cancellation.Token, progress);
+            throw new InvalidOperationException("the backup should have been cancelled");
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
+
+        Assert(!Directory.EnumerateFiles(service.BackupFolder).Any(), "cancelled archive or temporary file remains");
+    }
+
+    private static async Task BackupIncludesLocalProtectionManifest()
+    {
+        using var fixture = new TemporaryFolder();
+        var dataRoot = Path.Combine(fixture.Path, "Nikkiward");
+        var browser = Path.Combine(dataRoot, "browser");
+        var protection = new GalleryFavoriteProtectionService(fixture.Path, Path.Combine(fixture.Path, "pictures"));
+        var external = Path.Combine(fixture.Path, "external");
+        var local = Path.Combine(dataRoot, "MyFavorites");
+        var unrelated = Path.Combine(dataRoot, "UninitializedStore");
+        await protection.SetActiveRootAsync(external);
+        await protection.SetActiveRootAsync(browser);
+        await protection.SetActiveRootAsync(unrelated);
+        await protection.SetActiveRootAsync(local);
+        File.WriteAllText(Path.Combine(unrelated, "manifest.json"), """{"name":"fixture"}""");
+        foreach (var root in new[] { local, browser, external })
+        {
+            WriteBytes(Path.Combine(root, ".store.lock"), 0);
+            File.WriteAllText(Path.Combine(root, "manifest.json"), """{"schemaVersion":1,"entries":[]}""");
+            WriteBytes(Path.Combine(root, "objects", "image.jpg"), 5);
+        }
+        using var externalLock = File.Open(Path.Combine(external, "manifest.json"), FileMode.Open, FileAccess.Read, FileShare.None);
+        using var browserLock = File.Open(Path.Combine(browser, "manifest.json"), FileMode.Open, FileAccess.Read, FileShare.None);
+        var service = new SettingsMaintenanceService(Path.Combine(dataRoot, "settings.json"), browser);
+        var receipt = await service.CreateBackupAsync();
+        using var archive = ZipFile.OpenRead(receipt.FilePath);
+        Assert(archive.Entries.Select(entry => entry.FullName).ToHashSet(StringComparer.Ordinal)
+            .SetEquals(["Gallery/protection-settings.json", "MyFavorites/manifest.json"]), "registered local manifest only");
+        File.Delete(protection.SettingsFilePath);
+        File.Delete(Path.Combine(local, "manifest.json"));
+        File.Delete(Path.Combine(local, ".store.lock"));
+        archive.ExtractToDirectory(dataRoot);
+        var next = await service.CreateBackupAsync();
+        using var restored = ZipFile.OpenRead(next.FilePath);
+        Assert(restored.GetEntry("MyFavorites/manifest.json") is not null, "the restored manifest must survive another backup");
+    }
+
+    private static async Task FailedBackupLeavesNoArchive()
+    {
+        using var fixture = new TemporaryFolder();
+        var settings = Path.Combine(fixture.Path, "settings.json");
+        WriteBytes(settings, 5);
+        using var locked = File.Open(settings, FileMode.Open, FileAccess.Read, FileShare.None);
+        var service = new SettingsMaintenanceService(settings, Path.Combine(fixture.Path, "browser"));
+        try
+        {
+            await service.CreateBackupAsync();
+            throw new InvalidOperationException("an unreadable record should fail the backup");
+        }
+        catch (IOException)
+        {
+        }
+
+        Assert(!Directory.EnumerateFiles(service.BackupFolder).Any(), "failed archive or temporary file remains");
     }
 
     private static async Task BackupsRemainUnique()
@@ -327,6 +458,11 @@ internal static class ApplicationSettingsTests
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllBytes(path, Enumerable.Range(0, count).Select(value => (byte)value).ToArray());
+    }
+
+    private sealed class InlineProgress(Action<int> report) : IProgress<int>
+    {
+        public void Report(int value) => report(value);
     }
 
     private sealed class TemporaryFolder : IDisposable

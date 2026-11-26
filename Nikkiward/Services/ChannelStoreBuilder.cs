@@ -921,20 +921,10 @@ public sealed class WindowsChannelStoreBuilder : IChannelStoreBuilder
         T value,
         CancellationToken cancellationToken)
     {
-        var temporaryPath = path + ".tmp-" + Guid.NewGuid().ToString("N");
-        try
-        {
-            var bytes = JsonSerializer.SerializeToUtf8Bytes(value, ReceiptJsonOptions);
-            await File.WriteAllBytesAsync(temporaryPath, bytes, cancellationToken).ConfigureAwait(false);
-            File.Move(temporaryPath, path, overwrite: true);
-        }
-        finally
-        {
-            if (File.Exists(temporaryPath))
-            {
-                File.Delete(temporaryPath);
-            }
-        }
+        using var file = new AtomicFile(path);
+        await JsonSerializer.SerializeAsync(file.Stream, value, ReceiptJsonOptions, cancellationToken)
+            .ConfigureAwait(false);
+        file.Commit(overwrite: true, cancellationToken);
     }
 
     private async Task<bool> RollbackCreatedStateAsync(

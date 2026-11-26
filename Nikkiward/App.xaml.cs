@@ -56,6 +56,10 @@ public partial class App : Application
             return;
         }
 
+        // Only the instance that owns the window may hand a stale Game Bar
+        // takeover back; a redirected second launch never touches it.
+        GamepadController.RecoverGameBarGuideButton();
+
         Settings = new WindowSettingsSession(new JsonUserSettingsStore());
         UserSettings? settings = null;
         try

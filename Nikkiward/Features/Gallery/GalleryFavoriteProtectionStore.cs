@@ -106,7 +106,7 @@ public sealed class GalleryFavoriteProtectionStore
         },
     };
 
-    private static readonly JsonTypeInfo<GalleryFavoriteProtectionManifest> ManifestJsonTypeInfo =
+    internal static readonly JsonTypeInfo<GalleryFavoriteProtectionManifest> ManifestJsonTypeInfo =
         new GalleryFavoriteProtectionJsonContext(SerializerOptions).GalleryFavoriteProtectionManifest;
 
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> RootGates =
