@@ -5,6 +5,7 @@ internal static class WishHistoryDomainTests
 {
     public static (string Name, Func<Task> Run)[] All =>
     [
+        ("fresh wish image directory is ready for web mapping", FreshWishImageDirectory),
         ("web pages route only registered destinations", RegisteredPages),
         ("web pages isolate actions by active page", PageActions),
         ("wish JSON round trip preserves and deduplicates entries", RoundTrip),
@@ -19,6 +20,17 @@ internal static class WishHistoryDomainTests
         ("wish history five-star rows expose only a subtle glow", FiveStarRowsExposeSubtleGlow),
         ("wish history store merges atomically and keeps history outside cache clearing", StoreMergesAtomically),
     ];
+
+    private static Task FreshWishImageDirectory()
+    {
+        using var fixture = new TemporaryDirectory();
+        var cache = new ResonanceHistoryCache(fixture.Root);
+        Assert(!Directory.Exists(cache.RootPath), "fresh data directory");
+        var path = cache.EnsureAssetsDirectory();
+        Assert(Directory.Exists(path) && path == cache.AssetsPath, "mapped image directory");
+        AssertEqual(path, cache.EnsureAssetsDirectory(), "existing image directory");
+        return Task.CompletedTask;
+    }
 
     private static PageAdapter TestAdapter(params string[] actions) =>
         new("wish", actions, () => new object(), (_, _) => Task.CompletedTask);

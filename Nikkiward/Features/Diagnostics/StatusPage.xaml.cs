@@ -21,6 +21,8 @@ public sealed partial class StatusPage : PageBase
 
     public event EventHandler? ExportRequested;
 
+    private bool HasText(string value) => value.Length > 0;
+
     public StatusPage()
     {
         InitializeComponent();

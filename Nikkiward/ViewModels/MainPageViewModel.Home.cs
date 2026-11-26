@@ -105,6 +105,9 @@ public sealed partial class MainPageViewModel
         _ => SelectedLauncherVersionName is { } version ? $"官方启动器 {version} · 签名已核对" : "签名已核对"
     };
 
+    private string _webPageFallback = "";
+    public string WebPageFallback { get => _webPageFallback; internal set => SetField(ref _webPageFallback, RedactUiText(value)); }
+
     private string _homeFallback = "";
     public string HomeFallback { get => _homeFallback; internal set => SetField(ref _homeFallback, value); }
     internal IReadOnlyList<InstallationProfileCandidate> HomeCandidates => _profileBuildResult?.Candidates ?? [];

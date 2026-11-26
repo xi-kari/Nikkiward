@@ -41,6 +41,7 @@ internal static class AppearanceRuntimeContractTests
         (nameof(ReminderCalendarAndMissedBatch), ReminderCalendarAndMissedBatch),
         (nameof(PlannerCommandsAndPersistence), PlannerCommandsAndPersistence),
         (nameof(SessionPhotosAndHomeFields), SessionPhotosAndHomeFields),
+        (nameof(WebPageFallbackSurvivesLaterErrors), WebPageFallbackSurvivesLaterErrors),
         (nameof(WebHomeStateMatchesLauncher), WebHomeStateMatchesLauncher),
         (nameof(HomeOverlayShowsNativeChecks), HomeOverlayShowsNativeChecks),
         (nameof(HomeOverlayActionsAreBounded), HomeOverlayActionsAreBounded),
@@ -1001,6 +1002,18 @@ internal static class AppearanceRuntimeContractTests
         Assert(state.NextReminder == next && state.ReminderCount == 2 && json.GetProperty("checkCount").GetInt32()==3 &&
             json.GetProperty("photoTotal").GetInt32()==4 && json.GetProperty("journalSnapshotDate").GetString()=="2026-11-26" &&
             json.GetProperty("sessionStarted").GetDateTimeOffset()==started, "populated web fields");
+        return Task.CompletedTask;
+    }
+
+    private static Task WebPageFallbackSurvivesLaterErrors()
+    {
+        var vm = new MainPageViewModel(new JsonUserSettingsStore(Path.GetTempPath()),
+            new WindowsInstallationInspector(), new RedactedDiagnosticReportExporter());
+        vm.WebPageFallback = $"功能页面已回退到原生界面（wish）：{ApplicationDataPaths.Root}";
+        vm.ReportUiError("后续错误");
+        var drawer = HomeOverlayState.From(vm);
+        Assert(drawer.WebPageFallback == "功能页面已回退到原生界面（wish）：%NIKKIWARD_DATA%" &&
+            drawer.LastErrorText.Contains("后续错误"), "retain the redacted fallback alongside a later error");
         return Task.CompletedTask;
     }
 

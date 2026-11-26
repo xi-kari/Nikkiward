@@ -6,7 +6,7 @@ namespace Nikkiward;
 
 public sealed partial class MainPage
 {
-    internal string WishAssetsPath => _resonanceCache.AssetsPath;
+    internal string EnsureWishAssetsDirectory() => _resonanceCache.EnsureAssetsDirectory();
 
     private static string? CachedWishImage(string? path) => string.IsNullOrEmpty(path) ? null :
         "https://wish-assets.nikkiward.invalid/" + Uri.EscapeDataString(Path.GetFileName(path));
