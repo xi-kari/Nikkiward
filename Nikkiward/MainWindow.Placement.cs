@@ -30,7 +30,12 @@ public sealed partial class MainWindow
         var minimum = new Size(GetSystemMetricsForDpi(smCxMinTrack, 96), GetSystemMetricsForDpi(smCyMinTrack, 96));
         var (bounds, maximized) = WindowPlacement.Resolve(
             displays, saved, new Size(DesignWidth, DesignHeight), minimum);
-        AppWindow.MoveAndResize(new RectInt32(bounds.X, bounds.Y, bounds.Width, bounds.Height));
+        // The window is created on whichever display Windows picks. Moving it onto a
+        // display with another DPI makes Windows rescale it, so apply the rectangle a
+        // second time once the window already sits on the target display.
+        var rect = new RectInt32(bounds.X, bounds.Y, bounds.Width, bounds.Height);
+        AppWindow.MoveAndResize(rect);
+        AppWindow.MoveAndResize(rect);
         if (maximized && AppWindow.Presenter is OverlappedPresenter presenter)
         {
             presenter.Maximize();
@@ -92,11 +97,12 @@ public sealed partial class MainWindow
 
     private static WindowDisplay ReadDisplay(DisplayArea area)
     {
+        // WorkArea is already in virtual-screen coordinates, like OuterBounds (the
+        // API docs say otherwise; a monitor at (-3360,-15) reports WorkArea.X = -3360).
         var work = area.WorkArea;
-        var outer = area.OuterBounds;
         var monitor = Win32Interop.GetMonitorFromDisplayId(area.DisplayId);
         var dpi = GetDpiForMonitor(monitor, 0, out var dpiX, out _) == 0 && dpiX > 0 ? (int)dpiX : 96;
-        return new WindowDisplay(new Rectangle(outer.X + work.X, outer.Y + work.Y, work.Width, work.Height), dpi);
+        return new WindowDisplay(new Rectangle(work.X, work.Y, work.Width, work.Height), dpi);
     }
 
     [StructLayout(LayoutKind.Sequential)]
