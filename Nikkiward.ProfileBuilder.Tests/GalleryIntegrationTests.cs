@@ -5,6 +5,9 @@ internal static class GalleryIntegrationTests
 {
     public static IEnumerable<(string Name, Func<Task> Run)> All =>
     [
+        ("studio long export names fit including collision suffixes", TestStudioLongExport),
+        ("studio unreadable edit and reject records preserve the original bytes", TestStudioDamagedRecords),
+        ("background imports reject game and gallery destinations before writing", TestBackgroundDestination),
         ("studio export names increment on collision", TestStudioExportNames),
         ("studio reveals only its last successful export", TestStudioLastExport),
         ("studio background import retains original name", TestStudioBackgroundName),
@@ -71,6 +74,56 @@ internal static class GalleryIntegrationTests
         }
     }
 
+    private static async Task TestStudioLongExport()
+    {
+        using var fixture = new TempFixture();
+        var time = new DateTime(2026, 11, 26, 2, 25, 7);
+        var stem = string.Concat(Enumerable.Repeat("🌙", 125));
+        var session = new StudioSession<string>([]);
+        for (int number = 1; number <= 10; number++)
+        {
+            var path = await session.ExportAsync(fixture.Root, stem + ".jpg", ".png", time, [(byte)number], default);
+            var suffix = "-studio-20261126-022507" + (number == 1 ? "" : $"-{number}") + ".png";
+            var length = (255 - suffix.Length) / 2 * 2;
+            AssertEqual(stem[..length] + suffix, Path.GetFileName(path), "complete Unicode stem and suffix");
+        }
+        AssertEqual(10, Directory.GetFiles(fixture.Root).Length, "all exports preserved");
+    }
+
+    private static Task TestStudioDamagedRecords()
+    {
+        using var fixture = new TempFixture();
+        var store = new PhotoStudioStore(fixture.Root);
+        foreach (var damaged in new[] { "{", """{"masks":null}""", """{"title":"\uD800"}""" })
+        {
+            store.Save("photo", System.Text.Json.JsonSerializer.SerializeToElement(new { exp = 10 }));
+            var path = Directory.GetFiles(fixture.Root, "*.json").Single();
+            File.WriteAllText(path, damaged);
+            Assert(store.Load("photo", out var warning, []) == null && warning, "use original with warning");
+            Assert(Directory.GetFiles(fixture.Root, "*.corrupt").Any(p => File.ReadAllText(p) == damaged), "edits retained for diagnosis");
+            Assert(store.Load("photo", out warning, []) == null && !warning, "next open uses defaults");
+        }
+        store.SetRejected("photo", true);
+        File.WriteAllText(Directory.GetFiles(fixture.Root, "*.json").Single(), "tru");
+        Assert(!store.Rejected("photo", out var damagedMark, []) && damagedMark, "damaged reject mark defaults to false");
+        Assert(Directory.GetFiles(fixture.Root, "*.corrupt").Any(p => File.ReadAllText(p) == "tru"), "reject record retained");
+        return Task.CompletedTask;
+    }
+
+    private static Task TestBackgroundDestination()
+    {
+        using var fixture = new TempFixture();
+        var still = Path.Combine(fixture.Root, "WallpaperImports", "Still");
+        foreach (var root in new[] { still, fixture.Root })
+        {
+            var validation = Nikkiward.Features.Background.WallpaperImportDirectory.Prepare(still, [root]);
+            Assert(!validation.IsUsable && !Directory.Exists(still), "no writes in game or gallery root");
+        }
+        Assert(Nikkiward.Features.Background.WallpaperImportDirectory.Prepare(still, [fixture.Album]).IsUsable && Directory.Exists(still),
+            "unrelated import root remains writable");
+        return Task.CompletedTask;
+    }
+
     private static async Task TestStudioLastExport()
     {
         using var fixture = new TempFixture();
@@ -104,8 +157,8 @@ internal static class GalleryIntegrationTests
         var store = new PhotoStudioStore(fixture.Root);
         var edits = System.Text.Json.JsonSerializer.SerializeToElement(new { exp = 30, codes = new[] { "搭配", "染色", "家园", "相机" } });
         store.Save("profile/photo", edits);
-        AssertEqual(edits.GetRawText(), new PhotoStudioStore(fixture.Root).Load("profile/photo")!.Value.GetRawText(), "saved editor state");
-        AssertEqual(true, store.Load("another/photo") == null, "isolated photo");
+        AssertEqual(edits.GetRawText(), new PhotoStudioStore(fixture.Root).Load("profile/photo", out _, [])!.Value.GetRawText(), "saved editor state");
+        AssertEqual(true, store.Load("another/photo", out _, []) == null, "isolated photo");
         return Task.CompletedTask;
     }
 
@@ -150,7 +203,7 @@ internal static class GalleryIntegrationTests
         var stamp = File.GetLastWriteTimeUtc(photo);
         var store = new PhotoStudioStore(Path.Combine(fixture.Root, "app"));
         store.SetRejected(photo, true);
-        AssertEqual(true, store.Rejected(photo), "marked reject");
+        AssertEqual(true, store.Rejected(photo, out _, []), "marked reject");
         AssertEqual("original", File.ReadAllText(photo), "original intact");
         AssertEqual(stamp, File.GetLastWriteTimeUtc(photo), "original timestamp");
         return Task.CompletedTask;
@@ -1057,11 +1110,27 @@ internal static class GalleryIntegrationTests
         await junction.WaitForExitAsync();
         AssertEqual(0, junction.ExitCode, "test junction");
         var alias = Path.Combine(fixture.Root, "alias");
+        var package = Path.Combine(fixture.Root, "sample.pkg");
+        await File.WriteAllBytesAsync(package, [1]);
+        var hash = Convert.ToHexString(SHA256.HashData(new byte[] { 1 })).ToLowerInvariant();
+        var cacheRoot = Directory.CreateDirectory(Path.Combine(fixture.Root, "packages")).FullName;
+        Directory.Move(alias, Path.Combine(cacheRoot, hash));
+        try
+        {
+            File.WriteAllBytes(Path.Combine(gallery, "scene.pkg"), [1]);
+            File.WriteAllText(Path.Combine(fixture.Root, "project.json"), "{}");
+            var cached = await new Nikkiward.Features.Background.WallpaperPackageCache(cacheRoot).ImportAsync(package, default, [gallery]);
+            Assert(!cached.Validation.IsUsable && !File.Exists(Path.Combine(gallery, "project.json")), "no writes via linked package directory");
+        }
+        finally { Directory.Move(Path.Combine(cacheRoot, hash), alias); }
         string[] readOnly = [gallery];
         var service = new GalleryFavoriteProtectionService(fixture.Root, Path.Combine(fixture.Root, "pictures"), () => readOnly);
         foreach (var (protectedRoot, browsedRoot) in new[] { (alias, gallery), (gallery, alias) })
         {
             readOnly = [browsedRoot];
+            var still = Path.Combine(protectedRoot, "WallpaperImports", "Still");
+            Assert(!Nikkiward.Features.Background.WallpaperImportDirectory.Prepare(still, readOnly).IsUsable &&
+                !Directory.Exists(still), "linked import and protected paths are checked before creation");
             try
             {
                 await service.SetActiveRootAsync(Path.Combine(protectedRoot, "new"));

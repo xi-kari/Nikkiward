@@ -188,6 +188,7 @@ async function receive(m) {
     return;
   }
   if(m.type==='image') {
+    if(m.unreadable) status('这张照片的修图记录读不出来，已按原图打开');
     flags.set(m.id,{favorite:!!m.starred,reject:!!m.rejected});markButtons();
     const cell=all('.cmpv figure').find(f=>f.dataset.id===m.id);
     if(cell) {
@@ -236,7 +237,7 @@ async function receive(m) {
   $('#sPal').replaceChildren(...(m.palette||palette(im)).map(color=>{
     const sw=button('',()=>findNext('palette',color)); sw.style.background=color;sw.title=color;sw.setAttribute('aria-label','找主色 '+color+' 的照片');return sw;
   }));
-  controls();markButtons();paint();status('');
+  controls();markButtons();paint();status(m.unreadable?'这张照片的修图记录读不出来，已按原图打开':'');
   window.studioOpened?.();
 }
 function step(n) {

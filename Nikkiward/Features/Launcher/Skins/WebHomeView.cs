@@ -369,12 +369,13 @@ internal sealed class WebHomeView : UserControl, IDisposable
             if (MotionSourceRules.IsSupportedExtension(Path.GetExtension(art)) &&
                 !string.Equals(Path.GetDirectoryName(art), HomeBackground.MotionFolder(root), StringComparison.OrdinalIgnoreCase))
             {
-                var imported = await new MotionBackgroundImporter().ImportAsync(art, work.Token);
+                var imported = await new MotionBackgroundImporter(() => _host.ViewModel.GalleryReadOnlyRoots).ImportAsync(art, work.Token);
                 art = imported.ImportedPath ?? throw new IOException(imported.Validation.RejectReason);
             }
             var cover = await HomeBackground.ResolveAsync(art, scenePreview, root, async (path, video) =>
             {
-                var poster = await Task.Run(() => new WallpaperAssetImporter().CachePreviewAsync(path, video, work.Token), work.Token);
+                var protectedRoots = _host.ViewModel.GalleryReadOnlyRoots;
+                var poster = await Task.Run(() => new WallpaperAssetImporter(() => protectedRoots).CachePreviewAsync(path, video, work.Token), work.Token);
                 return Path.GetFileName(poster) ?? throw new IOException("无法生成背景预览。");
             });
             if (work.IsCancellationRequested) return;

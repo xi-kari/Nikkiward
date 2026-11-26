@@ -57,7 +57,7 @@ function captionLayout(g,e,photo) {
     ];
   }
   return [
-    {text:heading,font:'500 13px '+num,x:left,y:mid-7,max:width*.58},
+    {text:heading,font:(e.title?'600':'500')+' 13px '+num,x:left,y:mid-7,max:width*.58},
     {text:detail,font:'400 12px '+ui,x:left,y:mid+13,max:width*.58,alpha:.7},
     {text:lens,font:'500 '+(g.w<g.h?13:17)+'px '+num,x:right,y:mid-2,max:width*.40,right:true},
     {text:mode,font:'400 11px '+ui,x:right,y:mid+15,max:width*.40,right:true,alpha:.65,spacing:'.66px'}
