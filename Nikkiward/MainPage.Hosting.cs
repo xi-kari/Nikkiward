@@ -76,6 +76,7 @@ public sealed partial class MainPage
         _hostedJournalPage = ContentFrame.Content as JournalPage;
         if (_hostedJournalPage is { } currentJournalPage)
         {
+            RefreshPlayTimeViews();
             currentJournalPage.OpenRequested += OnJournalOpenRequested;
             currentJournalPage.SyncRequested += OnJournalSyncRequested;
             currentJournalPage.ExternalOpenRequested += OnJournalExternalOpenRequested;
@@ -256,6 +257,7 @@ public sealed partial class MainPage
         page.JournalOpenRequested += OnSettingsJournalOpenRequested;
         page.JournalCacheClearRequested += OnSettingsJournalCacheClearRequested;
         page.AppearanceSettingsChanged += OnSettingsAppearanceChanged;
+        page.ClearPlayTimeRequested += OnClearPlayTimeRequested;
         page.GeneralSettingsChanged += OnSettingsGeneralChanged;
         page.VisualEffectsRequested += OnSettingsVisualEffectsRequested;
         page.DownloadSettingsChanged += OnSettingsDownloadChanged;
@@ -305,6 +307,7 @@ public sealed partial class MainPage
         page.JournalOpenRequested -= OnSettingsJournalOpenRequested;
         page.JournalCacheClearRequested -= OnSettingsJournalCacheClearRequested;
         page.AppearanceSettingsChanged -= OnSettingsAppearanceChanged;
+        page.ClearPlayTimeRequested -= OnClearPlayTimeRequested;
         page.GeneralSettingsChanged -= OnSettingsGeneralChanged;
         page.VisualEffectsRequested -= OnSettingsVisualEffectsRequested;
         page.DownloadSettingsChanged -= OnSettingsDownloadChanged;
@@ -419,6 +422,7 @@ public sealed partial class MainPage
             await LoadResonanceHistoryAsync(currentCancellation.Token);
             await LoadWishHistoryAsync(currentCancellation.Token);
             await ViewModel.InitializeAsync(currentCancellation.Token);
+            await InitializePlayTimeAsync(currentCancellation.Token);
             var hotkeyRegistration = App.MainWindow.ApplyHotkeys(
                 ViewModel.GeneralSettings.MainWindowHotkey,
                 ViewModel.ScreenshotSettings.Hotkey);
@@ -451,6 +455,7 @@ public sealed partial class MainPage
     {
         LauncherBackground.MotionPlaybackFailed -= OnMotionPlaybackFailed;
         _lifetimeCancellation?.Cancel();
+        StopPlayTime();
         _launchStateTimer?.Stop();
         var shellNavigationCancellation = Interlocked.Exchange(
             ref _shellNavigationDebounceCancellation,

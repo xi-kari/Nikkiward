@@ -89,6 +89,7 @@ public sealed partial class MainPage
             _backgroundStatusText,
             _currentBackgroundSource);
         page.ApplyGeneralSettings(ViewModel.GeneralSettings);
+        RefreshPlayTimeViews();
         page.ApplyDownloadSettings(ViewModel.DownloadSettings);
         page.ApplyFileManagementState(CreateFileManagementSettingsViewState());
         page.ApplyScreenshotSettings(

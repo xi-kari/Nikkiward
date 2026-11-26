@@ -60,6 +60,30 @@ public sealed partial class JournalPage : PageBase
         SummaryPanel.OpenRequested += OnSummaryOpenRequested;
     }
 
+    internal void ApplyPlayTime(bool enabled, IReadOnlyList<Services.PlaySession> sessions, string? error)
+    {
+        PlayTimeIsland.Visibility = enabled || sessions.Count > 0 || error != null ? Visibility.Visible : Visibility.Collapsed;
+        var now = DateTimeOffset.UtcNow;
+        var cutoff = now.AddDays(-7);
+        var total = TimeSpan.Zero;
+        var week = TimeSpan.Zero;
+        foreach (var session in sessions)
+        {
+            total += session.Duration;
+            var start = session.StartUtc > cutoff ? session.StartUtc : cutoff;
+            var end = session.EndUtc < now ? session.EndUtc : now;
+            if (end > start) week += end - start;
+        }
+        PlayTimeTotals.Text = error ?? $"累计 {FormatPlayTime(total)}    最近 7 天 {FormatPlayTime(week)}";
+        RecentPlayTime.Text = string.Join(Environment.NewLine, sessions.OrderByDescending(s => s.EndUtc).Take(3)
+            .Select(s => $"{s.StartUtc.ToLocalTime():yyyy/MM/dd HH:mm}　{FormatPlayTime(s.Duration)}　{s.Channel}"));
+        RecentPlayTime.Visibility = sessions.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private static string FormatPlayTime(TimeSpan duration) => duration.TotalMinutes < 1
+        ? $"{duration.Seconds} 秒"
+        : duration.TotalHours < 1 ? $"{duration.Minutes} 分钟" : $"{(long)duration.TotalHours} 小时 {duration.Minutes} 分钟";
+
     public async Task ShowBrowserAsync(Uri? targetUri = null)
     {
         BrowserPanel.Visibility = Visibility.Visible;

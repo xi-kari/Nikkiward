@@ -44,6 +44,7 @@ public sealed class SettingsMaintenanceService
         "settings.pre-schema8.rollback.json",
         "JournalCache/journal-snapshot.json",
         "JournalCache/resonance-history.json",
+        PlayTimeStore.RelativePath,
         "WishHistory/wish-history.json",
         "Gallery/stars.json",
         "Gallery/default-favorites-v1.seed",

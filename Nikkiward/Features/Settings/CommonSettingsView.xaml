@@ -72,12 +72,23 @@
             </StackPanel>
         </StackPanel>
 
+        <StackPanel Spacing="6">
+            <StackPanel Orientation="Horizontal" Spacing="16">
+                <ToggleSwitch x:Name="PlayTimeToggle" Header="记录本机游玩时长"
+                    automation:AutomationProperties.Name="记录本机游玩时长"
+                    Toggled="OnGeneralToggleChanged" />
+                <Button x:Name="ClearPlayTimeButton" Content="清除记录" VerticalAlignment="Bottom"
+                    IsEnabled="False" Style="{StaticResource OnArtGlassButtonStyle}" Click="OnClearPlayTimeClicked" />
+            </StackPanel>
+            <TextBlock x:Name="PlayTimeError" TextWrapping="Wrap" Style="{StaticResource CaptionUI}" Visibility="Collapsed" />
+        </StackPanel>
+
         <ToggleSwitch
             x:Name="ProfileSwitcherToggle"
             automation:AutomationProperties.Name="启用 Profile 快速切换"
             OffContent="关闭 Profile 快速切换"
             OnContent="启用 Profile 快速切换"
-            Toggled="OnProfileSwitcherToggled" />
+            Toggled="OnGeneralToggleChanged" />
 
         <StackPanel Spacing="6">
             <TextBlock

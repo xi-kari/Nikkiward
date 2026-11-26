@@ -172,7 +172,16 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
 
     public string PlayTimeText => "奇想手账未同步";
 
-    public string PlayTimeDetailText => "当前应用不统计目标进程时长";
+    public string PlayTimeDetailText => "游戏时长来自官方奇想手账快照";
+
+    internal Dictionary<string, string> GetPlayTimeInstallations() =>
+        (_profileBuildResult?.Candidates ?? [])
+            .Where(c => c.State is InstallationCandidateState.Candidate or InstallationCandidateState.ReadyForStaticVerification &&
+                !string.IsNullOrEmpty(c.Profile?.ShippingExecutablePath))
+            .GroupBy(c => c.Profile!.ShippingExecutablePath, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Select(c => c.Identity.DistributionChannel).Distinct().Count() == 1)
+            .ToDictionary(group => group.Key, group => FormatDistribution(group.First().Identity.DistributionChannel),
+                StringComparer.OrdinalIgnoreCase);
 
     public string PrimaryActionText => _isLaunchAttemptInProgress
         ? "正在启动"

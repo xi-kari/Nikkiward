@@ -25,6 +25,8 @@ public sealed record GeneralSettings
 
     public CloseWindowBehavior CloseWindowBehavior { get; init; } = CloseWindowBehavior.Exit;
 
+    public bool RecordLocalPlayTime { get; init; }
+
     public AfterLaunchBehavior AfterLaunchBehavior { get; init; } = AfterLaunchBehavior.KeepWindow;
 
     public bool EnableProfileQuickSwitcher { get; init; } = true;
