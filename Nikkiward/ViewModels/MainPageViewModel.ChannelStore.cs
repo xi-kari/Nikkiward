@@ -31,11 +31,8 @@ public sealed partial class MainPageViewModel
         private set => SetField(ref _channelStoreStatusText, value);
     }
 
-    public string ChannelStoreCapacityText => _channelStorePlan is null
-        ? "等待 dry-run：完整哈希后才计算硬链接与复制量"
-        : $"硬链接 {FormatStoreBytes(_channelStorePlan.HardLinkBytes)} · " +
-          $"复制 {FormatStoreBytes(_channelStorePlan.CopyBytes)} · " +
-          $"计划 {_channelStorePlan.PlanSha256[..12]}";
+    public string ChannelStoreCapacityText => _channelStorePlan?.GetCapacityText()
+        ?? "等待 dry-run：完整哈希后才计算硬链接与复制量";
 
     public double ChannelStoreProgressPercent
     {
@@ -365,13 +362,11 @@ public sealed partial class MainPageViewModel
             {
                 if (receipt.IdentityFailureCode is { } identityFailure)
                 {
-                    _preflightResult = new LaunchPreflightResult
+                    ApplyPreflightFailure(new LaunchPreflightResult
                     {
                         FailureCode = identityFailure,
                         FailureDetail = receipt.FailureDetail,
-                    };
-                    StaticReadinessText = $"静态身份未通过 · {FormatPreflightFailure(identityFailure)}";
-                    NotifyProfileChanged();
+                    });
                 }
                 _launchAttemptStatusText = $"渠道启动未完成 · {receipt.FailureDetail}";
                 _launchLifecycleText = $"NotRunning · {receipt.FailureCode}";
@@ -637,6 +632,7 @@ public sealed partial class MainPageViewModel
             DiscoverySource = discoverySource,
             LauncherRootPath = normalizedLauncherRoot,
             GameRootPath = normalizedGameRoot,
+            ProductBuildNumber = ProductMarkerReader.TryRead(Path.Combine(normalizedGameRoot, "product.db"))?.Version,
             Profile = profile,
             Provider = candidate.Provider is null
                 ? null
@@ -834,19 +830,5 @@ public sealed partial class MainPageViewModel
             ChannelStoreProgressStage.Completed => "三渠道单本体已完成",
             _ => ChannelStoreStatusText,
         };
-    }
-
-    private static string FormatStoreBytes(long bytes)
-    {
-        string[] units = ["B", "KiB", "MiB", "GiB", "TiB"];
-        var value = (double)bytes;
-        var unit = 0;
-        while (value >= 1024 && unit < units.Length - 1)
-        {
-            value /= 1024;
-            unit++;
-        }
-
-        return $"{value:0.##} {units[unit]}";
     }
 }

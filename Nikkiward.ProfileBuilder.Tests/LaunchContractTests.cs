@@ -11,6 +11,9 @@ internal static class LaunchContractTests
 {
     public static (string Name, Func<Task> Run)[] All =>
     [
+        ("registry paths preserve spaces and executable boundaries", RegistryPaths),
+        ("discovery distinguishes pending, empty and selection states", DiscoveryStates),
+        ("game file versions require four numeric parts", GameVersions),
         ("frozen contract keeps the exact -skiplauncher argument list", ArgumentListIsFrozen),
         ("frozen contract runs xstarter from the launcher root", WorkingDirectoryIsLauncherRoot),
         ("frozen contract keeps the static execution gate closed", ExecutionGateStaysClosed),
@@ -38,6 +41,49 @@ internal static class LaunchContractTests
         ("Bilibili marker mismatch fails closed", BilibiliMarkerMismatchFailsClosed),
         ("Bilibili complete installs remain providerless", BilibiliCompleteInstallHasNoProvider),
     ];
+
+    private static Task RegistryPaths()
+    {
+        const string launcher = @"C:\Program Files\InfinityNikki Launcher\launcher.exe";
+        AssertEqual(launcher, WindowsInstallationPathSource.ParseDisplayIcon(launcher), "official display icon");
+        const string root = @"C:\Program Files\游戏.exe-cache";
+        const string file = root + @"\launcher.exe";
+        foreach (var value in new[] { root, $"\"{root}\"" })
+            AssertEqual(root, WindowsInstallationPathSource.ParseDirectory(value), "directory");
+        foreach (var value in new[] { file, $"\"{file}\"", file + ",-2", $"\"{file}\",0" })
+            AssertEqual(file, WindowsInstallationPathSource.ParseDisplayIcon(value), "icon");
+        foreach (var value in new[] { file + " /S", $"\"{file}\" /S" })
+            AssertEqual(file, WindowsInstallationPathSource.ParseUninstallCommand(value), "command");
+        AssertEqual(null, WindowsInstallationPathSource.ParseDirectory(" "), "empty directory");
+        AssertEqual(null, WindowsInstallationPathSource.ParseDisplayIcon(null), "empty icon");
+        AssertEqual(null, WindowsInstallationPathSource.ParseUninstallCommand(""), "empty command");
+        return Task.CompletedTask;
+    }
+
+    private static Task DiscoveryStates()
+    {
+        var empty = new ProfileBuildResult();
+        var candidate = new InstallationProfileCandidate { State = InstallationCandidateState.Candidate, Profile = new() };
+        var multiple = empty with { Candidates = [candidate, candidate with { ProfileId = "steam" }] };
+        var ambiguous = empty with { Candidates = [new() { FailureCode = ProfileBuildFailureCode.AmbiguousGameRoot }] };
+        AssertEqual(LaunchButtonState.Checking, LaunchDiscoveryDisplay.WithoutSelection(true, empty), "pending");
+        AssertEqual(LaunchButtonState.NotInstalled, LaunchDiscoveryDisplay.WithoutSelection(false, empty), "empty");
+        AssertEqual(LaunchButtonState.SelectionRequired, LaunchDiscoveryDisplay.WithoutSelection(false, multiple), "multiple");
+        AssertEqual(LaunchButtonState.SelectionRequired, LaunchDiscoveryDisplay.WithoutSelection(false, ambiguous), "ambiguous");
+        AssertEqual(LaunchButtonState.Blocked, LaunchDiscoveryDisplay.WithoutSelection(false, null), "discovery failed");
+        AssertEqual("检查安装中", LaunchButtonState.Checking.Label(), "pending label");
+        AssertEqual("未发现安装", LaunchButtonState.NotInstalled.Label(), "empty label");
+        AssertEqual("需要选择安装", LaunchButtonState.SelectionRequired.Label(), "selection label");
+        return Task.CompletedTask;
+    }
+
+    private static Task GameVersions()
+    {
+        AssertEqual("2.8.1（构建 2828）", LaunchDiscoveryDisplay.FormatGameVersion("2,8,1,2828"), "version");
+        foreach (var value in new[] { null, "", "2.8.1", "2,x,1,2828", "2.8.1.-2", "2,8.1,2828", "2.8.1.+2" })
+            AssertEqual("未知", LaunchDiscoveryDisplay.FormatGameVersion(value), "invalid version");
+        return Task.CompletedTask;
+    }
 
     private const string LauncherVersion = LaunchProviderCatalog.CnLauncherVersion;
 

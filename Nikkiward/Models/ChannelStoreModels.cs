@@ -126,6 +126,24 @@ public sealed record ChannelStoreBuildPlan
 
     public string PlanSha256 { get; init; } = string.Empty;
 
+    internal string GetCapacityText() => !CanExecute
+        ? FailureDetail ?? FailureCode.ToString()
+        : $"硬链接 {FormatStoreBytes(HardLinkBytes)} · 复制 {FormatStoreBytes(CopyBytes)} · 计划 {PlanSha256[..12]}";
+
+    private static string FormatStoreBytes(long bytes)
+    {
+        string[] units = ["B", "KiB", "MiB", "GiB", "TiB"];
+        var value = (double)bytes;
+        var unit = 0;
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+
+        return $"{value:0.##} {units[unit]}";
+    }
+
     public DateTimeOffset PlannedAtUtc { get; init; } = DateTimeOffset.UtcNow;
 }
 

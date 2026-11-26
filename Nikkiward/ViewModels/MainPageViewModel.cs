@@ -25,6 +25,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     private ProfileBuildResult? _profileBuildResult;
     private LaunchPreflightResult? _preflightResult;
     private LaunchSnapshot? _snapshot;
+    private bool _checkingInstallation = true;
     private bool _initialized;
     private Task? _initializationTask;
     private UserSettings _persistedSettings = new();
@@ -619,6 +620,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
+            _checkingInstallation = false;
             _profileBuildResult = null;
             _selectedCandidate = null;
             _preflightResult = null;
@@ -691,6 +693,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             return;
         }
 
+        _checkingInstallation = true;
         IsBusy = true;
         ActivityText = "正在只读发现安装候选";
         var shouldRefresh = false;
@@ -718,6 +721,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         }
         finally
         {
+            _checkingInstallation = false;
             IsBusy = false;
         }
 
@@ -739,6 +743,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 "另一个检查正在进行，请稍候几秒再重新选择目录。");
         }
 
+        _checkingInstallation = true;
         IsBusy = true;
         ActivityText = "正在验证手动选择的安装根";
         var shouldRefresh = false;
@@ -783,6 +788,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         }
         finally
         {
+            _checkingInstallation = false;
             IsBusy = false;
         }
 
@@ -1192,6 +1198,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         CancellationToken cancellationToken)
     {
         result = ApplyPersistedChannelStoreTargets(result);
+        _snapshot = null;
         _profileBuildResult = result;
         _selectedCandidate = null;
         _preflightResult = null;
@@ -1268,6 +1275,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 cancellationToken);
         }
 
+        _checkingInstallation = false;
         RebuildPlatformEvidence(result.Candidates);
         NotifyProfileChanged();
         StaticReadinessText = _selectedCandidate is null
@@ -1419,17 +1427,9 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             }
 
             var readinessState = ResolveReadinessState(results);
-            var failureReason = BuildFailureReason(results);
-            if (_preflightResult is { StaticIdentityPassed: false } failedPreflight)
-            {
-                // Fold the preflight verdict (incl. signer identity detail) into
-                // the snapshot so exported diagnostics show why launching is
-                // blocked — the inspector alone cannot tell.
-                failureReason = CombineErrors(
-                    failureReason,
-                    $"预检未通过：{FormatPreflightFailure(failedPreflight.FailureCode)} — {failedPreflight.FailureDetail}");
-            }
-
+            var componentFailure = BuildFailureReason(results);
+            var failureReason = LaunchSnapshot.ResolveFailureReason(
+                _preflightResult, readinessState, IsExternalChannelSelected, componentFailure);
             var capturedAtUtc = DateTimeOffset.UtcNow;
             var externalIdentityPassed = IsExternalChannelSelected && _preflightResult is { StaticIdentityPassed: true };
 
@@ -1442,9 +1442,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 Capability = _profile.Capability,
                 CapturedAtUtc = capturedAtUtc,
                 Components = results,
-                LastFailureReason = readinessState is LaunchState.Ready && !IsExternalChannelSelected
-                    ? "静态身份检查完成，但 Nikkiward 当前执行能力仍未启用。"
-                    : failureReason,
+                LastFailureReason = failureReason,
             };
 
             StaticReadinessText = _preflightResult switch
@@ -1460,7 +1458,9 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 },
             };
             LastUpdatedText = capturedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss zzz");
-            LastErrorText = CombineErrors(_settingsErrorText, failureReason) ?? "无（本次只读检查）";
+            LastErrorText = CombineErrors(_settingsErrorText,
+                _preflightResult is { StaticIdentityPassed: false } ? failureReason : componentFailure)
+                ?? "无（本次只读检查）";
             ExportStatusText = "当前快照可导出；报告会脱敏路径并排除命令行、token、进程内存与网络载荷。";
             ActivityText = "空闲";
             OnPropertyChanged(nameof(CanExport));
@@ -1598,14 +1598,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             {
                 if (preparation.Preflight is { StaticIdentityPassed: false } failedPreflight)
                 {
-                    // Reflect the fresh verdict on the launch button immediately;
-                    // otherwise a just-updated or tampered install keeps showing
-                    // “启动游戏” until the next full rediscovery.
-                    _preflightResult = failedPreflight;
-                    StaticReadinessText =
-                        $"静态身份未通过 · {FormatPreflightFailure(failedPreflight.FailureCode)}";
-                    NotifyProfileChanged();
-                    NotifyLaunchStateChanged();
+                    ApplyPreflightFailure(failedPreflight);
                 }
 
                 _launchAttemptStatusText =
@@ -1777,6 +1770,14 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                     selectedProfileId,
                     StringComparison.Ordinal)));
         }
+    }
+
+    private void ApplyPreflightFailure(LaunchPreflightResult failure)
+    {
+        _preflightResult = failure;
+        _snapshot = _snapshot?.WithPreflightFailure(failure);
+        StaticReadinessText = $"静态身份未通过 · {FormatPreflightFailure(failure.FailureCode)}";
+        NotifyProfileChanged();
     }
 
     private static LaunchState ResolveReadinessState(IReadOnlyList<ComponentVerification> components)

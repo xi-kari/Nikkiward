@@ -39,16 +39,14 @@ public sealed partial class MainPageViewModel
                 return LaunchButtonState.Ready;
             }
 
-            if (_selectedCandidate is null)
+            if (_checkingInstallation || _selectedCandidate is null)
             {
-                return _preflightResult is null
-                    ? LaunchButtonState.Checking
-                    : LaunchButtonState.NotInstalled;
+                return LaunchDiscoveryDisplay.WithoutSelection(_checkingInstallation, _profileBuildResult);
             }
 
             if (_preflightResult is null)
             {
-                return LaunchButtonState.Checking;
+                return IsBusy ? LaunchButtonState.Checking : LaunchButtonState.Blocked;
             }
 
             return _preflightResult.FailureCode switch
@@ -81,20 +79,7 @@ public sealed partial class MainPageViewModel
         }
     }
 
-    public string LaunchButtonLabel => LaunchButtonState switch
-    {
-        LaunchButtonState.Checking => "检查安装中",
-        LaunchButtonState.NotInstalled => "未找到游戏",
-        LaunchButtonState.ChannelUnsupported => "渠道暂不支持",
-        LaunchButtonState.ContractDrift => "渠道身份不符",
-        LaunchButtonState.SignatureUntrusted => "签名验证未通过",
-        LaunchButtonState.Blocked => "启动条件不满足",
-        LaunchButtonState.CleanupRequired => "需要关闭残留进程",
-        LaunchButtonState.Ready => "启动游戏",
-        LaunchButtonState.Launching => "正在启动",
-        LaunchButtonState.Running => "游戏运行中",
-        _ => "启动游戏",
-    };
+    public string LaunchButtonLabel => LaunchButtonState.Label();
 
     /// <summary>
     /// One line under the button. Explains what to do, not what went wrong
@@ -105,13 +90,19 @@ public sealed partial class MainPageViewModel
         LaunchButtonState.Checking =>
             "正在核对本机安装与组件签名。",
         LaunchButtonState.NotInstalled =>
-            "未发现无限暖暖安装，请在 Profile 页手动指定游戏目录。",
+            "请在游戏设置的「基本信息」中点「定位游戏」。",
+        LaunchButtonState.SelectionRequired =>
+            "请在游戏设置的「基本信息」中点「定位游戏」，选择要使用的安装目录。",
+        LaunchButtonState.Blocked when _selectedCandidate is null =>
+            "安装发现失败，请在游戏设置中点「定位游戏」重试。",
         LaunchButtonState.ChannelUnsupported =>
             _selectedCandidate?.Identity.DistributionChannel is DistributionChannel.Steam
                 ? "Steam Windows 直启尚未验证，本次不会打开 Steam 或官方启动器。"
                 : "当前渠道或区服没有对应的启动契约，暂不支持辅助启动。",
         LaunchButtonState.ContractDrift =>
             "游戏目录的 product.db 渠道标识与所选渠道不一致，请确认选择的是国服目录。",
+        LaunchButtonState.Blocked when _preflightResult is null =>
+            "组件检查未完成，请在当前档案中点「刷新服务器列表」重试。",
         LaunchButtonState.Blocked when IsExternalChannelSelected &&
             _preflightResult?.FailureCode is LaunchPreflightFailureCode.BinaryIdentityDrift =>
             "安装文件正在变化或被占用。请等待更新完成，在当前档案中点「刷新服务器列表」后重试。",
@@ -142,9 +133,26 @@ public sealed partial class MainPageViewModel
         _ => string.Empty,
     };
 
+    public string ProfileVersionText
+    {
+        get
+        {
+            var fileVersion = _preflightResult?.Components.FirstOrDefault(item => item.ComponentId == "game-client")?.ActualFileVersion
+                ?? _snapshot?.Components.FirstOrDefault(item => item.ComponentId == "game-client")?.FileVersion;
+            var gameVersion = LaunchDiscoveryDisplay.FormatGameVersion(fileVersion);
+            if (gameVersion == "未知" && _selectedCandidate?.ProductBuildNumber is { } build &&
+                build.Length > 0 && build.All(char.IsAsciiDigit))
+                gameVersion += $"（构建 {build}）";
+
+            var buildId = _selectedCandidate?.SteamManifest?.BuildId;
+            var steamBuild = buildId is { Length: > 0 } && buildId.All(char.IsAsciiDigit) ? $" · Steam BuildID {buildId}" : string.Empty;
+            return $"游戏 {gameVersion}{steamBuild} · 启动器 {SelectedLauncherVersionName ?? "未知"}";
+        }
+    }
+
     private string? SelectedLauncherVersionName =>
         Services.WindowsLaunchPreflightVerifier.TryGetVersionDirectoryName(
-            _selectedCandidate?.Provider?.BackendExecutablePath);
+            _selectedCandidate?.Provider?.BackendExecutablePath ?? _profile?.XStarterPath);
 
     /// <summary>
     /// Whether the launch attempt is blocked in a way the user cannot act on
@@ -155,6 +163,7 @@ public sealed partial class MainPageViewModel
 
     private void NotifyLaunchStateChanged()
     {
+        OnPropertyChanged(nameof(ProfileVersionText));
         OnPropertyChanged(nameof(LaunchButtonState));
         OnPropertyChanged(nameof(LaunchButtonLabel));
         OnPropertyChanged(nameof(LaunchButtonDetail));
