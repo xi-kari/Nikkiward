@@ -19,12 +19,49 @@ internal sealed class StudioSession<T>(IEnumerable<T> photos) where T : class
 
     internal T? Consume(string ticket) => _tickets.Remove(ticket, out var photo) ? photo : null;
 
+    internal string? LastExport { get; private set; }
+
+    internal async Task<string> ExportAsync(string root, string name, string extension, DateTime time, byte[] data, CancellationToken token)
+    {
+        var stamp = time.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture);
+        var stem = $"{Path.GetFileNameWithoutExtension(name)}-studio-{stamp}";
+        for (int number = 1; ; number++)
+        {
+            var suffix = number == 1 ? "" : $"-{number}";
+            var path = Path.Combine(root, stem + suffix + extension);
+            FileStream file;
+            try { file = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None); }
+            catch (IOException ex) when ((ex.HResult & 0xffff) is 80 or 183) { continue; }
+            try
+            {
+                using (file) await file.WriteAsync(data, token);
+            }
+            catch { File.Delete(path); throw; }
+
+            LastExport = path;
+            return path;
+        }
+    }
+
     internal static bool Allows(string action) => action is "back" or "open" or "inspect" or "image" or "thumb"
-        or "save" or "favorite" or "reject" or "locate" or "copy-code" or "export" or "copy" or "background";
+        or "save" or "favorite" or "reject" or "reveal-export" or "locate" or "copy-code" or "export" or "copy" or "background";
 }
 
 internal sealed class PhotoStudioStore(string root)
 {
+    internal static async Task ImportBackgroundAsync(string root, string originalName, byte[] png,
+        Func<string, string, CancellationToken, Task> import, CancellationToken token)
+    {
+        var path = Path.Combine(root, $"{Guid.NewGuid():N}.png");
+        var file = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        try
+        {
+            using (file) await file.WriteAsync(png, token);
+            await import(path, originalName, token);
+        }
+        finally { File.Delete(path); }
+    }
+
     internal string Root => root;
     private string Entry(string key) => Path.Combine(root, Convert.ToHexString(
         SHA256.HashData(Encoding.UTF8.GetBytes(key.ToUpperInvariant()))) + ".json");

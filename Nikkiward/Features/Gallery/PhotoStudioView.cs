@@ -124,11 +124,11 @@ internal sealed class PhotoStudioView : Grid
             if (m.ValueKind != JsonValueKind.Object) return;
             var action = Str("action");
             if (!StudioSession<GalleryPhotoItemViewModel>.Allows(action)) return;
-            if (action == "back") { _shell.CloseStudio(this); return; }
             var id = Str("id");
             if (!_session.Photos.TryGetValue(id, out var photo)) return;
             if (action is "open" or "inspect" or "thumb" && VariantPathPolicy.ContainsReparsePoint(photo.FilePath))
                 throw new IOException("照片不可访问");
+            if (action == "back") { _shell.CloseStudio(this, photo); return; }
             var key = photo.AnnotationScopeId + "\0" + photo.StarKey;
             switch (action)
             {
@@ -152,7 +152,7 @@ internal sealed class PhotoStudioView : Grid
                     photo.SetStarred(stars.Contains(photo.StarKey));
                     Send(new { type = "photo", id, edits = Store.Load(key), starred = photo.IsStarred,
                         rejected = Store.Rejected(key),
-                        date = photo.FullModifiedText, folder = Path.GetDirectoryName(photo.FilePath), size = photo.FileSizeText,
+                        date = photo.FullModifiedText, folder = Path.GetDirectoryName(photo.FilePath), sizeBytes = photo.FileSizeBytes,
                         hasParameters = meta.HasParameters, lens = meta.Camera?.FocalLength, aperture = meta.Camera?.Aperture, filter = meta.Camera?.Filter?.Id,
                         outfit = meta.ClothingIds.Select(n => n.ToString()), url = Images + _session.Issue(id) });
                     break;
@@ -177,8 +177,11 @@ internal sealed class PhotoStudioView : Grid
                     await _shell.StarStudioPhotoAsync(photo, m.GetProperty("value").GetBoolean(), _life.Token);
                     Send(new { type = action, id, value = photo.IsStarred });
                     break;
+                case "reveal-export" when _session.LastExport != null:
                 case "locate":
-                    var file = await StorageFile.GetFileFromPathAsync(photo.FilePath);
+                    var path = action == "locate" ? photo.FilePath : _session.LastExport!;
+                    if (VariantPathPolicy.ContainsReparsePoint(path)) throw new IOException("文件不可访问");
+                    var file = await StorageFile.GetFileFromPathAsync(path);
                     var options = new FolderLauncherOptions();
                     options.ItemsToSelect.Add(file);
                     await Windows.System.Launcher.LaunchFolderAsync(await file.GetParentAsync(), options);
@@ -203,7 +206,7 @@ internal sealed class PhotoStudioView : Grid
     {
         const string png = "data:image/png;base64,", jpg = "data:image/jpeg;base64,";
         var prefix = image.StartsWith(png, StringComparison.Ordinal) ? png : jpg;
-        if (!image.StartsWith(prefix, StringComparison.Ordinal) || image.Length - prefix.Length > 96 * 1024 * 1024)
+        if ((action == "background" && prefix != png) || !image.StartsWith(prefix, StringComparison.Ordinal) || image.Length - prefix.Length > 96 * 1024 * 1024)
             throw new IOException("导出图像编码无效或超过 72 MiB。");
         var data = Convert.FromBase64String(image[prefix.Length..]);
         ReadOnlySpan<byte> signature = prefix == png ? [137, 80, 78, 71, 13, 10, 26, 10] : [255, 216, 255];
@@ -226,18 +229,15 @@ internal sealed class PhotoStudioView : Grid
             var root = action == "background" ? Path.Combine(ApplicationDataPaths.Root, "PhotoStudio", "Background") : Store.ExportRoot;
             PhotoStudioStore.CheckDestination(root, _shell.ViewModel.GalleryReadOnlyRoots);
             Directory.CreateDirectory(root);
-            var path = Path.Combine(root, $"{Path.GetFileNameWithoutExtension(name)}-{Guid.NewGuid():N}." + (prefix == png ? "png" : "jpg"));
-            var file = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-            var keep = false;
-            try
+            if (action == "export")
             {
-                using (file)
-                    await file.WriteAsync(data, _life.Token);
-                if (action == "background") await _shell.ImportStudioBackgroundAsync(path, _life.Token);
-                else keep = true;
+                var exported = await _session.ExportAsync(root, name, prefix == png ? ".png" : ".jpg", DateTime.Now, data, _life.Token);
+                Send(new { type = "exported", name = Path.GetFileName(exported) });
+                return;
             }
-            finally { if (!keep) File.Delete(path); }
+
+            await PhotoStudioStore.ImportBackgroundAsync(root, name, data, _shell.ImportStudioBackgroundAsync, _life.Token);
         }
-        Send(new { type = "status", message = action switch { "copy" => "已复制图片", "background" => "已交给启动页背景导入", _ => "已导出到 " + Store.ExportRoot } });
+        Send(new { type = "status", message = action == "copy" ? "已复制图片" : "已交给启动页背景导入" });
     }
 }

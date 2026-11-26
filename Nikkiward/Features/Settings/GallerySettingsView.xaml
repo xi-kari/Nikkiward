@@ -89,11 +89,15 @@
                     <Button x:Name="ResetRootButton" automation:AutomationProperties.Name="恢复默认图库目录" Click="OnResetRootClicked" IsEnabled="False" Style="{StaticResource OnArtGlassButtonStyle}">
                         <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE777;" /><TextBlock Text="恢复默认" /></StackPanel>
                     </Button>
-                    <Button Content="照片工坊导出目录…" Click="OnChooseStudioExports" Style="{StaticResource OnArtGlassButtonStyle}" />
                     <Button x:Name="OpenGalleryButton" automation:AutomationProperties.Name="打开相册" Click="OnOpenGalleryClicked" Style="{StaticResource OnArtGlassButtonStyle}">
                         <StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xEB9F;" /><TextBlock Text="打开相册" /></StackPanel>
                     </Button>
                 </StackPanel>
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Button Content="照片工坊导出目录…" Click="OnChooseStudioExports" Style="{StaticResource OnArtGlassButtonStyle}" />
+                    <TextBlock x:Name="StudioExportsPath" Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                </Grid>
             </StackPanel>
         </Border>
 

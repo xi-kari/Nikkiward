@@ -37,16 +37,17 @@ public sealed partial class MainPage
         SyncLauncherChrome();
     }
 
-    internal void CloseStudio(PhotoStudioView studio)
+    internal void CloseStudio(PhotoStudioView studio, GalleryPhotoItemViewModel? photo = null)
     {
         _studio = null;
         RootGrid.Children.Remove(studio);
         ContentFrame.Visibility = Visibility.Visible;
+        if (photo != null && ContentFrame.Content is GalleryPage gallery) gallery.ResumeStudioPreview(photo);
         SyncLauncherChrome();
     }
 
-    internal Task ImportStudioBackgroundAsync(string path, CancellationToken token) =>
-        ImportWallpaperAsync(path, Path.GetFileName(path), WallpaperImportMode.HolographicCard, token);
+    internal Task ImportStudioBackgroundAsync(string path, string originalName, CancellationToken token) =>
+        ImportWallpaperAsync(path, originalName, WallpaperImportMode.HolographicCard, token);
 
     internal async Task ChooseStudioExportsAsync()
     {

@@ -40,8 +40,13 @@ public sealed class GalleryProtectionEnabledChangedEventArgs : EventArgs
 
 public sealed partial class GallerySettingsView : UserControl
 {
-    private async void OnChooseStudioExports(object sender, RoutedEventArgs args) =>
+    private async void OnChooseStudioExports(object sender, RoutedEventArgs args)
+    {
         await MainPage.StudioShell(this).ChooseStudioExportsAsync();
+        RefreshStudioExportsPath();
+    }
+
+    private void RefreshStudioExportsPath() => StudioExportsPath.Text = Gallery.PhotoStudioView.Store.ExportRoot;
 
     private bool _applyingState;
 
@@ -62,6 +67,7 @@ public sealed partial class GallerySettingsView : UserControl
     public GallerySettingsView()
     {
         InitializeComponent();
+        RefreshStudioExportsPath();
     }
 
     public void ApplyState(GallerySettingsViewState state)

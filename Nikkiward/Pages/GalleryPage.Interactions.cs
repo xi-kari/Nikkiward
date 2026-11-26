@@ -239,6 +239,12 @@ public sealed partial class GalleryPage
         ShowGalleryPreviewAt(index);
     }
 
+    internal void ResumeStudioPreview(GalleryPhotoItemViewModel photo)
+    {
+        var item = ViewModel.Photos.FirstOrDefault(p => p.AnnotationScopeId == photo.AnnotationScopeId && p.StarKey == photo.StarKey);
+        if (item != null) ShowGalleryPreviewAt(ViewModel.Photos.IndexOf(item));
+    }
+
     private void ShowGalleryPreviewAt(int index)
     {
         if (index < 0 || index >= ViewModel.Photos.Count)

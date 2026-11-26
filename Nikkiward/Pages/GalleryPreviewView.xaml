@@ -65,7 +65,6 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <Button Grid.Column="6" Content="在照片工坊打开" Click="OnOpenStudio" />
                 <Button
                     x:Name="GalleryPreviewCloseButton"
                     Click="OnGalleryPreviewCloseClicked"
@@ -107,8 +106,16 @@
                     <FontIcon FontSize="16" Glyph="&#xE8C8;" />
                 </Button>
                 <Button
-                    x:Name="GalleryPreviewInfoButton"
                     Grid.Column="5"
+                    Click="OnOpenStudio"
+                    Style="{StaticResource GalleryPreviewOnArtIconButtonStyle}"
+                    automation:AutomationProperties.Name="在照片工坊打开"
+                    ToolTipService.ToolTip="在照片工坊打开">
+                    <FontIcon FontSize="16" Glyph="&#xE790;" />
+                </Button>
+                <Button
+                    x:Name="GalleryPreviewInfoButton"
+                    Grid.Column="6"
                     Click="OnGalleryPreviewInfoClicked"
                     Style="{StaticResource GalleryPreviewOnArtIconButtonStyle}"
                     automation:AutomationProperties.Name="查看图片信息"

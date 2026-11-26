@@ -5,6 +5,9 @@ internal static class GalleryIntegrationTests
 {
     public static IEnumerable<(string Name, Func<Task> Run)> All =>
     [
+        ("studio export names increment on collision", TestStudioExportNames),
+        ("studio reveals only its last successful export", TestStudioLastExport),
+        ("studio background import retains original name", TestStudioBackgroundName),
         ("studio persists edits and share codes", TestStudioEdits),
         ("studio rejects protected export directories", TestStudioExports),
         ("studio actions use an explicit allowlist", TestStudioActions),
@@ -55,6 +58,45 @@ internal static class GalleryIntegrationTests
         ("NikkiGallery registration detects executable changes", TestNikkiGalleryTamperDetection),
         ("NikkiGallery disconnect keeps the external executable", TestNikkiGalleryDisconnect),
     ];
+
+    private static async Task TestStudioExportNames()
+    {
+        using var fixture = new TempFixture();
+        var session = new StudioSession<string>([]);
+        var time = new DateTime(2026, 11, 26, 2, 25, 7);
+        foreach (var suffix in new[] { "", "-2", "-3" })
+        {
+            var path = await session.ExportAsync(fixture.Root, "灯会.夜.jpg", ".png", time, [1], default);
+            AssertEqual($"灯会.夜-studio-20261126-022507{suffix}.png", Path.GetFileName(path), "timestamp and collision suffix");
+        }
+    }
+
+    private static async Task TestStudioLastExport()
+    {
+        using var fixture = new TempFixture();
+        var session = new StudioSession<string>([]);
+        AssertEqual(true, session.LastExport == null, "no export yet");
+        await session.ExportAsync(fixture.Root, "a.jpg", ".png", DateTime.Now, [1], default);
+        var last = await session.ExportAsync(fixture.Root, "b.jpg", ".jpg", DateTime.Now, [2], default);
+        try { await session.ExportAsync(fixture.Root, "c.jpg", ".png", DateTime.Now, [3], new CancellationToken(true)); }
+        catch (OperationCanceledException) { }
+        AssertEqual(last, session.LastExport, "only completed export");
+        AssertEqual(true, new StudioSession<string>([]).LastExport == null, "isolated session");
+    }
+
+    private static async Task TestStudioBackgroundName()
+    {
+        using var fixture = new TempFixture();
+        string? staged = null;
+        await PhotoStudioStore.ImportBackgroundAsync(fixture.Root, "夜游.灯会.jpg", [1], (path, name, _) =>
+        {
+            staged = path;
+            AssertEqual(true, File.Exists(path), "staging image available during import");
+            AssertEqual("夜游.灯会", Path.GetFileNameWithoutExtension(name), "home artwork title");
+            return Task.CompletedTask;
+        }, default);
+        AssertEqual(true, staged != null && !File.Exists(staged), "staging image removed");
+    }
 
     private static Task TestStudioEdits()
     {

@@ -15,21 +15,47 @@
     const edits=initialEdits();
     edits.frame=key==='studio-adjust'?'off':key==='studio-portrait'?'ink':'on';
     edits.codes=['NK7Q-4MXD-2RJP','','','CAM-35-28-CX'];
-    return {id:String(i),portrait:k===1,time:i===4?'21:47:04':time.match(/../g).join(':'),name:'20261126_'+time+'.jpg',date:'2026.11.26 '+time.slice(0,2)+':'+time.slice(2,4),
-      url:assets+src,hasParameters:true,lens,aperture,filter,outfit:k===0?[outfit,'金色长卷','花冠','薄纱手套']:[outfit],slots:k===0?['连衣裙','发型','头饰','手饰']:[],palette,edits,folder:'ScreenShot',size:'6.2 MB',dim:k===1?'2160 × 3840':'3840 × 2400'};
+    return {id:String(i),portrait:k===1,time:i===4?'21:47:04':time.match(/../g).join(':'),name:'20261126_'+time+'.jpg',date:'2026-11-26 '+time.slice(0,2)+':'+time.slice(2,4),
+      url:assets+src,hasParameters:true,lens,aperture,filter,outfit:k===0?[outfit,'金色长卷','花冠','薄纱手套']:[outfit],slots:k===0?['连衣裙','发型','头饰','手饰']:[],palette,edits,folder:'ScreenShot',sizeBytes:6501171,dim:k===1?'2160 × 3840':'3840 × 2400'};
   });
+  const first=rows[0];
+  if(key==='studio-noparams') Object.assign(first,{
+    hasParameters:false,lens:null,aperture:null,filter:'',outfit:[],slots:[],sizeBytes:365312,
+    date:'2026-11-26 02:25',time:'02:25:00',name:'20261126_022500.jpg',dim:'3840 × 2160'
+  });
+  if(key==='studio-frame') Object.assign(first.edits,{
+    title:'夜游灯会',masks:[{x:.79,y:.88,w:.17,h:.06}]
+  });
+  if(key==='studio-frame-bar') first.edits.frame='bar';
+  if(key==='studio-fav') first.starred=true;
   window.mockStudio=m=>queueMicrotask(()=>{
     const p=rows.find(p=>p.id===m.id);
     if(m.action==='inspect') receive({type:'inspect',token:m.token,facts:p});
-    if(m.action==='open') receive({...p,type:'photo'});
-    if(m.action==='thumb'||m.action==='image')receive({type:m.action,id:p.id,url:p.url,size:p.id==='4'?'auto 106%':'cover',x:p.id==='4'?47:50});
+    if(m.action==='open') {
+      document.querySelector('#exportProof')?.remove();
+      receive({...p,type:'photo'});
+    }
+    if(m.action==='thumb'||m.action==='image')receive({type:m.action,id:p.id,url:p.url,starred:p.starred,rejected:p.rejected,size:p.id==='4'?'auto 106%':'cover',x:p.id==='4'?47:50});
     if(m.action==='save')p.edits=m.edits;
-    if(m.action==='favorite'||m.action==='reject')receive({type:m.action,id:p.id,value:m.value});
+    if(m.action==='favorite'||m.action==='reject'){
+      p[m.action==='favorite'?'starred':'rejected']=m.value;
+      receive({type:m.action,id:p.id,value:m.value});
+    }
   });
-  window.studioOpened=()=>{
+  window.studioOpened=async()=>{
     window.studioOpened=null;
     if(key==='studio-adjust')tab('adjust');
-    if(key==='studio-portrait')tab('frame');
+    if(['studio-portrait','studio-frame','studio-frame-bar'].includes(key))tab('frame');
+    if(key==='studio-frame') {selectedMask=edit.masks[0];repaint();}
+    if(key==='studio-exported') receive({type:'exported',name:'20261126_214702-studio-20261126-215018.png'});
+    if(key==='studio-export') {
+      const original=image, proof=await renderOutput(image,structuredClone(edit),current);
+      if(original===image) {
+        proof.id='exportProof';proof.setAttribute('aria-label','导出副本');
+        Object.assign(proof.style,{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none'});
+        frame.append(proof);
+      }
+    }
     if(key==='studio-compare'){tab('codes');compared=['0','4'];comparison();}
   };
   document.querySelector('#codeNote').append('示例里的码是占位，不是真的。');
