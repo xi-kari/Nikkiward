@@ -58,9 +58,9 @@ public static class GalleryThumbnailCache
         string filePath,
         string extension,
         string? galleryRoot,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, bool memoryOnly = false)
     {
-        var folder = CacheFolder.Value;
+        var folder = memoryOnly ? null : CacheFolder.Value;
         if (string.IsNullOrWhiteSpace(filePath))
         {
             return null;
@@ -88,7 +88,7 @@ public static class GalleryThumbnailCache
         await DecodeGate.WaitAsync(cancellationToken);
         try
         {
-            return await GalleryThumbnailFile.GetOrCreateAsync(folder, galleryRoot, source, usesScreenshotCodec, async () =>
+            return await GalleryThumbnailFile.GetOrCreateAsync(folder, galleryRoot, source, memoryOnly || usesScreenshotCodec, async () =>
                 usesScreenshotCodec
                     ? await StarwardScreenshotDecoder.RenderThumbnailAsync(filePath, extension, ThumbnailWidth, cancellationToken)
                     : await RenderThumbnailAsync(filePath, cancellationToken), cancellationToken);

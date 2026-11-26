@@ -12,7 +12,7 @@ public sealed partial class MainPage
     private readonly NikkiGalleryToolRegistry _nikkiGalleryToolRegistry = new();
     private GalleryFavoriteProtectionService? _galleryFavoriteProtectionService;
     private GalleryFavoriteProtectionService GalleryProtection =>
-        _galleryFavoriteProtectionService ??= new(readOnlyRoots: () => ViewModel.GalleryReadOnlyRoots);
+        _galleryFavoriteProtectionService ??= new(readOnlyRoots: () => [.. ViewModel.GalleryReadOnlyRoots, PhotoStudioView.Store.ExportRoot]);
     private GalleryThumbnailCacheStatistics? _galleryCacheStatistics;
     private GalleryFavoriteProtectionOverview? _galleryProtectionOverview;
     private NikkiGalleryToolState? _nikkiGalleryToolState;

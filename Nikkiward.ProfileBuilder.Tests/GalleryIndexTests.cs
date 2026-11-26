@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Text.Json;
+using Nikkiward.Features.Pages;
 using Nikkiward.Features.Gallery;
 using Nikkiward.Services;
 
@@ -6,6 +8,9 @@ internal static class GalleryIndexTests
 {
     internal static IEnumerable<(string, Func<Task>)> All =>
     [
+        (nameof(NativeAndWebAlbumMembership), NativeAndWebAlbumMembership),
+        (nameof(WebQueryAndIssuedPhotos), WebQueryAndIssuedPhotos),
+        (nameof(WebFavoriteProtectionAndConsent), WebFavoriteProtectionAndConsent),
         (nameof(IndexFingerprintAndReadOnlySources), IndexFingerprintAndReadOnlySources),
         (nameof(QueryConditionsCountsAndDates), QueryConditionsCountsAndDates),
         (nameof(StablePagesAndInvalidCursors), StablePagesAndInvalidCursors),
@@ -33,7 +38,7 @@ internal static class GalleryIndexTests
                 if (read != null) return read(path, ct);
                 Interlocked.Increment(ref Reads);
                 return Task.FromResult(Facts);
-            }, relative => relative.StartsWith("A\\") ? ("A", "高清拍摄") : ("Other", "其他"));
+            }, GalleryFiles.ResolveCategory);
 
         internal string Add(string relative, int seconds = 0, bool export = false)
         {
@@ -48,6 +53,122 @@ internal static class GalleryIndexTests
             .SelectMany(path => Directory.GetFiles(path, "*", SearchOption.AllDirectories))
             .Order().Select(p => $"{p}|{new FileInfo(p).Length}|{File.GetLastWriteTimeUtc(p).Ticks}").ToArray();
         public void Dispose() => Directory.Delete(Folder, true);
+    }
+
+    private static async Task NativeAndWebAlbumMembership()
+    {
+        using var l = new Library();
+        foreach (var category in new[] { "NikkiPhotos_HighQuality", "NikkiPhotos_LowQuality", "MagazinePhotos",
+            "ClockInPhoto", "ScreenShot", "Collage", "CollagePhoto", "CloudPhotos", "CloudPhotos_LowQuality", "Other" })
+        {
+            l.Add(Path.Combine(category, "one.jpg"));
+            l.Add(Path.Combine(category, "two.jpg"), 2);
+        }
+        l.Add("one.jpg", export: true);
+        l.Add("two.jpg", 1, export: true);
+        var defaults = Enumerable.Range(1, 5).Select(i =>
+        {
+            var relative = Path.Combine("DefaultFavorites", $"{i}.jpg");
+            var path = Path.Combine(l.Folder, relative);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllBytes(path, [1, 2, 3]);
+            return new GalleryDefaultFavorite(GalleryDefaultFavoriteSeedService.ScopeId, relative, path, 3, Epoch);
+        }).ToArray();
+        var native = GalleryFiles.Enumerate(l.Root, default).Select(f =>
+            (Scope: "album", Path: Path.GetRelativePath(l.Root, f.FullName))).ToList();
+        GalleryFiles.ReplaceDefaultFavorites(native, p => p.Scope == GalleryDefaultFavoriteSeedService.ScopeId,
+            defaults, d => (Scope: d.ScopeId, Path: d.RelativePath));
+        var index = l.Open();
+        await index.RefreshAsync(Empty, new("", Epoch, Epoch.AddSeconds(3), TimeSpan.FromSeconds(3)), null,
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "one.jpg" });
+        var seeds = defaults.Select(d => new GalleryIndexPhoto(Guid.NewGuid().ToString("N"), Path.GetFileName(d.FilePath),
+            d.RelativePath, "DefaultFavorites", "默认收藏", d.LastWriteTimeUtc.ToLocalTime(), 3, Facts, true, false, null)).ToArray();
+        var all = index.Snapshot(new(), seeds, false);
+        var counts = all.Page(0).Counts;
+        Check(native.Select(p => p.Path).Order().SequenceEqual(all.Ordered.Select(p => p.RelativePath).Order()));
+        Check(counts.All == 25 && counts.Categories.Values.Sum() == 25 && counts.Favorites == 5 && counts.Exports == 2);
+        Check(counts.Bursts == 14 && all.Ordered.Where(p => p.Burst != null).GroupBy(p => p.Burst)
+            .All(group => group.Count() == 2 && group.Select(p => p.CategoryId).Distinct().Count() == 1));
+        Check(all.Ordered.Where(p => p.CategoryId is "Other" or "CloudPhotos" or "CloudPhotos_LowQuality" or "DefaultFavorites")
+            .All(p => p.Burst == null));
+        Check(index.Snapshot(new(Exports: true), seeds, false).Ordered.All(p => p.Exported && p.Session == null && p.Burst == null));
+        Check(index.Snapshot(new(), seeds, true).Ordered.Count == 5);
+        Check(index.Snapshot(new(), seeds.Skip(1), false).Ordered.Count == 24);
+    }
+
+    private static async Task WebQueryAndIssuedPhotos()
+    {
+        using var library = new Library();
+        for (int i = 0; i < 94; i++) library.Add(Path.Combine("NikkiPhotos_HighQuality", $"{i:D3}.jpg"), i);
+        library.Add("else.jpg", 100, true);
+        var before = library.Inventory();
+        var index = library.Open();
+        await index.RefreshAsync(Empty, null, null);
+        var page = new GalleryPageSession(index, false);
+        page.Reset([]);
+        var old = page.Version;
+        page.BeginVisit();
+        var oldVisit = page.Visit;
+        var command = JsonSerializer.SerializeToElement(new { visit = oldVisit, sequence = 2, version = old });
+        Check(page.Accept("query", command) && !page.Accept("query", command));
+        page.BeginVisit();
+        Check(!page.Accept("clear", command) && !page.Accept("next", command));
+        page.Change(JsonSerializer.SerializeToElement(new { tab = "category:NikkiPhotos_HighQuality", text = ".jpg", filter = "F12",
+            clothing = "345", color = "15606306", sort = "oldest" }), []);
+        var first = page.Page.Photos.First();
+        var list = page.StudioList(first, false).ToArray();
+        Check(page.Page.Matches == 94 && list.Select(p => p.FileName).SequenceEqual(Enumerable.Range(0,94).Select(i => $"{i:D3}.jpg")));
+        Check(page.Find(old, first.Id) == null && page.Find(page.Version, first.Id) == first);
+        Check(page.Find(page.Version, list[80].Id) == null && page.Find(page.Version, library.Root) == null);
+        Check(!page.Next(old, 80) && page.Next(page.Version, 80) && !page.Next(page.Version, 80));
+        Check(page.Find(page.Version, list[80].Id) == list[80]);
+        var state = JsonSerializer.SerializeToElement(page.State(false,index.Progress,false,false,true,false,null));
+        Check(state.GetProperty("days")[0].GetProperty("count").GetInt32() == 94 &&
+            state.GetProperty("offset").GetInt32() == 80 && !state.ToString().Contains(library.Folder));
+        Check(page.StudioList(first,true).Count() == 94);
+        page.Change(JsonSerializer.SerializeToElement(new { text = "000.jpg" }), []);
+        Check(page.Page.Matches == 1 && page.StudioList(page.Page.Photos.Single(),true).Count() == 94);
+        var filtered = page.Version;
+        page.Change(JsonSerializer.SerializeToElement(new { }), []);
+        Check(page.Page.Matches == 94 && page.Find(filtered, first.Id) == null && page.Page.Next != null);
+        Check(before.SequenceEqual(library.Inventory()));
+    }
+
+    private static async Task WebFavoriteProtectionAndConsent()
+    {
+        using var library = new Library();
+        var source = library.Add("original.jpg");
+        var annotations = new GalleryAnnotationStore(library.Folder);
+        var service = new GalleryFavoriteProtectionService(library.Folder, Path.Combine(library.Folder,"pictures"), () => [library.Root]);
+        var scope = GalleryAnnotationStore.CreateScopeId("profile",library.Root);
+        var inventory = library.Inventory();
+        Task<bool> Unexpected(string _, string __) => throw new InvalidOperationException("Unexpected confirmation");
+        async Task Set(bool value) => Check(await GalleryFavoriteChange.SetAsync(annotations,service,scope,"original.jpg",source,value,Unexpected,default));
+        await Set(true);
+        var live = await service.LoadGalleryAsync("profile",library.Root);
+        Check(live.ProtectedFavorites.Single().IsUsingProtectedCopy == false);
+        await Set(false);
+        await Set(true);
+        Check(inventory.SequenceEqual(library.Inventory()));
+        File.Delete(source);
+        var missing = await service.LoadGalleryAsync("profile",library.Root);
+        var fallback = missing.ProtectedFavorites.Single();
+        Check(fallback.IsUsingProtectedCopy);
+        var index = library.Open();
+        await index.RefreshAsync(missing,null,null);
+        var page = new GalleryPageSession(index,true);
+        page.Reset([]);
+        Check(page.Page.Photos.Single().ProtectedCopy && index.ResolvePath(page.Page.Photos.Single().Id) == fallback.ProtectedPath);
+        int prompts = 0;
+        Task<bool> Confirm(string message,string button)
+        {
+            Check(message.Contains("仅存") && button.Contains("删除"));
+            return Task.FromResult(++prompts == 2);
+        }
+        async Task<bool> Unstar() => await GalleryFavoriteChange.SetAsync(annotations,service,scope,"original.jpg",
+            fallback.ProtectedPath,false,Confirm,default);
+        Check(!await Unstar() && File.Exists(fallback.ProtectedPath));
+        Check(await Unstar() && !File.Exists(fallback.ProtectedPath) && prompts == 2 && library.Inventory().Length == 0);
     }
 
     private static async Task IndexFingerprintAndReadOnlySources()
@@ -76,28 +197,29 @@ internal static class GalleryIndexTests
         File.Move(b, Path.Combine(l.Exports, "c.jpg"));
         File.Delete(a);
         await index.RefreshAsync(Empty, null, null);
-        Check(l.Reads == 5 && index.Query(new()).Photos.Single().FileName == "c.jpg" && index.ResolvePath(original.Id) == null);
+        Check(l.Reads == 5 && index.Query(new(Exports: true)).Photos.Single().FileName == "c.jpg" && index.ResolvePath(original.Id) == null);
     }
 
     private static async Task QueryConditionsCountsAndDates()
     {
         using var l = new Library();
-        l.Add(@"A\z.jpg");
-        l.Add(@"A\y.jpg", 2);
-        l.Add("b.jpg", 86400, true);
-        var fav = Empty with { StarredPaths = new HashSet<string> { @"A\Z.JPG" } };
-        var index = l.Open((p, _) => Task.FromResult(p.StartsWith(l.Exports) ? Facts with
+        l.Add(@"NikkiPhotos_HighQuality\z.jpg");
+        l.Add(@"NikkiPhotos_HighQuality\y.jpg", 2);
+        l.Add("b.jpg", 86400);
+        l.Add("export.jpg", 86400, true);
+        var fav = Empty with { StarredPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { @"NikkiPhotos_HighQuality\Z.JPG" } };
+        var index = l.Open((p, _) => Task.FromResult(Path.GetFileName(p) is "b.jpg" or "export.jpg" ? Facts with
             { FilterId = null, ClothingIds = [], Colors = [0x2222ee] } : Facts));
         await index.RefreshAsync(fav, new("", Epoch, Epoch, TimeSpan.Zero), null);
         var page = index.Query(new());
         Check(page.Photos.Select(p => p.FileName).SequenceEqual(["b.jpg", "y.jpg", "z.jpg"]));
         Check(page.Days.Select(d => d.Photos.Length).SequenceEqual([1, 2]));
-        foreach (var q in new[] { new GalleryQuery(Text: "高清"), new(Text: @"a\"), new(Text: "f12"),
-            new(Text: "345"), new(Category: "a"), new(Bursts: true), new(Filter: "f12"), new(Clothing: 345), new(Color: 0xff2222) })
+        foreach (var q in new[] { new GalleryQuery(Text: "高清"), new(Text: @"nikkiphotos_highquality\"), new(Text: "f12"),
+            new(Text: "345"), new(Category: "nikkiphotos_highquality"), new(Bursts: true), new(Filter: "f12"), new(Clothing: 345), new(Color: 0xff2222) })
             Check(index.Query(q).Matches == 2);
         foreach (var q in new[] { new GalleryQuery(Text: "Z.JPG"), new(Favorites: true), new(Current: true) })
             Check(index.Query(q).Photos.Single().FileName == "z.jpg");
-        Check(index.Query(new(Exports: true)).Photos.Single().FileName == "b.jpg");
+        Check(index.Query(new(Exports: true)).Photos.Single().FileName == "export.jpg");
         Check(index.Query(new(Exports: true, Favorites: true)).Matches == 0);
         Check(index.Query(new(Sort: GalleryQuerySort.Oldest)).Photos[0].FileName == "z.jpg");
         Check(index.Query(new(Sort: GalleryQuerySort.Name)).Photos.Select(p => p.FileName).SequenceEqual(["b.jpg","y.jpg","z.jpg"]));
@@ -105,7 +227,7 @@ internal static class GalleryIndexTests
             .SequenceEqual(page.Photos.Select(p => p.CategoryName).Order(StringComparer.OrdinalIgnoreCase)));
         var c = page.Counts;
         Check((c.All, c.Favorites, c.Current, c.Bursts, c.Exports) == (3, 1, 1, 2, 1));
-        Check(c.Categories["A"] == 2 && c.Filters["F12"] == 2 && c.Clothing[345] == 2 &&
+        Check(c.Categories["NikkiPhotos_HighQuality"] == 2 && c.Filters["F12"] == 2 && c.Clothing[345] == 2 &&
             c.Colors.Values.Order().SequenceEqual([1, 2]));
     }
 
@@ -141,8 +263,8 @@ internal static class GalleryIndexTests
     private static async Task BurstAndSessionBoundaries()
     {
         using var l = new Library();
-        l.Add(@"A\a.jpg"); l.Add(@"A\b.jpg", 2); l.Add(@"A\c.jpg", 4);
-        l.Add(@"A\d.jpg", 7); l.Add(@"B\e.jpg", 2);
+        l.Add(@"NikkiPhotos_HighQuality\a.jpg"); l.Add(@"NikkiPhotos_HighQuality\b.jpg", 2); l.Add(@"NikkiPhotos_HighQuality\c.jpg", 4);
+        l.Add(@"NikkiPhotos_HighQuality\d.jpg", 7); l.Add(@"B\e.jpg", 2);
         var index = l.Open();
         await index.RefreshAsync(Empty, new("", Epoch.AddSeconds(2), Epoch.AddSeconds(4), TimeSpan.Zero),
             new("", Epoch, Epoch.AddSeconds(2), TimeSpan.Zero));

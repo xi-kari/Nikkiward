@@ -42,6 +42,26 @@ internal sealed partial class GalleryIndex
         lock (_gate) return _rows.GetValueOrDefault(id)?.Path;
     }
 
+    internal GalleryIndexPhoto[] BurstGroup(string id)
+    {
+        lock (_gate)
+        {
+            var photos = WithBursts();
+            var group = photos.FirstOrDefault(p => p.Id == id)?.Burst;
+            return group == null ? [] : photos.Where(p => p.Burst == group).OrderBy(p => p.LocalTime.ToUniversalTime())
+                .ThenBy(p => p.RelativePath, StringComparer.Ordinal).ToArray();
+        }
+    }
+
+    internal GalleryQuerySnapshot Snapshot(GalleryQuery query, IEnumerable<GalleryIndexPhoto> defaults, bool favoritesRoute)
+    {
+        lock (_gate)
+        {
+            var photos = WithBursts().Concat(defaults);
+            return new(query, (favoritesRoute ? photos.Where(p => p.Favorite) : photos).ToArray(), _progress);
+        }
+    }
+
     internal GalleryQueryPage Query(GalleryQuery query, GalleryQueryCursor? cursor = null)
     {
         lock (_gate)
@@ -57,8 +77,10 @@ internal sealed partial class GalleryIndex
     private GalleryIndexPhoto[] WithBursts()
     {
         var photos = new List<GalleryIndexPhoto>(_rows.Count);
-        foreach (var directory in _rows.Values.Select(r => r.Photo)
-            .GroupBy(p => (p.Exported ? "E" : "G") + Path.GetDirectoryName(p.RelativePath), StringComparer.OrdinalIgnoreCase))
+        var byEligibility = _rows.Values.Select(r => r.Photo)
+            .ToLookup(p => !p.Exported && GalleryFiles.IsLocalCaptureCategory(p.CategoryId));
+        photos.AddRange(byEligibility[false]);
+        foreach (var directory in byEligibility[true].GroupBy(p => Path.GetDirectoryName(p.RelativePath), StringComparer.OrdinalIgnoreCase))
         {
             int start = photos.Count;
             foreach (var photo in directory.OrderBy(p => p.LocalTime.ToUniversalTime()).ThenBy(p => p.RelativePath, StringComparer.Ordinal))
@@ -77,15 +99,15 @@ internal sealed partial class GalleryIndex
     }
 
     internal Task RefreshAsync(GalleryFavoriteState favorites, PlaySession? current, PlaySession? previous,
-        IReadOnlySet<string>? exportStars = null, CancellationToken token = default) =>
+        IReadOnlySet<string>? exportStars = null, CancellationToken token = default, GalleryFavoriteState? exportState = null) =>
         Task.Run(async () =>
         {
             await _refresh.WaitAsync(token);
-            try { await RefreshCoreAsync(favorites, current, previous, exportStars, token); }
+try { await RefreshCoreAsync(favorites, current, previous, exportState?.StarredPaths ?? exportStars, token, exportState); }
             finally { _refresh.Release(); }
         }, token);
 
-    private static bool CanWriteCache(string folder, string? gallery, string exports)
+    internal static bool CanWriteCache(string folder, string? gallery, string exports)
     {
         var actual = GalleryFavoriteProtectionService.ResolveDirectoryLinks(folder);
         return new[] { gallery, exports }.OfType<string>().All(root =>
@@ -93,7 +115,7 @@ internal sealed partial class GalleryIndex
     }
 
     private async Task RefreshCoreAsync(GalleryFavoriteState favorites, PlaySession? current, PlaySession? previous,
-        IReadOnlySet<string>? exportStars, CancellationToken token)
+        IReadOnlySet<string>? exportStars, CancellationToken token, GalleryFavoriteState? exportState)
     {
         Dictionary<string, string> ids;
         lock (_gate)
@@ -117,12 +139,12 @@ internal sealed partial class GalleryIndex
             }
             Collect(_root, false);
             Collect(_exports, true);
-            foreach (var fallback in favorites.ProtectedFavorites.Where(p => p.IsUsingProtectedCopy))
+            foreach (var fallback in favorites.ProtectedFavorites.Concat(exportState?.ProtectedFavorites ?? []).Where(p => p.IsUsingProtectedCopy))
             {
                 var entry = fallback.Entry;
                 // Two missing originals can refer to the same protected object.
                 sources.TryAdd(entry.OriginalPath, new(new(fallback.ProtectedPath), entry.RelativePath,
-                    false, entry.OriginalLastWriteTimeUtc.UtcDateTime));
+                    entry.ScopeId == exportState?.ScopeId, entry.OriginalLastWriteTimeUtc.UtcDateTime));
             }
             lock (_gate)
             {
@@ -174,7 +196,7 @@ internal sealed partial class GalleryIndex
                     var id = ids.GetValueOrDefault(logicalPath) ?? Guid.NewGuid().ToString("N");
                     var photo = new GalleryIndexPhoto(id, name, source.Relative, category.Item1, category.Item2,
                         utc.ToLocalTime(), size, cached.Facts, stars?.Contains(GalleryAnnotationStore.NormalizeRelativePath(source.Relative)) == true,
-                        source.Exported, session);
+                        source.Exported, session, ProtectedCopy: !file.FullName.Equals(logicalPath, StringComparison.OrdinalIgnoreCase));
                     lock (_gate)
                     {
                         _rows[id] = new(file.FullName, photo, logicalPath);

@@ -26,8 +26,11 @@ internal sealed class PhotoStudioView : Grid
     private readonly GalleryPhotoItemViewModel _selected;
     internal static readonly PhotoStudioStore Store = new(Path.Combine(ApplicationDataPaths.Root, "PhotoStudio"));
 
-    internal PhotoStudioView(MainPage shell, IEnumerable<GalleryPhotoItemViewModel> list, GalleryPhotoItemViewModel selected)
+    private readonly bool _compare;
+
+    internal PhotoStudioView(MainPage shell, IEnumerable<GalleryPhotoItemViewModel> list, GalleryPhotoItemViewModel selected, bool compare = false)
     {
+        _compare = compare;
         _session = new(list);
         _shell = shell;
         _selected = selected;
@@ -67,6 +70,8 @@ internal sealed class PhotoStudioView : Grid
                     id = _session.Photos.First(p => p.Value == _selected).Key });
             };
             core.ProcessFailed += (_, _) => Failed("照片工坊进程已停止");
+            if (_compare)
+                await core.AddScriptToExecuteOnDocumentCreatedAsync("window.studioOpened=()=>{delete window.studioOpened;document.getElementById('sCmp').click()}");
             core.Navigate(Page);
         }
         catch (Exception ex) when (ex is COMException or IOException or NotImplementedException or UnauthorizedAccessException)
@@ -139,7 +144,7 @@ internal sealed class PhotoStudioView : Grid
                         thumbnail = await photo.ReadThumbnailDataUrlAsync(_life.Token);
                     else
                     {
-                        var info = await _metadata.ReadAsync(photo.FilePath, _life.Token);
+                        var info = await _metadata.ReadIndexMetadataAsync(photo.FilePath, photo.OriginalPath, _life.Token);
                         facts = new { lens = info.Camera?.FocalLength, aperture = info.Camera?.Aperture,
                             filter = info.Camera?.Filter?.Id, outfit = info.ClothingIds.Select(n => n.ToString()),
                             date = photo.FullModifiedText };
@@ -147,7 +152,7 @@ internal sealed class PhotoStudioView : Grid
                     Send(new { type = "inspect", token = Str("token"), facts, thumbnail });
                     break;
                 case "open":
-                    var meta = await _metadata.ReadAsync(photo.FilePath, _life.Token);
+                    var meta = await _metadata.ReadIndexMetadataAsync(photo.FilePath, photo.OriginalPath, _life.Token);
                     var stars = await new GalleryAnnotationStore().LoadStarredAsync(photo.AnnotationScopeId, _life.Token);
                     photo.SetStarred(stars.Contains(photo.StarKey));
                     Send(new { type = "photo", id, edits = Store.Load(key), starred = photo.IsStarred,

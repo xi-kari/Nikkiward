@@ -30,6 +30,7 @@ public sealed partial class WebPagesView : Page
     {
         if (_shell == null) shell.Unloaded += Close;
         _shell = shell;
+        if (_page != page) ReleaseImages();
         _page = page;
         _adapter = adapter;
         if (_failure != null) { Fail(_failure); return; }
@@ -45,6 +46,7 @@ public sealed partial class WebPagesView : Page
         _shell.ViewModel.PropertyChanged -= AppearanceChanged;
         _shell.HomeBackdrop.PropertyChanged -= AppearanceChanged;
         if (_ready) Post(new { type = "leave" });
+        ReleaseImages();
         _page = null;
         base.OnNavigatedFrom(args);
     }
@@ -52,6 +54,7 @@ public sealed partial class WebPagesView : Page
     private void Close(object sender, RoutedEventArgs args)
     {
         _closed = true;
+        ReleaseImages();
         _shell.Unloaded -= Close;
         _shell.ViewModel.PropertyChanged -= AppearanceChanged;
         _shell.HomeBackdrop.PropertyChanged -= AppearanceChanged;
@@ -132,6 +135,8 @@ public sealed partial class WebPagesView : Page
                 }
                 catch (COMException ex) { Fail(ex.Message); }
             };
+            core.AddWebResourceRequestedFilter(ImagePrefix + "*", CoreWebView2WebResourceContext.Image);
+            core.WebResourceRequested += ImageRequested;
             core.WebMessageReceived += Message;
             core.Navigate(Address);
         }

@@ -30,6 +30,12 @@
 
 方块容器（卡片、输入框、下拉面板、菜单和表格容器）的 `border-radius` 使用 `var(--r-box)`，上限为 10px。按钮和小标签使用 `var(--r-pill)`，保留皮肤的胶囊圆角。两项变量均由 components.css 定义。
 
+## 按标识供图
+
+相册通过 `WebPagesView.RegisterImages` 登记供图函数和离页清理回调。页面请求 `https://page-image.nikkiward.invalid/<查询版本>/<照片标识>`。原生只接受当前查询已签发的标识，最多并发读取三张缩略图；未知或失效的标识返回 404。页面的 CSP 在 `img-src` 中允许这个独立主机。
+
+供图主机必须保持未映射状态。实机验证中，WebView2 将映射到 `Web` 文件夹的 `pages.nikkiward.invalid` 请求直接解析为本地文件，未触发 `WebResourceRequested`。把供图路径挂在这个主机下，会让列表正常显示而所有缩略图都找不到文件。
+
 ## 对照与发布
 
 在 `Nikkiward/Web.dev/pages/<路由>/cases.js` 读取 mock 和 tone，调用 `receivePage({type:'state',page,module,skin,tone,state})`，与正式页面共用挂载和渲染。普通浏览器打开 `Nikkiward/Web/pages/index.html?mock=wish`。另有 wish-empty、wish-records、wish-atelier、wish-stitch、wish-journal、wish-wishstar，亮色加 `&tone=light`。正式宿主只接受固定入口地址。Web.dev 不进入发布包。
