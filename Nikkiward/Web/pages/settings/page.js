@@ -23,9 +23,9 @@
     view.id = 'settings';
     view.innerHTML = '<header class="ph"><h1>设置</h1><div class="meta">Nikkiward <span class="m"></span> · 非官方 · 社区项目 · MIT</div></header><div class="cols"><nav class="slist" aria-label="设置分类"></nav><section class="mod content"></section><aside class="mod"></aside></div>';
     root.append(view);
-    let state, active, revision = 0;
+    let state, active, revision = 0, awaitingReply = false;
     const nav = view.querySelector('nav'), content = view.querySelector('.content'), aside = view.querySelector('aside');
-    function action(section,op,data = {}) { send('section',{section,op,...data}); }
+    function action(section,op,data = {}) { awaitingReply = true; send('section',{section,op,...data}); }
     function button(label,click) {
       const btn = element('button',label,'btn');
       btn.onclick = click;
@@ -38,6 +38,14 @@
       btn.prepend(icon('M19.5 12a7.5 7.5 0 1 1-2.2-5.3 M19.5 4v4h-4'));
       btn.disabled = info.checking || !info.available;
       return btn;
+    }
+    function go(id) {
+      if (!(id in state.sections)) { send('native',{section:id}); return; }
+      if (id === active) return;
+      content.replaceChildren();
+      active = id;
+      draw();
+      if (id === 'FileManagement') action(id,'refresh');
     }
     function draw() {
       const ticket = ++revision;
@@ -55,12 +63,7 @@
         const b = element('button',label);
         b.dataset.focus = id;
         if (id === active) b.setAttribute('aria-current','page');
-        b.onclick = () => {
-          if (!(id in state.sections)) { send('native',{section:id}); return; }
-          if (id !== active) content.replaceChildren();
-          active = id;
-          draw();
-        };
+        b.onclick = () => go(id);
         return b;
       }));
       view.querySelector('.meta .m').textContent = state.sections.about.version;
@@ -89,7 +92,17 @@
         }
         function save(field,value,section = active) { action(section,'change',{field,value:String(value)}); }
         const ui = {
-          element, row, button, action, check, save,
+          element, row, button, action, check, save, go,
+          command(label,caption,op,description,disabled = false) {
+            const control = button(caption,() => action(active,op));
+            control.disabled = disabled;
+            return row(label,control,description);
+          },
+          facts(values) {
+            for (const [name,value] of Object.entries(values)) {
+              if (value) row(name,element('span',value,'value'));
+            }
+          },
           add: el => parent.append(el),
           group(label) {
             parent = element('section',null,'settings-group');
@@ -128,7 +141,12 @@
         if (focus) view.querySelector('[data-focus="'+CSS.escape(focus)+'"]')?.focus({preventScroll:true});
       }
       if (renderers.has(active)) { render(); return; }
-      if (!loads.has(active)) loads.set(active,asset('script','settings/sections/'+active+'.js'));
+      if (!loads.has(active)) {
+        const dependencies = ['Journal','Files','Components','Diagnostics'].includes(active);
+        if (dependencies && !loads.has('developer')) loads.set('developer',asset('script','settings/developer.js'));
+        const path = 'settings/sections/'+active+'.js';
+        loads.set(active,dependencies ? loads.get('developer').then(() => asset('script',path)) : asset('script',path));
+      }
       loads.get(active).then(render).catch(() => {
         if (view.isConnected && ticket === revision) send('module-error');
       });
@@ -136,7 +154,19 @@
     commands.push(['设置','检查更新',() => {
       if (state.sections.about.available && !state.sections.about.checking) action('about','check');
     }]);
-    return next => { state = next; active ??= next.initial ?? 'appearance'; draw(); };
+    function visibleState(snapshot) {
+      const {sections,...shell} = snapshot;
+      return JSON.stringify([shell,sections.appearance,sections.general,sections.about,sections[active]]);
+    }
+    return next => {
+      const previous = state;
+      state = next;
+      active ??= next.initial ?? 'appearance';
+      if (!(active in state.sections)) active = 'Advanced';
+      if (!awaitingReply && previous && visibleState(previous) === visibleState(next)) return;
+      awaitingReply = false;
+      draw();
+    };
   }
   registerPage('settings',{mount,unmount() {}});
 })();

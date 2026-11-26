@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using Microsoft.Web.WebView2.Core;
 using Nikkiward.Services;
+using Nikkiward.ViewModels;
 
 namespace Nikkiward.Features.Pages;
 
@@ -18,6 +19,7 @@ public sealed partial class WebPagesView : Page
     private string? _page;
     private bool _ready, _closed;
     private string? _failure;
+    private int _settingsRefreshQueued;
     private (string Skin, string Tone) _appearance;
 
     public WebPagesView()
@@ -64,6 +66,17 @@ public sealed partial class WebPagesView : Page
 
     private void AppearanceChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {
+        if (sender == _shell.ViewModel && _page == "settings" && args.PropertyName is
+            (nameof(MainPageViewModel.CanExport) or nameof(MainPageViewModel.ProviderValidationStatusText)
+            or nameof(MainPageViewModel.HomeCheckText) or nameof(MainPageViewModel.SteamProvenanceText)))
+        {
+            if (Interlocked.Exchange(ref _settingsRefreshQueued, 1) == 0)
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    Interlocked.Exchange(ref _settingsRefreshQueued, 0);
+                    if (_page == "settings") Refresh();
+                });
+        }
         if (!DispatcherQueue.HasThreadAccess) { DispatcherQueue.TryEnqueue(UpdateAppearance); return; }
         UpdateAppearance();
     }

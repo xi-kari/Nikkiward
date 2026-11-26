@@ -44,10 +44,10 @@
 
 ## 设置分区
 
-设置页使用同一条 `settings` 路由。左栏来自 `Features/Pages/Settings/SettingsSections.cs`，其中列出稳定的分区 ID、显示名、原生目的地和开发者模式可见性。没有网页适配器的条目按原生目的地打开。概览直接进入原生概览，运行状态沿用原生抽屉。
+设置页使用同一条 `settings` 路由。左栏来自 `Features/Pages/Settings/SettingsSections.cs`，其中列出稳定的分区 ID、显示名、原生目的地和开发者模式可见性。没有网页适配器的条目按原生目的地打开。设置概览位于高级，运行状态可打开启动检查抽屉。
 
 - 在 `Web/pages/settings/sections/<id>.js` 中调用 `registerSettingsSection(id, (ui, values, state) => { … })`。外壳按 ID 加载脚本，提供行、开关、选择器和输入框。路径及用户文本通过 DOM 的文本属性显示。
 - 在 `Features/Pages/Settings/` 添加分区的状态投影和字段校验，以及 `<Name>.Native.cs` 中的原生保存和动作处理。返回的 `PageAdapter` 使用相同 ID，声明本分区的动作白名单。选择文件、系统链接、确认框和持久化由原生执行。
 - 将适配器工厂加入 `SettingsPageBridge.cs` 的 `adapters`。现有分区只需在这里登记一次，导航便会使用网页。新建分类时也要在分区清单中给出原生目的地。
 - 外壳发送 `section` 动作，携带 `section` 和 `op`。单字段变更使用 `change` 并携带 `field` 与字符串 `value`。原生从当前模型取值，校验后保存并回传快照。未登记的分区使用 `native` 动作，再次核对可见性。新增分区时在测试宿主覆盖状态、保存和无效输入，并更新网页发布哈希。
-- 对照入口为 `?mock=settings`，另有 `settings-general`、`settings-about`、`settings-real` 以及按皮肤命名的 `settings-atelier/stitch/journal/wishstar`（分别使用完整的 `settings-` 前缀）。用 `&tone=light` 或 `&tone=dark` 指定明暗。
+- 对照入口为 `?mock=settings`，另有 `settings-general`、`settings-about`、`settings-real` 以及按皮肤命名的 `settings-atelier/stitch/journal/wishstar`（分别使用完整的 `settings-` 前缀）。其他分区使用 `settings-download`、`settings-file-management`、`settings-advanced`、`settings-journal-cache`、`settings-files`、`settings-status`、`settings-components`、`settings-diagnostics`、`settings-contract`；`settings-developer` 展示完整导航。用 `&tone=light` 或 `&tone=dark` 指定明暗。

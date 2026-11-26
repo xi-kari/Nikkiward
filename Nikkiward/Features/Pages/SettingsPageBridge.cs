@@ -1,7 +1,5 @@
 using Nikkiward.Features.Pages;
-using Nikkiward.Features.Settings;
 using Nikkiward.Features.Launcher.Skins;
-using Nikkiward.Features.Shell;
 
 namespace Nikkiward;
 
@@ -11,10 +9,13 @@ public sealed partial class MainPage
 
     private PageAdapter SettingsPageAdapter()
     {
-        PageAdapter[] adapters = [AppearancePageSection(), GeneralPageSection(), AboutPageSection()];
+        PageAdapter[] adapters = [AppearancePageSection(), GeneralPageSection(), AboutPageSection(),
+            DownloadPageSection(), FileManagementPageSection(), AdvancedPageSection(), JournalStoragePageSection(),
+            LocalFilesPageSection(), RuntimeStatusPageSection(), ComponentsPageSection(), DiagnosticsPageSection(), ContractPageSection()];
         var sections = adapters.ToDictionary(adapter => adapter.Module, StringComparer.Ordinal);
         return new("settings", ["section", "native"], () => new {
-            sections = sections.ToDictionary(p => p.Key, p => p.Value.State()),
+            sections = SettingsSections.All.Where(s => (!s.Developer || ViewModel.DeveloperModeEnabled) && sections.ContainsKey(s.Id))
+                .ToDictionary(s => s.Id, s => sections[s.Id].State()),
             navigation = SettingsSections.All.Where(s => !s.Developer || ViewModel.DeveloperModeEnabled).Select(s => new { id = s.Id, label = s.Label }),
             skins = HomeSkins.Available.Select(s => new { id = s.Id, label = s.Name }),
             canClearTime = _playTime?.Sessions.Count > 0, playTimeError = _playTimeError,
@@ -25,11 +26,7 @@ public sealed partial class MainPage
             if (action == "native")
             {
                 var target = SettingsSections.NativeTarget(entry, sections);
-
-                if (target == SettingsDestination.Overview)
-                    ContentFrame.Navigate(typeof(SettingsPage), CreateSettingsNavigationContext(target), AppearanceRuntimeValues.CreateNavigationTransitionInfo());
-                else if (target == SettingsDestination.Status) ShowStatusDrawer();
-                else ShowSettingsPage(destination: target);
+                ShowSettingsPage(destination: target);
                 return;
             }
             var op = SettingsValues.Field(message, "op");
