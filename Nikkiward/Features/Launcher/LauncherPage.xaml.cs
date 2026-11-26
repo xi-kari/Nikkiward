@@ -135,26 +135,52 @@ public sealed partial class LauncherPage : PageBase
         var skin = HomeSkins.Resolve(settings.HomeSkin);
         if (skin == _skin) return;
         ReleaseSkin();
+        ViewModel.HomeFallback = "";
         var view = skin.Create();
         view.DataContext = ViewModel;
         SkinHost.Content = view;
         _skin = skin;
+        SkinChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    internal void InvokeAction(Button button)
+    internal void RefreshMasthead() => NotifyMastheadInteractionRegionChanged();
+    internal WebHomeView? WebHome => SkinHost.Content as WebHomeView;
+    internal event EventHandler? SkinChanged;
+    internal event EventHandler<string>? NavigationRequested;
+
+    internal void UseCinema(string reason)
+    {
+        ViewModel.HomeFallback = $"首页样式已退回熄灯放映：{reason}";
+        System.Diagnostics.Debug.WriteLine(ViewModel.HomeFallback);
+        ReleaseSkin();
+        var cinema = new CinemaView { DataContext = ViewModel };
+        SkinHost.Content = cinema;
+        _skin = HomeSkins.Resolve(ViewModel.AppearanceSettings.HomeSkin);
+        SkinChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    internal void InvokeAction(Button button) =>
+        InvokeAction((string)button.Tag, button, button.DataContext as GalleryPhotoItemViewModel);
+
+    internal void InvokeAction(string name, FrameworkElement anchor, GalleryPhotoItemViewModel? photo = null)
     {
 #if DEBUG
         if (HomePreview.Active) return;
 #endif
-        if (Equals(button.Tag, "photo") && button.DataContext is GalleryPhotoItemViewModel photo)
+        if (name == "photo" && photo != null)
         {
             if (RecentPhotos.Contains(photo)) PhotoRequested?.Invoke(this, photo);
             return;
         }
-        var action = button.Tag switch
+        if (name.StartsWith("nav-", StringComparison.Ordinal))
         {
-            "launch" => OfficialFlowRequested,
-            "close" => CloseGameRequested,
+            NavigationRequested?.Invoke(this, name[4..]);
+            return;
+        }
+        var action = name switch
+        {
+            "launch" when ViewModel.HomeLaunchEnabled => OfficialFlowRequested,
+            "close" when ViewModel.HomeCloseEnabled => CloseGameRequested,
             "settings" => LaunchSettingsRequested,
             "profile" => ProfileRequested,
             "gallery" => GalleryRequested,
@@ -166,6 +192,6 @@ public sealed partial class LauncherPage : PageBase
             "time" => PlayTimeRequested,
             _ => null
         };
-        action?.Invoke(button, EventArgs.Empty);
+        action?.Invoke(anchor, EventArgs.Empty);
     }
 }

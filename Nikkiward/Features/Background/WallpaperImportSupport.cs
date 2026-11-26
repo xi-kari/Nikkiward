@@ -70,6 +70,7 @@ public static class WallpaperSourceRules
             ".webp",
             ".bmp",
             ".gif",
+            ".jxl",
             ".tif",
             ".tiff",
             ".heic",

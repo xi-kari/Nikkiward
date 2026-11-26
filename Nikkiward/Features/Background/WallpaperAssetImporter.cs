@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Nikkiward.Features.Gallery;
 
 namespace Nikkiward.Features.Background;
 
@@ -58,6 +59,12 @@ public sealed class WallpaperAssetImporter
             return (new(false, "图片文件不存在或无法读取。"), null);
         }
 
+        if (extension == ".jxl")
+        {
+            var preview = await CachePreviewAsync(fullSourcePath, false, cancellationToken);
+            return preview is null ? (new(false, "无法解码 JPEG XL 背景。"), null) : (BackgroundSourceValidation.Accepted, preview);
+        }
+
         var temporary = Path.Combine(
             _stillRootPath,
             $"{Guid.NewGuid():N}{extension}");
@@ -101,6 +108,21 @@ public sealed class WallpaperAssetImporter
         {
             TryDelete(temporary);
         }
+    }
+
+    internal async Task<string?> CachePreviewAsync(string path, bool video, CancellationToken token)
+    {
+        var file = new FileInfo(path);
+        var cached = await GalleryThumbnailFile.GetOrCreateAsync(_stillRootPath, null, file, false, async () =>
+        {
+            if (GalleryFileTypes.UsesScreenshotCodec(file.Extension))
+                return await StarwardScreenshotDecoder.RenderThumbnailAsync(path, file.Extension, FrameWidth, token);
+            IBackgroundSampler sampler = video ? new MotionSampler() : new StillImageSampler();
+            var frame = await sampler.SampleAsync(video ? BackgroundSourceDescriptor.Motion(path) : BackgroundSourceDescriptor.Still(path),
+                FrameWidth, TimeSpan.Zero, token);
+            return frame == null ? null : await ArtDecoder.EncodeJpegAsync(frame, 0.95);
+        }, token);
+        return cached?.FilePath;
     }
 
     public async Task<(BackgroundSourceValidation Validation, string? ImportedPath)> ImportMotionFrameAsync(

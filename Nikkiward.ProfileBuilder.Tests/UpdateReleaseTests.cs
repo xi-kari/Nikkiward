@@ -254,12 +254,40 @@ internal static class UpdateReleaseTests
             AssertEqual(0, valid.ExitCode, "valid release payload");
             AssertContains(valid.Output, "PAYLOAD_VERIFY=PASS", "valid release payload result");
 
+            foreach (var name in new[] { "index.html", "home.css", "home.js" })
+            {
+                var path = Path.Combine(payloadRoot, "Web", "skins", "atelier", name);
+                var content = await File.ReadAllBytesAsync(path);
+                File.Delete(path);
+                var missing = await RunPayloadValidatorAsync(root, payloadRoot);
+                Assert(missing.ExitCode != 0 && missing.Output.Contains("file is missing"), name);
+                await File.WriteAllBytesAsync(path, content);
+            }
+
+            var page = Path.Combine(payloadRoot, "Web", "shared", "home.js");
+            var script = await File.ReadAllBytesAsync(page);
+            await File.AppendAllTextAsync(page, " ");
+            var tamperedScript = await RunPayloadValidatorAsync(root, payloadRoot);
+            Assert(tamperedScript.ExitCode != 0 && tamperedScript.Output.Contains("hash mismatch"), "skin manifest");
+            await File.WriteAllBytesAsync(page, script);
+
+            var font = Directory.EnumerateFiles(Path.Combine(payloadRoot, "Web", "fonts"), "*.woff2", SearchOption.AllDirectories).First();
+            var original = await File.ReadAllBytesAsync(font);
+            await File.WriteAllBytesAsync(font, [0]);
+            var tamperedFont = await RunPayloadValidatorAsync(root, payloadRoot);
+            Assert(tamperedFont.ExitCode != 0 && tamperedFont.Output.Contains("hash mismatch"), "font hash");
+            await File.WriteAllBytesAsync(font, original);
+
             foreach (var (relativePath, content) in new[]
             {
                 ("Plugins\\plugin.json", "{}"),
                 ("ProtectedFavorites\\object.bin", "object"),
                 ("ArtCache\\blur.jpg", "cache"),
                 ("settings.json", "{}"),
+                ("Web\\skins\\atelier\\extra.js", ""),
+                ("Web.dev\\atelier\\cases.js", ""),
+                ("Web\\fonts\\extra.woff2", ""),
+                ("HomeWebView2\\Preferences", "{}"),
                 ("Logs\\app.log", "log"),
                 ("cache\\state.dat", "cache"),
                 ("cookie.json", "{}"),
@@ -361,6 +389,10 @@ internal static class UpdateReleaseTests
             File.WriteAllBytes(path, [0]);
         }
 
+        var art = Directory.CreateDirectory(Path.Combine(payloadRoot, "Web", "art"));
+        foreach (var file in new[] { "NikkiDefaultBackground.jpg", "NikkiPresetBackground2.jpg" })
+            File.Copy(Path.Combine(root, "Nikkiward", "Assets", file), Path.Combine(art.FullName, file));
+
         foreach (var relativePath in new[]
         {
             "Assets\\NikkiwardIcon.ico",
@@ -369,6 +401,9 @@ internal static class UpdateReleaseTests
             "Assets\\NikkiDefaultBackgroundBlur.jpg",
             "Assets\\NikkiGameIcon.png",
             "Assets\\XikariAvatar.jpg",
+            "Web\\skins\\atelier\\index.html",
+            "Web\\skins\\atelier\\home.css",
+            "Web\\skins\\atelier\\home.js",
             "Assets\\HomeSkins\\Atelier.jpg",
             "Assets\\HomeSkins\\Cinema.jpg",
             "Assets\\HomeSkins\\Journal.jpg",
@@ -385,9 +420,11 @@ internal static class UpdateReleaseTests
             "LICENSE",
             "PRIVACY.md",
             "THIRD-PARTY-NOTICES.md",
-        })
+        }.Concat(Directory.EnumerateFiles(Path.Combine(root, "Nikkiward", "Web"), "*", SearchOption.AllDirectories)
+            .Select(path => Path.GetRelativePath(Path.Combine(root, "Nikkiward"), path))))
         {
             var sourceRoot = relativePath.StartsWith("Assets\\", StringComparison.OrdinalIgnoreCase)
+                || relativePath.StartsWith("Web\\", StringComparison.OrdinalIgnoreCase)
                 || relativePath.StartsWith("runtimes\\", StringComparison.OrdinalIgnoreCase)
                 ? Path.Combine(root, "Nikkiward")
                 : root;

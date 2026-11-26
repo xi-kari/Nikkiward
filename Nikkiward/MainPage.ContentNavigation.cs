@@ -12,6 +12,7 @@ using Nikkiward.Features.Gallery;
 using Nikkiward.Features.GamepadControl;
 using Nikkiward.Features.Journal;
 using Nikkiward.Features.Launcher;
+using Nikkiward.Features.Launcher.Skins;
 using Nikkiward.Features.Profile;
 using Nikkiward.Features.Settings;
 using Nikkiward.Features.Shell;
@@ -195,7 +196,18 @@ public sealed partial class MainPage
         NotifyTitleBarPassthroughChanged();
     }
 
-    private void SyncLauncherChrome()
+    internal async Task<string?> SceneCoverAsync(string package, CancellationToken token)
+    {
+        var preview = await Task.Run(() => WallpaperPackageReader.Inspect(package).PreviewPath, token);
+        if (preview != null) return preview;
+        var cached = await GalleryThumbnailFile.GetOrCreateAsync(HomeBackground.StillFolder(ApplicationDataPaths.Root),
+            null, new FileInfo(package), false, LauncherBackground.CaptureSceneFrameAsync, token);
+        return cached?.FilePath;
+    }
+
+    internal string HomeStillSource => _currentBackgroundSource;
+
+    internal void SyncLauncherChrome()
     {
         EnsureSystemMotionSubscription();
         bool contentOpen = ContentFrame.Visibility == Visibility.Visible;
@@ -218,13 +230,28 @@ public sealed partial class MainPage
 
         if (HomeInteractive != launcherSurfaceInteractive)
         {
+            if (_hostedLauncherPage?.WebHome != null && blockingOverlayOpen)
+            {
+                var overlay = LaunchSettingsFrame.Visibility == Visibility.Visible ? LaunchSettingsFrame : StatusFrame;
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (overlay.IsLoaded && !HomeInteractive)
+                        (FocusManager.FindFirstFocusableElement(overlay) as UIElement)?.Focus(FocusState.Programmatic);
+                });
+            }
             HomeInteractive = launcherSurfaceInteractive;
             HomeInteractionChanged?.Invoke(this, EventArgs.Empty);
         }
+        bool webCover = launcherOpen && _hostedLauncherPage?.WebHome?.CoverVisible == true;
         LauncherBackground.SetLauncherSurfaceState(
-            launcherSurfaceVisible,
-            launcherSurfaceInteractive);
+            launcherSurfaceVisible && !webCover,
+            launcherSurfaceInteractive, webCover);
+        LauncherBackground.Visibility = Visible(!webCover);
 
+        bool webHome = launcherOpen && _hostedLauncherPage?.WebHome != null;
+        ContentFrame.Margin = !webHome && _homeSkin?.LeftEdge == true ? new Thickness(90, 0, 0, 0) : default;
+        ShellNavigation.Visibility = Visible(!webHome);
+        OnArtScrim.Visibility = Visible(!webHome || overlayOpen);
         PageHostBackdrop.Visibility = Visible(pageOpen);
 
         if (_hostedLauncherPage is { } launcherPage)

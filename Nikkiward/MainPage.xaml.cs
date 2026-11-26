@@ -136,7 +136,8 @@ public sealed partial class MainPage : Page
         get
         {
             var regions = new List<FrameworkElement>(2);
-            if (ShellNavigation.IsHitTestVisible) regions.AddRange(ShellNavigation.InteractiveRegions);
+            if (HomeInteractive && _hostedLauncherPage?.WebHome is { } web) regions.Add(web.Masthead);
+            if (ShellNavigation.Visibility == Visibility.Visible && ShellNavigation.IsHitTestVisible) regions.AddRange(ShellNavigation.InteractiveRegions);
 
             if (ContentFrame.Visibility == Visibility.Visible &&
                 ContentFrame.Content is ITitleBarMasthead masthead &&
@@ -179,6 +180,8 @@ public sealed partial class MainPage : Page
         RefreshOnArtSurfaceRegistration();
     }
 
+    internal bool HomeProfileOpen => _profileFlyout?.IsOpen == true;
+    internal ArtBackdropService HomeBackdrop => _backdrop;
     private HomeSkin? _homeSkin;
 
     private void ApplyHomeSkin(string id)
@@ -189,8 +192,8 @@ public sealed partial class MainPage : Page
         LauncherBackground.ApplyArtFrame((Thickness)tokens["HomeArtInset"], (CornerRadius)tokens["HomeArtRadius"]);
         ShellNavigation.Apply(skin, tokens);
         ShellNavigation.Fit(RootGrid.ActualWidth);
-        ContentFrame.Margin = skin.LeftEdge ? new Thickness(90, 0, 0, 0) : default;
         _homeSkin = skin;
+        SyncLauncherChrome();
         NotifyTitleBarPassthroughChanged();
     }
 

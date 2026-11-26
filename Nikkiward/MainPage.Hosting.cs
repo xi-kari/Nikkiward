@@ -174,8 +174,12 @@ public sealed partial class MainPage
         SyncLauncherChrome();
     }
 
+    private void OnHomeSkinChanged(object? sender, EventArgs args) => SyncLauncherChrome();
+
     private void SubscribeLauncherPage(LauncherPage page)
     {
+        page.SkinChanged += OnHomeSkinChanged;
+        page.NavigationRequested += OnNavigationItemInvoked;
         page.PhotoRequested += OnRecentPhotoRequested;
         page.StatusRequested += OnSkinStatusRequested;
         page.BackgroundRequested += OnSkinBackgroundRequested;
@@ -192,6 +196,8 @@ public sealed partial class MainPage
 
     private void UnsubscribeLauncherPage(LauncherPage page)
     {
+        page.SkinChanged -= OnHomeSkinChanged;
+        page.NavigationRequested -= OnNavigationItemInvoked;
         page.PhotoRequested -= OnRecentPhotoRequested;
         page.StatusRequested -= OnSkinStatusRequested;
         page.BackgroundRequested -= OnSkinBackgroundRequested;

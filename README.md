@@ -38,7 +38,7 @@ Nikkiward 把渠道档案、启动预检、相册、奇想手账与心愿共鸣�
 
 当前预览版本：`0.1.0-preview.5`(Pre-release,发布于 2026-08-30),仍在预览阶段,边角可能有毛刺;遇到问题欢迎用 Issue 告诉作者。
 
-系统要求:Windows 10 1809(内部版本 17763)及以上,仅 x64;奇想手账与心愿共鸣记录另需 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/),缺失时应用会给出官方下载指引。界面目前仅提供简体中文。
+系统要求:Windows 10 1809(内部版本 17763)及以上,仅 x64;奇想手账与心愿共鸣记录另需 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/),缺失时应用会给出官方下载指引。「高定画册」首页使用同一运行时，缺失时自动显示「熄灯放映」。界面目前仅提供简体中文。
 
 GitHub Releases 提供 Windows x64 安装包和便携 ZIP,全部产物都在 [Releases](https://github.com/xi-kari/Nikkiward/releases) 页面;当前处于预览阶段,请选择最新的预览版:
 
@@ -90,6 +90,7 @@ Get-FileHash .\Nikkiward-Setup-win-x64.exe -Algorithm SHA256
 
 - 在设置的「外观 → 首页样式」可选择已安装的首页设计。「熄灯放映」从底部展签切换档案、查看启动检查，最近拍摄可直接打开相册预览。
 - 背景来源:两张内置原画「花信」「海月」、你自己的静态图片、视频,以及 Wallpaper Engine 场景包(`.pkg`)。
+- 「高定画册」由网页绘制背景。视频不可播放时显示静态帧，Wallpaper Engine 场景显示预览图或已捕获的静态帧。两者均不可用时显示内置封面。
 - 视频背景始终静音、无缝循环;能否播放取决于系统已安装的解码器,最高接受 8K(7680×4320)输入。
 - Wallpaper Engine 场景要求你已自行安装桌面版 Wallpaper Engine(Steam 版),Nikkiward 不捆绑、不代下载:scene 类型以窗口捕获方式投影(上限 1600×900、30 帧);video 类型取其中的媒体文件,走 Nikkiward 自己的视频管线;web 与 application 类型只能取预览图作静态卡片。
 - 界面随画面自适应:自动取色、明暗判定与文字保护遮罩都有对比度闸门,推导不达标时回退到固定品牌色;省电模式、远程桌面、系统关闭透明效果或检测到持续掉帧时,玻璃效果与动态背景自动降级,把流畅让给正在运行的游戏。

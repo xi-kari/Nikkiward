@@ -63,6 +63,46 @@ public sealed partial class MainPageViewModel
     public Microsoft.UI.Xaml.Visibility HomeCloseVisibility => HomeCloseEnabled
         ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
 
+    private DistributionChannel HomeChannel => _selectedCandidate?.Identity.DistributionChannel ?? _profile?.Channel switch
+    {
+        "CN" => DistributionChannel.Official,
+        "Bilibili" => DistributionChannel.Bilibili,
+        "Steam Global" => DistributionChannel.Steam,
+        _ => DistributionChannel.Unknown
+    };
+    internal (string Region, string Title, string Channel) HomeProfile => FormatHomeProfile(_selectedCandidate?.Identity.RegionFamily, HomeChannel, ProfileDisplayName);
+    internal static (string Region, string Title, string Channel) FormatHomeProfile(RegionFamily? region, DistributionChannel channel, string fallback)
+    {
+        var label = region switch
+        {
+            RegionFamily.MainlandChina => "国服",
+            RegionFamily.Overseas => "国际服",
+            _ when channel == DistributionChannel.Steam => "国际服",
+            _ when channel is DistributionChannel.Official or DistributionChannel.Bilibili => "国服",
+            _ => "未配置"
+        };
+        var provider = channel switch
+        {
+            DistributionChannel.Official => "官方",
+            DistributionChannel.Bilibili => "哔哩哔哩",
+            DistributionChannel.Steam => "Steam",
+            DistributionChannel.Epic => "Epic",
+            _ => null
+        };
+        return (label, provider == null ? fallback : $"{label} · {provider}", provider ?? "未知渠道");
+    }
+    internal string? HomeReadySummary => HomeState != LaunchButtonState.Ready ? null : HomeChannel switch
+    {
+        DistributionChannel.Steam => "Steam · 签名已核对",
+        DistributionChannel.Bilibili => "哔哩哔哩 · 签名已核对",
+        _ => SelectedLauncherVersionName is { } version ? $"官方启动器 {version} · 签名已核对" : "签名已核对"
+    };
+
+    private int? _homeSessionMinutes;
+    internal int? HomeSessionMinutes { get => _homeSessionMinutes; set => SetField(ref _homeSessionMinutes, value); }
+    private string _homeFallback = "";
+    public string HomeFallback { get => _homeFallback; internal set => SetField(ref _homeFallback, value); }
+    internal IReadOnlyList<InstallationProfileCandidate> HomeCandidates => _profileBuildResult?.Candidates ?? [];
     public string HomeArtKey => _artSource;
     public bool CanNameArtwork => !AppearanceBackgroundPresets.IsBuiltInSource(_artSource);
     public string HomeArtSource => CanNameArtwork ? "自定义背景" : "内置原画";

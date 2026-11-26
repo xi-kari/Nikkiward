@@ -13,6 +13,8 @@
 *.md text eol=lf
 *.sh text eol=lf
 
+Nikkiward/Web/** -text
+
 *.dll binary
 *.exe binary
 *.ico binary

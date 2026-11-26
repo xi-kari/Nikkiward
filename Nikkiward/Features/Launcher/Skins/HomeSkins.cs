@@ -6,7 +6,7 @@ namespace Nikkiward.Features.Launcher.Skins;
 public sealed record HomeSkin(string Id, string Name, Func<UserControl> Create)
 {
     public string Preview => $"ms-appx:///Assets/HomeSkins/{Id}.jpg";
-    public Uri Tokens => new($"ms-appx:///Features/Launcher/Skins/{Id}/Tokens.xaml");
+    public Uri Tokens => new($"ms-appx:///Features/Launcher/Skins/{(Id == "Atelier" ? Id : "Cinema")}/Tokens.xaml");
     public bool LeftEdge => Id == "Journal";
 }
 
@@ -41,29 +41,20 @@ public static partial class HomeSkins
     private static List<HomeSkin> Build()
     {
         var skins = new List<HomeSkin>();
-        Func<UserControl>? factory = null;
-        AddCinema(ref factory);
         Register("Cinema", "熄灯放映");
-        AddStitch(ref factory);
         Register("Stitch", "穿针引线");
-        AddAtelier(ref factory);
         Register("Atelier", "高定画册");
-        AddJournal(ref factory);
         Register("Journal", "搭配师的手账");
-        AddWishStar(ref factory);
         Register("WishStar", "心愿星");
         return skins;
 
         void Register(string id, string name)
         {
-            if (factory != null) skins.Add(new(id, name, factory));
-            factory = null;
+            var folder = id.ToLowerInvariant();
+            if (File.Exists(Path.Combine(AppContext.BaseDirectory, "Web", "skins", folder, "index.html")))
+                skins.Add(new(id, name, () => new WebHomeView(folder)));
+            else if (id == "Cinema")
+                skins.Add(new(id, name, () => new CinemaView()));
         }
     }
-
-    static partial void AddCinema(ref Func<UserControl>? factory);
-    static partial void AddStitch(ref Func<UserControl>? factory);
-    static partial void AddAtelier(ref Func<UserControl>? factory);
-    static partial void AddJournal(ref Func<UserControl>? factory);
-    static partial void AddWishStar(ref Func<UserControl>? factory);
 }

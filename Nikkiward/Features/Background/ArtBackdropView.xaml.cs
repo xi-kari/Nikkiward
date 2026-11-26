@@ -57,6 +57,7 @@ public sealed partial class ArtBackdropView : UserControl
     private AppearanceMotionMode _motionMode = AppearanceMotionMode.Full;
     private bool _parallaxPreferenceEnabled = true;
     private bool _holographicCardEnabled = true;
+    private bool _webCover;
     private bool _launcherSurfaceVisible = true;
     private bool _launcherSurfaceActive = true;
     private double _parallaxAmplitude;
@@ -261,8 +262,18 @@ public sealed partial class ArtBackdropView : UserControl
     public void SetLauncherSurfaceActive(bool active) =>
         SetLauncherSurfaceState(active, active);
 
-    public void SetLauncherSurfaceState(bool visible, bool interactionEnabled)
+    public void SetLauncherSurfaceState(bool visible, bool interactionEnabled, bool webCover = false)
     {
+        if (_webCover != webCover)
+        {
+            _webCover = webCover;
+            if (webCover)
+            {
+                _motionResampleTimer?.Stop();
+                _mediaPlayer?.Pause();
+            }
+            else ResumeMotionIfAllowed();
+        }
         _launcherSurfaceVisible = visible;
         _launcherSurfaceActive = visible && interactionEnabled;
         HolographicOverlay.SetInteractionEnabled(_launcherSurfaceActive);
@@ -677,6 +688,19 @@ public sealed partial class ArtBackdropView : UserControl
             _holographicCardEnabled && _stillArtSource is not null
                 ? Visibility.Visible
                 : Visibility.Collapsed;
+    }
+
+    internal async Task<byte[]?> CaptureSceneFrameAsync()
+    {
+        var frame = WallpaperEngineBackdropFrame.Source != null ? WallpaperEngineBackdropFrame : WallpaperEngineCardFrame;
+        if (frame.Source == null || frame.ActualWidth <= 0 || frame.ActualHeight <= 0) return null;
+        var snapshot = new RenderTargetBitmap();
+        await snapshot.RenderAsync(frame);
+        var pixels = await snapshot.GetPixelsAsync();
+        using var reader = Windows.Storage.Streams.DataReader.FromBuffer(pixels);
+        var bytes = new byte[pixels.Length];
+        reader.ReadBytes(bytes);
+        return await ArtDecoder.EncodeJpegAsync(new ArtPixelBuffer(bytes, snapshot.PixelWidth, snapshot.PixelHeight));
     }
 
     private void ClearWallpaperEngineFrames()
@@ -1489,6 +1513,7 @@ public sealed partial class ArtBackdropView : UserControl
     }
 
     private bool CanResumeMotion() =>
+        !_webCover &&
         _hostFocused &&
         !_hostMinimized &&
         IsMotionTier(GlassCapabilities.Current.Tier);

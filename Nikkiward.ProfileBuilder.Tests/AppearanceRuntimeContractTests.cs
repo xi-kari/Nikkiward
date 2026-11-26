@@ -1,5 +1,11 @@
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using System.Text.Json;
+using Nikkiward.Features.Background;
+using Nikkiward.Features.Launcher.Skins;
+using Nikkiward.Models;
+using Nikkiward.Services;
+using Nikkiward.ViewModels;
 
 internal static class AppearanceRuntimeContractTests
 {
@@ -23,6 +29,17 @@ internal static class AppearanceRuntimeContractTests
         ("every custom transition consumes the live motion authority", CustomTransitionsConsumeMotionAuthority),
         ("interactive scale and connected animation obey motion off", InteractiveMotionObeysMotionOff),
         ("journal cached images use typed XAML sources", JournalCachedImagesUseTypedSources),
+        (nameof(AtelierBackgroundSources), AtelierBackgroundSources),
+        (nameof(AtelierBackgroundHandoff), AtelierBackgroundHandoff),
+        (nameof(WebHomeCreatesMediaFolders), WebHomeCreatesMediaFolders),
+        (nameof(WebSkinProfileActions), WebSkinProfileActions),
+        (nameof(AtelierComparisonAssets), AtelierComparisonAssets),
+        (nameof(AtelierArtworkAndIssue), AtelierArtworkAndIssue),
+        (nameof(AtelierProfileNames), AtelierProfileNames),
+        (nameof(WebHomeStateMatchesLauncher), WebHomeStateMatchesLauncher),
+        (nameof(WebHomeActionsAreBounded), WebHomeActionsAreBounded),
+        (nameof(AtelierPageUsesBridge), AtelierPageUsesBridge),
+        (nameof(WebHomeNavigationIsLocal), WebHomeNavigationIsLocal),
         (nameof(HomePreviewGuardsAllCommands), HomePreviewGuardsAllCommands),
         ("home skin catalog reserves five extension points", HomeSkinCatalogReservesAllDesigns),
         ("developer surfaces stay hidden until explicit opt in", DeveloperSurfacesRequireOptIn),
@@ -747,6 +764,190 @@ internal static class AppearanceRuntimeContractTests
             journalModels.Contains("ImageSource? PreviewSource", StringComparison.Ordinal) &&
             resonanceModels.Contains("ImageSource? PreviewSource", StringComparison.Ordinal),
             "journal and resonance images must bind explicit typed image sources");
+        return Task.CompletedTask;
+    }
+
+    private static async Task AtelierBackgroundSources()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Nikkiward");
+        var still = HomeBackground.StillFolder(root);
+        var motion = HomeBackground.MotionFolder(root);
+        Assert(still == Path.Combine(root, "WallpaperImports", "Still") &&
+            motion == Path.Combine(root, "MotionBackgrounds"), "only managed background folders");
+        var calls = new List<(string, bool)>();
+        Task<HomeBackground> Resolve(string art, string preview = "") => HomeBackground.ResolveAsync(art, preview, root, (file, video) =>
+        {
+            calls.Add((file, video));
+            return Task.FromResult("frame.jpg");
+        });
+        foreach (var preset in AppearanceBackgroundPresets.All)
+            Assert((await Resolve(preset.Source)) == new HomeBackground("image",
+                $"https://{WebHomeBridge.Host}/art/{Path.GetFileName(preset.Source)}"), "built-in original");
+        var image = Path.Combine(still, "cover #1.jpg");
+        var direct = new HomeBackground("image", $"https://{HomeBackground.StillHost}/cover%20%231.jpg");
+        Assert(await Resolve(image) == direct && await Resolve("scene.pkg", image) == direct, "import and scene preview");
+        Assert(calls.Count == 0, "direct images avoid transcoding");
+        var frame = $"https://{HomeBackground.StillHost}/frame.jpg";
+        var jxl = Path.Combine(still, "photo.jxl");
+        var movie = Path.Combine(motion, "clip.mp4");
+        var external = Path.Combine(root, "Photos", "private.jpg");
+        Assert(await Resolve(jxl) == new HomeBackground("image", frame) &&
+            await Resolve(movie) == new HomeBackground("video", $"https://{HomeBackground.MotionHost}/clip.mp4", frame) &&
+            await Resolve(external) == new HomeBackground("image", frame), "decode, video poster and external image");
+        Assert(calls.SequenceEqual([(jxl, false), (movie, true), (external, false)]), "preview source identity");
+    }
+
+    private static Task AtelierBackgroundHandoff()
+    {
+        var js = ReadSource("Nikkiward", "Web", "shared", "home.js");
+        var fixture = ReadSource("Nikkiward", "Web.dev", "atelier", "cases.js");
+        Assert(js.Contains("const ready = updateCover(state)") && js.Contains("key !== backgroundKey") &&
+            js.Contains("cover.src = bg.poster || bg.url") && js.Contains("video.src = bg.url"),
+            "update media when its descriptor changes");
+        var decoded = js.IndexOf("await Promise.all([document.fonts.ready, ready])", StringComparison.Ordinal);
+        Assert(decoded >= 0 && decoded <
+            js.IndexOf("postMessage('ready')", StringComparison.Ordinal) && fixture.Contains("background:{type:"),
+            "fixture and host use the same decoded cover before handoff");
+        return Task.CompletedTask;
+    }
+
+    private static Task WebHomeCreatesMediaFolders()
+    {
+        var root = Directory.CreateTempSubdirectory("Nikkiward-home-").FullName;
+        try
+        {
+            var folders = HomeBackground.CreateMediaFolders(root);
+            Assert(Directory.Exists(folders.Still) && Directory.Exists(folders.Motion), "fresh data root");
+            Assert(HomeBackground.CreateMediaFolders(root) == folders, "existing data root");
+        }
+        finally { Directory.Delete(root, recursive: true); }
+        return Task.CompletedTask;
+    }
+
+    private static Task WebSkinProfileActions()
+    {
+        Assert(WebHomeBridge.Parse("""{"action":"select-profile","profileId":"cn"}""")?.ProfileId == "cn", "select profile");
+        Assert(WebHomeBridge.Parse("""{"action":"select-profile"}""") == null, "missing profile");
+        foreach (var action in new[] { "locate", "rediscover", "recheck", "tide", "blossom" })
+            Assert(WebHomeBridge.Parse(JsonSerializer.Serialize(new { action }))?.Action == action, action);
+        return Task.CompletedTask;
+    }
+
+    private static Task AtelierComparisonAssets()
+    {
+        var web = Path.Combine(FindRoot(), "Nikkiward", "Web");
+        var pageDirectory = Path.Combine(web, "skins", "atelier");
+        var fixture = File.ReadAllText(Path.Combine(web, "..", "Web.dev", "atelier", "cases.js"));
+        foreach (var name in new[] { "home-tide", "home-blossom", "home-photo05", "home-tide-running",
+            "home-tide-launching", "home-tide-notfound", "home-blossom-blocked", "switcher" })
+            Assert(fixture.Contains($"'{name}':"), name);
+        foreach (var family in new[] { "noto-serif-sc", "bodoni-moda" })
+        {
+            var css = File.ReadAllText(Path.Combine(web, "fonts", family + ".css"));
+            foreach (Match match in Regex.Matches(css, @"url\(([^)]+)\)"))
+                Assert(File.Exists(Path.Combine(web, "fonts", match.Groups[1].Value)), match.Value);
+        }
+        return Task.CompletedTask;
+    }
+
+    private static Task AtelierArtworkAndIssue()
+    {
+        var vm = new MainPageViewModel(new JsonUserSettingsStore(Path.GetTempPath()),
+            new WindowsInstallationInspector(), new RedactedDiagnosticReportExporter());
+        WebHomeState State() => WebHomeState.Create(vm, "light", 0xffd0bcba, false, []);
+        var tide = State();
+        Assert((tide.Theme, tide.Accent, tide.OnAccent) == ("dark", "#A9DBFF", "#0A1322"), "tide");
+        vm.ShowArtwork(AppearanceBackgroundPresets.Preset2Source);
+        Assert((State().Theme, State().Accent, State().OnAccent) == ("light", "#B43B56", "#FFF8F2"), "blossom");
+        vm.ShowArtwork("custom.jpg");
+        var custom = State();
+        Assert(custom.Theme == "light" && custom.Accent == "#D0BCBA" && custom.OnAccent == "#2A2320", "custom");
+        foreach (var rgb in new uint[] { 0x010101, 0x737373, 0x888888, 0xFFFFFF })
+        {
+            var state = WebHomeState.Create(vm, "dark", rgb, false, []);
+            var ink = Convert.ToUInt32(state.OnAccent[1..], 16);
+            double Luminance(uint color) => ArtPaletteAnalyzer.RelativeLuminance((byte)(color >> 16), (byte)(color >> 8), (byte)color);
+            Assert(state.Accent == $"#{rgb:X6}" && ArtPaletteAnalyzer.ContrastRatio(Luminance(ink), Luminance(rgb)) >= 4.5, state.Accent);
+        }
+        foreach (var (month, label) in new[] { (9,"九"), (10,"十"), (11,"十一"), (12,"十二") })
+            Assert((tide with { Date = new DateOnly(2026, month, 1) }).Issue == $"二〇二六年{label}月号", label);
+        Assert(tide is { Checklist: null, CheckCount: null, JournalSnapshotDate: null, LastSessionPhotos: null, PhotoTotal: null }, "no example data");
+        return Task.CompletedTask;
+    }
+
+    private static Task AtelierProfileNames()
+    {
+        foreach (var (region, channel, title) in new[] {
+            (RegionFamily.MainlandChina, DistributionChannel.Official, "国服 · 官方"),
+            (RegionFamily.MainlandChina, DistributionChannel.Bilibili, "国服 · 哔哩哔哩"),
+            (RegionFamily.Overseas, DistributionChannel.Steam, "国际服 · Steam"),
+            (RegionFamily.Overseas, DistributionChannel.Official, "国际服 · 官方") })
+            Assert(MainPageViewModel.FormatHomeProfile(region, channel, "").Title == title, title);
+        return Task.CompletedTask;
+    }
+
+    private static Task WebHomeStateMatchesLauncher()
+    {
+        var vm = new MainPageViewModel(new JsonUserSettingsStore(Path.GetTempPath()),
+            new WindowsInstallationInspector(), new RedactedDiagnosticReportExporter());
+        var state = WebHomeState.Create(vm, "dark", 0xffabcdef, false, []);
+        Assert(state.LaunchLabel == vm.HomeLaunchLabel && state.Detail == vm.HomeLaunchDetail &&
+            state.Enabled == vm.HomeLaunchEnabled && state.Busy == vm.HomeBusy, "native launch state");
+        Assert(state.OfficialDuration == null && state.LocalDuration == null && state.TaskText == null &&
+            state.Progress == null && state.Photos is { Count: 0 }, "absent data");
+        foreach (var kind in Enum.GetValues<LaunchButtonState>())
+        {
+            var serialized = JsonSerializer.SerializeToElement(state with { State = kind }, WebHomeBridge.Json);
+            var visual = kind switch
+            {
+                LaunchButtonState.NotInstalled => "notfound",
+                LaunchButtonState.Ready or LaunchButtonState.Launching or LaunchButtonState.Running or
+                    LaunchButtonState.Checking => kind.ToString().ToLowerInvariant(),
+                _ => "blocked"
+            };
+            Assert(serialized.GetProperty("state").GetString() == kind.ToString() &&
+                serialized.GetProperty("visual").GetString() == visual, kind.ToString());
+        }
+        return Task.CompletedTask;
+    }
+
+    private static Task WebHomeActionsAreBounded()
+    {
+        Assert(WebHomeBridge.Parse("""{"action":"photo","photoId":"one"}""")?.PhotoId == "one", "photo");
+        Assert(WebHomeBridge.Parse("""{"action":"profile","rect":{"x":1,"y":2,"width":3,"height":4}}""")?.Rect
+            == new HomeRect(1, 2, 3, 4), "anchor");
+        foreach (var action in new[] { "launch", "close", "settings", "background", "reset", "status", "gallery",
+            "journal", "download", "time", "nav-settings", "nav-gallery-favorites", "nav-launcher", "nav-resonance", "nav-gallery", "nav-library" })
+            Assert(WebHomeBridge.Parse(JsonSerializer.Serialize(new { action }))?.Action == action, action);
+        foreach (var json in new[] { "null", "1", "{", "{}", """{"action":"other"}""", """{"action":"photo"}""",
+            """{"action":"profile","rect":{"width":-1,"height":2}}""" })
+            Assert(WebHomeBridge.Parse(json) == null, json);
+        return Task.CompletedTask;
+    }
+
+    private static Task AtelierPageUsesBridge()
+    {
+        var html = ReadSource("Nikkiward", "Web", "skins", "atelier", "index.html");
+        var page = Regex.Match(html, """<div [^>]*id="win"[^>]*>""").Value;
+        var classes = Regex.Matches(page, "class=\"([^\"]+)\"");
+        Assert(classes.Count == 1 && classes[0].Groups[1].Value.Split(' ').Contains("pending"), "first paint waits for state");
+        foreach (Match match in Regex.Matches(html, "data-action=\"([^\"]+)\""))
+        {
+            var action = match.Groups[1].Value;
+            var json = JsonSerializer.Serialize(new { action, rect = new HomeRect(0, 0, 1, 1) });
+            Assert(WebHomeBridge.Parse(json)?.Action == action, action);
+        }
+        return Task.CompletedTask;
+    }
+
+    private static Task WebHomeNavigationIsLocal()
+    {
+        var page = WebHomeBridge.Page("atelier");
+        Assert(WebHomeBridge.AllowsPage(page, "https://home.nikkiward.invalid/skins/atelier/index.html"), "packaged entry");
+        foreach (var uri in new[] { "about:blank", "file:///index.html", "https://example.org", page + "?preview",
+            page + "#fragment", "https://home.nikkiward.invalid.example/index.html",
+            "https://home.nikkiward.invalid/home.js", "http://home.nikkiward.invalid/index.html" })
+            Assert(!WebHomeBridge.AllowsPage(page, uri), uri);
         return Task.CompletedTask;
     }
 

@@ -35,6 +35,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="Assets\NikkiDefaultBackground.jpg;Assets\NikkiPresetBackground2.jpg" Link="Web\art\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="Web\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Remove="Assets\NikkiBackground.png;Assets\NikkiDefaultBackground.png" />
     <Content Include="Assets\SplashScreen.scale-200.png" />
     <Content Include="Assets\LockScreenLogo.scale-200.png" />

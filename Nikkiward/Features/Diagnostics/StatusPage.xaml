@@ -76,6 +76,7 @@
                     <TextBlock Style="{StaticResource OnArtFieldLabelTextStyle}" Text="最近错误" />
                     <TextBlock automation:AutomationProperties.LiveSetting="Polite" Style="{StaticResource OnArtBodyTextStyle}" Text="{x:Bind ViewModel.LastErrorText}" />
                 </StackPanel>
+                <TextBlock Text="{x:Bind ViewModel.HomeFallback, Mode=OneWay}" Style="{StaticResource OnArtBodyTextStyle}" />
                 <Expander
                     x:Name="TechnicalDetailsExpander"
                     automation:AutomationProperties.Name="查看技术详情"

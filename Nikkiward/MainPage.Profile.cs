@@ -29,6 +29,23 @@ namespace Nikkiward;
 
 public sealed partial class MainPage
 {
+    internal bool InvokeHomeCommand(string action, string? id)
+    {
+        switch (action)
+        {
+            case "select-profile": _ = SelectProfileAsync(id!); break;
+            case "rediscover": _ = DiscoverProfilesAsync(); break;
+            case "locate": OnChooseGameRootClicked(this, new RoutedEventArgs()); break;
+            case "recheck": OnRefreshClicked(this, new RoutedEventArgs()); break;
+            case "tide": case "blossom":
+                var background = new BackgroundArtSettings { SelectedSource = action == "tide" ? AppearanceBackgroundPresets.Preset1Source : AppearanceBackgroundPresets.Preset2Source };
+                OnSettingsAppearanceChanged(this, new AppearanceSettingsChangedEventArgs(ViewModel.AppearanceSettings with { Background = background }, true));
+                break;
+            default: return false;
+        }
+        return true;
+    }
+
     private async void OnDiscoverProfilesClicked(object sender, RoutedEventArgs e)
     {
         await DiscoverProfilesAsync();

@@ -55,6 +55,8 @@ foreach ($file in $files) {
 
 $blockedDirectoryNames = @(
     'Plugins',
+    'Web.dev',
+    'HomeWebView2',
     'ProtectedFavorites',
     'ArtCache',
     'Settings',
@@ -118,7 +120,18 @@ if ($unexpectedExecutablePaths.Count -gt 0) {
     throw "Release payload executable allowlist rejected: $($unexpectedExecutablePaths -join ', ')"
 }
 
-$allowedMediaPaths = @(
+$webArt = @('Web\art\NikkiDefaultBackground.jpg', 'Web\art\NikkiPresetBackground2.jpg')
+$webHomeFiles = $webArt
+$webHashes = @{}
+foreach ($line in Get-Content -LiteralPath (Join-Path $PSScriptRoot 'WebFonts.sha256'), (Join-Path $PSScriptRoot 'WebSkins.sha256')) {
+    $hash, $path = $line -split '  ', 2
+    $webHashes.Add($path.Replace('/', '\'), $hash)
+}
+$extraWebFiles = @($records.Keys | Where-Object { $_ -like 'Web\*' -and $_ -notin $webHomeFiles -and !$webHashes.ContainsKey($_) })
+if ($extraWebFiles.Count) {
+    throw "Release payload web home allowlist rejected: $($extraWebFiles -join ', ')"
+}
+$allowedMediaPaths = $webArt + @($webHashes.Keys) + @(
     'Assets\NikkiDefaultBackground.jpg',
     'Assets\NikkiPresetBackground2.jpg',
     'Assets\NikkiDefaultBackgroundBlur.jpg',
@@ -186,7 +199,11 @@ $requiredHashes = [ordered]@{
     'Assets\DefaultFavorites\05.jpg' = 'EC0C9FFE241C771256CE4B8500079850DC4FCCECA9F42B8F2D644A12DD672072'
     'runtimes\win-x64\native\nuan5_decryption.dll' = '3F0D88A2510106FF8E66A4730A77EF9F7FFC27C89411F81FA223CC3E1170E601'
 }
-$requiredPaths = @(
+foreach ($art in $webArt) {
+    $requiredHashes[$art] = $requiredHashes['Assets\' + [IO.Path]::GetFileName($art)]
+}
+$requiredHashes += $webHashes
+$requiredPaths = $webHomeFiles + @(
     'Nikkiward.exe',
     'Nikkiward.dll',
     'Nikkiward.deps.json',

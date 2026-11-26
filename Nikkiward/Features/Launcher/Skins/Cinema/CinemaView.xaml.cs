@@ -10,11 +10,6 @@ using Nikkiward.ViewModels;
 
 namespace Nikkiward.Features.Launcher.Skins;
 
-public static partial class HomeSkins
-{
-    static partial void AddCinema(ref Func<UserControl>? factory) => factory = () => new CinemaView();
-}
-
 public sealed partial class CinemaView : UserControl, IDisposable
 {
     private readonly DispatcherTimer _idle = new() { Interval = IdleDelay };

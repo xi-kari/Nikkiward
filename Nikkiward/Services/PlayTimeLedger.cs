@@ -13,6 +13,8 @@ internal sealed class PlayTimeLedger(IReadOnlyList<PlaySession> history)
     private DateTimeOffset? _recordingBoundary = history.Count == 0 ? null : history.Max(s => s.EndUtc);
     public IReadOnlyList<PlaySession> Sessions => _sessions;
 
+    internal int? CurrentMinutes => _active.Count == 1 && _lastObservation is { } now ? (int)(now - _active.Keys.First().Item2).TotalMinutes : null;
+
     public void Disconnect(DateTimeOffset now)
     {
         _active.Clear();

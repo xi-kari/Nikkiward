@@ -733,6 +733,18 @@ public sealed class GalleryPhotoItemViewModel : INotifyPropertyChanged
         }
     }
 
+    internal async Task<string?> ReadThumbnailDataUrlAsync(CancellationToken token)
+    {
+        var thumbnail = await GalleryThumbnailCache.TryGetThumbnailAsync(FilePath, Extension, _galleryRoot, token);
+        if (thumbnail == null) return null;
+        try
+        {
+            var bytes = thumbnail.Bytes ?? await File.ReadAllBytesAsync(thumbnail.FilePath!, token);
+            return "data:image/jpeg;base64," + Convert.ToBase64String(bytes);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
+
     private async Task LoadCachedThumbnailAsync()
     {
         try
