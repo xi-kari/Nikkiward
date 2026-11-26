@@ -1,0 +1,10 @@
+.top{padding-right:0}
+.cap{display:flex;height:40px;align-self:flex-start}
+.cap span{width:46px;display:grid;place-items:center;color:var(--ink2)}
+.cap svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.1}
+
+.bare #btnRediscover:focus:not(:hover){outline:none}
+#win[data-bg=custom]{--fab:7,20,32}
+#win.still[data-state=checking] .g-spin{transform:rotate(315deg);will-change:transform}
+#win.still[data-state=launching] .g-spin{transform:rotate(302.5deg);will-change:transform}
+.shot b{will-change:opacity;opacity:.999}
