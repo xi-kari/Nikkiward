@@ -65,6 +65,11 @@ public sealed partial class GalleryPage : PageBase
         InitializeComponent();
         _xamlInitialized = true;
         _folderWatcher = new GalleryFolderWatcher(DispatcherQueue, OnGalleryFolderChanged);
+        GalleryPreview.StudioRequested += (_, _) =>
+        {
+            if (GetCurrentGalleryPreviewPhoto() is { } photo)
+                MainPage.StudioShell(this).OpenStudio(ViewModel.Photos, photo);
+        };
         GalleryPreview.MetadataLoader = _metadataService.ReadAsync;
         GalleryPreview.CloseRequested += OnGalleryPreviewCloseRequested;
         GalleryPreview.CopyRequested += OnGalleryPreviewCopyRequested;

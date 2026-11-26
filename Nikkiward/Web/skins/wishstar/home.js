@@ -138,7 +138,7 @@ function renderPhotos(s) {
       }
       img.alt = p.thumbnail ? '' : p.fileName;
       button.title = p.fileName + ' · ' + p.time;
-      button.setAttribute('aria-label', '在相册打开 ' + button.title);
+      button.setAttribute('aria-label', '在照片工坊打开 ' + button.title);
       button.style.setProperty('--k', index);
       if (list.children[index] !== button) list.insertBefore(button, list.children[index] || more);
     });

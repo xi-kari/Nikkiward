@@ -81,6 +81,7 @@
     <Compile Include="..\Nikkiward\Features\Updates\GitHubReleaseUpdateService.cs" Link="Features\Updates\GitHubReleaseUpdateService.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryPhotoMetadata.cs" Link="Features\Gallery\GalleryPhotoMetadata.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryFavoriteCardLayoutProjection.cs" Link="Features\Gallery\GalleryFavoriteCardLayoutProjection.cs" />
+    <Compile Include="..\Nikkiward\Features\Gallery\PhotoStudioStore.cs" Link="Features\Gallery\PhotoStudioStore.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryAnnotationStore.cs" Link="Features\Gallery\GalleryAnnotationStore.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryFavoriteProtectionStore.cs" Link="Features\Gallery\GalleryFavoriteProtectionStore.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryFavoriteProtectionService.cs" Link="Features\Gallery\GalleryFavoriteProtectionService.cs" />

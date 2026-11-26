@@ -106,7 +106,7 @@ function renderPhotos(items) {
     b.dataset.action = 'photo';
     b.dataset.photoId = p.id;
     b.title = [p.fileName,p.time].filter(Boolean).join(' · ');
-    b.setAttribute('aria-label', '在相册打开 ' + b.title);
+    b.setAttribute('aria-label', '在照片工坊打开 ' + b.title);
     const img = document.createElement('img');
     img.alt = p.thumbnail ? '' : p.fileName;
     if (p.thumbnail) {

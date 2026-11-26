@@ -30,7 +30,7 @@ function showPhotos(items, lastSessionPhotos) {
     } else if (!photoMarked(p,index,lastSessionPhotos)) marker?.remove();
     image.alt = p.thumbnail ? '' : p.fileName;
     button.title = p.fileName + ' · ' + p.time;
-    button.setAttribute('aria-label', '在相册打开 ' + button.title);
+    button.setAttribute('aria-label', '在照片工坊打开 ' + button.title);
     if (photos.children[index] !== button) photos.insertBefore(button, photos.children[index] || null);
     previous.delete(p.id);
   });

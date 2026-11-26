@@ -238,11 +238,8 @@ public sealed partial class MainPage
     private void OnLauncherBackgroundResetRequested(object? sender, EventArgs e) =>
         OnResetBackgroundClicked(sender ?? this, new RoutedEventArgs());
 
-    private async void OnRecentPhotoRequested(object? sender, GalleryPhotoItemViewModel photo)
-    {
-        SetShellNavigationSelection("gallery");
-        await ShowGalleryAsync(photo: photo);
-    }
+    private void OnRecentPhotoRequested(object? sender, GalleryPhotoItemViewModel photo) =>
+        OpenStudio(((LauncherPage)sender!).RecentPhotos, photo);
 
     private void OnSkinStatusRequested(object? sender, EventArgs e) => ShowStatusDrawer();
 

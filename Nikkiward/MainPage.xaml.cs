@@ -135,6 +135,7 @@ public sealed partial class MainPage : Page
     {
         get
         {
+            if (_studio != null) return [_studio.Toolbar];
             var regions = new List<FrameworkElement>(2);
             if (HomeInteractive && _hostedLauncherPage?.WebHome is { } web)
             {

@@ -5,6 +5,11 @@ internal static class GalleryIntegrationTests
 {
     public static IEnumerable<(string Name, Func<Task> Run)> All =>
     [
+        ("studio persists edits and share codes", TestStudioEdits),
+        ("studio rejects protected export directories", TestStudioExports),
+        ("studio actions use an explicit allowlist", TestStudioActions),
+        ("studio image tickets are scoped and single use", TestStudioTickets),
+        ("studio rejects leave original files untouched", TestStudioReject),
         ("gallery skips oversized screenshots before pixel decode", TestScreenshotPixelLimit),
         ("gallery serializes screenshot renders", TestScreenshotConcurrency),
         ("gallery caches screenshot thumbnails without changing originals", TestScreenshotCache),
@@ -50,6 +55,64 @@ internal static class GalleryIntegrationTests
         ("NikkiGallery registration detects executable changes", TestNikkiGalleryTamperDetection),
         ("NikkiGallery disconnect keeps the external executable", TestNikkiGalleryDisconnect),
     ];
+
+    private static Task TestStudioEdits()
+    {
+        using var fixture = new TempFixture();
+        var store = new PhotoStudioStore(fixture.Root);
+        var edits = System.Text.Json.JsonSerializer.SerializeToElement(new { exp = 30, codes = new[] { "搭配", "染色", "家园", "相机" } });
+        store.Save("profile/photo", edits);
+        AssertEqual(edits.GetRawText(), new PhotoStudioStore(fixture.Root).Load("profile/photo")!.Value.GetRawText(), "saved editor state");
+        AssertEqual(true, store.Load("another/photo") == null, "isolated photo");
+        return Task.CompletedTask;
+    }
+
+    private static Task TestStudioExports()
+    {
+        using var fixture = new TempFixture();
+        var roots = new[] { Path.Combine(fixture.Root, "Gallery"), Path.Combine(fixture.Root, "Game") };
+        foreach (var path in roots.SelectMany(p => new[] { p, Path.Combine(p, "Exports") }))
+        {
+            try { PhotoStudioStore.CheckDestination(path, roots); }
+            catch (IOException) { continue; }
+            throw new InvalidOperationException("Accepted protected directory: " + path);
+        }
+        PhotoStudioStore.CheckDestination(Path.Combine(fixture.Root, "Gallery-exports"), roots);
+        return Task.CompletedTask;
+    }
+
+    private static Task TestStudioActions()
+    {
+        AssertEqual(true, StudioSession<string>.Allows("export"), "export");
+        AssertEqual(false, StudioSession<string>.Allows("delete"), "delete");
+        AssertEqual(false, StudioSession<string>.Allows("read-file"), "read-file");
+        return Task.CompletedTask;
+    }
+
+    private static Task TestStudioTickets()
+    {
+        var session = new StudioSession<string>(["listed.jpg"]);
+        var ticket = session.Issue(session.Photos.Keys.Single());
+        AssertEqual(true, session.Consume("../outside.jpg") == null, "outside list");
+        AssertEqual(true, new StudioSession<string>([]).Consume(ticket) == null, "another session");
+        AssertEqual("listed.jpg", session.Consume(ticket), "issued photo");
+        AssertEqual(true, session.Consume(ticket) == null, "spent ticket");
+        return Task.CompletedTask;
+    }
+
+    private static Task TestStudioReject()
+    {
+        using var fixture = new TempFixture();
+        var photo = Path.Combine(fixture.Root, "photo.jpg");
+        File.WriteAllText(photo, "original");
+        var stamp = File.GetLastWriteTimeUtc(photo);
+        var store = new PhotoStudioStore(Path.Combine(fixture.Root, "app"));
+        store.SetRejected(photo, true);
+        AssertEqual(true, store.Rejected(photo), "marked reject");
+        AssertEqual("original", File.ReadAllText(photo), "original intact");
+        AssertEqual(stamp, File.GetLastWriteTimeUtc(photo), "original timestamp");
+        return Task.CompletedTask;
+    }
 
     private sealed class FakeDecoder(uint width, Action read) : GalleryScreenshotDecoder
     {
