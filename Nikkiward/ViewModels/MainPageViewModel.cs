@@ -440,6 +440,11 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 () => _launchCoordinator.Observe(binding),
                 cancellationToken)
             .ConfigureAwait(true);
+        if (_activeProcessBinding != binding || _isCloseGameInProgress)
+        {
+            return;
+        }
+
         if (observation.RunningProcessAlive)
         {
             _lastObservedGameAtUtc = DateTimeOffset.UtcNow;
@@ -455,7 +460,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         }
 
         var now = DateTimeOffset.UtcNow;
-        var startupGracePeriod = binding.RootProcessStartTimeUtc.AddSeconds(45);
+        var startupGracePeriod = binding.RootProcessStartTimeUtc + AfterLaunchWindowPolicy.ObservationTimeout;
         if (observation.RootProcessAlive ||
             observation.GameProcesses.Count > 0 ||
             observation.AuxiliaryProcesses.Count > 0)
@@ -502,6 +507,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         }
 
         _isCloseGameInProgress = true;
+        _afterLaunchWindow.Cancel();
         IsBusy = true;
         ActivityText = "正在关闭当前 profile 的游戏";
         NotifyLaunchAttemptChanged();
@@ -1636,6 +1642,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 }
 
                 _activeProcessBinding = binding;
+                _afterLaunchWindow.Begin(binding.AttemptId);
                 _lastObservedGameAtUtc = null;
                 _isLaunchCleanupRequired = false;
                 _launchLifecycleText =

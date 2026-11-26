@@ -37,14 +37,38 @@
                     Content="最小化到系统托盘"
                     GroupName="CloseWindowBehavior"
                     Tag="tray"
-                    Checked="OnCloseBehaviorChecked" />
+                    Checked="OnWindowBehaviorChecked" />
                 <RadioButton
                     x:Name="ExitRadio"
                     automation:AutomationProperties.Name="完全退出"
                     Content="完全退出"
                     GroupName="CloseWindowBehavior"
                     Tag="exit"
-                    Checked="OnCloseBehaviorChecked" />
+                    Checked="OnWindowBehaviorChecked" />
+            </StackPanel>
+        </StackPanel>
+
+        <StackPanel Spacing="8">
+            <TextBlock
+                automation:AutomationProperties.HeadingLevel="Level2"
+                Style="{StaticResource OnArtSectionTitleTextStyle}"
+                Text="启动游戏后" />
+            <StackPanel Orientation="Horizontal" Spacing="24">
+                <RadioButton
+                    x:Name="KeepWindowRadio"
+                    Content="保持窗口"
+                    GroupName="AfterLaunchBehavior"
+                    Checked="OnWindowBehaviorChecked" />
+                <RadioButton
+                    x:Name="MinimizeRadio"
+                    Content="最小化"
+                    GroupName="AfterLaunchBehavior"
+                    Checked="OnWindowBehaviorChecked" />
+                <RadioButton
+                    x:Name="HideToTrayRadio"
+                    Content="隐藏到托盘"
+                    GroupName="AfterLaunchBehavior"
+                    Checked="OnWindowBehaviorChecked" />
             </StackPanel>
         </StackPanel>
 

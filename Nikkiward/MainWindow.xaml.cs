@@ -90,6 +90,7 @@ public sealed partial class MainWindow : Window
         if (RootFrame.Content is MainPage mainPage)
         {
             _mainPage = mainPage;
+            mainPage.ViewModel.AfterLaunchWindowRequested += OnAfterLaunchWindowRequested;
             mainPage.TitleBarPassthroughChanged += OnTitleBarPassthroughChanged;
             RootFrame.SizeChanged += OnRootFrameSizeChanged;
         }
@@ -120,8 +121,10 @@ public sealed partial class MainWindow : Window
     public void ApplyCloseBehavior(CloseWindowBehavior behavior)
     {
         _closeWindowBehavior = behavior;
-        _nativeWindowRuntime.SetTrayEnabled(
-            behavior is CloseWindowBehavior.MinimizeToTray);
+        if (AppWindow.IsVisible || behavior is CloseWindowBehavior.MinimizeToTray)
+        {
+            _nativeWindowRuntime.SetTrayEnabled(behavior is CloseWindowBehavior.MinimizeToTray);
+        }
     }
 
     public HotkeyRegistrationResult ApplyHotkeys(
@@ -171,10 +174,39 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        await HideToTrayAsync();
+    }
+
+    private async void OnAfterLaunchWindowRequested(AfterLaunchBehavior behavior)
+    {
+        if (_exitPending || !AppWindow.IsVisible)
+        {
+            return;
+        }
+
+        try
+        {
+            if (behavior == AfterLaunchBehavior.HideToTray)
+            {
+                await HideToTrayAsync();
+            }
+            else if (behavior == AfterLaunchBehavior.Minimize && AppWindow.Presenter is OverlappedPresenter presenter)
+            {
+                presenter.Minimize();
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or COMException)
+        {
+            _mainPage?.ViewModel.ReportUiError($"游戏已运行，收起窗口失败：{ex.Message}");
+        }
+    }
+
+    private Task HideToTrayAsync()
+    {
         var save = SaveWindowPlacementAsync();
         _nativeWindowRuntime.SetTrayEnabled(true);
         AppWindow.Hide();
-        await save;
+        return save;
     }
 
     private void OnNativeShowWindowRequested(object? sender, EventArgs e) =>
@@ -188,6 +220,11 @@ public sealed partial class MainWindow : Window
 
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
+        if (_mainPage is not null)
+        {
+            _mainPage.ViewModel.AfterLaunchWindowRequested -= OnAfterLaunchWindowRequested;
+        }
+
         _nativeWindowRuntime.ShowWindowRequested -= OnNativeShowWindowRequested;
         _nativeWindowRuntime.ExitRequested -= OnNativeExitRequested;
         _nativeWindowRuntime.ScreenshotRequested -= OnNativeScreenshotRequested;
@@ -327,6 +364,7 @@ public sealed partial class MainWindow : Window
             }
 
             Activate();
+            _nativeWindowRuntime.SetTrayEnabled(_closeWindowBehavior is CloseWindowBehavior.MinimizeToTray);
 
             // Activate alone does not steal focus from a full-screen game.
             SetForegroundWindow(WinRT.Interop.WindowNative.GetWindowHandle(this));

@@ -44,6 +44,9 @@ public sealed partial class CommonSettingsView : UserControl
                 ?? LanguageComboBox.Items.OfType<ComboBoxItem>().First();
             MinimizeToTrayRadio.IsChecked = settings.CloseWindowBehavior is CloseWindowBehavior.MinimizeToTray;
             ExitRadio.IsChecked = settings.CloseWindowBehavior is CloseWindowBehavior.Exit;
+            KeepWindowRadio.IsChecked = settings.AfterLaunchBehavior is AfterLaunchBehavior.KeepWindow;
+            MinimizeRadio.IsChecked = settings.AfterLaunchBehavior is AfterLaunchBehavior.Minimize;
+            HideToTrayRadio.IsChecked = settings.AfterLaunchBehavior is AfterLaunchBehavior.HideToTray;
             ProfileSwitcherToggle.IsOn = settings.EnableProfileQuickSwitcher;
         }
         finally
@@ -62,6 +65,12 @@ public sealed partial class CommonSettingsView : UserControl
         {
             LanguageTag = language,
             CloseWindowBehavior = closeBehavior,
+            AfterLaunchBehavior = (MinimizeRadio.IsChecked, HideToTrayRadio.IsChecked) switch
+            {
+                (true, _) => AfterLaunchBehavior.Minimize,
+                (_, true) => AfterLaunchBehavior.HideToTray,
+                _ => AfterLaunchBehavior.KeepWindow,
+            },
             EnableProfileQuickSwitcher = ProfileSwitcherToggle.IsOn,
         };
     }
@@ -77,7 +86,7 @@ public sealed partial class CommonSettingsView : UserControl
 
     private void OnLanguageSelectionChanged(object sender, SelectionChangedEventArgs e) => RaiseChanged();
 
-    private void OnCloseBehaviorChecked(object sender, RoutedEventArgs e) => RaiseChanged();
+    private void OnWindowBehaviorChecked(object sender, RoutedEventArgs e) => RaiseChanged();
 
     private void OnProfileSwitcherToggled(object sender, RoutedEventArgs e) => RaiseChanged();
 

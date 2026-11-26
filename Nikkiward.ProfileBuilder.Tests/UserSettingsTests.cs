@@ -8,6 +8,7 @@ internal static class UserSettingsTests
 {
     public static (string Name, Func<Task> Run)[] All =>
     [
+        ("old general settings keep the window and after-launch choices round trip", AfterLaunchSettingsRoundTrip),
         ("damaged settings survive profile discovery and window close", () => DiscoverWithSettingsAsync("{broken")),
         ("future settings survive profile discovery and window close", () => DiscoverWithSettingsAsync("{\"schemaVersion\":999}")),
         ("first run saves the discovered profile", () => DiscoverWithSettingsAsync(null)),
@@ -32,6 +33,30 @@ internal static class UserSettingsTests
         ("settings atomic replacement leaves no temporary files", AtomicReplacementLeavesNoTemporaryFiles),
         ("application paths preserve Windows drive roots", ApplicationPathsPreserveDriveRoots),
     ];
+
+    private static async Task AfterLaunchSettingsRoundTrip()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var store = new JsonUserSettingsStore(root);
+            await store.SaveAsync(new UserSettings());
+            var document = JsonNode.Parse(await File.ReadAllTextAsync(store.SettingsFilePath))!;
+            document["general"]!.AsObject().Remove("afterLaunchBehavior");
+            await File.WriteAllTextAsync(store.SettingsFilePath, document.ToJsonString());
+            AssertEqual(AfterLaunchBehavior.KeepWindow, (await store.LoadAsync()).General.AfterLaunchBehavior, "old settings default");
+            var page = CreatePage(new WindowSettingsSession(store));
+            foreach (var choice in Enum.GetValues<AfterLaunchBehavior>())
+            {
+                await page.SaveGeneralSettingsAsync(page.GeneralSettings with { AfterLaunchBehavior = choice });
+                AssertEqual(choice, (await store.LoadAsync()).General.AfterLaunchBehavior, "persisted choice");
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
 
     private sealed class SingleInstall : IInstallationDiscoveryService
     {
