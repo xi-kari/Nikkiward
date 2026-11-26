@@ -2,6 +2,40 @@ using Nikkiward.Models;
 
 namespace Nikkiward.ViewModels;
 
+internal sealed class AfterLaunchWindowPolicy
+{
+    internal static readonly TimeSpan ObservationTimeout = TimeSpan.FromSeconds(45);
+    private Guid? _pendingAttempt;
+
+    internal void Begin(Guid attemptId) => _pendingAttempt = attemptId;
+
+    internal void Cancel() => _pendingAttempt = null;
+
+    internal AfterLaunchBehavior Observe(OfficialAssistedProcessBinding? binding, LaunchButtonState state,
+        DateTimeOffset? observedAt, AfterLaunchBehavior preference)
+    {
+        if (_pendingAttempt is null)
+        {
+            return AfterLaunchBehavior.KeepWindow;
+        }
+
+        if (binding is null || binding.AttemptId != _pendingAttempt)
+        {
+            _pendingAttempt = null;
+            return AfterLaunchBehavior.KeepWindow;
+        }
+
+        if (state == LaunchButtonState.Launching)
+        {
+            return AfterLaunchBehavior.KeepWindow;
+        }
+
+        _pendingAttempt = null;
+        return state == LaunchButtonState.Running && observedAt <= binding.RootProcessStartTimeUtc + ObservationTimeout
+            ? preference : AfterLaunchBehavior.KeepWindow;
+    }
+}
+
 /// <summary>
 /// Honest projection of the launch gate onto the primary action button.
 /// See LAUNCH_CONTRACT.md §7: the button must never disguise a blocked gate as

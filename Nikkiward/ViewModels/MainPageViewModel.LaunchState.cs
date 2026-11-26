@@ -10,6 +10,9 @@ namespace Nikkiward.ViewModels;
 /// </summary>
 public sealed partial class MainPageViewModel
 {
+    private readonly AfterLaunchWindowPolicy _afterLaunchWindow = new();
+    internal event Action<AfterLaunchBehavior>? AfterLaunchWindowRequested;
+
     public LaunchButtonState LaunchButtonState
     {
         get
@@ -163,6 +166,13 @@ public sealed partial class MainPageViewModel
 
     private void NotifyLaunchStateChanged()
     {
+        var action = _afterLaunchWindow.Observe(_activeProcessBinding, LaunchButtonState,
+            _lastObservedGameAtUtc, GeneralSettings.AfterLaunchBehavior);
+        if (action != AfterLaunchBehavior.KeepWindow)
+        {
+            AfterLaunchWindowRequested?.Invoke(action);
+        }
+
         OnPropertyChanged(nameof(ProfileVersionText));
         OnPropertyChanged(nameof(LaunchButtonState));
         OnPropertyChanged(nameof(LaunchButtonLabel));

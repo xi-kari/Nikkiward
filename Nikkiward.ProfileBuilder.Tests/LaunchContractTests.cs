@@ -11,6 +11,8 @@ internal static class LaunchContractTests
 {
     public static (string Name, Func<Task> Run)[] All =>
     [
+        ("manual launch applies the window preference once per confirmed run", AfterLaunchWindowOnce),
+        ("cancelled, failed and timed out launches keep the window", AfterLaunchWindowFailures),
         ("registry paths preserve spaces and executable boundaries", RegistryPaths),
         ("discovery distinguishes pending, empty and selection states", DiscoveryStates),
         ("game file versions require four numeric parts", GameVersions),
@@ -41,6 +43,45 @@ internal static class LaunchContractTests
         ("Bilibili marker mismatch fails closed", BilibiliMarkerMismatchFailsClosed),
         ("Bilibili complete installs remain providerless", BilibiliCompleteInstallHasNoProvider),
     ];
+
+    private static Task AfterLaunchWindowOnce()
+    {
+        var policy = new AfterLaunchWindowPolicy();
+        var binding = new OfficialAssistedProcessBinding { AttemptId = Guid.NewGuid(), RootProcessStartTimeUtc = DateTimeOffset.UtcNow };
+        var observed = binding.RootProcessStartTimeUtc.AddSeconds(3);
+        foreach (var preference in Enum.GetValues<AfterLaunchBehavior>())
+        {
+            binding = binding with { AttemptId = Guid.NewGuid() };
+            AssertEqual(AfterLaunchBehavior.KeepWindow, policy.Observe(binding, LaunchButtonState.Running, observed, preference), "no click");
+            policy.Begin(binding.AttemptId);
+            AssertEqual(AfterLaunchBehavior.KeepWindow, policy.Observe(binding, LaunchButtonState.Launching, null, preference), "pending");
+            AssertEqual(preference, policy.Observe(binding, LaunchButtonState.Running, observed, preference), "first confirmation");
+            AssertEqual(AfterLaunchBehavior.KeepWindow, policy.Observe(binding, LaunchButtonState.Running, observed, AfterLaunchBehavior.HideToTray), "already consumed");
+        }
+        return Task.CompletedTask;
+    }
+
+    private static Task AfterLaunchWindowFailures()
+    {
+        var policy = new AfterLaunchWindowPolicy();
+        var binding = new OfficialAssistedProcessBinding { AttemptId = Guid.NewGuid(), RootProcessStartTimeUtc = DateTimeOffset.UtcNow };
+        foreach (var state in new[] { LaunchButtonState.Ready, LaunchButtonState.Blocked, LaunchButtonState.CleanupRequired })
+        {
+            policy.Begin(binding.AttemptId);
+            AssertEqual(AfterLaunchBehavior.KeepWindow, policy.Observe(binding, state, null, AfterLaunchBehavior.HideToTray), "unsuccessful attempt");
+            AssertEqual(AfterLaunchBehavior.KeepWindow, policy.Observe(binding, LaunchButtonState.Running, binding.RootProcessStartTimeUtc, AfterLaunchBehavior.HideToTray), "late notification");
+        }
+        policy.Begin(binding.AttemptId);
+        AssertEqual(AfterLaunchBehavior.KeepWindow, policy.Observe(binding, LaunchButtonState.Running, binding.RootProcessStartTimeUtc.AddSeconds(46), AfterLaunchBehavior.Minimize), "first observation after deadline");
+        policy.Begin(binding.AttemptId);
+        AssertEqual(AfterLaunchBehavior.KeepWindow, policy.Observe(null, LaunchButtonState.Ready, null, AfterLaunchBehavior.Minimize), "no bound process after cancellation");
+        policy.Begin(Guid.NewGuid());
+        AssertEqual(AfterLaunchBehavior.KeepWindow, policy.Observe(binding, LaunchButtonState.Running, binding.RootProcessStartTimeUtc, AfterLaunchBehavior.Minimize), "different attempt");
+        policy.Begin(binding.AttemptId);
+        policy.Cancel();
+        AssertEqual(AfterLaunchBehavior.KeepWindow, policy.Observe(binding, LaunchButtonState.Running, binding.RootProcessStartTimeUtc, AfterLaunchBehavior.Minimize), "close requested during observation");
+        return Task.CompletedTask;
+    }
 
     private static Task RegistryPaths()
     {

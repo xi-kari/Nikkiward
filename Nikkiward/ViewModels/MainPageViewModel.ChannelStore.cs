@@ -412,6 +412,7 @@ public sealed partial class MainPageViewModel
             }
 
             _isOfficialAssistedRunning = true;
+            _afterLaunchWindow.Begin(binding.AttemptId);
             _isLaunchCleanupRequired = false;
             _launchAttemptStatusText = _selectedCandidate.Identity.DistributionChannel is
                 DistributionChannel.Bilibili
@@ -453,7 +454,7 @@ public sealed partial class MainPageViewModel
         OfficialAssistedProcessBinding binding,
         CancellationToken cancellationToken)
     {
-        var deadline = binding.RootProcessStartTimeUtc.AddSeconds(45);
+        var deadline = binding.RootProcessStartTimeUtc + AfterLaunchWindowPolicy.ObservationTimeout;
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
