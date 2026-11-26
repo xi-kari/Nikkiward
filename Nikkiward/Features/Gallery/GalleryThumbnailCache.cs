@@ -54,28 +54,24 @@ public static class GalleryThumbnailCache
 
     public static string? FolderPath => CacheFolder.Value;
 
-    /// <summary>
-    /// Returns the path of a cached JPEG thumbnail for <paramref name="filePath"/>,
-    /// generating it on first use. Returns null when the source is unreadable or
-    /// the cache folder cannot be created; callers fall back to the full image.
-    /// </summary>
-    public static async Task<string?> TryGetThumbnailPathAsync(
+    internal static async Task<GalleryThumbnail?> TryGetThumbnailAsync(
         string filePath,
         string extension,
         string? galleryRoot,
         CancellationToken cancellationToken = default)
     {
         var folder = CacheFolder.Value;
-        if (folder is null || string.IsNullOrWhiteSpace(filePath))
+        if (string.IsNullOrWhiteSpace(filePath))
         {
             return null;
         }
 
+        var usesScreenshotCodec = GalleryFileTypes.UsesScreenshotCodec(extension);
         FileInfo source;
         try
         {
             source = new FileInfo(filePath);
-            if (!source.Exists || (source.Length < MinimumSourceBytes && !GalleryFileTypes.UsesScreenshotCodec(extension)))
+            if (!source.Exists || (source.Length < MinimumSourceBytes && !usesScreenshotCodec))
             {
                 return null;
             }
@@ -92,8 +88,8 @@ public static class GalleryThumbnailCache
         await DecodeGate.WaitAsync(cancellationToken);
         try
         {
-            return await GalleryThumbnailFile.GetOrCreateAsync(folder, galleryRoot, source, async () =>
-                GalleryFileTypes.UsesScreenshotCodec(extension)
+            return await GalleryThumbnailFile.GetOrCreateAsync(folder, galleryRoot, source, usesScreenshotCodec, async () =>
+                usesScreenshotCodec
                     ? await StarwardScreenshotDecoder.RenderThumbnailAsync(filePath, extension, ThumbnailWidth, cancellationToken)
                     : await RenderThumbnailAsync(filePath, cancellationToken), cancellationToken);
         }

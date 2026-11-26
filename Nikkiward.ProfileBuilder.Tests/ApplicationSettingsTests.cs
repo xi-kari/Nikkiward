@@ -24,6 +24,9 @@ internal static class ApplicationSettingsTests
         ("cancelling an in-progress backup leaves no partial archive", CancelInProgressBackup),
         ("a failed backup leaves no partial archive", FailedBackupLeavesNoArchive),
         ("data backups remain unique within the same timestamp", BackupsRemainUnique),
+        (nameof(StartupKeepsSelectedFolderWithoutSettings), StartupKeepsSelectedFolderWithoutSettings),
+        (nameof(StartupReportsMissingSelectedFolder), StartupReportsMissingSelectedFolder),
+        (nameof(StartupUsesDefaultWithoutSelection), StartupUsesDefaultWithoutSelection),
         ("data root selection requires a migrated settings file", DataRootSelectionRequiresSettings),
     ];
 
@@ -430,24 +433,48 @@ internal static class ApplicationSettingsTests
         Assert(File.Exists(second.FilePath), "second backup file");
     }
 
+    private static Task StartupKeepsSelectedFolderWithoutSettings()
+    {
+        using var fixture = new TemporaryFolder();
+        var configured = Directory.CreateDirectory(Path.Combine(fixture.Path, "selected")).FullName;
+        var oldSettings = Path.Combine(fixture.Path, "settings.json");
+        File.WriteAllText(oldSettings, "old data");
+        var root = ApplicationDataPaths.ResolveRoot(configured, fixture.Path);
+        AssertEqual(configured, root, "selected folder");
+        return Task.CompletedTask;
+    }
+
+    private static Task StartupReportsMissingSelectedFolder()
+    {
+        using var fixture = new TemporaryFolder();
+        File.WriteAllText(Path.Combine(fixture.Path, "settings.json"), "{}");
+        var missing = Path.Combine(fixture.Path, "missing");
+        Assert(ApplicationDataPaths.ResolveRoot(missing, fixture.Path) is null, "selected directory unavailable");
+        return Task.CompletedTask;
+    }
+
+    private static Task StartupUsesDefaultWithoutSelection()
+    {
+        using var fixture = new TemporaryFolder();
+        var fallback = Path.Combine(fixture.Path, "default");
+        AssertEqual(fallback, ApplicationDataPaths.ResolveRoot(null, fallback), "first-run default folder");
+        return Task.CompletedTask;
+    }
+
     private static Task DataRootSelectionRequiresSettings()
     {
         using var fixture = new TemporaryFolder();
-        var fallback = Path.Combine(fixture.Path, "fallback");
-        var configured = Path.Combine(fixture.Path, "configured");
-        Directory.CreateDirectory(fallback);
-        Directory.CreateDirectory(configured);
-
-        AssertEqual(
-            Path.GetFullPath(fallback),
-            ApplicationDataPaths.ResolveRoot(configured, fallback),
-            "configured root without settings");
+        var configured = fixture.Path;
+        try
+        {
+            ApplicationDataPaths.ValidateExistingRoot(configured, requireSettings: true);
+            throw new InvalidOperationException("Switching to a folder without settings must fail.");
+        }
+        catch (FileNotFoundException)
+        {
+        }
 
         File.WriteAllText(Path.Combine(configured, "settings.json"), "{}");
-        AssertEqual(
-            Path.GetFullPath(configured),
-            ApplicationDataPaths.ResolveRoot(configured, fallback),
-            "configured root with settings");
         AssertEqual(
             Path.GetFullPath(configured),
             ApplicationDataPaths.ValidateExistingRoot(configured, requireSettings: true),

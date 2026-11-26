@@ -8,6 +8,7 @@ internal static class GalleryIntegrationTests
         ("gallery skips oversized screenshots before pixel decode", TestScreenshotPixelLimit),
         ("gallery serializes screenshot renders", TestScreenshotConcurrency),
         ("gallery caches screenshot thumbnails without changing originals", TestScreenshotCache),
+        (nameof(TestScreenshotMemoryThumbnail), TestScreenshotMemoryThumbnail),
         ("gallery stars persist and can be removed", TestPersistenceAndRemoval),
         ("gallery stars stay isolated by profile", TestProfileIsolation),
         ("gallery star paths normalize case and separators", TestPathNormalization),
@@ -111,18 +112,40 @@ internal static class GalleryIntegrationTests
         var source = new FileInfo(Path.Combine(album.FullName, "photo.avif"));
         File.WriteAllBytes(source.FullName, [1, 2, 3]);
         var hash = SHA256.HashData(File.ReadAllBytes(source.FullName));
-        var thumbnail = await GalleryThumbnailFile.GetOrCreateAsync(cache.FullName, album.FullName, source, async () =>
+        var thumbnail = await GalleryThumbnailFile.GetOrCreateAsync(cache.FullName, album.FullName, source, allowMemory: true, async () =>
             await GalleryScreenshotDecoder.RenderAsync(source.FullName, ".avif",
                 (_, _) => new FakeDecoder(2, () => { }),
                 (_, _, pixels) => Task.FromResult(pixels), default), default);
-        var nestedCache = Path.Combine(album.FullName, "GalleryCache", "Thumbnails");
-        var skipped = await GalleryThumbnailFile.GetOrCreateAsync(nestedCache, album.FullName, source,
-            () => throw new InvalidOperationException("nested cache must not render"), default);
-        Assert(skipped is null && !Directory.Exists(nestedCache), "nested cache must stay absent");
-        AssertEqual(cache.FullName, Path.GetDirectoryName(thumbnail!), "thumbnail parent");
+        AssertEqual(cache.FullName, Path.GetDirectoryName(thumbnail!.FilePath), "thumbnail parent");
         AssertEqual(1, album.GetFiles().Length, "source folder file count");
         AssertEqual(1, cache.GetFiles().Length, "cache file count");
         Assert(hash.SequenceEqual(SHA256.HashData(File.ReadAllBytes(source.FullName))), "original hash");
+    }
+
+    private static async Task TestScreenshotMemoryThumbnail()
+    {
+        using var fixture = new TempFixture();
+        var album = Directory.CreateDirectory(Path.Combine(fixture.Root, "album"));
+        foreach (var extension in new[] { ".avif", ".jxl" })
+        {
+            var source = new FileInfo(Path.Combine(album.FullName, extension == ".jxl" ? "protected.bin" : "photo.avif"));
+            File.WriteAllBytes(source.FullName, [1]);
+            var reads = 0;
+            var blocked = Path.Combine(fixture.Root, "file-in-place-of-cache");
+            File.WriteAllBytes(blocked, []);
+            foreach (var cache in new[] { Path.Combine(album.FullName, "cache"), blocked })
+            {
+                var result = await GalleryThumbnailFile.GetOrCreateAsync(cache, album.FullName, source,
+                    GalleryFileTypes.UsesScreenshotCodec(extension), async () => await GalleryScreenshotDecoder.RenderAsync(
+                        source.FullName, extension, (_, _) => new FakeDecoder(2, () => reads++),
+                        (_, _, pixels) => Task.FromResult(pixels), default), default);
+                Assert(result is { FilePath: null, Bytes: [5, 6, 7, 8] }, "memory thumbnail bytes");
+            }
+            AssertEqual(2, reads, "each memory thumbnail decodes once");
+            AssertEqual(1, album.GetFileSystemInfos().Length, "only original in album");
+            Assert(File.ReadAllBytes(source.FullName).SequenceEqual(new byte[] { 1 }), "original unchanged");
+            File.Delete(source.FullName);
+        }
     }
 
     private static async Task TestPersistenceAndRemoval()

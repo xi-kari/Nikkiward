@@ -778,16 +778,29 @@ public sealed class GalleryPhotoItemViewModel : INotifyPropertyChanged
         {
             // Task.Run keeps the hash, decode and encode off the UI thread; the
             // continuation resumes on it, which BitmapImage requires.
-            var cachePath = await Task.Run(
-                () => GalleryThumbnailCache.TryGetThumbnailPathAsync(FilePath, Extension, _galleryRoot));
-            if (string.IsNullOrEmpty(cachePath))
+            var thumbnail = await Task.Run(
+                () => GalleryThumbnailCache.TryGetThumbnailAsync(FilePath, Extension, _galleryRoot));
+            if (thumbnail is null)
             {
                 if (UsesScreenshotCodec) SetThumbnailError("缩略图不可用");
                 return;
             }
 
-            var image = CreateThumbnail(cachePath);
-            if (UsesScreenshotCodec)
+            BitmapImage image;
+            if (thumbnail.Bytes is { } bytes)
+            {
+                image = new BitmapImage();
+                using var memory = new MemoryStream(bytes, writable: false);
+                using var stream = memory.AsRandomAccessStream();
+                await image.SetSourceAsync(stream);
+                SetCardAspectRatio(image.PixelWidth / (double)image.PixelHeight);
+            }
+            else
+            {
+                image = CreateThumbnail(thumbnail.FilePath!);
+            }
+
+            if (UsesScreenshotCodec && thumbnail.FilePath is not null)
             {
                 image.ImageOpened += (_, _) => SetCardAspectRatio(image.PixelWidth / (double)image.PixelHeight);
             }

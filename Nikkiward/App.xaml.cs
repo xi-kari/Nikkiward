@@ -60,6 +60,34 @@ public partial class App : Application
         // takeover back; a redirected second launch never touches it.
         GamepadController.RecoverGameBarGuideButton();
 
+        string? unavailable;
+        try
+        {
+            unavailable = ApplicationDataPaths.UnavailableRoot;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            MessageBox(IntPtr.Zero, "无法从注册表读取数据目录。请检查当前用户的注册表访问权限后重新打开 Nikkiward。",
+                "Nikkiward · 无法读取数据目录", 0x10);
+            Exit();
+            return;
+        }
+
+        if (unavailable is not null)
+        {
+            var useDefault = MessageBox(IntPtr.Zero,
+                $"选定的数据目录不可用：{unavailable}\n\n要在本次启动中使用默认目录吗？\n{ApplicationDataPaths.DefaultRoot}\n" +
+                "选择“是”将载入并保存该目录的数据。选择“否”退出，恢复原目录或重新连接磁盘后再打开。",
+                "Nikkiward · 数据目录不可用", 0x04 | 0x30 | 0x100);
+            if (useDefault != 6) // IDYES
+            {
+                Exit();
+                return;
+            }
+
+            ApplicationDataPaths.UseDefaultForSession();
+        }
+
         Settings = new WindowSettingsSession(new JsonUserSettingsStore());
         UserSettings? settings = null;
         try

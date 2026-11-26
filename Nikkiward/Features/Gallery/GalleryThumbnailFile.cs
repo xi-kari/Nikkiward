@@ -4,35 +4,67 @@ using Nikkiward.Services;
 
 namespace Nikkiward.Features.Gallery;
 
+internal sealed record GalleryThumbnail(string? FilePath, byte[]? Bytes);
+
 internal static class GalleryThumbnailFile
 {
-    public static async Task<string?> GetOrCreateAsync(string folder, string? galleryRoot, FileInfo source,
-        Func<Task<byte[]?>> render, CancellationToken token)
+    public static async Task<GalleryThumbnail?> GetOrCreateAsync(string? folder, string? galleryRoot, FileInfo source,
+        bool allowMemory, Func<Task<byte[]?>> render, CancellationToken token)
     {
-        if (galleryRoot is not null &&
-            (VariantPathPolicy.IsSameOrDescendant(folder, galleryRoot) ||
-             VariantPathPolicy.IsSameOrDescendant(GalleryFavoriteProtectionService.ResolveDirectoryLinks(folder),
-                 GalleryFavoriteProtectionService.ResolveDirectoryLinks(galleryRoot))))
-        {
-            return null;
-        }
+        var path = GetCachePath(folder, galleryRoot, source);
+        if (File.Exists(path)) return new GalleryThumbnail(path, null);
 
-        var path = Path.Combine(folder, BuildCacheFileName(source));
-        if (File.Exists(path)) return path;
+        if (path is null && !allowMemory) return null;
         var bytes = await render();
         if (bytes is not { Length: > 0 }) return null;
-        Directory.CreateDirectory(folder);
+        if (path is not null)
+        {
+            try
+            {
+                await WriteCacheFileAsync(path, bytes, token);
+                return new GalleryThumbnail(path, null);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+
+        return allowMemory ? new GalleryThumbnail(null, bytes) : null;
+    }
+
+    private static async Task WriteCacheFileAsync(string path, byte[] bytes, CancellationToken token)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var temporaryPath = $"{path}.{Guid.NewGuid():N}.tmp";
         try
         {
             await File.WriteAllBytesAsync(temporaryPath, bytes, token);
             token.ThrowIfCancellationRequested();
             File.Move(temporaryPath, path, overwrite: true);
-            return path;
         }
         finally
         {
             File.Delete(temporaryPath);
+        }
+    }
+
+    private static string? GetCachePath(string? folder, string? galleryRoot, FileInfo source)
+    {
+        try
+        {
+            if (folder is null || (galleryRoot is not null &&
+                (VariantPathPolicy.IsSameOrDescendant(folder, galleryRoot) ||
+                 VariantPathPolicy.IsSameOrDescendant(GalleryFavoriteProtectionService.ResolveDirectoryLinks(folder),
+                     GalleryFavoriteProtectionService.ResolveDirectoryLinks(galleryRoot)))))
+            {
+                return null;
+            }
+
+            return Path.Combine(folder, BuildCacheFileName(source));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
         }
     }
 
