@@ -9,9 +9,13 @@ internal static class ApplicationSettingsTests
     public static IEnumerable<(string Name, Func<Task> Run)> All =>
     [
         ("application settings defaults match the visible controls", DefaultsMatchVisibleControls),
-        ("application settings round trip through schema 7", SettingsRoundTrip),
+        ("application settings round trip through the current schema", SettingsRoundTrip),
         ("language preference and default install root drive runtime consumers", LanguageAndDefaultStoreRoot),
         ("schema 6 adds application settings with a rollback copy", Schema6MigrationAddsSections),
+        (nameof(Schema7StartsWithoutWindowPlacement), Schema7StartsWithoutWindowPlacement),
+        (nameof(WindowPlacementAndPreferencesSurviveConcurrentSaves), WindowPlacementAndPreferencesSurviveConcurrentSaves),
+        (nameof(WindowClosePreservesReplacedSettingsFile), WindowClosePreservesReplacedSettingsFile),
+        (nameof(ExitAfterSettingsDeletionKeepsFileDeleted), ExitAfterSettingsDeletionKeepsFileDeleted),
         ("cache clearing preserves the browser session and optional backgrounds", CacheClearingPreservesSession),
         ("data backup contains durable settings records", BackupContainsDurableRecords),
         ("data backups remain unique within the same timestamp", BackupsRemainUnique),
@@ -21,7 +25,7 @@ internal static class ApplicationSettingsTests
     private static Task DefaultsMatchVisibleControls()
     {
         var settings = new UserSettings();
-        AssertEqual(7, settings.SchemaVersion, "schema version");
+        AssertEqual(UserSettings.CurrentSchemaVersion, settings.SchemaVersion, "schema version");
         AssertEqual("zh-CN", settings.General.LanguageTag, "language");
         AssertEqual("Alt+S", settings.General.MainWindowHotkey, "main window hotkey");
         Assert(settings.General.EnableProfileQuickSwitcher, "profile quick switcher");
@@ -139,7 +143,7 @@ internal static class ApplicationSettingsTests
 
         var loaded = await store.LoadAsync();
 
-        AssertEqual(7, loaded.SchemaVersion, "migrated schema");
+        AssertEqual(UserSettings.CurrentSchemaVersion, loaded.SchemaVersion, "migrated schema");
         Assert(loaded.Download.EnableHardLinks, "hard link default");
         AssertEqual(ScreenshotImageFormat.Png, loaded.Screenshot.Format, "screenshot default");
         Assert(File.Exists(store.Schema7MigrationRollbackFilePath), "schema 7 rollback copy");
@@ -147,6 +151,77 @@ internal static class ApplicationSettingsTests
             schema6,
             await File.ReadAllTextAsync(store.Schema7MigrationRollbackFilePath),
             "schema 6 rollback bytes");
+    }
+
+    private static async Task Schema7StartsWithoutWindowPlacement()
+    {
+        using var fixture = new TemporaryFolder();
+        var store = new JsonUserSettingsStore(fixture.Path);
+        await store.SaveAsync(new UserSettings { DeveloperModeEnabled = true });
+        var document = JsonNode.Parse(await File.ReadAllTextAsync(store.SettingsFilePath))!.AsObject();
+        document["schemaVersion"] = 7;
+        document.Remove("windowPlacement");
+        var original = document.ToJsonString();
+        await File.WriteAllTextAsync(store.SettingsFilePath, original);
+
+        var loaded = await store.LoadAsync();
+        AssertEqual(8, loaded.SchemaVersion, "migrated schema");
+        Assert(loaded.DeveloperModeEnabled, "unrelated settings survive migration");
+        var persisted = JsonNode.Parse(await File.ReadAllTextAsync(store.SettingsFilePath))!;
+        Assert(persisted["windowPlacement"] is null, "old settings use first-open placement");
+        AssertEqual(8, persisted["schemaVersion"]!.GetValue<int>(), "persisted schema");
+        AssertEqual(original, await File.ReadAllTextAsync(Path.Combine(
+            Path.GetDirectoryName(store.SettingsFilePath)!, "settings.pre-schema8.rollback.json")), "rollback bytes");
+    }
+
+    private static async Task WindowPlacementAndPreferencesSurviveConcurrentSaves()
+    {
+        using var fixture = new TemporaryFolder();
+        var store = new JsonUserSettingsStore(fixture.Path);
+        var session = new WindowSettingsSession(store);
+        var initial = await session.LoadAsync();
+        var placement = new WindowPlacementSettings(-1200, 90, 960, 600, -1600, 40, 144, true);
+        await Task.WhenAll(session.SaveWindowPlacementAsync(placement),
+            session.SaveAsync(initial with { DeveloperModeEnabled = true }));
+        AssertEqual(placement, (await store.LoadAsync()).WindowPlacement, "placement survives stale preferences");
+        await session.SaveWindowPlacementAsync(placement with { X = -1100 });
+        var loaded = await store.LoadAsync();
+        Assert(loaded.DeveloperModeEnabled, "placement save preserves preferences");
+        AssertEqual(placement with { X = -1100 }, loaded.WindowPlacement, "normal bounds and maximized flag round trip");
+    }
+
+    private static async Task WindowClosePreservesReplacedSettingsFile()
+    {
+        using var fixture = new TemporaryFolder();
+        var store = new JsonUserSettingsStore(fixture.Path);
+        var session = new WindowSettingsSession(store);
+        var initial = await session.LoadAsync();
+        await store.SaveAsync(initial with { DeveloperModeEnabled = true });
+        await session.SaveWindowPlacementAsync(new(40, 20, 640, 480, 0, 0, 96, false));
+        Assert((await store.LoadAsync()).DeveloperModeEnabled, "closing must preserve the replacement file's preferences");
+
+        await File.WriteAllTextAsync(store.SettingsFilePath, "damaged");
+        try
+        {
+            await session.SaveWindowPlacementAsync(new(60, 20, 640, 480, 0, 0, 96, false));
+        }
+        catch (UserSettingsStoreException)
+        {
+        }
+        AssertEqual("damaged", await File.ReadAllTextAsync(store.SettingsFilePath), "unreadable settings remain intact");
+    }
+
+    private static async Task ExitAfterSettingsDeletionKeepsFileDeleted()
+    {
+        using var fixture = new TemporaryFolder();
+        var store = new JsonUserSettingsStore(fixture.Path);
+        var session = new WindowSettingsSession(store);
+        var initial = await session.LoadAsync();
+        await session.SaveAsync(initial);
+        var maintenance = new SettingsMaintenanceService(store.SettingsFilePath, Path.Combine(fixture.Path, "JournalWebView2"));
+        await session.DeleteAsync(maintenance.DeleteSettingsAsync, CancellationToken.None);
+        await session.SaveWindowPlacementAsync(new(0, 0, 640, 480, 0, 0, 96, false));
+        Assert(!File.Exists(store.SettingsFilePath), "closing the window after deletion must leave settings deleted");
     }
 
     private static async Task CacheClearingPreservesSession()

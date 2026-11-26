@@ -19,6 +19,7 @@ public sealed class NativeWindowRuntime : IDisposable
     private const int ShowWindowHotkeyId = 0x4E11;
     private const int ScreenshotHotkeyId = 0x4E12;
     private const uint EventSystemForeground = 0x0003;
+    private const uint WmSize = 0x0005;
     private const uint WmActivateApp = 0x001C;
     private const uint WmHotkey = 0x0312;
     private const uint WmAppTray = 0x8000 + 0x42;
@@ -82,6 +83,8 @@ public sealed class NativeWindowRuntime : IDisposable
         }
     }
 
+    internal bool LastNonMinimizedWasMaximized { get; private set; }
+
     public NativeWindowRuntime(IntPtr windowHandle)
     {
         if (windowHandle == IntPtr.Zero)
@@ -119,6 +122,17 @@ public sealed class NativeWindowRuntime : IDisposable
         }
 
         _applicationActive = IsCurrentProcessForeground();
+    }
+
+    internal static bool TrackMaximizedState(bool wasMaximized, nuint sizeType)
+    {
+        const nuint sizeRestored = 0, sizeMaximized = 2;
+        return sizeType switch
+        {
+            sizeRestored => false,
+            sizeMaximized => true,
+            _ => wasMaximized,
+        };
     }
 
     public HotkeyRegistrationResult ApplyHotkeys(
@@ -217,7 +231,11 @@ public sealed class NativeWindowRuntime : IDisposable
         UIntPtr subclassId,
         UIntPtr referenceData)
     {
-        if (message is WmActivateApp or WmAppForegroundSync)
+        if (message == WmSize)
+        {
+            LastNonMinimizedWasMaximized = TrackMaximizedState(LastNonMinimizedWasMaximized, wParam);
+        }
+        else if (message is WmActivateApp or WmAppForegroundSync)
         {
             SetApplicationActive(IsCurrentProcessForeground());
         }

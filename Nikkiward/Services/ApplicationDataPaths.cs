@@ -30,9 +30,24 @@ public static class ApplicationDataPaths
 
     public static string SettingsFilePath => Path.Combine(Root, "settings.json");
 
-    public static void ConfigureRoot(string folderPath)
+    public static void ConfigureRoot(string folderPath, Action? startSuccessor = null)
     {
         var normalized = ValidateExistingRoot(folderPath, requireSettings: true);
+        var previous = Root;
+        WriteConfiguredRoot(normalized);
+        try
+        {
+            startSuccessor?.Invoke();
+        }
+        catch
+        {
+            WriteConfiguredRoot(previous);
+            throw;
+        }
+    }
+
+    private static void WriteConfiguredRoot(string normalized)
+    {
         using var key = Registry.CurrentUser.CreateSubKey(RegistryPath, writable: true)
             ?? throw new InvalidOperationException("The Nikkiward registry key could not be opened.");
         if (string.Equals(normalized, DefaultRoot, StringComparison.OrdinalIgnoreCase))

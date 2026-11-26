@@ -10,7 +10,9 @@ public sealed record UserSettings
 
     public const int HolographicCardSchemaVersion = 6;
 
-    public const int CurrentSchemaVersion = 7;
+    public const int ApplicationSettingsSchemaVersion = 7;
+
+    public const int CurrentSchemaVersion = 8;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
@@ -21,6 +23,8 @@ public sealed record UserSettings
     public AppearanceSettings Appearance { get; init; } = new();
 
     public GeneralSettings General { get; init; } = new();
+
+    public WindowPlacementSettings? WindowPlacement { get; init; }
 
     public DownloadSettings Download { get; init; } = new();
 
@@ -37,6 +41,10 @@ public sealed record UserSettings
 
     public GamepadSettings Gamepad { get; init; } = new();
 }
+
+public sealed record WindowPlacementSettings(
+    int X, int Y, int Width, int Height,
+    int WorkAreaX, int WorkAreaY, int Dpi, bool IsMaximized);
 
 public sealed record ChannelStoreSettings
 {
