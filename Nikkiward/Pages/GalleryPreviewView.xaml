@@ -63,7 +63,9 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
+                <Button Grid.Column="6" Content="在照片工坊打开" Click="OnOpenStudio" />
                 <Button
                     x:Name="GalleryPreviewCloseButton"
                     Click="OnGalleryPreviewCloseClicked"

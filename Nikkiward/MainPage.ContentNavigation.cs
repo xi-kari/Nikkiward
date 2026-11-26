@@ -233,7 +233,7 @@ public sealed partial class MainPage
 
         bool webHome = launcherOpen && _hostedLauncherPage?.WebHome != null;
         ContentFrame.Margin = !webHome && _homeSkin?.LeftEdge == true ? new Thickness(90, 0, 0, 0) : pageOpen ? new Thickness(0, 48, 0, 0) : default;
-        ShellNavigation.Visibility = Visible(!webHome);
+        ShellNavigation.Visibility = Visible(!webHome && _studio == null);
         PageHostBackdrop.Visibility = Visible(pageOpen);
 
         if (_hostedLauncherPage is { } launcherPage)

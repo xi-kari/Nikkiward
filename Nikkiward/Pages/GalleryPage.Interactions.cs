@@ -368,7 +368,7 @@ public sealed partial class GalleryPage
         }
     }
 
-    private async Task ToggleGalleryStarAsync(GalleryPhotoItemViewModel photo)
+    internal async Task ToggleGalleryStarAsync(GalleryPhotoItemViewModel photo)
     {
         var scopeId = photo.AnnotationScopeId;
         var isDefault = scopeId == GalleryDefaultFavoriteSeedService.ScopeId;

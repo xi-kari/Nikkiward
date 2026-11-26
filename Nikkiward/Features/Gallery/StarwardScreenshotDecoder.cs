@@ -18,7 +18,11 @@ internal static class StarwardScreenshotDecoder
 
     public static Task<byte[]> RenderThumbnailAsync(string path, string extension, int thumbnailEdge, CancellationToken token) =>
         GalleryScreenshotDecoder.RenderAsync(path, extension, Open,
-            (width, height, rgba) => EncodeAsync(width, height, rgba, thumbnailEdge, token), token);
+            (width, height, rgba) => EncodeAsync(width, height, rgba, thumbnailEdge, BitmapEncoder.JpegEncoderId, token), token);
+
+    public static Task<byte[]> RenderPngAsync(string path, string extension, CancellationToken token) =>
+        GalleryScreenshotDecoder.RenderAsync(path, extension, Open,
+            (width, height, rgba) => EncodeAsync(width, height, rgba, int.MaxValue, BitmapEncoder.PngEncoderId, token), token);
 
     private static GalleryScreenshotDecoder Open(byte[] data, string extension) =>
         extension.Equals(".avif", StringComparison.OrdinalIgnoreCase)
@@ -99,12 +103,11 @@ internal static class StarwardScreenshotDecoder
     }
 
     private static async Task<byte[]> EncodeAsync(uint width, uint height, byte[] rgba, int thumbnailEdge,
-        CancellationToken token)
+        Guid codec, CancellationToken token)
     {
         using var memory = new MemoryStream();
         using var stream = memory.AsRandomAccessStream();
-        var encoder = await BitmapEncoder.CreateAsync(
-            BitmapEncoder.JpegEncoderId, stream);
+        var encoder = await BitmapEncoder.CreateAsync(codec, stream);
         encoder.SetPixelData(BitmapPixelFormat.Rgba8, BitmapAlphaMode.Straight, width, height, 96, 96, rgba);
         if (Math.Max(width, height) > thumbnailEdge)
         {

@@ -40,6 +40,9 @@ public sealed class GalleryProtectionEnabledChangedEventArgs : EventArgs
 
 public sealed partial class GallerySettingsView : UserControl
 {
+    private async void OnChooseStudioExports(object sender, RoutedEventArgs args) =>
+        await MainPage.StudioShell(this).ChooseStudioExportsAsync();
+
     private bool _applyingState;
 
     public event EventHandler? ChooseRootRequested;

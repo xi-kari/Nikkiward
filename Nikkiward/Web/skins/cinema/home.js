@@ -148,7 +148,7 @@ function renderPhotos(s) {
         b.style.backgroundImage = '';
         b.classList.remove('v');
       }
-      b.setAttribute('aria-label','在相册打开 ' + p.fileName + ' ' + p.time);
+      b.setAttribute('aria-label','在照片工坊打开 ' + p.fileName + ' ' + p.time);
       if (ledge.children[i+1] !== b) ledge.insertBefore(b,ledge.children[i+1] || null);
       old.delete(p.id);
     }
@@ -267,7 +267,7 @@ $('#veil').onclick = () => setOverlay('');
 const commands = [
   ['启动','启动游戏','launch','Enter'], ['启动','关闭游戏','close'], ['启动','切换档案…','switcher'],
   ['启动','游戏设置','settings'], ['启动','定位游戏（手动选择安装目录）','locate'], ['启动','启动检查与诊断','status'],
-  ['前往','相册','nav-gallery'], ['前往','收藏','nav-gallery-favorites'], ['前往','最近一张照片','photo'],
+  ['前往','相册','nav-gallery'], ['前往','收藏','nav-gallery-favorites'], ['前往','照片工坊 · 最近一张','photo'],
   ['前往','奇想手账','nav-library'], ['前往','心愿共鸣记录','nav-resonance'], ['前往','设置','nav-settings'],
   ['背景','换成「花信」','blossom'], ['背景','换成「海月」','tide'], ['背景','恢复默认背景','reset'],
   ['背景','进入鉴赏模式','idle','闲置 8 秒也会进入'], ['背景','更换背景','background'], ['工具','后台任务','download'],

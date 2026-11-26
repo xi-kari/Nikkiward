@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN" data-skin="cinema" data-tone="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' https://photo.nikkiward.invalid data: blob: file:; font-src 'self' file:; base-uri 'none'; frame-src 'none'; form-action 'none'">
+<title>照片工坊</title>
+<link rel="stylesheet" href="../fonts/manrope.css">
+<link rel="stylesheet" href="../fonts/noto-sans-sc.css">
+<link rel="stylesheet" href="../fonts/jetbrains-mono.css">
+<link rel="stylesheet" href="../fonts/noto-serif-sc.css">
+<link rel="stylesheet" href="../fonts/bodoni-moda.css">
+<link rel="stylesheet" href="../fonts/zcool-xiaowei.css">
+<link rel="stylesheet" href="../fonts/fraunces.css">
+<link rel="stylesheet" href="../fonts/lxgw-wenkai-tc.css">
+<link rel="stylesheet" href="../shared/theme.css"><link rel="stylesheet" href="studio.css">
+<script defer src="render.js"></script><script defer src="studio.js"></script></head><body id="win" data-screen="studio">
+<svg width="0" height="0" aria-hidden="true"><defs><symbol id="i-left" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+<symbol id="i-right" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+<symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="1.5"/><path d="M3.5 15.5l4.5-4 4 3.5 3-2.500 5.500 4.500"/><circle cx="15.500" cy="9.500" r="1.200"/></symbol>
+<symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.500l2.600 5.500 6 .800-4.400 4.200 1.100 6-5.300-2.900-5.300 2.900 1.100-6L3.400 9.800l6-.800z"/></symbol>
+<symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.500 7.500v10a1.500 1.500 0 0 0 1.500 1.500h14a1.500 1.500 0 0 0 1.500-1.500V9.500A1.500 1.500 0 0 0 19 8h-7l-2-2.500H5A1.500 1.500 0 0 0 3.500 7z"/></symbol>
+<symbol id="i-compare" viewBox="0 0 24 24"><rect x="3.500" y="5" width="7.500" height="14" rx="1"/><rect x="13" y="5" width="7.500" height="14" rx="1"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.500" y="8.500" width="11" height="11" rx="1.500"/><path d="M15.500 5.500v-1h-11v11h1"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.500 12S6 5.500 12 5.500 21.500 12 21.500 12 18 18.500 12 18.500 2.500 12 2.500 12z"/><circle cx="12" cy="12" r="2.800"/></symbol>
+<symbol id="i-export" viewBox="0 0 24 24"><path d="M12 15V4M8 8l4-4 4 4"/><path d="M4.500 14v5.500h15V14"/></symbol>
+<symbol id="i-rot" viewBox="0 0 24 24"><path d="M5 9a7.500 7.500 0 1 1-.500 3"/><path d="M4.500 4.500V9H9"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol></defs></svg>
+  <section class="studio" aria-label="照片工坊">
+    <div class="sbar">
+      <button class="btn ghost" id="sBack"><svg class="i"><use href="#i-left"/></svg><span id="backLabel">返回</span></button>
+      <span class="ttl">照片工坊 · <b class="m" id="sIdx"></b></span>
+      <div class="sp"></div>
+      <button class="btn ghost" id="sHold" title="按住对比原图"><svg class="i"><use href="#i-eye"/></svg>按住看原图</button>
+      <button class="btn ghost" id="sCmp" aria-pressed="false"><svg class="i"><use href="#i-compare"/></svg>连拍选片</button>
+      <button class="btn ghost" id="sFav" aria-pressed="false" aria-label="收藏"><svg class="i"><use href="#i-star"/></svg>收藏</button>
+      <button id="locate" class="btn ghost"><svg class="i"><use href="#i-folder"/></svg>在文件夹中定位</button>
+    </div>
+    <div class="stage" id="stage">
+      <div id="frame"><canvas id="preview" aria-label="当前照片"></canvas><div id="frameCaption" aria-hidden="true"><div><b class="m"></b><span></span></div><div><b class="m"></b><span></span></div></div></div>
+      <button class="navb p" id="sPrev" aria-label="上一张"><svg class="i" style="width:22px;height:22px"><use href="#i-left"/></svg></button>
+      <button class="navb n" id="sNext" aria-label="下一张"><svg class="i" style="width:22px;height:22px"><use href="#i-right"/></svg></button>
+      <div class="cmpv" aria-label="连拍选片台">
+
+
+      </div>
+    </div>
+    <aside class="side">
+      <div class="tabs" role="tablist" id="sTabs">
+        <button data-tab="info" aria-selected="true">参数</button><button data-tab="adjust">调整</button><button data-tab="frame">边框</button><button data-tab="codes">分享码</button>
+      </div>
+      <div class="pane on" data-pane="info">
+        <div class="fn m" id="sName"></div><p id="sDim" tabindex="0"></p><h3>拍摄参数 <span>点一项，找同条件的照片</span></h3>
+        <div class="pg" id="params"></div><p id="missing"></p><h3>服装部件</h3><div class="tagl" id="outfit"></div>
+        <h3>主色 <span>点一下找同色</span></h3><div class="pal" id="sPal"></div>
+      </div>
+      <div class="pane" data-pane="adjust">
+        <h3>裁切与旋转 <span>不改原图</span></h3>
+        <div class="seg" id="segCrop"><button aria-pressed="true">原始</button><button>1:1</button><button>4:5</button><button>16:9</button><button aria-label="旋转 90 度" title="旋转 90°"><svg class="i" style="width:14px;height:14px;vertical-align:-2px"><use href="#i-rot"/></svg></button></div>
+        <div class="sl" style="margin-top:6px"><label for="r0">拉直</label><input id="r0" type="range" min="-10" max="10" value="0" data-k="rot"><output class="m">0°</output></div>
+        <h3>光与色 <button class="lnk" id="sReset">重置</button></h3>
+        <div class="sl"><label for="r1">曝光</label><input id="r1" type="range" min="-100" max="100" value="0" data-k="exp"><output class="m">0</output></div>
+        <div class="sl"><label for="r2">对比</label><input id="r2" type="range" min="-100" max="100" value="0" data-k="con"><output class="m">0</output></div>
+        <div class="sl"><label for="r3">高光</label><input id="r3" type="range" min="-100" max="100" value="0" data-k="hi"><output class="m">0</output></div>
+        <div class="sl"><label for="r4">阴影</label><input id="r4" type="range" min="-100" max="100" value="0" data-k="sh"><output class="m">0</output></div>
+        <div class="sl"><label for="r5">饱和</label><input id="r5" type="range" min="-100" max="100" value="0" data-k="sat"><output class="m">0</output></div>
+        <div class="sl"><label for="r6">色温</label><input id="r6" type="range" min="-100" max="100" value="0" data-k="tmp"><output class="m">0</output></div>
+        <h3>滤镜预设</h3>
+        <div class="pre" id="sPre"></div>
+      </div>
+      <div class="pane" data-pane="frame">
+        <details><summary title="边框和导出的更多选项">参数卡边框</summary><button class="btn" data-f="bar">底栏</button><label class="code">标题<input id="title" maxlength="80"></label><h3>导出选项</h3><div class="options"><button id="addMask">添加遮挡块</button><label>格式 <select id="format"><option>PNG</option><option>JPEG</option></select></label></div></details>
+        <div class="seg" id="segFrame"><button data-f="on" aria-pressed="true">展签 · 纸白</button><button data-f="ink">展签 · 墨黑</button><button data-f="off">不加边框</button></div>
+        <h3>显示哪些字段</h3>
+        <label class="ckl"><input type="checkbox" checked data-fld="date">拍摄时间</label>
+        <label class="ckl"><input type="checkbox" checked data-fld="lens">焦距与光圈</label>
+        <label class="ckl"><input type="checkbox" checked data-fld="filter">滤镜</label>
+        <label class="ckl"><input type="checkbox" checked data-fld="outfit">服装部件<small>只写主件</small></label>
+        <label class="ckl"><input type="checkbox" data-fld="code">搭配码<small>来自分享码</small></label>
+        <p class="hint">边框只加在导出的副本上。版式和首页的展签是同一套：左边是何时何物，右边是镜头。</p>
+      </div>
+      <div class="pane" data-pane="codes">
+        <h3>分享码 <span>随这张照片保存</span></h3>
+        <div class="code"><label for="c1">搭配码</label><input id="c1" maxlength="256" aria-label="搭配码"><button class="ib" aria-label="复制搭配码"><svg class="i"><use href="#i-copy"/></svg></button></div>
+        <div class="code"><label for="c2">染色码</label><input id="c2" placeholder="粘贴染色码" aria-label="染色码"><button class="ib" aria-label="复制染色码"><svg class="i"><use href="#i-copy"/></svg></button></div>
+        <div class="code"><label for="c3">家园码</label><input id="c3" placeholder="粘贴家园码" aria-label="家园码"><button class="ib" aria-label="复制家园码"><svg class="i"><use href="#i-copy"/></svg></button></div>
+        <div class="code"><label for="c4">相机码</label><input id="c4" maxlength="256" aria-label="相机码"><button class="ib" aria-label="复制相机码"><svg class="i"><use href="#i-copy"/></svg></button></div>
+
+        <button class="btn" id="copyAll"><svg class="i"><use href="#i-copy"/></svg>复制全部（带照片）</button>
+        <p class="hint" id="codeNote">分享码记在 Nikkiward 自己的旁注文件里，不写进游戏照片，也不会上传。</p>
+      </div>
+      <div class="exp">
+        <h3>分享前检查</h3>
+        <label class="ckl"><input type="checkbox" checked aria-disabled="true" id="xMeta">去掉元数据<small>拍摄参数不随文件外流</small></label>
+        <label class="ckl"><input type="checkbox" id="xUid">遮住画面里的 UID<small>可拖动位置</small></label>
+        <div class="bt">
+          <button class="btn solid" id="xExport"><svg class="i"><use href="#i-export"/></svg>导出副本</button>
+          <button class="btn" id="xCopy"><svg class="i"><use href="#i-copy"/></svg>复制</button>
+          <button class="btn wide" id="xSetBg"><svg class="i"><use href="#i-image"/></svg>设为启动页背景</button>
+        </div>
+        <p id="status" role="status">副本写到 Nikkiward 的导出目录；游戏照片目录一个字节都不动。</p>
+      </div>
+    </aside>
+    <div class="strip">
+      <div class="z"><button class="ib" id="zOut" aria-label="缩小"><svg class="i"><use href="#i-minus"/></svg></button><button class="m" id="zVal" title="切换适应与 100%">适应</button><button class="ib" id="zIn" aria-label="放大"><svg class="i"><use href="#i-plus"/></svg></button></div>
+      <div class="f" id="sStrip"></div>
+      <div class="k"><span class="kbd">←</span><span class="kbd">→</span>切换<span class="kbd">Esc</span>返回</div>
+    </div>
+  </section>
+</body></html>

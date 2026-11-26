@@ -35,6 +35,9 @@ public sealed partial class GalleryPreviewView : UserControl
 
     public Func<string, CancellationToken, Task<GalleryPhotoMetadata>>? MetadataLoader { get; set; }
 
+    internal event EventHandler? StudioRequested;
+    private void OnOpenStudio(object sender, RoutedEventArgs args) => StudioRequested?.Invoke(this, EventArgs.Empty);
+
     public GalleryPreviewView()
     {
         InitializeComponent();
