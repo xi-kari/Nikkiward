@@ -18,7 +18,7 @@ function renderPhotos(items) {
     }
     button.firstChild.hidden = i !== 0;
     button.children[1].style.backgroundImage = p.thumbnail ? 'url(' + JSON.stringify(p.thumbnail) + ')' : '';
-    button.children[2].textContent = p.time;
+    button.children[2].textContent = p.time.replace(/^\d{4}-(?=\d{2}-\d{2} )/, '');
     button.setAttribute('aria-label', '打开照片：' + p.fileName + ' · ' + p.time);
     button.title = p.fileName;
     if (recent.children[i+1] !== button) recent.insertBefore(button, recent.children[i+1] || null);
@@ -116,13 +116,11 @@ function render(s) {
   $('#stubNote').textContent = note;
   $('#goTtl').textContent = s.launchLabel;
   $('#goSub').textContent = s.visual === 'ready' && s.readySummary ? s.readySummary : s.detail;
-  const reason = $('#readyDetail');
-  reason.hidden = s.visual !== 'ready' || !s.readySummary || s.readySummary === s.detail;
-  reason.textContent = s.detail;
   const go = $('#go');
   go.disabled = !s.enabled;
   go.title = s.detail;
-  go.setAttribute('aria-label', s.launchLabel + '。' + s.detail);
+  go.setAttribute('aria-label', s.launchLabel);
+  go.setAttribute('aria-description', s.detail);
   go.setAttribute('aria-busy', s.busy);
   let primary = true;
   for (const b of $('#acts').children) {
@@ -135,17 +133,27 @@ function render(s) {
     b.classList.toggle('pri', primary && !b.hidden);
     if (!b.hidden) primary = false;
   }
-  $('#profName').textContent = s.profile;
+  $('#profName').textContent = s.profile || '未选择';
   $('#profBtn').title = s.profile;
-  $('#chkTxt').textContent = [s.check,s.checkTime].filter(Boolean).join(' · ');
-  $('#chkTxt').parentNode.parentNode.title = $('#chkTxt').textContent;
+  const time = s.checkTime.replace(/^今天 /, '');
+  const check = s.check === '检查通过' ? '通过' : s.check;
+  $('#chkTxt').textContent = check === s.launchLabel && time ? time : [check,time].filter(Boolean).join(' · ');
+  $('.field[data-action="status"]').title = [s.check,s.checkTime].filter(Boolean).join(' · ');
   $('.field:last-child b').textContent = s.officialDuration?.replace(/^([\d.]+)h$/, '$1 小时') || '未同步';
-  $('#artName').textContent = $('#artName').title = s.artName;
+  const artName = $('#artName');
+  const caption = custom ? s.artName.replace(/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_(?=\S)/, '') : s.artName;
+  artName.textContent = caption;
+  artName.title = s.artName;
+  $('.datestamp').hidden = caption !== s.artName;
   $('.datestamp').textContent = s.date.replaceAll('-','.');
   const task = $('.note');
   task.hidden = !s.taskText;
-  task.firstChild.textContent = [s.taskText, s.progress == null ? '' : Math.round(s.progress) + '%'].filter(Boolean).join(' ');
-  task.title = task.firstChild.textContent;
+  const percent = s.progress == null ? '' : ' ' + Math.round(s.progress) + '%';
+  const fullTask = s.taskText || '';
+  const taskCaption = percent ? fullTask.replace(/ · \d+\/\d+$/, '') : fullTask;
+  task.firstChild.textContent = taskCaption + percent;
+  task.title = fullTask + percent;
+  task.setAttribute('aria-label', task.title + '，打开诊断');
   $('.note .bar').hidden = s.progress == null;
   $('.note u').style.width = s.progress + '%';
   if (s.photos) renderPhotos(s.photos);
