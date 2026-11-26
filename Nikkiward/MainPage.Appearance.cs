@@ -262,9 +262,8 @@ public sealed partial class MainPage
     {
         try
         {
-            var appearance = ViewModel.AppearanceSettings;
             await SaveAndApplyAppearanceAsync(
-                appearance with
+                appearance => appearance with
                 {
                     Background = new BackgroundArtSettings(),
                 },
@@ -680,7 +679,7 @@ public sealed partial class MainPage
     }
 
     private async Task SaveAndApplyAppearanceAsync(
-        AppearanceSettings settings,
+        Func<AppearanceSettings, AppearanceSettings> change,
         bool restoreDefaultBackground = false,
         bool forceStaticBackgroundReload = false)
     {
@@ -689,6 +688,7 @@ public sealed partial class MainPage
         try
         {
             var previous = ViewModel.AppearanceSettings;
+            var settings = change(previous);
             ApplyAppearanceSettings(settings);
             try
             {
@@ -724,6 +724,12 @@ public sealed partial class MainPage
             _appearanceSaveGate.Release();
         }
     }
+
+    private Task SaveAndApplyAppearanceAsync(
+        AppearanceSettings settings,
+        bool restoreDefaultBackground = false,
+        bool forceStaticBackgroundReload = false) =>
+        SaveAndApplyAppearanceAsync(_ => settings, restoreDefaultBackground, forceStaticBackgroundReload);
 
     private async Task<bool> TryActivateConfiguredMotionAsync(
         AppearanceSettings settings,

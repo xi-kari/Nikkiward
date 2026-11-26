@@ -99,20 +99,23 @@ public sealed partial class MainPage
     {
         try
         {
-            await ViewModel.SaveGeneralSettingsAsync(
-                e.Settings,
-                _lifetimeCancellation?.Token ?? CancellationToken.None);
-            UpdatePlayTimeTimer(fromSettings: true);
-            if (_plannerTimer?.IsEnabled == true) RefreshPlanner();
-            ApplicationLanguageRuntime.Apply(ViewModel.GeneralSettings.LanguageTag);
-            App.MainWindow.ApplyCloseBehavior(e.Settings.CloseWindowBehavior);
-            SyncLauncherChrome();
+            await SaveAndApplyGeneralAsync(e.Settings);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _hostedSettingsPage?.ApplyGeneralSettings(ViewModel.GeneralSettings);
             ViewModel.ReportUiError($"通用设置保存失败：{ex.GetType().Name}: {ex.Message}");
         }
+    }
+
+    private async Task SaveAndApplyGeneralAsync(GeneralSettings settings)
+    {
+        await ViewModel.SaveGeneralSettingsAsync(settings, _lifetimeCancellation?.Token ?? CancellationToken.None);
+        UpdatePlayTimeTimer(fromSettings: true);
+        if (_plannerTimer?.IsEnabled == true) RefreshPlanner();
+        ApplicationLanguageRuntime.Apply(ViewModel.GeneralSettings.LanguageTag);
+        App.MainWindow.ApplyCloseBehavior(settings.CloseWindowBehavior);
+        SyncLauncherChrome();
     }
 
     private async void OnSettingsVisualEffectsRequested(object? sender, EventArgs e)

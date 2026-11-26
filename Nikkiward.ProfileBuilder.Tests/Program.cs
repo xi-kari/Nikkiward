@@ -73,6 +73,7 @@ internal static class Program
             .Concat(JournalSnapshotTests.All)
             .Concat(WishHistoryDomainTests.All)
             .Concat(UpdateReleaseTests.All)
+            .Concat(SettingsPageTests.All)
             .Concat(AboutSettingsContractTests.All)
             .ToArray();
 

@@ -46,6 +46,10 @@ public sealed record AppearanceSettings
 {
     public string HomeSkin { get; init; } = "Stitch";
 
+    public int AppreciationDelaySeconds { get; init; } = 8;
+
+    public bool ShowRecentPhotos { get; init; } = true;
+
     public Dictionary<string, ArtworkTitle> ArtworkTitles { get; init; } = new();
 
     public AppearanceSettings WithArtworkTitle(string source, string? name = null, string? original = null)
@@ -453,6 +457,7 @@ public static class AppearanceSettingsValidator
 
         return settings with
         {
+            AppreciationDelaySeconds = Math.Clamp(settings.AppreciationDelaySeconds, 0, 3600),
             ArtworkTitles = settings.ArtworkTitles ?? new(),
             Background = normalizedBackground,
             CustomAccentArgb = settings.CustomAccentArgb is uint custom

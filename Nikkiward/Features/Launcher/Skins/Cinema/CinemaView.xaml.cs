@@ -12,12 +12,12 @@ namespace Nikkiward.Features.Launcher.Skins;
 
 public sealed partial class CinemaView : UserControl, IDisposable
 {
-    private readonly DispatcherTimer _idle = new() { Interval = IdleDelay };
+    private readonly DispatcherTimer _idle = new();
     public MainPageViewModel Model => (MainPageViewModel)DataContext;
     private LauncherPage? _host;
     private MainPage? _shell;
     private long _lastInput;
-    private static readonly TimeSpan IdleDelay = TimeSpan.FromSeconds(8);
+    private TimeSpan IdleDelay => TimeSpan.FromSeconds(Model.AppearanceSettings.AppreciationDelaySeconds);
     private bool _dimmed;
     private LaunchButtonState? _lastState;
 
@@ -52,6 +52,7 @@ public sealed partial class CinemaView : UserControl, IDisposable
             if (Model.HomeState != _lastState || e.PropertyName == nameof(Model.AppearanceSettings))
             {
                 _lastState = Model.HomeState;
+                _idle.Stop();
                 Wake();
             }
         }
@@ -68,7 +69,7 @@ public sealed partial class CinemaView : UserControl, IDisposable
         Time.Visibility = Visible(ActualWidth >= 1000 && !blocked);
         TaskColumn.Visibility = Visible(ActualWidth >= 1100 && vm.HasHomeTask && !blocked);
         CheckTime.Visibility = Visible(ActualWidth >= 920);
-        Recent.Visibility = Visible(ActualWidth >= 840 && _host?.RecentPhotos.Count > 0);
+        Recent.Visibility = Visible(vm.AppearanceSettings.ShowRecentPhotos && ActualWidth >= 840 && _host?.RecentPhotos.Count > 0);
         ArtLabel.Visibility = Visible(ActualWidth >= 760);
         bool closeVisible = vm.HomeCloseVisibility == Visibility.Visible;
         bool wide = ActualWidth >= (closeVisible ? 1710 : 1630);
@@ -133,7 +134,7 @@ public sealed partial class CinemaView : UserControl, IDisposable
 #endif
         _lastInput = Environment.TickCount64;
         if (_dimmed) SetDimmed(false);
-        if (!_idle.IsEnabled && _shell?.HomeInteractive == true && Model.HomeState.AllowsHomeIdle())
+        if (IdleDelay > TimeSpan.Zero && !_idle.IsEnabled && _shell?.HomeInteractive == true && Model.HomeState.AllowsHomeIdle())
         {
             _idle.Interval = IdleDelay;
             _idle.Start();
@@ -143,7 +144,7 @@ public sealed partial class CinemaView : UserControl, IDisposable
     private void OnIdle(object? sender, object e)
     {
         _idle.Stop();
-        if (!CanDim()) return;
+        if (!CanDim() || IdleDelay == TimeSpan.Zero) return;
         var remaining = IdleDelay - TimeSpan.FromMilliseconds(Environment.TickCount64 - _lastInput);
         if (remaining <= TimeSpan.Zero) SetDimmed(true);
         else
