@@ -1002,7 +1002,7 @@ public sealed class OfficialAssistedLaunchCoordinator
 
     private const uint ProcessQueryLimitedInformation = 0x1000;
 
-    private static bool TryQueryProcessPath(int processId, out string path)
+    internal static bool TryQueryProcessPath(int processId, out string path)
     {
         path = string.Empty;
         var processHandle = OpenProcess(
