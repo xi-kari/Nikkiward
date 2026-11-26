@@ -14,8 +14,12 @@ public sealed partial class MainWindow
     {
         var initial = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest);
         var displays = new List<WindowDisplay> { ReadDisplay(initial) };
-        foreach (var area in DisplayArea.FindAll())
+        // Index the result: enumerating DisplayArea.FindAll() with foreach throws
+        // InvalidCastException (E_NOINTERFACE) in the C# projection.
+        var areas = DisplayArea.FindAll();
+        for (var i = 0; i < areas.Count; i++)
         {
+            var area = areas[i];
             if (area.DisplayId.Value != initial.DisplayId.Value)
             {
                 displays.Add(ReadDisplay(area));
