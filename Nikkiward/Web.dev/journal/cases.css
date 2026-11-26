@@ -1,0 +1,11 @@
+.caption{position:absolute;right:0;top:0;display:flex;pointer-events:auto}
+.caption button{width:46px;height:40px;border:0;background:transparent;color:var(--chrome);display:grid;place-items:center}
+.caption button:hover{background:rgba(255,255,255,.16)}
+.caption button:last-child:hover{background:#c42b1c;color:#fff}
+.caption svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1}
+
+.pola:nth-of-type(1) i{background-position:72% 50%}
+.pola:nth-of-type(2) i{background-position:50% 20%}
+.pola:nth-of-type(3) i{background-position:42% 60%}
+.titlebar{right:0}
+body[data-bg="photo05"] #win{--stamp:#1d5b70!important}
