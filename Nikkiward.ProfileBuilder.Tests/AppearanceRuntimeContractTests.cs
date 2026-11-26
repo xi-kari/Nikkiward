@@ -41,6 +41,8 @@ internal static class AppearanceRuntimeContractTests
         (nameof(ReminderCalendarAndMissedBatch), ReminderCalendarAndMissedBatch),
         (nameof(PlannerCommandsAndPersistence), PlannerCommandsAndPersistence),
         (nameof(SessionPhotosAndHomeFields), SessionPhotosAndHomeFields),
+        (nameof(PageStateFailureRequestsFallback), PageStateFailureRequestsFallback),
+        (nameof(PageNavigationBeforeState), PageNavigationBeforeState),
         (nameof(WebPageFallbackSurvivesLaterErrors), WebPageFallbackSurvivesLaterErrors),
         (nameof(WebHomeStateMatchesLauncher), WebHomeStateMatchesLauncher),
         (nameof(HomeOverlayFixtureMatchesNative), HomeOverlayFixtureMatchesNative),
@@ -1004,6 +1006,56 @@ internal static class AppearanceRuntimeContractTests
         Assert(state.NextReminder == next && state.ReminderCount == 2 && json.GetProperty("checkCount").GetInt32()==3 &&
             json.GetProperty("photoTotal").GetInt32()==4 && json.GetProperty("journalSnapshotDate").GetString()=="2026-11-26" &&
             json.GetProperty("sessionStarted").GetDateTimeOffset()==started, "populated web fields");
+        return Task.CompletedTask;
+    }
+
+    private static Task PageStateFailureRequestsFallback()
+    {
+        var vm = new MainPageViewModel(new JsonUserSettingsStore(Path.GetTempPath()),
+            new WindowsInstallationInspector(), new RedactedDiagnosticReportExporter());
+        void Check(Func<object> state, string expected)
+        {
+            var adapter = new Nikkiward.Features.Pages.PageAdapter("settings", [], state, (_, _) => Task.CompletedTask);
+            bool posted = false;
+            string? failure = null;
+            adapter.PostState("settings", "cinema", "dark", _ => posted = true, reason =>
+            {
+                failure = reason;
+                vm.ReportWebPageFallback("settings", reason);
+            });
+            Assert(!posted && failure?.Contains(expected) == true, "failed snapshot must request fallback without posting");
+            var diagnostic = HomeOverlayState.From(vm).WebPageFallback;
+            Assert(diagnostic.Contains("settings") && diagnostic.Contains(expected) &&
+                !diagnostic.Contains(ApplicationDataPaths.Root), "drawer retains route and sanitized exception");
+        }
+        Check(() => throw new InvalidOperationException("取状态失败 " + ApplicationDataPaths.Root),
+            "InvalidOperationException: 取状态失败");
+        Check(() => new { unsupported = typeof(int) }, "NotSupportedException:");
+        return Task.CompletedTask;
+    }
+
+    private static Task PageNavigationBeforeState()
+    {
+        foreach (var route in new[] { "home", "gallery", "favorites", "journal", "wish", "settings" })
+        {
+            var message = JsonSerializer.SerializeToElement(new { action = "navigate", to = route });
+            Assert(Nikkiward.Features.Pages.PageRoutes.NavigationDestination(message, null, false) == route, route);
+        }
+        foreach (var json in new[] { """{"action":"import","to":"wish"}""", """{"action":"navigate","to":"unknown"}""",
+            """{"action":"navigate","to":123}""" })
+        {
+            using var doc = JsonDocument.Parse(json);
+            Assert(Nikkiward.Features.Pages.PageRoutes.NavigationDestination(doc.RootElement, null, false) == null, "shell navigation whitelist");
+        }
+        var scoped = JsonSerializer.SerializeToElement(new { page = "wish", action = "navigate", to = "gallery" });
+        Assert(Nikkiward.Features.Pages.PageRoutes.NavigationDestination(scoped, "wish", true) == "gallery" &&
+            Nikkiward.Features.Pages.PageRoutes.NavigationDestination(scoped, "wish", false) == null &&
+            Nikkiward.Features.Pages.PageRoutes.NavigationDestination(scoped, "journal", true) == null,
+            "module navigation requires a ready matching route");
+        var script = ReadSource("Nikkiward", "Web", "pages", "pages.js");
+        Assert(script.Contains("function navigate(to) { bridge?.postMessage({action:'navigate', to}); }") &&
+            script.Contains("b.onclick = () => navigate(to)") && script.Contains("['前往',label,() => navigate(to)]"),
+            "top bar and command panel send navigation before a module is mounted");
         return Task.CompletedTask;
     }
 

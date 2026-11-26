@@ -108,6 +108,9 @@ public sealed partial class MainPageViewModel
     private string _webPageFallback = "";
     public string WebPageFallback { get => _webPageFallback; internal set => SetField(ref _webPageFallback, RedactUiText(value)); }
 
+    internal void ReportWebPageFallback(string page, string reason) =>
+        WebPageFallback = $"功能页面已回退到原生界面（{page}）：{reason}";
+
     private string _homeFallback = "";
     public string HomeFallback { get => _homeFallback; internal set => SetField(ref _homeFallback, value); }
     internal IReadOnlyList<InstallationProfileCandidate> HomeCandidates => _profileBuildResult?.Candidates ?? [];
