@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Microsoft.UI.Xaml;
 using Nikkiward.Features.Background;
+using Nikkiward.Features.Gallery;
 using Nikkiward.Models;
 using Nikkiward.Services;
 using Nikkiward.Serialization;
@@ -110,6 +111,13 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     public string? SelectedProfileId => _profile?.ProfileId;
 
     public string? GalleryRootPath => FindGalleryRoot(_profile?.ProfileId);
+
+    public IReadOnlyList<string> GalleryReadOnlyRoots => _persistedSettings.GalleryProfiles
+        .Select(item => GalleryAnnotationStore.NormalizeGalleryRoot(item.RootPath))
+        .Concat(_persistedSettings.Profiles.Select(item => item.GameRootPath))
+        .Concat(_persistedSettings.ChannelStore.Profiles.Select(item => item.GameRootPath))
+        .Concat(_profileBuildResult?.Candidates.Select(item => item.GameRootPath) ?? [])
+        .OfType<string>().Where(Path.IsPathFullyQualified).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
 
     public string XStarterPath => _selectedCandidate?.Provider?.BackendExecutablePath
         ?? "未绑定 provider";
@@ -1106,8 +1114,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             throw new ArgumentException("Gallery root is required.", nameof(rootPath));
         }
 
-        var normalizedRoot = Path.GetFullPath(rootPath)
-            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var normalizedRoot = GalleryAnnotationStore.NormalizeGalleryRoot(rootPath);
         var galleryProfiles = _persistedSettings.GalleryProfiles
             .Where(item => !string.Equals(
                 item.ProfileId,
@@ -1176,7 +1183,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        return matches.Length == 1 ? matches[0] : null;
+        return matches.Length == 1 ? GalleryAnnotationStore.NormalizeGalleryRoot(matches[0]) : null;
     }
 
     private async Task ApplyDiscoveryResultAsync(

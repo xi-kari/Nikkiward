@@ -13,6 +13,7 @@ public sealed record GalleryNavigationContext(
     string? ProfileId,
     string? GameRootPath,
     string? PersistedGalleryRootPath,
+    GalleryFavoriteProtectionService FavoriteProtection,
     CancellationToken HostCancellationToken,
     GalleryViewMode ViewMode = GalleryViewMode.All,
     AppearanceSettings? AppearanceSettings = null);
@@ -22,7 +23,7 @@ public sealed partial class GalleryPage : PageBase
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private readonly SemaphoreSlim _dialogGate = new(1, 1);
     private readonly GalleryAnnotationStore _annotationStore = new();
-    private readonly GalleryFavoriteProtectionService _favoriteProtectionService = new();
+    private GalleryFavoriteProtectionService _favoriteProtectionService = null!;
     private readonly GalleryDefaultFavoriteSeedService _defaultFavoriteSeedService = new();
     private readonly GalleryFolderWatcher _folderWatcher;
     private readonly Nuan5GalleryMetadataService _metadataService = new();
@@ -78,6 +79,7 @@ public sealed partial class GalleryPage : PageBase
         base.OnNavigatedTo(e);
         if (e.Parameter is GalleryNavigationContext context)
         {
+            _favoriteProtectionService = context.FavoriteProtection;
             ApplyAppearanceSettings(context.AppearanceSettings ?? new AppearanceSettings());
             SetSurfaceActive(true);
             _ = LoadForProfileAsync(
@@ -154,11 +156,11 @@ public sealed partial class GalleryPage : PageBase
             {
                 if (!string.IsNullOrWhiteSpace(_manualGalleryRootPath))
                 {
-                    await ViewModel.LoadAsync(_manualGalleryRootPath, cancellationToken);
+                    await ViewModel.LoadAsync(_manualGalleryRootPath, cancellationToken, _profileId);
                 }
                 else
                 {
-                    await ViewModel.LoadDefaultAsync(gameRootPath ?? string.Empty, cancellationToken);
+                    await ViewModel.LoadDefaultAsync(gameRootPath ?? string.Empty, cancellationToken, _profileId);
                 }
                 await LoadStarredStateAsync(cancellationToken);
                 SetViewMode(viewMode);
@@ -263,20 +265,19 @@ public sealed partial class GalleryPage : PageBase
 
     private async Task LoadStarredStateAsync(CancellationToken cancellationToken)
     {
-        _annotationScopeId = GalleryAnnotationStore.CreateScopeId(
-            _profileId,
-            ViewModel.WatchableRootPath);
-        var starredPaths = await _annotationStore.LoadStarredAsync(
-            _annotationScopeId,
-            cancellationToken);
-        ViewModel.ApplyStarredPaths(starredPaths);
+        var root = _manualGalleryRootPath ?? (Path.IsPathFullyQualified(_profileGameRootPath ?? string.Empty)
+            ? Path.Combine(_profileGameRootPath!, "X6Game", "Saved", "GamePlayPhotos") : null);
+        _annotationScopeId = GalleryAnnotationStore.CreateScopeId(_profileId, root);
         try
         {
-            var protectedFavorites = await _favoriteProtectionService.GetProtectedFavoritesAsync(
-                _annotationScopeId,
-                starredPaths,
-                cancellationToken);
-            ViewModel.ApplyProtectedFavorites(protectedFavorites);
+            var state = await _favoriteProtectionService.LoadGalleryAsync(_profileId, root, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            ViewModel.ApplyStarredPaths(state.ScopeId, state.StarredPaths);
+            ViewModel.ApplyProtectedFavorites(state.ScopeId, state.ProtectedFavorites);
+            if (state.IsPausedForOverlap)
+            {
+                ViewModel.ShowProtectionPause();
+            }
         }
         catch (Exception ex) when (ex is IOException
             or UnauthorizedAccessException
@@ -285,7 +286,8 @@ public sealed partial class GalleryPage : PageBase
             or InvalidDataException
             or JsonException)
         {
-            ViewModel.ApplyProtectedFavorites([]);
+            ViewModel.ApplyStarredPaths(_annotationScopeId, await _annotationStore.LoadStarredAsync(_annotationScopeId, cancellationToken));
+            ViewModel.ApplyProtectedFavorites(_annotationScopeId, []);
         }
 
         try
@@ -324,18 +326,19 @@ public sealed partial class GalleryPage : PageBase
     /// </summary>
     private async Task ReloadCurrentRootAsync(bool preserveControls)
     {
+        var cancellationToken = _loadCancellation?.Token ?? CancellationToken.None;
+        await _loadGate.WaitAsync(cancellationToken);
         try
         {
-            var cancellationToken = _loadCancellation?.Token ?? CancellationToken.None;
             if (!string.IsNullOrWhiteSpace(_manualGalleryRootPath))
             {
-                await ViewModel.LoadAsync(_manualGalleryRootPath, cancellationToken);
+                await ViewModel.LoadAsync(_manualGalleryRootPath, cancellationToken, _profileId);
             }
             else
             {
                 await ViewModel.LoadDefaultAsync(
                     _profileGameRootPath ?? string.Empty,
-                    cancellationToken);
+                    cancellationToken, _profileId);
             }
             await LoadStarredStateAsync(cancellationToken);
             ViewModel.SetViewMode(_viewMode);
@@ -353,6 +356,10 @@ public sealed partial class GalleryPage : PageBase
         }
         catch (OperationCanceledException)
         {
+        }
+        finally
+        {
+            _loadGate.Release();
         }
     }
 
@@ -422,24 +429,27 @@ public sealed partial class GalleryPage : PageBase
         }
     }
 
-    private async Task ShowDialogAsync(string title, string content)
+    private async Task<ContentDialogResult> ShowDialogAsync(
+        string title, string content, string? confirmText = null, CancellationToken cancellationToken = default)
     {
-        await _dialogGate.WaitAsync();
+        await _dialogGate.WaitAsync(cancellationToken);
         try
         {
             if (XamlRoot is null)
             {
-                return;
+                return ContentDialogResult.None;
             }
 
             var dialog = new ContentDialog
             {
                 Title = title,
                 Content = content,
-                CloseButtonText = "知道了",
+                PrimaryButtonText = confirmText ?? string.Empty,
+                CloseButtonText = confirmText is null ? "知道了" : "保留收藏",
+                DefaultButton = confirmText is null ? ContentDialogButton.None : ContentDialogButton.Close,
                 XamlRoot = XamlRoot,
             };
-            await dialog.ShowAsync();
+            return await dialog.ShowAsync();
         }
         finally
         {

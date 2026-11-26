@@ -36,7 +36,7 @@ public sealed class GalleryAnnotationStore
     private static readonly JsonTypeInfo<GalleryAnnotationSnapshot> SnapshotJsonTypeInfo =
         new NikkiwardJsonContext(SerializerOptions).GalleryAnnotationSnapshot;
 
-    private readonly SemaphoreSlim _gate = new(1, 1);
+    private static readonly SemaphoreSlim Gate = new(1, 1);
 
     public GalleryAnnotationStore(string? localApplicationDataPath = null)
     {
@@ -53,20 +53,26 @@ public sealed class GalleryAnnotationStore
 
     public string AnnotationFilePath { get; }
 
+    internal static string NormalizeGalleryRoot(string rootPath)
+    {
+        // Older settings trimmed the separator from drive roots, turning D:\ into the drive-relative D:.
+        if (rootPath.Length == 2 && char.IsAsciiLetter(rootPath[0]) && rootPath[1] == ':')
+        {
+            rootPath += Path.DirectorySeparatorChar;
+        }
+        return Path.TrimEndingDirectorySeparator(Path.GetFullPath(rootPath));
+    }
+
     public static string CreateScopeId(string? profileId, string? rootPath)
     {
-        if (!string.IsNullOrWhiteSpace(profileId))
-        {
-            return $"profile:{profileId.Trim()}";
-        }
-
         var normalizedRoot = string.IsNullOrWhiteSpace(rootPath)
             ? "unbound"
-            : Path.GetFullPath(rootPath)
+            : NormalizeGalleryRoot(rootPath)
                 .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
                 .ToUpperInvariant();
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(normalizedRoot));
-        return $"root:{Convert.ToHexString(hash)[..24]}";
+        var rootId = $"root:{Convert.ToHexString(hash)[..24]}";
+        return string.IsNullOrWhiteSpace(profileId) ? rootId : $"gallery:{profileId.Trim()}:{rootId}";
     }
 
     public static string NormalizeRelativePath(string relativePath)
@@ -84,7 +90,7 @@ public sealed class GalleryAnnotationStore
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(scopeId);
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             var snapshot = await LoadSnapshotAsync(cancellationToken).ConfigureAwait(false);
@@ -98,7 +104,7 @@ public sealed class GalleryAnnotationStore
         }
         finally
         {
-            _gate.Release();
+            Gate.Release();
         }
     }
 
@@ -111,7 +117,7 @@ public sealed class GalleryAnnotationStore
         ArgumentException.ThrowIfNullOrWhiteSpace(scopeId);
         var normalizedPath = NormalizeRelativePath(relativePath);
 
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             var snapshot = await LoadSnapshotAsync(cancellationToken).ConfigureAwait(false);
@@ -144,27 +150,63 @@ public sealed class GalleryAnnotationStore
         }
         finally
         {
-            _gate.Release();
+            Gate.Release();
+        }
+    }
+
+    internal async Task<IReadOnlySet<string>> MigrateAndLoadStarredAsync(
+        string scopeId,
+        string legacyScopeId,
+        IReadOnlySet<string> provenPaths,
+        CancellationToken cancellationToken)
+    {
+        await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var snapshot = await LoadSnapshotAsync(cancellationToken).ConfigureAwait(false);
+            var stars = snapshot.Stars.Where(entry => entry.ScopeId == scopeId)
+                .Select(entry => NormalizeRelativePath(entry.RelativePath)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var migrated = snapshot.Stars.Where(entry => entry.ScopeId == legacyScopeId &&
+                provenPaths.Contains(NormalizeRelativePath(entry.RelativePath))).ToArray();
+            if (migrated.Length > 0)
+            {
+                var entries = snapshot.Stars.Except(migrated).ToList();
+                foreach (var entry in migrated)
+                {
+                    if (stars.Add(NormalizeRelativePath(entry.RelativePath)))
+                    {
+                        entries.Add(entry with { ScopeId = scopeId });
+                    }
+                }
+
+                await SaveSnapshotAsync(snapshot with { Stars = entries }, cancellationToken).ConfigureAwait(false);
+            }
+
+            return stars;
+        }
+        finally
+        {
+            Gate.Release();
         }
     }
 
     private async Task<GalleryAnnotationSnapshot> LoadSnapshotAsync(
         CancellationToken cancellationToken)
     {
-        if (!File.Exists(AnnotationFilePath))
+        FileStream stream;
+        try
+        {
+            stream = new FileStream(AnnotationFilePath, FileMode.Open, FileAccess.Read, FileShare.Read,
+                16 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
         {
             return new GalleryAnnotationSnapshot();
         }
 
-        await using var stream = new FileStream(
-            AnnotationFilePath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            16 * 1024,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        await using var input = stream;
         var snapshot = await JsonSerializer.DeserializeAsync(
-            stream,
+            input,
             SnapshotJsonTypeInfo,
             cancellationToken).ConfigureAwait(false);
         if (snapshot is null ||
