@@ -30,7 +30,11 @@ public sealed partial class MainPageViewModel
             string.Equals(failure.Candidate.GameRootPath, candidate.GameRootPath, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(failure.Candidate.LauncherRootPath, candidate.LauncherRootPath, StringComparison.OrdinalIgnoreCase));
 
-    private string? RuntimeBlockCode => SelectedRuntimeRefusal?.Block.Code;
+    internal string? RuntimeBlockCode => SelectedRuntimeRefusal?.Block.Code;
+    private LaunchPreflightResult? _observedInstall;
+    private string? _observedProcessCode;
+    internal bool? HomeProcessesClear => _observedInstall is null || !ReferenceEquals(_observedInstall, _preflightResult)
+        ? null : _observedProcessCode switch { null => true, "Preflight.BaselineDirty" => false, _ => null };
 
     internal void RecordRuntimeRefusal(string code, string detail, IReadOnlyList<string> processPaths)
     {
@@ -62,6 +66,8 @@ public sealed partial class MainPageViewModel
 
         if (observation.Code is null)
         {
+            _observedInstall = _preflightResult;
+            _observedProcessCode = null;
             _launchLifecycleText = "NotRunning · 已确认目标组件均未运行";
         }
 
@@ -265,6 +271,11 @@ public sealed partial class MainPageViewModel
             return $"游戏 {gameVersion}{steamBuild} · 启动器 {SelectedLauncherVersionName ?? "未知"}";
         }
     }
+
+    internal InstallationProfileCandidate? HomeCandidate => _selectedCandidate;
+    internal InstallationProfileCandidate? HomeDiscoveryFailure => _selectedCandidate == null ? _discoveryFailure : null;
+    internal LaunchPreflightResult? HomePreflight => _preflightResult;
+    internal ChannelLaunchPlan? HomeChannelPlan => IsExternalChannelSelected ? _channelEntryLauncher.CreatePlan(_selectedCandidate!) : null;
 
     internal IReadOnlyList<ComponentItemViewModel> CurrentComponentRows =>
         _snapshot is { } snapshot && snapshot.ProfileId == SelectedProfileId ? Components : [];

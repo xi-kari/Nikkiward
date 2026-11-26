@@ -9,7 +9,7 @@
     'real-notfound':['tide','notfound'], 'real-running':['tide','running'], 'real-long':['photo05','blocked'],
     'home-tide-idle':['tide','ready'], switcher:['tide','ready'], palette:['tide','ready']
   };
-  const overlayCase = window.prepareOverlayCase?.({config:'home-tide',diag:'home-blossom-blocked','config-blossom':'home-blossom','config-real':'real-blocked','diag-real':'real-blocked'});
+  const overlayCase = window.prepareOverlayCase?.({config:'home-tide',diag:'home-blossom-blocked','config-blossom':'home-blossom','config-real':'real-ready','diag-real':'real-ready','diag-real-blocked':'real-blocked','config-real-pkg':'real-ready'});
   const showCase = overlayCase?.show ?? show;
   const key = overlayCase?.homeCase ?? window.panelHomeCase ?? new URLSearchParams(location.search).get('mock');
   if (!Object.hasOwn(cases,key)) return;

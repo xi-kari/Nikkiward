@@ -116,6 +116,7 @@
     <Compile Include="..\Nikkiward\Services\WindowSettingsSession.cs" Link="Services\WindowSettingsSession.cs" />
     <Compile Include="GameBarGuideTests.cs" />
     <Compile Include="..\Nikkiward\Features\Launcher\Skins\WebHomeBridge.cs" Link="Launcher\WebHomeBridge.cs" />
+    <Compile Include="..\Nikkiward\Features\Launcher\Skins\HomeOverlayState.cs" Link="Launcher\HomeOverlayState.cs" />
     <Compile Include="AppearanceRuntimeContractTests.cs" />
     <Compile Include="CardBorderGlowProjectionTests.cs" />
     <Compile Include="HolographicBackdropProjectionTests.cs" />

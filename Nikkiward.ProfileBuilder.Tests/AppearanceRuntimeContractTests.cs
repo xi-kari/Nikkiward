@@ -42,6 +42,8 @@ internal static class AppearanceRuntimeContractTests
         (nameof(PlannerCommandsAndPersistence), PlannerCommandsAndPersistence),
         (nameof(SessionPhotosAndHomeFields), SessionPhotosAndHomeFields),
         (nameof(WebHomeStateMatchesLauncher), WebHomeStateMatchesLauncher),
+        (nameof(HomeOverlayFixtureMatchesNative), HomeOverlayFixtureMatchesNative),
+        (nameof(HomeOverlayDistinguishesFailedChecks), HomeOverlayDistinguishesFailedChecks),
         (nameof(HomeOverlayShowsNativeChecks), HomeOverlayShowsNativeChecks),
         (nameof(HomeOverlayActionsAreBounded), HomeOverlayActionsAreBounded),
         (nameof(HomeOverlayPreviewRejectsActions), HomeOverlayPreviewRejectsActions),
@@ -1048,21 +1050,133 @@ internal static class AppearanceRuntimeContractTests
                 LaunchButtonState.Checking or LaunchButtonState.Launching or LaunchButtonState.Running => null,
                 _ => false
             };
-            Assert(checks.Gate.Text == vm.ExecutionGateText && checks.Gate.Passed == expectedGate, kind + " check result");
+            Assert(checks.Gate.Passed == expectedGate, kind + " check result");
+            AssertPlayerCopy(state);
+            if (expectedGate == false)
+                Assert(state.Overlay.Conclusion.Contains('请') || state.Overlay.Conclusion.Contains("再试"),
+                    kind + " includes a next step");
             Assert(!state.OfficialFlow, kind + " requires verified official capability");
             Assert((state with { Overlay = state.Overlay with { OfficialCapability = true } }).OfficialFlow ==
                 (kind == LaunchButtonState.Ready), kind + " official action");
-            Assert(state.Overlay.ProviderPreflightText == vm.ProviderPreflightText &&
-                state.Overlay.LatestControlledReceiptText == vm.LatestControlledReceiptText &&
-                state.Overlay.ProviderArgumentVector == vm.ProviderArgumentVector &&
+            Assert(state.Overlay.Technical.ProviderPreflightText == vm.ProviderPreflightText &&
+                state.Overlay.Technical.LatestControlledReceiptText == vm.LatestControlledReceiptText &&
+                state.Overlay.Technical.ProviderArgumentVector == vm.ProviderArgumentVector &&
                 !state.Overlay.CanOpenRoot, "native diagnostics and unconfigured path");
         }
         return Task.CompletedTask;
     }
 
+    private static void AssertPlayerCopy(WebHomeState state)
+    {
+        var o = state.Overlay;
+        var text = string.Join(" ", o.Conclusion, o.SelectedChannelLaunchRoute, o.Signature, o.ArgumentsIntro,
+            o.Arguments, o.ChannelText, o.Checks.Channel.Text, o.Checks.Integrity.Text, o.Checks.Processes.Text,
+            o.Checks.Signature.Text, o.Checks.Gate.Text, string.Join(" ", state.Components.Select(c => c.DisplayName + c.StatusText)));
+        foreach (var word in new[] { "ExecutionGate", "ExecutionEnabled", "OfficialAssisted", "attempt", "plan", "0x",
+            "catalog", "contract", "provider", "bootstrap", "ObservedSuccess", "LOGIN_STATUS", "UAC", "MaximumCapability" })
+            Assert(!text.Contains(word, StringComparison.OrdinalIgnoreCase), word + " in " + state.State);
+    }
+
+    private static MainPageViewModel OverlaySampleModel(bool blocked)
+    {
+        const string root = @"F:\游戏安装目录\长期保留的历史版本与多渠道安装档案\InfinityNikki";
+        var contract = LaunchProviderCatalog.CreateCnWindows("1.3.2");
+        var profile = new LaunchProfile { ProfileId = "cn", DisplayName = "国服 · 官方", GameRootPath = Path.Combine(root, "InfinityNikki Game") };
+        var candidate = new InstallationProfileCandidate {
+            ProfileId = profile.ProfileId, Profile = profile, GameRootPath = profile.GameRootPath, LauncherRootPath = root,
+            State = InstallationCandidateState.ReadyForStaticVerification,
+            Identity = new() { RegionFamily = RegionFamily.MainlandChina, DistributionChannel = DistributionChannel.Official,
+                AccountAuthority = AccountAuthority.Papergames },
+            Provider = new() { ProviderId = contract.ContractId, BackendExecutablePath = Path.Combine(root, contract.BackendRelativeExecutablePath),
+                WorkingDirectory = root, ArgumentList = contract.ArgumentList }
+        };
+        var vm = new MainPageViewModel(new JsonUserSettingsStore(Path.GetTempPath()), new WindowsInstallationInspector(), new RedactedDiagnosticReportExporter());
+        void Set(string name, object value) => typeof(MainPageViewModel).GetField(name,
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(vm,value);
+        Set("_checkingInstallation",false);
+        Set("_profile",profile);
+        Set("_selectedCandidate",candidate);
+        Set("_snapshot", new LaunchSnapshot { ProfileId = profile.ProfileId });
+        var receipts = new List<PreflightComponentResult>();
+        foreach (var required in contract.RequiredComponents)
+        {
+            var path = Path.Combine(required.RootRole == "GameRoot" ? profile.GameRootPath : root,required.RelativePath);
+            vm.Components.Add(new ComponentItemViewModel(new ComponentVerification {
+                ComponentId = required.ComponentId == "anti-cheat-artifact" ? "anti-cheat" : required.ComponentId,
+                Exists = true, InspectionSucceeded = true, FilePath = path, FileVersion = "1.3.2",
+                SignatureStatus = AuthenticodeSignatureStatus.Valid, SignatureStatusCode = "0x00000000", Sha256 = new string('A',64)
+            }));
+            if (!blocked || receipts.Count == 0)
+                receipts.Add(new() { ComponentId = required.ComponentId, FilePath = path, Passed = !blocked,
+                    SignatureStatus = AuthenticodeSignatureStatus.Valid,
+                    FailureCode = blocked ? LaunchPreflightFailureCode.SignerMismatch : LaunchPreflightFailureCode.None });
+        }
+        Set("_preflightResult",new LaunchPreflightResult { StaticIdentityPassed = !blocked, Contract = contract, Components = receipts,
+            FailureCode = blocked ? LaunchPreflightFailureCode.SignerMismatch : LaunchPreflightFailureCode.ExecutionGateClosed });
+        if (!blocked) Set("_observedInstall", vm.HomePreflight!);
+        return vm;
+    }
+
+    private static WebHomeState OverlaySample(bool blocked) =>
+        WebHomeState.Create(OverlaySampleModel(blocked), "dark", 0xffabcdef, false, []);
+
+    private static Task HomeOverlayDistinguishesFailedChecks()
+    {
+        var vm = OverlaySampleModel(false);
+        var field = typeof(MainPageViewModel).GetField("_preflightResult",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        foreach (var failure in new[] { LaunchPreflightFailureCode.ArtifactHashMismatch, LaunchPreflightFailureCode.VersionMismatch,
+            LaunchPreflightFailureCode.MarkerMismatch })
+        {
+            field.SetValue(vm, vm.HomePreflight! with { StaticIdentityPassed = false, FailureCode = failure });
+            var state = HomeOverlayState.From(vm);
+            Assert((state.Checks.Channel.Passed == false) == (failure == LaunchPreflightFailureCode.MarkerMismatch),
+                "channel status for " + failure);
+            Assert(state.Technical.FailureCode == failure.ToString(), "preserve " + failure);
+        }
+        vm.RecordRuntimeRefusal("Runtime.ProcessStartFailed", "Windows start failed", []);
+        var runtime = HomeOverlayState.From(vm);
+        Assert(runtime.Conclusion.Contains("Windows 没能打开启动程序") && runtime.Technical.FailureCode == "Runtime.ProcessStartFailed",
+            "process creation failure and next step");
+        return Task.CompletedTask;
+    }
+
+    private static string OverlayFixture()
+    {
+        object Payload(bool blocked)
+        {
+            var s = OverlaySample(blocked);
+            return new { s.Overlay, s.Components, s.OfficialFlow };
+        }
+        var options = new JsonSerializerOptions(WebHomeBridge.Json) {
+            WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        };
+        return "window.homeOverlaySamples = " + JsonSerializer.Serialize(new { ready = Payload(false), blocked = Payload(true) },options) + ";\n";
+    }
+
+    internal static void WriteOverlayFixture() => File.WriteAllText(Path.Combine(FindRoot(), "Nikkiward", "Web.dev", "overlay-samples.js"), OverlayFixture());
+
+    private static Task HomeOverlayFixtureMatchesNative()
+    {
+        Assert(ReadSource("Nikkiward","Web.dev","overlay-samples.js").ReplaceLineEndings("\n") ==
+            OverlayFixture().ReplaceLineEndings("\n"), "refresh fixtures with --emit-overlay-samples");
+        var ready = OverlaySample(false);
+        var blocked = OverlaySample(true);
+        AssertPlayerCopy(ready);
+        AssertPlayerCopy(blocked);
+        Assert(ready.OfficialFlow && ready.Overlay.ChannelText == "国服 · 官方 / Windows" &&
+            ready.Overlay.Arguments == "-skiplauncher" && ready.Overlay.Checks.Processes.Passed == true &&
+            ready.Overlay.Checks.Integrity.Text == "5 个必要组件都已核对" && ready.Components.All(c => c.StatusText == "已核对"), "verified install");
+        Assert(!blocked.OfficialFlow && blocked.Overlay.Checks.Signature.Passed == false &&
+            blocked.Overlay.Conclusion.Contains("签名与官方发布的不一致") && blocked.Components[0].StatusText == "未通过" &&
+            blocked.Components.Skip(1).All(c => c.StatusText != "已核对") && blocked.Overlay.Technical.Signature.Contains("0x00000000") &&
+            blocked.Overlay.Technical.FailureCode == "SignerMismatch", "untrusted publisher despite valid Windows signature");
+        return Task.CompletedTask;
+    }
+
     private static Task HomeOverlayActionsAreBounded()
     {
-        foreach (string action in new[] { "open-root", "import-motion", "import-card", "official-flow", "export-diagnostics" })
+        foreach (string action in new[] { "open-root", "import-background", "official-flow", "export-diagnostics" })
             Assert(WebHomeBridge.Parse(JsonSerializer.Serialize(new { action }))?.Action == action, action);
         string Title(string title) => JsonSerializer.Serialize(new { action = "art-title", title, artKey = "background" });
         Assert(WebHomeBridge.Parse(Title(""))?.Title == "" && WebHomeBridge.Parse(Title(new string('题',120))) != null,
@@ -1075,7 +1189,7 @@ internal static class AppearanceRuntimeContractTests
 
     private static Task HomeOverlayPreviewRejectsActions()
     {
-        foreach (string action in new[] { "locate", "open-root", "import-motion", "import-card", "art-title", "reset",
+        foreach (string action in new[] { "locate", "open-root", "import-background", "art-title", "reset",
             "recheck", "official-flow", "export-diagnostics" })
         {
             var json = JsonSerializer.Serialize(new { action, artKey = "current", title = "画名" });

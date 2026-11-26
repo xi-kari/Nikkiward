@@ -96,10 +96,21 @@ public static class WallpaperSourceRules
             "project.json",
             StringComparison.OrdinalIgnoreCase);
 
-    public static WallpaperImportMode InferMode(string path) =>
-        MotionSourceRules.IsSupportedExtension(Path.GetExtension(path))
-            ? WallpaperImportMode.MotionBackdrop
-            : WallpaperImportMode.HolographicCard;
+    public static WallpaperImportMode InferMode(string path)
+    {
+        var extension = Path.GetExtension(path);
+        if (MotionSourceRules.IsSupportedExtension(extension)) return WallpaperImportMode.MotionBackdrop;
+        if (IsPackageExtension(extension) || IsProjectMetadata(path))
+        {
+            var metadata = WallpaperPackageReader.ReadProjectMetadata(path);
+            if (metadata.ProjectType == WallpaperPackageType.Scene &&
+                (IsPackageExtension(extension) || TryResolveSafeSibling(Path.GetDirectoryName(Path.GetFullPath(path))!, "scene.pkg", out _)) ||
+                metadata.ProjectType == WallpaperPackageType.Video && metadata.MediaPath != null ||
+                metadata.ProjectType == WallpaperPackageType.Unknown && IsPackageExtension(extension))
+                return WallpaperImportMode.MotionBackdrop;
+        }
+        return WallpaperImportMode.HolographicCard;
+    }
 
     public static WallpaperImportResolution Resolve(
         string sourcePath,
@@ -261,6 +272,13 @@ public static class WallpaperSourceRules
         {
             return WallpaperImportResolution.Reject(
                 metadata.RejectReason ?? "project.json 无法读取。");
+        }
+
+        if (metadata.ProjectType == WallpaperPackageType.Scene && mode == WallpaperImportMode.MotionBackdrop)
+        {
+            return TryResolveSafeSibling(Path.GetDirectoryName(projectPath)!, "scene.pkg", out var package)
+                ? ResolvePackage(package!, mode)
+                : WallpaperImportResolution.Reject("没有找到场景包。请选择这个 Wallpaper Engine 项目的 .pkg 文件。");
         }
 
         return metadata.ProjectType switch

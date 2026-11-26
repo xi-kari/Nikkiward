@@ -147,11 +147,16 @@ else if (location.protocol === 'file:' && new URLSearchParams(location.search).h
   win.classList.add('still');
   document.addEventListener('DOMContentLoaded', () => {
     const mock = new URLSearchParams(location.search).get('mock');
-    if (['config','diag','config-blossom','config-real','diag-real'].includes(mock)) {
+    if (['config','diag','config-blossom','config-real','diag-real','diag-real-blocked','config-real-pkg'].includes(mock)) {
       const fixture = document.createElement('script');
       fixture.src = '../../../Web.dev/overlays.js';
       fixture.onload = () => document.head.append(script);
-      document.head.append(fixture);
+      if (mock.includes('-real')) {
+        const samples = document.createElement('script');
+        samples.src = '../../../Web.dev/overlay-samples.js';
+        samples.onload = () => document.head.append(fixture);
+        document.head.append(samples);
+      } else document.head.append(fixture);
       return;
     }
     if (!(mock === 'panel' || mock === 'panel-light' || id === 'atelier' && mock === 'panel-edit')) return document.head.append(script);

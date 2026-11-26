@@ -1433,6 +1433,16 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 _preflightResult = await _channelEntryLauncher.VerifyIdentityAsync(_selectedCandidate!, cancellationToken);
             }
 
+            if (_preflightResult is { Components.Count: > 0 } verified)
+            {
+                var paths = verified.Components.Where(c => c.Passed && Path.GetExtension(c.FilePath).Equals(".exe", StringComparison.OrdinalIgnoreCase))
+                    .Select(c => c.FilePath).ToArray();
+                if (paths.Length > 0 && verified.StaticIdentityPassed)
+                {
+                    _observedProcessCode = (await Task.Run(() => ObserveBaseline(paths), cancellationToken)).Code;
+                    _observedInstall = verified;
+                }
+            }
             Components.Clear();
             foreach (var component in results)
             {

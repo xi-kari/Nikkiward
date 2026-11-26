@@ -63,9 +63,9 @@
 
 五套首页共用 overlays.js 和 overlays.css。宿主随首页状态下发 overlay（安装身份、只读契约、静态证据、回执、执行门、背景画名、导入模式及操作权限）、components（组件身份、版本、路径和状态）与 officialFlow。诊断原因和下一步沿用 launchLabel、detail。官方启动动作同时要求 Ready 和原生辅助启动能力。
 
-原生入口可向网页发 open-settings、open-background、open-status。关闭、Esc 和分区选择由网页处理。网页可发送 locate、open-root、import-motion、import-card、reset、art-title、recheck、export-diagnostics、official-flow。art-title 附当前 artKey 和最长 120 字的 title，空标题恢复原名。资源管理器只打开原生当前安装路径；导入文件、定位目录、诊断导出目录和启动确认沿用原生流程。
+原生入口可向网页发 open-settings、open-background、open-status。关闭、Esc 和分区选择由网页处理。网页可发送 locate、open-root、import-background、reset、art-title、recheck、export-diagnostics、official-flow。原生按所选文件识别背景类型。art-title 附当前 artKey 和最长 120 字的 title，空标题恢复原名。资源管理器只打开原生当前安装路径；导入文件、定位目录、诊断导出目录和启动确认沿用原生流程。
 
-五套皮肤均提供 config、diag 对照。cinema 另有 config-blossom、config-real、diag-real。长路径和拒绝原因数据位于 Web.dev/overlays.js。
+五套皮肤均提供 config、diag 对照。cinema 另有 config-blossom、config-real、diag-real、diag-real-blocked、config-real-pkg。真实状态示例由测试项目的 `--emit-overlay-samples` 参数生成到 Web.dev/overlay-samples.js。原生检查的原始值位于 overlay.technical。
 
 ## 对照与发布
 
