@@ -255,7 +255,8 @@ internal static class GalleryFavoriteCardLayoutTests
             interactions.Contains("_favoriteOperationGates.GetOrAdd", StringComparison.Ordinal) &&
             interactions.Contains("previous.Cancel()", StringComparison.Ordinal) &&
             interactions.Contains("EnsureCurrentFavoriteOperation", StringComparison.Ordinal) &&
-            interactions.Contains("CleanUnstarredAsync", StringComparison.Ordinal) &&
+            interactions.Contains("TryUnstarAsync", StringComparison.Ordinal) &&
+            !interactions.Contains("CleanUnstarredAsync", StringComparison.Ordinal) &&
             interactions.Contains("operationCancellation.Token", StringComparison.Ordinal),
             "favorite protection must serialize per photo and reject stale profile results");
         Assert(

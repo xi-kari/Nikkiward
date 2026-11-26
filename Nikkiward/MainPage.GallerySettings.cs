@@ -10,8 +10,9 @@ namespace Nikkiward;
 public sealed partial class MainPage
 {
     private readonly NikkiGalleryToolRegistry _nikkiGalleryToolRegistry = new();
-    private readonly GalleryAnnotationStore _galleryAnnotationStore = new();
-    private readonly GalleryFavoriteProtectionService _galleryFavoriteProtectionService = new();
+    private GalleryFavoriteProtectionService? _galleryFavoriteProtectionService;
+    private GalleryFavoriteProtectionService GalleryProtection =>
+        _galleryFavoriteProtectionService ??= new(readOnlyRoots: () => ViewModel.GalleryReadOnlyRoots);
     private GalleryThumbnailCacheStatistics? _galleryCacheStatistics;
     private GalleryFavoriteProtectionOverview? _galleryProtectionOverview;
     private NikkiGalleryToolState? _nikkiGalleryToolState;
@@ -50,13 +51,14 @@ public sealed partial class MainPage
             CanChangeProtection: !busy,
             CanOpenProtectionRoot: !busy &&
                 protection is not null &&
+                !protection.Preferences.IsPausedForOverlap &&
                 !protection.UnavailableRootPaths.Contains(
                     protection.Preferences.ActiveRootPath,
                     StringComparer.OrdinalIgnoreCase),
-            CanVerifyProtection: !busy && protection?.Statistics.EntryCount > 0,
+            CanVerifyProtection: !busy && protection is { Preferences.IsPausedForOverlap: false, Statistics.EntryCount: > 0 },
             CanCleanProtection: !busy &&
                 !string.IsNullOrWhiteSpace(profileId) &&
-                protection?.Statistics.EntryCount > 0,
+                protection is { Preferences.IsPausedForOverlap: false, Statistics.EntryCount: > 0 },
             CacheStatusText: cache is null
                 ? "正在读取"
                 : cache.IsAvailable
@@ -104,8 +106,9 @@ public sealed partial class MainPage
 
     private async Task LoadGallerySettingsStateAsync(CancellationToken cancellationToken)
     {
+        await ViewModel.InitializeAsync(cancellationToken);
         var cacheTask = GalleryThumbnailCache.GetStatisticsAsync(cancellationToken);
-        var protectionTask = _galleryFavoriteProtectionService.GetOverviewAsync(
+        var protectionTask = GalleryProtection.GetOverviewAsync(
             verify: false,
             cancellationToken);
         var toolTask = _nikkiGalleryToolRegistry.GetStateAsync(cancellationToken);
@@ -133,6 +136,7 @@ public sealed partial class MainPage
         var cancellationToken = _lifetimeCancellation?.Token ?? CancellationToken.None;
         try
         {
+            await ViewModel.InitializeAsync(cancellationToken);
             await operation(cancellationToken);
             await LoadGallerySettingsStateAsync(cancellationToken);
         }
@@ -177,10 +181,8 @@ public sealed partial class MainPage
         }
 
         await RunGallerySettingsOperationAsync(
-            cancellationToken => ViewModel.SaveGalleryRootAsync(
-                profileId,
-                folder.Path,
-                cancellationToken),
+            cancellationToken => GalleryProtection.ChangeGalleryDirectoriesAsync(
+                () => ViewModel.SaveGalleryRootAsync(profileId, folder.Path, cancellationToken), cancellationToken),
             "图库目录保存失败");
     }
 
@@ -193,7 +195,8 @@ public sealed partial class MainPage
         }
 
         await RunGallerySettingsOperationAsync(
-            cancellationToken => ViewModel.ResetGalleryRootAsync(profileId, cancellationToken),
+            cancellationToken => GalleryProtection.ChangeGalleryDirectoriesAsync(
+                () => ViewModel.ResetGalleryRootAsync(profileId, cancellationToken), cancellationToken),
             "图库目录恢复失败");
     }
 
@@ -208,7 +211,7 @@ public sealed partial class MainPage
         GalleryProtectionEnabledChangedEventArgs e)
     {
         await RunGallerySettingsOperationAsync(
-            cancellationToken => _galleryFavoriteProtectionService.SetEnabledAsync(
+            cancellationToken => GalleryProtection.SetEnabledAsync(
                 e.Enabled,
                 cancellationToken),
             "收藏保护设置保存失败");
@@ -233,9 +236,17 @@ public sealed partial class MainPage
         }
 
         await RunGallerySettingsOperationAsync(
-            cancellationToken => _galleryFavoriteProtectionService.SetActiveRootAsync(
-                folder.Path,
-                cancellationToken),
+            async cancellationToken =>
+            {
+                try
+                {
+                    await GalleryProtection.SetActiveRootAsync(folder.Path, cancellationToken);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    await TryShowDialogAsync("不能使用这个保护目录", ex.Message);
+                }
+            },
             "收藏保护目录保存失败");
     }
 
@@ -246,10 +257,8 @@ public sealed partial class MainPage
         await RunGallerySettingsOperationAsync(
             async cancellationToken =>
             {
-                var preferences = await _galleryFavoriteProtectionService.GetPreferencesAsync(
-                    cancellationToken);
-                Directory.CreateDirectory(preferences.ActiveRootPath);
-                var folder = await StorageFolder.GetFolderFromPathAsync(preferences.ActiveRootPath);
+                var path = await GalleryProtection.GetRootToOpenAsync(cancellationToken);
+                var folder = await StorageFolder.GetFolderFromPathAsync(path);
                 if (!await Launcher.LaunchFolderAsync(folder))
                 {
                     throw new InvalidOperationException("The favorite protection folder was not opened.");
@@ -265,7 +274,7 @@ public sealed partial class MainPage
         await RunGallerySettingsOperationAsync(
             async cancellationToken =>
             {
-                _galleryProtectionOverview = await _galleryFavoriteProtectionService.VerifyAsync(
+                _galleryProtectionOverview = await GalleryProtection.VerifyAsync(
                     cancellationToken);
             },
             "收藏保护校验失败");
@@ -286,13 +295,7 @@ public sealed partial class MainPage
         await RunGallerySettingsOperationAsync(
             async cancellationToken =>
             {
-                var starred = await _galleryAnnotationStore.LoadStarredAsync(
-                    scopeId,
-                    cancellationToken);
-                _ = await _galleryFavoriteProtectionService.CleanUnstarredAsync(
-                    scopeId,
-                    starred,
-                    cancellationToken);
+                _ = await GalleryProtection.CleanUnstarredAsync(scopeId, cancellationToken);
             },
             "未收藏保护副本清理失败");
     }
@@ -403,9 +406,19 @@ public sealed partial class MainPage
     private static string FormatProtectionStatus(GalleryFavoriteProtectionOverview overview)
     {
         var statistics = overview.Statistics;
+        if (overview.Preferences.IsPausedForOverlap)
+        {
+            return GalleryFavoriteProtectionService.OverlapMessage;
+        }
+
         if (!overview.Preferences.IsEnabled)
         {
             return $"已关闭 · 已保留 {statistics.EntryCount:N0} 条保护记录";
+        }
+
+        if (overview.Preferences.OverlappingRoots.Count > 0)
+        {
+            return "旧保护目录与图库或游戏目录重叠，已保留其中的副本 · 当前目录可用";
         }
 
         if (overview.UnavailableRootPaths.Count > 0)

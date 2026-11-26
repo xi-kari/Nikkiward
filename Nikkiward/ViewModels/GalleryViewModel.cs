@@ -138,7 +138,8 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
 
     public async Task LoadDefaultAsync(
         string gameRootPath,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? profileId = null)
     {
         if (string.IsNullOrWhiteSpace(gameRootPath) || !Directory.Exists(gameRootPath))
         {
@@ -162,12 +163,13 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
             return;
         }
 
-        await LoadAsync(defaultRoot, cancellationToken);
+        await LoadAsync(defaultRoot, cancellationToken, profileId);
     }
 
     public async Task LoadAsync(
         string rootPath,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? profileId = null)
     {
         if (IsBusy)
         {
@@ -177,8 +179,7 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
         string normalizedRoot;
         try
         {
-            normalizedRoot = Path.GetFullPath(rootPath)
-                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            normalizedRoot = GalleryAnnotationStore.NormalizeGalleryRoot(rootPath);
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
         {
@@ -201,7 +202,7 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
         try
         {
             var scanned = await Task.Run(
-                () => ScanRoot(normalizedRoot, cancellationToken),
+                () => ScanRoot(normalizedRoot, GalleryAnnotationStore.CreateScopeId(profileId, normalizedRoot), cancellationToken),
                 cancellationToken);
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -292,10 +293,12 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
         ApplyFilterAndSort();
     }
 
-    public void ApplyStarredPaths(IReadOnlySet<string> starredPaths)
+    public void ShowProtectionPause() => StatusText = GalleryFavoriteProtectionService.OverlapMessage;
+
+    public void ApplyStarredPaths(string scopeId, IReadOnlySet<string> starredPaths)
     {
         ArgumentNullException.ThrowIfNull(starredPaths);
-        foreach (var photo in _allPhotos)
+        foreach (var photo in _allPhotos.Where(item => item.AnnotationScopeId == scopeId))
         {
             photo.SetStarred(starredPaths.Contains(photo.StarKey));
         }
@@ -304,21 +307,17 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
     }
 
     public void ApplyProtectedFavorites(
+        string scopeId,
         IReadOnlyList<GalleryProtectedFavorite> protectedFavorites)
     {
         ArgumentNullException.ThrowIfNull(protectedFavorites);
-        var protectedByPath = protectedFavorites
-            .GroupBy(
-                item => GalleryAnnotationStore.NormalizeRelativePath(item.Entry.RelativePath),
-                StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(
-                group => group.Key,
-                group => group.OrderByDescending(item => item.Entry.ProtectedAtUtc).First(),
-                StringComparer.OrdinalIgnoreCase);
+        var protectedByPath = protectedFavorites.Where(item => item.Entry.ScopeId == scopeId)
+            .ToDictionary(item => item.Entry.RelativePath, StringComparer.OrdinalIgnoreCase);
 
-        foreach (var photo in _allPhotos)
+        foreach (var photo in _allPhotos.Where(item => item.AnnotationScopeId == scopeId))
         {
-            if (protectedByPath.TryGetValue(photo.StarKey, out var protectedFavorite))
+            if (protectedByPath.TryGetValue(photo.StarKey, out var protectedFavorite) &&
+                string.Equals(photo.FilePath, protectedFavorite.Entry.OriginalPath, StringComparison.OrdinalIgnoreCase))
             {
                 photo.SetProtectedCopy(
                     protectedFavorite.ProtectedPath,
@@ -330,10 +329,10 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
             }
         }
 
-        var existingPaths = _allPhotos
+        var existingPaths = _allPhotos.Where(photo => photo.AnnotationScopeId == scopeId)
             .Select(photo => photo.StarKey)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var protectedFavorite in protectedFavorites.Where(item => item.IsUsingProtectedCopy))
+        foreach (var protectedFavorite in protectedByPath.Values.Where(item => item.IsUsingProtectedCopy))
         {
             var entry = protectedFavorite.Entry;
             var starKey = GalleryAnnotationStore.NormalizeRelativePath(entry.RelativePath);
@@ -356,7 +355,8 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
                 categoryId,
                 categoryName,
                 entry.OriginalLength,
-                entry.OriginalLastWriteTimeUtc.UtcDateTime);
+                entry.OriginalLastWriteTimeUtc.UtcDateTime,
+                entry.ScopeId);
             fallback.SetStarred(true);
             fallback.SetProtectedCopy(
                 protectedFavorite.ProtectedPath,
@@ -406,11 +406,17 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
         }
 
         photo.SetStarred(isStarred);
+        if (!isStarred && photo.IsUsingProtectedCopy)
+        {
+            _allPhotos.Remove(photo);
+            RebuildCategories();
+        }
         ApplyFilterAndSort();
     }
 
     private static List<GalleryPhotoItemViewModel> ScanRoot(
         string rootPath,
+        string scopeId,
         CancellationToken cancellationToken)
     {
         var options = new EnumerationOptions
@@ -444,7 +450,8 @@ public sealed class GalleryViewModel : INotifyPropertyChanged
                 categoryId,
                 categoryName,
                 file.Length,
-                GalleryTimestamp.Resolve(file.Name, file.LastWriteTimeUtc)));
+                GalleryTimestamp.Resolve(file.Name, file.LastWriteTimeUtc),
+                scopeId));
         }
 
         return items;
@@ -643,7 +650,7 @@ public sealed class GalleryPhotoItemViewModel : INotifyPropertyChanged
         string categoryName,
         long fileSizeBytes,
         DateTime lastWriteTimeUtc,
-        string? annotationScopeId = null)
+        string annotationScopeId)
     {
         FilePath = filePath;
         RelativePath = relativePath;
@@ -664,7 +671,7 @@ public sealed class GalleryPhotoItemViewModel : INotifyPropertyChanged
 
     public string StarKey { get; }
 
-    public string? AnnotationScopeId { get; }
+    public string AnnotationScopeId { get; }
 
     public string FileName { get; }
 

@@ -80,6 +80,7 @@ public sealed partial class MainPage
         SyncLauncherChrome();
 
         var cancellationToken = _lifetimeCancellation?.Token ?? CancellationToken.None;
+        await ViewModel.InitializeAsync(cancellationToken);
         if (ContentFrame.Content is GalleryPage galleryPage)
         {
             galleryPage.ApplyAppearanceSettings(ViewModel.AppearanceSettings);
@@ -100,6 +101,7 @@ public sealed partial class MainPage
                 ViewModel.SelectedProfileId,
                 ViewModel.GameRootPath,
                 ViewModel.GalleryRootPath,
+                GalleryProtection,
                 cancellationToken,
                 viewMode,
                 ViewModel.AppearanceSettings),
