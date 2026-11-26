@@ -7,6 +7,12 @@ internal static class Program
 {
     private static async Task<int> Main(string[] args)
     {
+        if (args.Contains("--emit-overlay-samples", StringComparer.Ordinal))
+        {
+            AppearanceRuntimeContractTests.WriteOverlayFixture();
+            return 0;
+        }
+
         if (args.Contains("--emit-contract", StringComparer.Ordinal))
         {
             return await ContractRefreshTool.RunAsync().ConfigureAwait(false);

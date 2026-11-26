@@ -50,9 +50,8 @@ public sealed partial class MainPage
                     ViewModel.ReportUiError($"游戏目录打开失败：{ex.Message}");
                 }
                 break;
-            case "import-motion": case "import-card":
-                await ChooseWallpaperAsync(request.Action == "import-motion"
-                    ? WallpaperImportMode.MotionBackdrop : WallpaperImportMode.HolographicCard);
+            case "import-background":
+                await ChooseWallpaperAsync(null);
                 break;
             case "art-title":
                 if (ViewModel.CanNameArtwork && request.ArtKey == ViewModel.HomeArtKey)
