@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/xi-kari/Nikkiward/actions/workflows/build.yml"><img src="https://github.com/xi-kari/Nikkiward/actions/workflows/build.yml/badge.svg?branch=main" alt="Build"></a>
-  <a href="https://github.com/xi-kari/Nikkiward/releases"><img src="https://img.shields.io/badge/version-0.1.0--preview.5-cb718b?style=flat-square" alt="版本 0.1.0-preview.5(预览)"></a>
+  <a href="https://github.com/xi-kari/Nikkiward/releases"><img src="https://img.shields.io/badge/version-0.1.0--preview.6-cb718b?style=flat-square" alt="版本 0.1.0-preview.6(预览)"></a>
   <img src="https://img.shields.io/badge/platform-Windows%2010%201809%2B%20x64-3d6e66?style=flat-square" alt="平台:Windows 10 1809 及以上,x64">
   <img src="https://img.shields.io/badge/.NET-10-5b536d?style=flat-square" alt=".NET 10">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-8b6b57?style=flat-square" alt="MIT License"></a>
@@ -36,7 +36,7 @@ Nikkiward 把渠道档案、启动预检、相册、奇想手账与心愿共鸣�
 
 ## 开始使用
 
-当前预览版本：`0.1.0-preview.5`(Pre-release,发布于 2026-08-30),仍在预览阶段,边角可能有毛刺;遇到问题欢迎用 Issue 告诉作者。
+当前预览版本：`0.1.0-preview.6`(Pre-release,发布于 2026-11-26),仍在预览阶段,边角可能有毛刺;遇到问题欢迎用 Issue 告诉作者。
 
 系统要求:Windows 10 1809(内部版本 17763)及以上,仅 x64;奇想手账与心愿共鸣记录另需 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/),缺失时应用会给出官方下载指引。「高定画册」首页使用同一运行时，缺失时自动显示「熄灯放映」。界面目前仅提供简体中文。
 

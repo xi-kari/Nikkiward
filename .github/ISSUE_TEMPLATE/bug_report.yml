@@ -12,7 +12,7 @@ body:
     id: version
     attributes:
       label: Nikkiward 版本
-      placeholder: 0.1.0-preview.5
+      placeholder: 0.1.0-preview.6
     validations:
       required: true
   - type: dropdown
