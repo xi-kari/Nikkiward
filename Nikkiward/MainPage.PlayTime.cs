@@ -123,7 +123,7 @@ public sealed partial class MainPage
                 CloseButtonText = "取消",
                 DefaultButton = ContentDialogButton.Close,
             };
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+            if (await NativeSkin.ShowAsync(dialog) != ContentDialogResult.Primary) return;
         }
         catch (Exception ex)
         {

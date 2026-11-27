@@ -86,6 +86,7 @@ public sealed partial class MainWindow : Window
         _nativeWindowRuntime.ShowWindowRequested += OnNativeShowWindowRequested;
         _nativeWindowRuntime.ExitRequested += OnNativeExitRequested;
         _nativeWindowRuntime.ScreenshotRequested += OnNativeScreenshotRequested;
+        _nativeWindowRuntime.SystemAppearanceChanged += (_, _) => DispatcherQueue.TryEnqueue(NativeSkin.Refresh);
         Closed += OnWindowClosed;
 
         if (AppWindow.Presenter is OverlappedPresenter presenter)

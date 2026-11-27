@@ -58,6 +58,6 @@ public sealed partial class MainPage
     {
         var dialog = new ContentDialog { XamlRoot = XamlRoot, Title = title, Content = message,
             PrimaryButtonText = button, CloseButtonText = "取消", DefaultButton = ContentDialogButton.Close };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        return await NativeSkin.ShowAsync(dialog) == ContentDialogResult.Primary;
     }
 }

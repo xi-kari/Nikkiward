@@ -159,4 +159,7 @@
     <PublishReadyToRun Condition="'$(Configuration)' != 'Debug'">True</PublishReadyToRun>
     <PublishTrimmed>False</PublishTrimmed>
   </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Web/shared/theme.css" LogicalName="Nikkiward.NativeTheme.css" />
+  </ItemGroup>
 </Project>

@@ -125,7 +125,7 @@ public sealed partial class MainPage
                 XamlRoot = XamlRoot, Title = title, Content = message, PrimaryButtonText = confirm,
                 CloseButtonText = "取消", DefaultButton = ContentDialogButton.Close
             };
-            return await dialog.ShowAsync() == ContentDialogResult.Primary;
+            return await NativeSkin.ShowAsync(dialog) == ContentDialogResult.Primary;
         }
         finally { _dialogGate.Release(); }
     }

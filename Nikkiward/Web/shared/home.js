@@ -9,6 +9,7 @@ let presented = !bridge;
 let failedVideo = false;
 let frozenCover;
 
+
 function freezeImage() {
   const bg = currentState.background;
   const freeze = currentState.still && bg.type === 'image' && /\.(gif|webp|png|avif)$/i.test(bg.url);
@@ -81,6 +82,49 @@ function elapsedLabel(s) {
   const start = s.sessionStarted ? new Date(s.sessionStarted).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',hour12:false})+' 开始 · ' : '';
   return start+'已运行 '+s.sessionMinutes+' 分钟';
 }
+const appreciation = (() => {
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  let timer, delay, active = false, plate;
+  function change(on) {
+    if (active === on) return;
+    active = on;
+    if (currentState.skin === 'cinema') { setIdle(on); return; }
+    if (on) {
+      if (!plate) {
+        plate = document.createElement('aside');
+        plate.className = 'art-caption';
+        win.append(plate);
+        cover.parentElement.classList.add('appreciation-art');
+      }
+      plate.textContent = currentState.artName;
+    }
+    win.classList.toggle('appreciating',on);
+  }
+  function enter() { clearTimeout(timer); change(true); }
+  function wake() {
+    clearTimeout(timer);
+    change(false);
+    if (delay) timer = setTimeout(enter,delay * 1000);
+  }
+  function refresh() {
+    const s = currentState;
+    const allowed = bridge && presented && s?.enabled && s.visual === 'ready' && !s.still && !s.running &&
+      !document.hidden && !reduced.matches && !win.dataset.ov && !win.querySelector('button[aria-expanded="true"]') &&
+      !document.querySelector('dialog[open]');
+    const next = allowed ? s.idleSeconds : 0;
+    if (next !== delay || (!allowed && active)) { delay = next; wake(); }
+    if (active && plate) plate.textContent = s.artName;
+  }
+  for (const event of ['pointermove','pointerdown','wheel']) document.addEventListener(event,wake,{passive:true});
+  document.addEventListener('keydown',e => {
+    if (active) { e.preventDefault(); e.stopImmediatePropagation(); }
+    wake();
+  },true);
+  document.addEventListener('visibilitychange',refresh);
+  reduced.addEventListener('change',refresh);
+  new MutationObserver(refresh).observe(document.body,{subtree:true,attributes:true,attributeFilter:['open','aria-expanded','data-ov']});
+  return {refresh,wake,enter};
+})();
 let minuteTimer;
 function updateClock(s) {
   clearTimeout(minuteTimer);
@@ -102,6 +146,7 @@ async function show(state) {
   const ready = updateCover(state);
   if (!bridge) state.still = true;
   render(state);
+  appreciation.refresh();
   planner.refresh();
   homeOverlays.refresh();
   if (win.classList.contains('pending')) {
@@ -136,6 +181,7 @@ if (bridge) bridge.addEventListener('message', ({data}) => {
   if (data === 'planner-saved') return planner.result();
   if (data === 'presented') {
     presented = true;
+    appreciation.refresh();
     playCover();
   } else show(data).catch(error => bridge.postMessage('failed:首页渲染失败 · ' + error.message));
 });

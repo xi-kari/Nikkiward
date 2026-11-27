@@ -11,7 +11,7 @@ const note = $('#note');
 const overlayButtons = {switcher:$('#profileBtn'), palette:$('#cmdBtn')};
 const motion = matchMedia('(prefers-reduced-motion: reduce)');
 let recentPhotos = [];
-let profileKey, timer, idleAllowed = false, idleSeconds = 8;
+let profileKey;
 
 function element(tag, value, cls) {
   const node = document.createElement(tag);
@@ -204,11 +204,7 @@ function render(s) {
   renderProfiles(s);
   renderPhotos(s);
   if (win.dataset.ov === 'palette') renderPalette();
-  if (idleSeconds !== (s.idleSeconds ?? 8)) {
-    idleSeconds = s.idleSeconds ?? 8;
-    wake();
-  }
-  updateIdle();
+
 }
 
 function renderPlate() {
@@ -226,23 +222,7 @@ function setIdle(on) {
   $('.plate').setAttribute('aria-hidden',!on);
   for (const selector of ['.top','.band','.ledge']) $(selector).inert = on || !!win.dataset.ov;
 }
-function wake() {
-  if (win.classList.contains('idle')) setIdle(false);
-  clearTimeout(timer);
-  if (idleAllowed && idleSeconds) timer = setTimeout(() => setIdle(true),idleSeconds * 1000);
-}
-function updateIdle() {
-  const s = currentState;
-  const allowed = !!s && s.enabled && s.visual === 'ready' && !s.running && !s.still &&
-    !motion.matches && !win.dataset.ov && !planner.dialog.open && !homeOverlays.dialog.open && !document.hidden;
-  if (allowed === idleAllowed) return;
-  idleAllowed = allowed;
-  wake();
-}
-document.addEventListener('visibilitychange',updateIdle);
-document.addEventListener('DOMContentLoaded',() => [planner.dialog,homeOverlays.dialog].forEach(d=>d.addEventListener('toggle',updateIdle)));
-motion.addEventListener('change',updateIdle);
-for (const event of ['pointermove','pointerdown','wheel']) document.addEventListener(event,wake,{passive:true});
+
 
 window.mastheadBounds = () => [$('.nav').getBoundingClientRect().left,$('#cmdBtn').getBoundingClientRect().right];
 
@@ -254,7 +234,7 @@ function setOverlay(name, focus = true) {
     button.setAttribute('aria-expanded',id === name);
     $('#'+id).inert = id !== name;
   }
-  updateIdle();
+  appreciation.refresh();
   setIdle(false);
   if (name === 'palette') {
     $('#pIn').value = '';
@@ -304,7 +284,7 @@ function renderPalette() {
       if (action === 'switcher') return setOverlay(action);
       setOverlay('');
       if (['check','reminder','link'].includes(action)) return planner.open(action);
-      if (action === 'idle') { clearTimeout(timer); setIdle(true); }
+      if (action === 'idle') appreciation.enter();
       else if (action === 'launch') cta.click();
       else if (action === 'photo') $('#ledge button').click();
       else sendHomeAction({action});
@@ -356,7 +336,7 @@ document.addEventListener('keydown',e => {
     return;
   }
   const launchKey = e.key === 'Enter' && (win.classList.contains('idle') || e.target === document.body || e.target === win || e.target === cta);
-  wake();
+  appreciation.wake();
   if (launchKey) {
     e.preventDefault();
     if (!e.repeat && !cta.disabled) cta.click();

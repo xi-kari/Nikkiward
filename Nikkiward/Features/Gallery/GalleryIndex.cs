@@ -30,7 +30,7 @@ internal sealed partial class GalleryIndex
         _root = root is null ? null : GalleryAnnotationStore.NormalizeGalleryRoot(root);
         _exports = GalleryAnnotationStore.NormalizeGalleryRoot(exports);
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes($"{_root}\0{_exports}".ToUpperInvariant()));
-        _cache = Path.Combine(cacheFolder, Convert.ToHexString(hash)[..32] + ".v1.json");
+        _cache = Path.Combine(cacheFolder, Convert.ToHexString(hash)[..32] + ".v2.json");
         _read = read;
         _category = category;
     }

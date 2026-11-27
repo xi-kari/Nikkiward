@@ -47,7 +47,7 @@ const homeOverlays = (() => {
     if (section==='pkg') return heading('游戏包体')+kv('游戏根目录',o.gameRootPath)+(s.components?.length ?
       s.components.map(c=>'<div class="ho-component"><div><b>'+escape(c.displayName+' · '+c.fileVersionText)+'</b><span>'+
         escape(c.statusText)+'</span></div><p class="ho-hint">'+escape(c.filePath)+'</p></div>').join('') : '<p class="ho-hint">暂无组件检查结果。</p>');
-    return heading('自定义背景')+'<div class="ho-art"><img class="ho-preview" alt="当前背景" src="'+escape(s.background.poster || s.background.url)+'"><b>'+escape(s.artName)+'</b></div>'+
+    return heading('自定义背景')+'<div class="ho-art"><img class="ho-preview" alt="当前背景" src="'+escape(s.background.poster || s.background.url)+'"><b>'+escape(s.artName)+'</b>'+(s.background.scenePreview ? '<small class="ho-static">静态预览</small>' : '')+'</div>'+
       '<div class="ho-actions">'+btn('import-background','导入背景…')+btn('reset','恢复默认')+'</div>'+
       '<label>背景标题 <input data-field="title" maxlength="120" placeholder="使用原文件名" '+(o.canNameArtwork?'':'disabled')+'></label><div class="ho-actions">'+btn('art-title','保存标题',null,o.canNameArtwork)+btn('clear-title','重置标题',null,o.canNameArtwork)+'</div>';
   }

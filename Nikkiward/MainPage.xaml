@@ -27,7 +27,9 @@
             Margin="0"
             Background="{ThemeResource PaperBaseBrush}"
             IsHitTestVisible="False"
-            Visibility="Collapsed" />
+            Visibility="Collapsed">
+            <Border x:Name="NativeSurfacePaper" />
+        </Border>
 
         <Frame
             x:Name="ContentFrame"

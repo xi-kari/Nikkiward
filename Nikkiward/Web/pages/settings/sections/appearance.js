@@ -40,7 +40,7 @@ registerSettingsSection('appearance',(ui,s,state) => {
   ui.input('玻璃强度','glass','range',s.glass,{min:0,max:1,step:0.01});
 
   ui.group('首页行为');
-  ui.select('鉴赏模式','delay',s.delay,[...new Set([0,8,15,30,60,s.delay])].map(n => [n,n ? n+' 秒后' : '关闭']), '首页闲置后收起界面，只留画和一枚展签。游戏运行中画面保持静止。');
+  ui.select('鉴赏模式','delay',s.delay,[...new Set([0,8,15,30,60,s.delay])].map(n => [n,n ? n+' 秒后' : '关闭']), '五套首页在启动就绪且闲置时收起界面，只留画和展签。移动鼠标或按键恢复，游戏运行中保持静止。');
   ui.toggle('最近拍摄','recent',s.recent,'在首页画面左下摆出最新几张照片。');
   ui.select('启动游戏后','afterLaunch',state.sections.general.afterLaunch,[['KeepWindow','保持窗口'],['Minimize','最小化'],['HideToTray','隐藏到托盘']],'保持窗口、最小化，或隐藏到托盘。',v => ui.save('afterLaunch',v,'general'));
 

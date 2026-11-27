@@ -52,7 +52,7 @@ public sealed partial class MainPage
                 Content = new Image { Source = PreviewImageSource.Create(image.PreviewUri),
                     MaxHeight = XamlRoot.Size.Height * 0.65 }
             };
-            await dialog.ShowAsync();
+            await NativeSkin.ShowAsync(dialog);
         }
         finally { _dialogGate.Release(); }
     }

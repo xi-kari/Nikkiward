@@ -154,13 +154,16 @@ public sealed partial class LauncherPage : Page
         SkinChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    internal bool IsSafeMode => SkinHost.Content is CinemaView;
     internal WebHomeView? WebHome => SkinHost.Content as WebHomeView;
     internal event EventHandler? SkinChanged;
     internal event EventHandler<string>? NavigationRequested;
 
     internal void UseCinema(string reason)
     {
-        ViewModel.HomeFallback = $"首页加载失败：{MainPageViewModel.RedactUiText(reason)}";
+        ViewModel.HomeFallback = string.Join(Environment.NewLine, System.Text.RegularExpressions.Regex.Replace(
+            MainPageViewModel.RedactUiText(reason), @"(?<=[。.!！])\s+(?=\S)", Environment.NewLine)
+            .Split(['\r','\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct());
         System.Diagnostics.Debug.WriteLine(ViewModel.HomeFallback);
         ReleaseSkin();
         var cinema = new CinemaView(this) { DataContext = ViewModel };
