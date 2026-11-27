@@ -34,26 +34,72 @@ function Invoke-Installer {
     }
 }
 
-function Get-TreeDigest {
+function Get-TreeListing {
     param([string]$Root)
 
     if (-not (Test-Path -LiteralPath $Root -PathType Container)) {
-        return 'ABSENT'
+        return , @('ABSENT')
     }
 
-    $lines = Get-ChildItem -LiteralPath $Root -Recurse -File -Force |
+    $lines = @(Get-ChildItem -LiteralPath $Root -Recurse -File -Force |
         ForEach-Object {
             $relative = $_.FullName.Substring($Root.Length).TrimStart('\')
             $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash
             "$relative|$hash|$($_.Length)"
         } |
-        Sort-Object
-    if (-not $lines) {
-        return 'EMPTY'
+        Sort-Object)
+    if ($lines.Count -eq 0) {
+        return , @('EMPTY')
     }
 
-    $bytes = [System.Text.Encoding]::UTF8.GetBytes(($lines -join "`n"))
-    return [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($bytes))
+    return , $lines
+}
+
+function Assert-TreeUnchanged {
+    param([string[]]$Before, [string[]]$After, [string]$Message)
+
+    $changes = @(Compare-Object -ReferenceObject $Before -DifferenceObject $After -CaseSensitive |
+        ForEach-Object { '{0} {1}' -f $(if ($_.SideIndicator -eq '<=') { 'before' } else { 'after' }), $_.InputObject })
+    if ($changes.Count -gt 0) {
+        throw "$Message changed $($changes.Count) entries: $(($changes | Select-Object -First 20) -join '; ')"
+    }
+}
+
+function Wait-ForDataFolderRelease {
+    param([string]$Root, [int]$TimeoutSeconds = 60)
+
+    # The app's WebView2 browser processes outlive its window and keep writing to the app data folder
+    # while they shut down, so a snapshot taken the moment the app exits is not stable yet.
+    $needle = $Root.TrimEnd('\') + '\'
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $seen = 0
+    while ($true) {
+        $holders = @(Get-CimInstance -ClassName Win32_Process -Filter "Name = 'msedgewebview2.exe'" |
+            Where-Object { $_.CommandLine -and $_.CommandLine.IndexOf($needle, [StringComparison]::OrdinalIgnoreCase) -ge 0 })
+        $seen = [Math]::Max($seen, $holders.Count)
+        if ($holders.Count -eq 0) {
+            break
+        }
+        if ($stopwatch.Elapsed.TotalSeconds -ge $TimeoutSeconds) {
+            throw "WebView2 processes still use the app data folder: $(($holders | ForEach-Object ProcessId) -join ', ')"
+        }
+        Start-Sleep -Milliseconds 250
+    }
+    $processWait = $stopwatch.Elapsed.TotalSeconds
+
+    $previous = Get-TreeListing $Root
+    while ($true) {
+        Start-Sleep -Seconds 2
+        $current = Get-TreeListing $Root
+        if (-not (Compare-Object -ReferenceObject $previous -DifferenceObject $current -CaseSensitive)) {
+            Write-Output ('DATA_SETTLED webview2_processes={0} webview2_wait_s={1:N1} total_s={2:N1}' -f $seen, $processWait, $stopwatch.Elapsed.TotalSeconds)
+            return
+        }
+        if ($stopwatch.Elapsed.TotalSeconds -ge $TimeoutSeconds) {
+            throw 'The app data folder kept changing after the app exited.'
+        }
+        $previous = $current
+    }
 }
 
 function Assert-Equal {
@@ -176,7 +222,7 @@ if (Test-Path -LiteralPath $installDir) {
     Remove-Item -LiteralPath $installDir -Recurse -Force
 }
 
-$dataBeforeInstall = Get-TreeDigest $localDataDir
+$dataBeforeInstall = Get-TreeListing $localDataDir
 Invoke-Installer $resolvedSetupPath $installArguments
 Write-Output 'INSTALL_EXIT=0'
 
@@ -188,7 +234,7 @@ if (-not (Test-Path -LiteralPath $shortcut -PathType Leaf)) {
     throw 'Start menu shortcut is missing.'
 }
 Assert-Equal 1 @(Get-InstallRegistration $installDir).Count 'Installer registration count'
-Assert-Equal $dataBeforeInstall (Get-TreeDigest $localDataDir) 'Installer user-data preservation'
+Assert-TreeUnchanged $dataBeforeInstall (Get-TreeListing $localDataDir) 'Installer user-data preservation'
 Write-Output "INSTALL_VERIFY=PASS files=$publishFileCount"
 
 $executable = Join-Path $installDir 'Nikkiward.exe'
@@ -214,7 +260,8 @@ finally {
     }
 }
 
-$dataBeforeRepair = Get-TreeDigest $localDataDir
+Wait-ForDataFolderRelease $localDataDir
+$dataBeforeRepair = Get-TreeListing $localDataDir
 $repairMissingPath = Join-Path $installDir 'Assets\NikkiGameIcon.png'
 $repairChangedPath = Join-Path $installDir 'Nikkiward.dll'
 Remove-Item -LiteralPath $repairMissingPath -Force
@@ -227,15 +274,15 @@ finally {
 }
 Invoke-Installer $resolvedSetupPath $installArguments
 $repairFileCount = Assert-InstalledPayload $resolvedPublishDir $installDir $payloadValidatorPath
-Assert-Equal $dataBeforeRepair (Get-TreeDigest $localDataDir) 'Repair installer user-data preservation'
+Assert-TreeUnchanged $dataBeforeRepair (Get-TreeListing $localDataDir) 'Repair installer user-data preservation'
 Write-Output "REPAIR_VERIFY=PASS files=$repairFileCount missing_resource_restored=True changed_dll_restored=True"
 
-$dataBeforeUninstall = Get-TreeDigest $localDataDir
+$dataBeforeUninstall = Get-TreeListing $localDataDir
 $uninstaller = Join-Path $installDir 'unins000.exe'
 Invoke-Installer $uninstaller @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART')
 Wait-ForCondition { -not (Test-Path -LiteralPath $installDir) } 'Uninstall left the install directory.'
 Wait-ForCondition { -not (Test-Path -LiteralPath $shortcut) } 'Uninstall left the Start menu shortcut.'
 Wait-ForCondition { @(Get-InstallRegistration $installDir).Count -eq 0 } 'Uninstall left its registration.'
-Assert-Equal $dataBeforeUninstall (Get-TreeDigest $localDataDir) 'Uninstaller user-data preservation'
+Assert-TreeUnchanged $dataBeforeUninstall (Get-TreeListing $localDataDir) 'Uninstaller user-data preservation'
 Write-Output 'UNINSTALL_VERIFY=PASS user_data_preserved=True'
 Write-Output "RESULT install=PASS launch=PASS repair=PASS uninstall=PASS test_root=$resolvedTestRoot"
