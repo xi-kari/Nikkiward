@@ -54,6 +54,7 @@ public sealed partial class LauncherPage : Page
     {
         if (_watcher != null || ViewModel == null) return;
         ApplyAppearanceSettings(ViewModel.AppearanceSettings);
+        WebHome?.SetAway(false);
         _watcher = new GalleryFolderWatcher(DispatcherQueue, () => RefreshRecentPhotos(force: true));
         ViewModel.PropertyChanged += OnModelChanged;
         RefreshRecentPhotos();
@@ -69,9 +70,11 @@ public sealed partial class LauncherPage : Page
         _watcher.Dispose();
         _watcher = null;
         _scope = null;
-        RecentPhotos.Clear();
-        ReleaseSkin();
+        // Keep the home page (and its recent photos) loaded but suspended; MainPage releases it when the window goes away.
+        WebHome?.SetAway(true);
     }
+
+    internal void ReleaseHome() => ReleaseSkin();
 
     private DateTime _photosDay = DateTime.Today;
 

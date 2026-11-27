@@ -25,6 +25,17 @@ for (const [to, label] of Object.entries(destinations)) {
   b.onclick = () => navigate(to);
   document.querySelector('.nav').append(b);
 }
+// Where the window's title bar lets clicks through: the navigation buttons and the command button.
+// Everything else in the top strip moves the window.
+window.mastheadBounds = () => {
+  const edges = list => {
+    const rects = list.map(el => el.getBoundingClientRect()).filter(r => r.width > 0);
+    return rects.length ? [Math.min(...rects.map(r => r.left)), Math.max(...rects.map(r => r.right))] : null;
+  };
+  const nav = edges([...document.querySelectorAll('.nav button')]);
+  const tool = edges([document.querySelector('#cmdBtn')].filter(Boolean));
+  return nav ? (tool ? [...nav, ...tool] : nav) : null;
+};
 const palette = createCommandPanel(document.querySelector('#cmdBtn'), () => [
   ...Object.entries(destinations).map(([to,label]) => ['前往',label,() => navigate(to)]),
   ...(active?.commands ?? [])

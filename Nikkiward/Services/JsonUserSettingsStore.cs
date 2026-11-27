@@ -193,7 +193,7 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
             {
                 foreach (var key in new[] { "launcherCapsuleStyle", "launcherMastheadLabel", "launcherMastheadTitle", "launcherMastheadSubtitle", "showLauncherUtilityPanels" })
                     appearance.Remove(key);
-                appearance["homeSkin"] = "Stitch";
+                appearance["homeSkin"] = "WishStar";
             }
             (root["general"] as JsonObject)?.Remove("enableProfileQuickSwitcher");
             root["schemaVersion"] = UserSettings.CurrentSchemaVersion;

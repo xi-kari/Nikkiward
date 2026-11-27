@@ -46,23 +46,30 @@ internal sealed class WebHomeView : UserControl, IDisposable
         SizeChanged += (_, _) => MeasureMasthead();
     }
 
+    private bool _attached, _initializing, _initialized;
+
     private async void OnLoaded(object sender, RoutedEventArgs args)
     {
-        Loaded -= OnLoaded;
-        for (DependencyObject? p = this; p != null; p = VisualTreeHelper.GetParent(p))
+        if (_initialized || _initializing || _disposed) return;
+        if (!_attached)
         {
-            if (p is LauncherPage host) _host = host;
-            if (p is MainPage shell) { _shell = shell; break; }
+            _attached = true;
+            for (DependencyObject? p = this; p != null; p = VisualTreeHelper.GetParent(p))
+            {
+                if (p is LauncherPage host) _host = host;
+                if (p is MainPage shell) { _shell = shell; break; }
+            }
+            _window = AppWindow.GetFromWindowId(XamlRoot.ContentIslandEnvironment.AppWindowId);
+            _window.Changed += OnWindowChanged;
+            App.MainWindow.ForegroundActivationChanged += OnActivation;
+            _host.ViewModel.PropertyChanged += OnChanged;
+            _shell.HomeBackdrop.PropertyChanged += OnChanged;
+            _shell.HomeDataChanged += OnHomeDataChanged;
+            _shell.HomeInteractionChanged += OnInteraction;
+            GlassCapabilities.Current.TierChanged += OnInteraction;
+            _host.RecentPhotos.CollectionChanged += OnPhotosChanged;
         }
-        _window = AppWindow.GetFromWindowId(XamlRoot.ContentIslandEnvironment.AppWindowId);
-        _window.Changed += OnWindowChanged;
-        App.MainWindow.ForegroundActivationChanged += OnActivation;
-        _host.ViewModel.PropertyChanged += OnChanged;
-        _shell.HomeBackdrop.PropertyChanged += OnChanged;
-        _shell.HomeDataChanged += OnHomeDataChanged;
-        _shell.HomeInteractionChanged += OnInteraction;
-        GlassCapabilities.Current.TierChanged += OnInteraction;
-        _host.RecentPhotos.CollectionChanged += OnPhotosChanged;
+        _initializing = true;
         try
         {
             var env = await CoreWebView2Environment.CreateWithOptionsAsync(null, Path.Combine(ApplicationDataPaths.Root, "HomeWebView2"),
@@ -70,7 +77,16 @@ internal sealed class WebHomeView : UserControl, IDisposable
             if (_disposed) return;
             await _web.EnsureCoreWebView2Async(env);
             if (_disposed) return;
-            var core = _web.CoreWebView2;
+            // The home page stays alive while other pages are shown. If it left the visual tree before WebView2
+            // was ready, the control has no CoreWebView2 yet; initialization runs again on its next load.
+            if (_web.CoreWebView2 is not { } core)
+            {
+                if (IsLoaded) _host.UseCinema("首页网页没有完成初始化。");
+                return;
+            }
+            _initialized = true;
+            // Only after initialization: setting it earlier makes the control initialize on its own.
+            _web.DefaultBackgroundColor = WebViewDefaults.Background;
             var settings = core.Settings;
             settings.AreDefaultContextMenusEnabled = false;
             settings.AreHostObjectsAllowed = false;
@@ -135,6 +151,10 @@ internal sealed class WebHomeView : UserControl, IDisposable
         {
             if (!_disposed) _host.UseCinema(ex.Message);
         }
+        finally
+        {
+            _initializing = false;
+        }
     }
 
     private async Task<string?> ReadPageAsync(string script)
@@ -166,11 +186,29 @@ internal sealed class WebHomeView : UserControl, IDisposable
         _shell.NotifyTitleBarPassthroughChanged();
     }
 
-    private bool Hidden => !_window.IsVisible || _window.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized };
+    private bool _away;
+
+    private bool Hidden => _away || _window is null || !_window.IsVisible ||
+        _window.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized };
+
+    /// <summary>
+    /// The home page stays loaded while another page is shown, suspended, so coming back shows it at once
+    /// instead of creating and loading a new WebView2.
+    /// </summary>
+    internal void SetAway(bool away)
+    {
+        if (_away == away) return;
+        _away = away;
+        QueueVisibility();
+    }
 
     private void OnActivation(object? sender, NativeWindowActivationChangedEventArgs args) => QueueVisibility();
 
-    private void OnWindowChanged(AppWindow sender, AppWindowChangedEventArgs args) => QueueVisibility();
+    // Moving the window changes nothing here; reacting to every position change made dragging stutter.
+    private void OnWindowChanged(AppWindow sender, AppWindowChangedEventArgs args)
+    {
+        if (args.DidVisibilityChange || args.DidPresenterChange || args.DidSizeChange) QueueVisibility();
+    }
 
     private void QueueVisibility()
     {

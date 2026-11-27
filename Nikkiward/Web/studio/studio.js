@@ -318,6 +318,13 @@ $('#sCmp').onclick=()=>{
   comparison();
 };
 $('#sBack').onclick=()=>send('back');$('#locate').onclick=()=>send('locate');
+// Where the window's title bar lets clicks through: the back button and the action buttons on the right.
+window.mastheadBounds=()=>{
+  const edges=list=>{const r=list.filter(Boolean).map(el=>el.getBoundingClientRect()).filter(b=>b.width>0);
+    return r.length?[Math.min(...r.map(b=>b.left)),Math.max(...r.map(b=>b.right))]:null;};
+  const back=edges([$('#sBack')]),tools=edges([$('#sHold'),$('#sCmp'),$('#sFav'),$('#locate')]);
+  return back?(tools?[...back,...tools]:back):null;
+};
 $('#sPrev').onclick=()=>step(-1);$('#sNext').onclick=()=>step(1);
 $('#zOut').onclick=()=>changeZoom(1/1.25);$('#zIn').onclick=()=>changeZoom(1.25);
 $('#zVal').onclick=()=>{zoom=zoom===1?0:1;dx=dy=0;repaint();};

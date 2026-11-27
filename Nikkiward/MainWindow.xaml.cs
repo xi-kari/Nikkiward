@@ -14,8 +14,9 @@ namespace Nikkiward;
 
 public sealed partial class MainWindow : Window
 {
-    private const int DesignWidth = 1440;
-    private const int DesignHeight = 810;
+    // The window keeps one size, close to Starward's (about 1185 x 669): 1200 x 675 view pixels of content.
+    private const int DesignWidth = 1200;
+    private const int DesignHeight = 675;
 
     private const double TitleBarStripHeight = 48;
     private const double CaptionButtonsWidth = 160;
@@ -91,12 +92,16 @@ public sealed partial class MainWindow : Window
 
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
-            presenter.IsMaximizable = true;
-            presenter.IsResizable = true;
+            presenter.IsMaximizable = false;
+            presenter.IsResizable = false;
         }
 
         AppWindow.Changed += OnWindowMetricsChanged;
-        RootFrame.Loaded += (_, _) => RootFrame.XamlRoot.Changed += OnRootMetricsChanged;
+        RootFrame.Loaded += (_, _) =>
+        {
+            RootFrame.XamlRoot.Changed += OnRootMetricsChanged;
+            ApplyFixedClientSize();
+        };
         RootFrame.Navigate(typeof(MainPage));
         if (RootFrame.Content is MainPage mainPage)
         {
@@ -249,8 +254,19 @@ public sealed partial class MainWindow : Window
         _nativeWindowRuntime.Dispose();
     }
 
-    private void OnWindowMetricsChanged(AppWindow sender, AppWindowChangedEventArgs args) => UpdateTitleBarPassthroughRegion();
-    private void OnRootMetricsChanged(XamlRoot sender, XamlRootChangedEventArgs args) => UpdateTitleBarPassthroughRegion();
+    // The drag and click regions are in client coordinates, so moving the window leaves them as they are.
+    // Recomputing them on every position change made dragging the window stutter.
+    private void OnWindowMetricsChanged(AppWindow sender, AppWindowChangedEventArgs args)
+    {
+        if (args.DidSizeChange || args.DidPresenterChange || args.DidVisibilityChange) UpdateTitleBarPassthroughRegion();
+    }
+
+    private void OnRootMetricsChanged(XamlRoot sender, XamlRootChangedEventArgs args)
+    {
+        // Once per scale change, so a resize that lands a pixel off cannot keep resizing.
+        if (sender.RasterizationScale != _fixedSizeScale) ApplyFixedClientSize();
+        UpdateTitleBarPassthroughRegion();
+    }
 
     private void OnTitleBarPassthroughChanged(object? sender, EventArgs e)
     {

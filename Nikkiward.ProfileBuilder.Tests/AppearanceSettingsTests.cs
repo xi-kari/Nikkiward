@@ -70,7 +70,7 @@ internal static class AppearanceSettingsTests
     private static Task HomeAppearanceDefaults()
     {
         var settings = new AppearanceSettings();
-        AssertEqual("Stitch", settings.HomeSkin, "requested skin");
+        AssertEqual("WishStar", settings.HomeSkin, "requested skin");
         AssertEqual(0, settings.ArtworkTitles.Count, "no invented artwork names");
         return Task.CompletedTask;
     }

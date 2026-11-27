@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using Microsoft.Web.WebView2.Core;
+using Nikkiward.Features.Shell;
 using Nikkiward.Services;
 using Nikkiward.ViewModels;
 
@@ -13,7 +14,8 @@ public sealed partial class WebPagesView : Page
 {
     private const string Host = "pages.nikkiward.invalid";
     private const string Address = "https://" + Host + "/pages/index.html";
-    internal Border Toolbar => ToolbarRegion;
+    private readonly WebTitleBarRegions _regions = new();
+    internal IReadOnlyList<FrameworkElement> TitleBarRegions => _regions.Elements;
     private MainPage _shell = null!;
     private PageAdapter _adapter = null!;
     private string? _page;
@@ -26,7 +28,23 @@ public sealed partial class WebPagesView : Page
     public WebPagesView()
     {
         InitializeComponent();
+        _regions.AddTo(Root);
+        SizeChanged += (_, _) => MeasureTitleBar();
         Loaded += Start;
+    }
+
+    // Reads where the navigation and the command button sit, so the rest of the top strip moves the window.
+    // Measured again shortly after loading, once the web fonts have settled the button widths.
+    private async void MeasureTitleBar(int delay = 0)
+    {
+        try
+        {
+            if (delay > 0) await Task.Delay(delay);
+            if (!_ready || _closed || Web.CoreWebView2 is not { } core) return;
+            if (_regions.Apply(await core.ExecuteScriptAsync("window.mastheadBounds?.() ?? null")))
+                _shell?.NotifyTitleBarPassthroughChanged();
+        }
+        catch (Exception ex) when (ex is COMException or InvalidOperationException or ObjectDisposedException) { }
     }
 
     internal void Show(MainPage shell, string page, PageAdapter adapter)
@@ -70,9 +88,9 @@ public sealed partial class WebPagesView : Page
 
     private void AppearanceChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {
-        if (sender == _shell.ViewModel && _page == "settings" && args.PropertyName is
-            (nameof(MainPageViewModel.CanExport) or nameof(MainPageViewModel.ProviderValidationStatusText)
-            or nameof(MainPageViewModel.HomeCheckText) or nameof(MainPageViewModel.SteamProvenanceText)))
+        // Settings shows live state (channel tools, discovery, checks, gamepad), so any model change may matter.
+        // Refreshes coalesce per dispatcher pass, and the page redraws only when something visible changed.
+        if (sender == _shell.ViewModel && _page == "settings")
         {
             if (Interlocked.Exchange(ref _settingsRefreshQueued, 1) == 0)
                 DispatcherQueue.TryEnqueue(() =>
@@ -127,6 +145,8 @@ public sealed partial class WebPagesView : Page
             await Web.EnsureCoreWebView2Async(env);
             if (_closed) return;
             var core = Web.CoreWebView2;
+            // Only after initialization: setting it earlier makes the control initialize on its own.
+            Web.DefaultBackgroundColor = WebViewDefaults.Background;
             core.Settings.AreHostObjectsAllowed = false;
             core.Settings.AreDefaultContextMenusEnabled = false;
             core.Settings.IsZoomControlEnabled = false;
@@ -149,6 +169,8 @@ public sealed partial class WebPagesView : Page
                     if (_closed) return;
                     _ready = true;
                     Refresh();
+                    MeasureTitleBar();
+                    MeasureTitleBar(800);
                 }
                 catch (Exception ex) { Fail($"{ex.GetType().Name}: {ex.Message}"); }
             };

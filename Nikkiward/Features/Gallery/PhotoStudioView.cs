@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Web.WebView2.Core;
+using Nikkiward.Features.Shell;
 using Nikkiward.Services;
 using Nikkiward.ViewModels;
 using Windows.ApplicationModel.DataTransfer;
@@ -17,7 +18,8 @@ internal sealed class PhotoStudioView : Grid
     private const string Host = "studio.nikkiward.invalid";
     private const string Page = "https://" + Host + "/studio/index.html";
     private const string Images = "https://photo.nikkiward.invalid/image/";
-    internal Border Toolbar { get; } = new() { Height = 44, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false };
+    private readonly WebTitleBarRegions _regions = new();
+    internal IReadOnlyList<FrameworkElement> TitleBarRegions => _regions.Elements;
     private readonly WebView2 _web = new();
     private readonly CancellationTokenSource _life = new();
     private readonly Nuan5GalleryMetadataService _metadata = new();
@@ -35,9 +37,23 @@ internal sealed class PhotoStudioView : Grid
         _shell = shell;
         _selected = selected;
         Children.Add(_web);
-        Children.Add(Toolbar);
+        _regions.AddTo(this);
+        SizeChanged += (_, _) => MeasureTitleBar();
         Loaded += Start;
         Unloaded += (_, _) => { _life.Cancel(); _web.Close(); };
+    }
+
+    // Reads where the back button and the action buttons sit, so the rest of the top bar moves the window.
+    private async void MeasureTitleBar(int delay = 0)
+    {
+        try
+        {
+            if (delay > 0) await Task.Delay(delay);
+            if (_life.IsCancellationRequested || _web.CoreWebView2 is not { } core) return;
+            if (_regions.Apply(await core.ExecuteScriptAsync("window.mastheadBounds?.() ?? null")))
+                _shell.NotifyTitleBarPassthroughChanged();
+        }
+        catch (Exception ex) when (ex is COMException or InvalidOperationException or ObjectDisposedException) { }
     }
 
     private async void Start(object sender, RoutedEventArgs args)
@@ -50,6 +66,8 @@ internal sealed class PhotoStudioView : Grid
             await _web.EnsureCoreWebView2Async(env);
             if (_life.IsCancellationRequested) return;
             var core = _web.CoreWebView2;
+            // Only after initialization: setting it earlier makes the control initialize on its own.
+            _web.DefaultBackgroundColor = WebViewDefaults.Background;
             core.Settings.AreHostObjectsAllowed = false;
             core.Settings.AreDefaultContextMenusEnabled = false;
             core.Settings.IsZoomControlEnabled = false;
@@ -65,6 +83,8 @@ internal sealed class PhotoStudioView : Grid
             core.NavigationCompleted += (_, e) =>
             {
                 if (!e.IsSuccess) { Failed("页面载入失败"); return; }
+                MeasureTitleBar();
+                MeasureTitleBar(800);
                 Send(new { type = "list", origin = _shell.StudioOrigin, skin = _shell.StudioSkin,
                     tone = _shell.StudioTone, photos = _session.Photos.Select(p => new { id = p.Key, name = p.Value.FileName, time = p.Value.LastWriteTimeUtc.ToLocalTime().ToString("HH:mm:ss") }),
                     id = _session.Photos.First(p => p.Value == _selected).Key });

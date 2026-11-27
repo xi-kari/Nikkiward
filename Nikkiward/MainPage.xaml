@@ -16,7 +16,7 @@
 
     <Grid
         x:Name="RootGrid"
-        Background="Transparent">
+        Background="#FF0E1220">
         <background:ArtBackdropView
             x:Name="LauncherBackground"
             HorizontalAlignment="Stretch"

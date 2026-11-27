@@ -318,7 +318,7 @@ internal static class UserSettingsTests
         var settings = new UserSettings();
         AssertEqual(UserSettings.CurrentSchemaVersion, settings.SchemaVersion, "schema version");
         AssertEqual(ThemeMode.WarmDark, settings.Appearance.ThemeMode, "theme mode");
-        AssertEqual("Stitch", settings.Appearance.HomeSkin, "home skin");
+        AssertEqual("WishStar", settings.Appearance.HomeSkin, "home skin");
         AssertEqual(0, settings.GalleryProfiles.Count, "gallery profile count");
         Assert(!settings.DeveloperModeEnabled, "developer mode must default off");
         return Task.CompletedTask;
@@ -731,7 +731,7 @@ internal static class UserSettingsTests
             AssertEqual("Ctrl+G", loaded.Gamepad.GuideMapKeys, "guide map");
             Assert(!loaded.Appearance.Background.MotionEnabled, "migrated motion default");
             AssertEqual(30, loaded.Appearance.Background.MotionFpsCap, "migrated motion FPS");
-            AssertEqual("Stitch", loaded.Appearance.HomeSkin, "home skin");
+            AssertEqual("WishStar", loaded.Appearance.HomeSkin, "home skin");
         }
         finally
         {
@@ -765,7 +765,7 @@ internal static class UserSettingsTests
             Assert(json.Contains($"\"schemaVersion\": {UserSettings.CurrentSchemaVersion}", StringComparison.Ordinal), "current schema output");
             Assert(json.Contains("\"appearance\"", StringComparison.Ordinal), "appearance output");
             Assert(
-                json.Contains("\"homeSkin\": \"Stitch\"", StringComparison.Ordinal),
+                json.Contains("\"homeSkin\": \"WishStar\"", StringComparison.Ordinal),
                 "default home skin output");
             Assert(!json.Contains("\n  \"themeMode\"", StringComparison.Ordinal), "legacy theme removed");
             AssertEqual(ThemeMode.WarmLight, (await store.LoadAsync()).Appearance.ThemeMode, "saved theme");

@@ -201,7 +201,7 @@ internal static class SettingsPageTests
         Reject(() => appearance = AppearanceSection.Change(appearance, "delay", "-1"));
         Reject(() => appearance = AppearanceSection.Change(appearance, "skin", "../other"));
         Reject(() => appearance = AppearanceSection.Change(appearance, "glass", "NaN"));
-        Require(general.LanguageTag == "zh-CN" && appearance.AppreciationDelaySeconds == 8 && appearance.HomeSkin == "Stitch");
+        Require(general.LanguageTag == "zh-CN" && appearance.AppreciationDelaySeconds == 8 && appearance.HomeSkin == "WishStar");
         return Task.CompletedTask;
     }
 

@@ -44,7 +44,7 @@ public enum InterfaceDensity
 
 public sealed record AppearanceSettings
 {
-    public string HomeSkin { get; init; } = "Stitch";
+    public string HomeSkin { get; init; } = "WishStar";
 
     public int AppreciationDelaySeconds { get; init; } = 8;
 

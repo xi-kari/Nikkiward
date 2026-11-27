@@ -183,6 +183,7 @@ public sealed partial class MainPage
 
     private void OnPageUnloaded(object sender, RoutedEventArgs e)
     {
+        _hostedLauncherPage?.ReleaseHome();
         LauncherBackground.MotionPlaybackFailed -= OnMotionPlaybackFailed;
         _lifetimeCancellation?.Cancel();
         _plannerTimer?.Stop();

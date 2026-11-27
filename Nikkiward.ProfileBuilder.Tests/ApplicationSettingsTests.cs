@@ -386,7 +386,7 @@ internal static class ApplicationSettingsTests
         var original = json.ToJsonString();
         await File.WriteAllTextAsync(store.SettingsFilePath, original);
         var loaded = await store.LoadAsync();
-        AssertEqual("Stitch", loaded.Appearance.HomeSkin, "requested skin survives the Cinema fallback");
+        AssertEqual("WishStar", loaded.Appearance.HomeSkin, "requested skin survives the Cinema fallback");
         AssertEqual(original, await File.ReadAllTextAsync(store.Schema9MigrationRollbackFilePath), "rollback bytes");
         await store.SaveAsync(loaded with { Appearance = loaded.Appearance with { HomeSkin = "future" } });
         AssertEqual("future", (await store.LoadAsync()).Appearance.HomeSkin, "unknown skin remains readable");
