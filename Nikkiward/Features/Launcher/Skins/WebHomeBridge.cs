@@ -7,7 +7,7 @@ using Nikkiward.ViewModels;
 
 namespace Nikkiward.Features.Launcher.Skins;
 
-internal sealed record HomeBackground(string Type, string Url, string? Poster = null)
+internal sealed record HomeBackground(string Type, string Url, string? Poster = null, bool ScenePreview = false)
 {
     internal const string StillHost = "still.nikkiward.invalid", MotionHost = "motion.nikkiward.invalid";
     internal static string StillFolder(string root) => Path.Combine(root, "WallpaperImports", "Still");
@@ -22,7 +22,7 @@ internal sealed record HomeBackground(string Type, string Url, string? Poster = 
         bool scene = WallpaperSourceRules.IsPackageExtension(Path.GetExtension(art));
         var source = scene ? scenePreview : art;
         if (AppearanceBackgroundPresets.IsBuiltInSource(source))
-            return new("image", $"https://{WebHomeBridge.Host}/art/{Path.GetFileName(source)}");
+            return new("image", $"https://{WebHomeBridge.Host}/art/{Path.GetFileName(source)}", ScenePreview: scene);
 
         var file = new FileInfo(source);
         string Url(string host, string name) => $"https://{host}/{Uri.EscapeDataString(name)}";
@@ -30,12 +30,12 @@ internal sealed record HomeBackground(string Type, string Url, string? Poster = 
         bool video = MotionSourceRules.IsSupportedExtension(ext);
         bool direct = ext is ".jpg" or ".jpeg" or ".bmp" || !scene && ext is (".png" or ".gif" or ".webp" or ".avif");
         if (direct && string.Equals(file.DirectoryName, StillFolder(root), StringComparison.OrdinalIgnoreCase))
-            return new("image", Url(StillHost, file.Name));
+            return new("image", Url(StillHost, file.Name), ScenePreview: scene);
 
         var poster = Url(StillHost, await preview(source, video));
-        return video && string.Equals(file.DirectoryName, MotionFolder(root), StringComparison.OrdinalIgnoreCase)
+        return !scene && video && string.Equals(file.DirectoryName, MotionFolder(root), StringComparison.OrdinalIgnoreCase)
             ? new("video", Url(MotionHost, file.Name), poster)
-            : new("image", poster);
+            : new("image", poster, ScenePreview: scene);
     }
 }
 
@@ -121,6 +121,7 @@ internal sealed record WebHomeState(LaunchButtonState State, string LaunchLabel,
         return ArtPaletteAnalyzer.ContrastRatio(luminance, 1) >= 4.5 ? "#FFFFFF" : "#000000";
     }
 
+    public int IdleSeconds { get; init; }
     public bool OfficialFlow => State == LaunchButtonState.Ready && Overlay.OfficialCapability;
     public required HomeOverlayState Overlay { get; init; }
     public HomeComponent[] Components { get; init; } = [];

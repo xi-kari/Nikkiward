@@ -80,7 +80,7 @@ public sealed partial class MainPage
             {
                 var dialog = new ContentDialog { XamlRoot = XamlRoot, Title = "取消这张照片的收藏？", Content = message,
                     PrimaryButtonText = button, CloseButtonText = "保留", DefaultButton = ContentDialogButton.Close };
-                return await dialog.ShowAsync() == ContentDialogResult.Primary;
+                return await NativeSkin.ShowAsync(dialog) == ContentDialogResult.Primary;
             }, token)) photo.SetStarred(value);
         _webGallery?.ScheduleRefresh();
     }

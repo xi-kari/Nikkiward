@@ -11,6 +11,7 @@ public sealed partial class CinemaView : UserControl
     {
         _host = host;
         InitializeComponent();
+        NativeSkin.Bind(this, Heading);
     }
 
     private void OnCommand(object sender, RoutedEventArgs e) =>

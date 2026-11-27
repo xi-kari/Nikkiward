@@ -473,13 +473,9 @@ internal static class AppearanceRuntimeContractTests
 
     private static Task CjkPageTitlesRetainFullLineBounds()
     {
-        var journal = XDocument.Parse(ReadSource(
-            "Nikkiward",
-            "Features",
-            "Journal",
-            "JournalPage.xaml"));
+        var safety = XDocument.Parse(ReadSource("Nikkiward", "Features", "Launcher", "Skins", "Cinema", "CinemaView.xaml"));
 
-        AssertFullLineTitle(journal, "奇想手账");
+        AssertFullLineTitle(safety, "安全模式");
         return Task.CompletedTask;
     }
 
@@ -537,7 +533,7 @@ internal static class AppearanceRuntimeContractTests
                 $"https://{WebHomeBridge.Host}/art/{Path.GetFileName(preset.Source)}"), "built-in original");
         var image = Path.Combine(still, "cover #1.jpg");
         var direct = new HomeBackground("image", $"https://{HomeBackground.StillHost}/cover%20%231.jpg");
-        Assert(await Resolve(image) == direct && await Resolve("scene.pkg", image) == direct, "import and scene preview");
+        Assert(await Resolve(image) == direct && await Resolve("scene.pkg", image) == direct with { ScenePreview = true }, "import and scene preview");
         Assert(calls.Count == 0, "direct images avoid transcoding");
         var frame = $"https://{HomeBackground.StillHost}/frame.jpg";
         var jxl = Path.Combine(still, "photo.jxl");
@@ -815,7 +811,7 @@ internal static class AppearanceRuntimeContractTests
     private static Task SafeHomeUsesLaunchState()
     {
         var view = ReadSource("Nikkiward", "Features", "Launcher", "Skins", "Cinema", "CinemaView.xaml");
-        foreach (var binding in new[] { "HomeLaunchLabel", "HomeLaunchEnabled", "HomeLaunchDetail", "ProfileDisplayName", "HomeFallback" })
+        foreach (var binding in new[] { "HomeLaunchLabel", "HomeLaunchEnabled", "HomeLaunchConclusion", "ProfileDisplayName", "HomeFallback" })
             Assert(view.Contains("{Binding " + binding + "}"), binding);
         Assert(view.Contains("重试新界面") && !view.Contains("nav-"), "safe home actions");
         return Task.CompletedTask;

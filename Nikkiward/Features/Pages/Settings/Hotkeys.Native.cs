@@ -61,7 +61,7 @@ public sealed partial class MainPage
         _captureRegisteredHotkey = Complete;
         dialog.PreviewKeyDown += KeyDown;
         App.MainWindow.Activated += Deactivated;
-        try { await dialog.ShowAsync(); }
+        try { await NativeSkin.ShowAsync(dialog); }
         finally
         {
             _captureRegisteredHotkey = null;

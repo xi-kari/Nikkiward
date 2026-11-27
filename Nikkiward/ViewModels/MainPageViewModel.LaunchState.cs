@@ -302,6 +302,7 @@ public sealed partial class MainPageViewModel
         OnPropertyChanged(nameof(HomeState));
         OnPropertyChanged(nameof(HomeLaunchLabel));
         OnPropertyChanged(nameof(HomeLaunchDetail));
+        OnPropertyChanged(nameof(HomeLaunchConclusion));
         OnPropertyChanged(nameof(HomeLaunchEnabled));
         OnPropertyChanged(nameof(HomeBusy));
         OnPropertyChanged(nameof(HomeCloseEnabled));

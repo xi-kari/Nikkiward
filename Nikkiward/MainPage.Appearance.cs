@@ -330,6 +330,7 @@ public sealed partial class MainPage
             }
 
             App.MainWindow.ApplyCaptionButtonPolarity(analysis.PreferredTheme);
+            UpdateNativeSkin();
 
             return true;
         }
@@ -565,6 +566,21 @@ public sealed partial class MainPage
         await RestoreBackgroundVisualAsync(
             previousSource,
             cancellationToken);
+    }
+
+    private void UpdateNativeSkin()
+    {
+        NativeSkin.Select(StudioSkin, StudioTone);
+        ApplyNativeSurface();
+    }
+
+    private void ApplyNativeSurface()
+    {
+        NativeSurfacePaper.Background = new Windows.UI.ViewManagement.AccessibilitySettings().HighContrast ? null : NativeSkin.Paper;
+        bool native = ContentFrame.Content is Features.Pages.WebPageErrorView or Features.Journal.JournalPage ||
+            ContentFrame.Content is Features.Launcher.LauncherPage { WebHome: null };
+        bool light = native || CurrentWebPage != null ? NativeSkin.Light : StudioTone == "light";
+        App.MainWindow?.ApplyCaptionButtonPolarity(light ? ArtPreferredTheme.Light : ArtPreferredTheme.Dark);
     }
 
     private void ApplyThemeMode(ThemeMode themeMode)

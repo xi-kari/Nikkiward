@@ -92,12 +92,13 @@ public sealed partial class MainPage
         }
         bool webCover = launcherOpen && _hostedLauncherPage?.WebHome?.CoverVisible == true;
         LauncherBackground.SetLauncherSurfaceState(
-            launcherOpen && !webCover,
+            launcherOpen && _hostedLauncherPage?.IsSafeMode == true,
             launcherOpen, webCover);
         LauncherBackground.Visibility = Visible(!webCover);
 
         ContentFrame.Margin = pageOpen && CurrentWebPage == null ? new Thickness(0, 48, 0, 0) : default;
         PageHostBackdrop.Visibility = Visible(pageOpen);
+        UpdateNativeSkin();
 
         if (_hostedLauncherPage is { } launcherPage)
         {

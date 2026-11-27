@@ -131,6 +131,7 @@ public sealed partial class MainPage : Page
         _motionBackgroundImporter = new(() => ViewModel.GalleryReadOnlyRoots);
         _wallpaperAssetImporter = new(() => ViewModel.GalleryReadOnlyRoots);
         InitializeComponent();
+        NativeSkin.Observe(this, ApplyNativeSurface);
         ApplyHomeSkin(ViewModel.AppearanceSettings.HomeSkin);
         HomeDataChanged += RefreshWebJournal;
         ContentFrame.Navigated += OnContentFrameNavigated;

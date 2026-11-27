@@ -10,8 +10,7 @@ public sealed partial class JournalPage : Page
 {
     private const string WebView2FolderName = "JournalWebView2";
     private bool _browserInitialized;
-    private bool _browserDialogOpen;
-    private bool _browserClosing;
+    private TaskCompletionSource? _browserClosed;
     private Task? _ensureBrowserTask;
     private ulong _currentNavigationId;
     private Uri? _currentNavigationUri;
@@ -45,32 +44,25 @@ public sealed partial class JournalPage : Page
 
     public event EventHandler<JournalRouteChangedEventArgs>? RouteChanged;
 
-    public JournalPage() => InitializeComponent();
+    public JournalPage() { InitializeComponent(); NativeSkin.Bind(this); Unloaded += (_,_) => HideBrowser(); }
 
     public async Task ShowBrowserAsync(Uri? targetUri = null)
     {
-        BrowserPanel.Visibility = Visibility.Visible;
-        BrowserStatusText.Text = "正在准备官方手账登录页；登录会话由 WebView2 独立保存。";
-        await EnsureBrowserAsync();
-        if (targetUri is not null && !Equals(JournalWebView.Source, targetUri))
+        var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _browserClosed = closed;
+        try
         {
-            JournalWebView.Source = targetUri;
+            SetBrowserStatus("正在打开官方手账…");
+            await EnsureBrowserAsync();
+            if (closed.Task.IsCompleted) return;
+            if (targetUri != null && !Equals(JournalWebView.Source, targetUri)) Navigate(targetUri);
+            JournalWebView.Visibility = Visibility.Visible;
+            await closed.Task;
         }
-
-        JournalWebView.Visibility = Visibility.Visible;
-        if (!_browserDialogOpen)
+        finally
         {
-            BrowserDialog.XamlRoot = XamlRoot;
-            _browserDialogOpen = true;
-            try
-            {
-                await BrowserDialog.ShowAsync();
-            }
-            finally
-            {
-                _browserDialogOpen = false;
-                await ReleaseBrowserDocumentAsync();
-            }
+            _browserClosed = null;
+            await ReleaseBrowserDocumentAsync();
         }
     }
 
@@ -92,21 +84,14 @@ public sealed partial class JournalPage : Page
 
     public void SetBrowserStatus(string statusText) => BrowserStatusText.Text = statusText;
 
-    public void HideBrowser()
-    {
-        BrowserPanel.Visibility = Visibility.Collapsed;
-        if (_browserDialogOpen && !_browserClosing)
-        {
-            BrowserDialog.Hide();
-        }
-    }
+    public void HideBrowser() => _browserClosed?.TrySetResult();
 
     public void SetSyncInProgress(bool isInProgress)
     {
-        SyncProgressIsland.Visibility = isInProgress ? Visibility.Visible : Visibility.Collapsed;
+        BrowserProgress.IsActive = isInProgress;
         JournalWebView.Opacity = isInProgress ? 0 : 1;
         JournalWebView.IsHitTestVisible = !isInProgress;
-        BrowserDialogProgress.Visibility = isInProgress ? Visibility.Visible : Visibility.Collapsed;
+        BrowserProgress.Visibility = isInProgress ? Visibility.Visible : Visibility.Collapsed;
     }
 
     public void ShowSyncFailure(JournalCaptureFailureProjection failure)
@@ -230,12 +215,7 @@ public sealed partial class JournalPage : Page
         BrowserStatusText.Text = "内置手账页面已关闭。";
     }
 
-    private void OnBrowserDialogClosing(ContentDialog sender, ContentDialogClosingEventArgs args)
-    {
-        _browserClosing = true;
-        BrowserPanel.Visibility = Visibility.Collapsed;
-        _browserClosing = false;
-    }
+
 
     private void OnNavigationStarting(
         WebView2 sender,

@@ -39,7 +39,7 @@ internal static class GalleryFavoriteCleanupDialog
                 CloseButtonText = "取消",
                 DefaultButton = ContentDialogButton.Close,
             };
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            if (await NativeSkin.ShowAsync(dialog) != ContentDialogResult.Primary)
             {
                 return;
             }

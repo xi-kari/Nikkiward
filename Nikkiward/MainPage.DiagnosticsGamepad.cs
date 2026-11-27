@@ -143,7 +143,7 @@ public sealed partial class MainPage
                 DefaultButton = ContentDialogButton.Close,
             };
 
-            await dialog.ShowAsync();
+            await NativeSkin.ShowAsync(dialog);
         }
         finally
         {

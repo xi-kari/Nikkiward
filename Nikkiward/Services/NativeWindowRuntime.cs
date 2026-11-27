@@ -44,6 +44,8 @@ public sealed class NativeWindowRuntime : IDisposable
     private const uint WmSize = 0x0005;
     private const uint WmActivateApp = 0x001C;
     private const uint WmHotkey = 0x0312;
+    private const uint WmSettingChange = 0x001A;
+    private const uint WmThemeChanged = 0x031A;
     private const uint WmAppTray = 0x8000 + 0x42;
     private const uint WmAppForegroundSync = 0x8000 + 0x43;
     private const uint WmLButtonUp = 0x0202;
@@ -94,6 +96,7 @@ public sealed class NativeWindowRuntime : IDisposable
     public event EventHandler? ExitRequested;
 
     public event EventHandler? ScreenshotRequested;
+    public event EventHandler? SystemAppearanceChanged;
 
     public event EventHandler<NativeWindowActivationChangedEventArgs>? ActivationChanged;
 
@@ -265,7 +268,11 @@ public sealed class NativeWindowRuntime : IDisposable
         UIntPtr subclassId,
         UIntPtr referenceData)
     {
-        if (message == WmSize)
+        if (message is WmSettingChange or WmThemeChanged)
+        {
+            SystemAppearanceChanged?.Invoke(this, EventArgs.Empty);
+        }
+        else if (message == WmSize)
         {
             LastNonMinimizedWasMaximized = TrackMaximizedState(LastNonMinimizedWasMaximized, wParam);
         }

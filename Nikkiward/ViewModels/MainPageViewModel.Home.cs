@@ -56,6 +56,7 @@ public sealed partial class MainPageViewModel
         LaunchButtonState;
     public string HomeLaunchLabel => HomeState.Label();
     public string HomeLaunchDetail => DescribeLaunchState(HomeState);
+    public string HomeLaunchConclusion => Features.Launcher.Skins.HomeOverlayState.From(this).Conclusion;
     public bool HomeLaunchEnabled =>
 #if DEBUG
         HomePreview.State.HasValue ? HomeState == LaunchButtonState.Ready :

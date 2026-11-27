@@ -15,6 +15,7 @@ public sealed partial class MainPage
     private void ApplyAppearanceSettings(AppearanceSettings settings)
     {
         ApplyHomeSkin(settings.HomeSkin);
+        UpdateNativeSkin();
         ApplyThemeMode(settings.ThemeMode);
         if (settings.AccentMode == AccentColorMode.Fixed)
         {

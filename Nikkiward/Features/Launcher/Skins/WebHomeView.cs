@@ -31,6 +31,7 @@ internal sealed class WebHomeView : UserControl, IDisposable
     private WebHomeState? _last;
     private (string Art, string Preview) _artKey;
     private CancellationTokenSource? _coverWork;
+
     private HomeBackground? _cover;
     internal bool CoverVisible { get; private set; }
     private int _mastheadVersion;
@@ -167,11 +168,19 @@ internal sealed class WebHomeView : UserControl, IDisposable
 
     private bool Hidden => !_window.IsVisible || _window.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized };
 
-    private void OnActivation(object? sender, NativeWindowActivationChangedEventArgs args) => QueueState();
+    private void OnActivation(object? sender, NativeWindowActivationChangedEventArgs args) => QueueVisibility();
 
-    private void OnWindowChanged(AppWindow sender, AppWindowChangedEventArgs args)
+    private void OnWindowChanged(AppWindow sender, AppWindowChangedEventArgs args) => QueueVisibility();
+
+    private void QueueVisibility()
     {
-        if (args.DidVisibilityChange || args.DidPresenterChange || args.DidSizeChange) UpdateVisibility();
+        // Window activation notifications can arrive inside a synchronous Win32 input call.
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_disposed) return;
+            UpdateVisibility();
+            QueueState();
+        });
     }
 
     private async void UpdateVisibility()
@@ -198,6 +207,7 @@ internal sealed class WebHomeView : UserControl, IDisposable
     {
         if (_disposed || !_ready || !WebHomeBridge.AllowsPage(_page, e.Source)) return;
         var json = e.WebMessageAsJson;
+
         if (json.StartsWith("\"failed:", StringComparison.Ordinal))
         {
             _host.UseCinema(JsonSerializer.Deserialize<string>(json)![7..]);
@@ -211,6 +221,7 @@ internal sealed class WebHomeView : UserControl, IDisposable
             sender.PostWebMessageAsString("presented");
             if (_pendingOverlay is { } name) { _pendingOverlay = null; OpenOverlay(name); }
             MeasureMasthead();
+            QueueState();
             return;
         }
 #if DEBUG
@@ -274,8 +285,6 @@ internal sealed class WebHomeView : UserControl, IDisposable
         });
     }
 
-    private int? _sentIdleSeconds;
-
     private void SendState()
     {
         var art = _host.ViewModel.HomeArtKey;
@@ -312,25 +321,18 @@ internal sealed class WebHomeView : UserControl, IDisposable
         }
         var planner = _shell.Planner;
         var state = WebHomeState.Create(model, theme == ArtPreferredTheme.Dark ? "dark" : "light", accent, still, model.AppearanceSettings.ShowRecentPhotos ? _photos : Array.Empty<HomePhoto>()) with {
-            Skin = _skin,
+            Skin = _skin, IdleSeconds = model.AppearanceSettings.AppreciationDelaySeconds,
             Checklist = _last?.Checklist is { } saved && saved.Items == planner.Items ? saved : HomeChecklist.From(planner.Items),
             Links = planner.Links, Reminders = planner.Reminders, PhotoTotal = times?.Length,
             SessionMinutes = model.HomeState == LaunchButtonState.Running && started.HasValue ? (int)(DateTimeOffset.UtcNow - started.Value).TotalMinutes : null,
             SessionStarted = model.HomeState == LaunchButtonState.Running ? started : null,
             JournalSnapshotDate = _shell.SnapshotDay, LastSessionPhotos = PlayTimeLedger.CountPhotos(times, previous), CurrentSessionPhotos = PlayTimeLedger.CountPhotos(times, current),
             Background = _cover, Palette = [$"#{backdrop.DerivedAccentLight & 0xffffff:X6}", $"#{backdrop.DerivedAccentDark & 0xffffff:X6}"] };
-        var idleSeconds = model.AppearanceSettings.AppreciationDelaySeconds;
-        if ((_skin != "cinema" || idleSeconds == _sentIdleSeconds) && _last is { } last && state.Profiles.SequenceEqual(last.Profiles) && state.Palette.SequenceEqual(last.Palette) && state.Components.SequenceEqual(last.Components) &&
+
+        if (_last is { } last && state.Profiles.SequenceEqual(last.Profiles) && state.Palette.SequenceEqual(last.Palette) && state.Components.SequenceEqual(last.Components) &&
             (state with { Profiles = last.Profiles, Palette = last.Palette, Components = last.Components }) == last) return;
         var message = _last?.Photos == state.Photos && _last?.CurrentSessionPhotos.HasValue == state.CurrentSessionPhotos.HasValue ? state with { Photos = null } : state;
-        if (_skin == "cinema")
-        {
-            var json = JsonSerializer.SerializeToNode(message, WebHomeBridge.Json)!;
-            json["idleSeconds"] = idleSeconds;
-            _web.CoreWebView2.PostWebMessageAsJson(json.ToJsonString());
-            _sentIdleSeconds = idleSeconds;
-        }
-        else _web.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(message, WebHomeBridge.Json));
+        _web.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(message, WebHomeBridge.Json));
         _last = state;
     }
 
@@ -400,6 +402,8 @@ internal sealed class WebHomeView : UserControl, IDisposable
         catch (OperationCanceledException) when (scan.IsCancellationRequested) { }
         finally { if (_scan == scan) _scan = null; }
     }
+
+
 
     public void Dispose()
     {

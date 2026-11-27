@@ -9,7 +9,7 @@ public sealed partial class WebPageErrorView : Page
     internal sealed record Failure(string Reason, Action Retry, Action Home);
     private Failure _failure = null!;
 
-    public WebPageErrorView() => InitializeComponent();
+    public WebPageErrorView() { InitializeComponent(); NativeSkin.Bind(this, Heading); }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
