@@ -1,9 +1,20 @@
+using Nikkiward.Features.Pages;
 using Nikkiward.ViewModels;
 
 internal static class WishHistoryDomainTests
 {
     public static (string Name, Func<Task> Run)[] All =>
     [
+        ("fresh wish image directory is ready for web mapping", FreshWishImageDirectory),
+        ("web pages route only registered destinations", RegisteredPages),
+        ("web pages isolate actions by active page", PageActions),
+        ("wish export refuses game, gallery and linked destinations before writing", ExportProtectsRoots),
+        ("wish export replaces only a completed backup", ExportIsAtomic),
+        ("wish import and sync preserve unreadable local history", PreserveUnreadableHistory),
+        ("wish import and sync accept missing and valid empty history", InitializeEmptyHistory),
+        ("wish JSON round trip preserves and deduplicates entries", RoundTrip),
+        ("wish pool timeline orders simultaneous pulls and preserves unknown distances", PoolTimeline),
+        ("invalid wish JSON leaves stored history intact", InvalidBackup),
         ("wish history merge preserves older records and appends new records", MergePreservesOlderRecords),
         ("wish history merge is idempotent for repeated imports", MergeIsIdempotent),
         ("wish history merge enriches duplicate records without erasing known fields", MergeEnrichesDuplicateRecords),
@@ -13,6 +24,214 @@ internal static class WishHistoryDomainTests
         ("wish history five-star rows expose only a subtle glow", FiveStarRowsExposeSubtleGlow),
         ("wish history store merges atomically and keeps history outside cache clearing", StoreMergesAtomically),
     ];
+
+    private static Task FreshWishImageDirectory()
+    {
+        using var fixture = new TemporaryDirectory();
+        var cache = new ResonanceHistoryCache(fixture.Root);
+        Assert(!Directory.Exists(cache.RootPath), "fresh data directory");
+        var path = cache.EnsureAssetsDirectory();
+        Assert(Directory.Exists(path) && path == cache.AssetsPath, "mapped image directory");
+        AssertEqual(path, cache.EnsureAssetsDirectory(), "existing image directory");
+        return Task.CompletedTask;
+    }
+
+    private static PageAdapter TestAdapter(params string[] actions) =>
+        new("wish", actions, () => new object(), (_, _) => Task.CompletedTask);
+
+    private static Task RegisteredPages()
+    {
+        var routes = PageRoutes.Register(("wish", TestAdapter()));
+        Assert(routes.ContainsKey("wish"), "wish is web");
+        foreach (var page in new[] { "gallery", "favorites", "journal", "settings" })
+            Assert(!routes.ContainsKey(page) && PageRoutes.NavigationTag(page) != null, page + " is native");
+        return Task.CompletedTask;
+    }
+
+    private static Task PageActions()
+    {
+        var wish = TestAdapter("import");
+        Assert(PageRoutes.Allows("wish", "wish", wish, "import"), "own action");
+        Assert(!PageRoutes.Allows("wish", "gallery", wish, "import"), "foreign envelope");
+        Assert(!PageRoutes.Allows("wish", "wish", wish, "delete"), "unknown action");
+        return Task.CompletedTask;
+    }
+
+    private static async Task ExportProtectsRoots()
+    {
+        using var fixture = new TemporaryDirectory();
+        var store = new WishHistoryStore(fixture.Root);
+        var game = Directory.CreateDirectory(Path.Combine(fixture.Root, "game")).FullName;
+        var album = Directory.CreateDirectory(Path.Combine(fixture.Root, "album")).FullName;
+        var other = Directory.CreateDirectory(Path.Combine(fixture.Root, "other")).FullName;
+        string[] roots = [game, album, other];
+        async Task RefuseExport(string dir, string[] protectedRoots)
+        {
+            Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, "export.json");
+            foreach (var existing in new[] { false, true })
+            {
+                if (existing) await File.WriteAllTextAsync(path, "original");
+                try { await store.ExportFileAsync(path, protectedRoots); throw new Exception("protected export accepted"); }
+                catch (IOException) { }
+                Assert(existing == File.Exists(path), "a refused export cannot create a file");
+                if (existing) AssertEqual("original", await File.ReadAllTextAsync(path), "protected contents");
+            }
+            File.Delete(path);
+            Assert(!Directory.EnumerateFiles(dir).Any(), "no temporary export remains");
+        }
+        foreach (var dir in roots)
+        {
+            await RefuseExport(dir, roots);
+            await RefuseExport(Path.Combine(dir, "sub"), roots);
+        }
+
+        using var junction = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+            "cmd.exe", "/d /c mklink /J alias album") { WorkingDirectory = fixture.Root, UseShellExecute = false,
+                CreateNoWindow = true, RedirectStandardOutput = true })!;
+        await junction.WaitForExitAsync();
+        AssertEqual(0, junction.ExitCode, "test directory junction");
+        var alias = Path.Combine(fixture.Root, "alias");
+        await RefuseExport(Path.Combine(alias, "sub"), roots);
+        await RefuseExport(Path.Combine(album, "sub"), [alias]);
+
+        var drive = Path.GetPathRoot(album)!;
+        var volume = new System.Text.StringBuilder(128);
+        Assert(GetVolumeNameForVolumeMountPointW(drive, volume, (uint)volume.Capacity), "test volume name");
+        var volumeAlbum = Path.Combine(volume.ToString(), Path.GetRelativePath(drive, album));
+        await RefuseExport(Path.Combine(album, "sub"), [volumeAlbum]);
+        var allowed = Path.Combine(fixture.Root, "outside.json");
+        await store.ExportFileAsync(allowed, [volumeAlbum]);
+        Assert(File.Exists(allowed), "unrelated directory on the same volume remains writable");
+    }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode,
+        ExactSpelling = true, SetLastError = true)]
+    private static extern bool GetVolumeNameForVolumeMountPointW(string mountPoint, System.Text.StringBuilder name, uint capacity);
+
+    private static async Task ExportIsAtomic()
+    {
+        using var fixture = new TemporaryDirectory();
+        var store = new WishHistoryStore(fixture.Root);
+        var path = Path.Combine(fixture.Root, "export.json");
+        await File.WriteAllTextAsync(path, "previous export");
+        Directory.CreateDirectory(store.RootPath);
+        await File.WriteAllTextAsync(store.HistoryPath, "{");
+        try { await store.ExportFileAsync(path, []); throw new Exception("invalid source exported"); }
+        catch (InvalidDataException) { }
+        AssertEqual("previous export", await File.ReadAllTextAsync(path), "existing destination after failed write");
+        Assert(!Directory.EnumerateFiles(fixture.Root, "*.tmp").Any(), "temporary export removed");
+
+        await File.WriteAllTextAsync(store.HistoryPath, """{"schemaVersion":1,"entries":[]}""");
+        try { await store.ExportFileAsync(store.HistoryPath, []); throw new Exception("database selected as export"); }
+        catch (InvalidDataException) { }
+        await store.ExportFileAsync(path, []);
+        using var stream = File.OpenRead(path);
+        AssertEqual(0, (await store.ImportAsync(stream)).Entries.Count, "complete replacement can be imported");
+    }
+
+    private static async Task PreserveUnreadableHistory()
+    {
+        using var fixture = new TemporaryDirectory();
+        var store = new WishHistoryStore(fixture.Root);
+        using var backup = new MemoryStream();
+        await store.ExportAsync(backup);
+        Directory.CreateDirectory(store.RootPath);
+        var record = Entry("sync", "2026-05-01T00:00:00Z");
+        foreach (var invalid in new[] { "{", "null", "{}", """{"entries":[]}""",
+            """{"schemaVersion":2,"entries":[]}""", """{"schemaVersion":1}""",
+            """{"schemaVersion":1,"entries":null}""", """{"schemaVersion":1,"entries":{}}""",
+            """{"schemaVersion":1,"entries":[null]}""", """{"schemaVersion":1,"entries":[{}]}""" })
+        {
+            var original = System.Text.Encoding.UTF8.GetBytes(invalid);
+            await File.WriteAllBytesAsync(store.HistoryPath, original);
+            backup.Position = 0;
+            foreach (Func<Task> write in new Func<Task>[] {
+                () => store.ImportAsync(backup), () => store.MergeAndSaveAsync([record], null, DateTimeOffset.UtcNow) })
+            {
+                try { await write(); throw new Exception("unreadable history replaced"); }
+                catch (InvalidDataException ex) { Assert(ex.Message.Contains("本机心愿历史"), "identify the unreadable local file"); }
+                AssertSequence(original, await File.ReadAllBytesAsync(store.HistoryPath), "preserve original bytes");
+            }
+        }
+    }
+
+    private static async Task InitializeEmptyHistory()
+    {
+        using var source = new TemporaryDirectory();
+        var record = Entry("first", "2026-05-01T00:00:00Z");
+        var exporter = new WishHistoryStore(source.Root);
+        await exporter.MergeAndSaveAsync([record], null, DateTimeOffset.UtcNow);
+        using var backup = new MemoryStream();
+        await exporter.ExportAsync(backup);
+        foreach (var emptyFile in new[] { false, true })
+        foreach (var import in new[] { false, true })
+        {
+            using var fixture = new TemporaryDirectory();
+            var store = new WishHistoryStore(fixture.Root);
+            if (emptyFile)
+            {
+                Directory.CreateDirectory(store.RootPath);
+                await File.WriteAllTextAsync(store.HistoryPath, """{"schemaVersion":1,"entries":[]}""");
+            }
+            backup.Position = 0;
+            if (import) await store.ImportAsync(backup);
+            else await store.MergeAndSaveAsync([record], null, DateTimeOffset.UtcNow);
+            AssertSequence([record], (await store.LoadAsync()).Entries, "first record");
+        }
+    }
+
+    private static async Task RoundTrip()
+    {
+        using var source = new TemporaryDirectory();
+        using var destination = new TemporaryDirectory();
+        var store = new WishHistoryStore(source.Root);
+        var record = Entry("same", "2026-05-01T00:00:00Z", "花", 5, 40);
+        await store.MergeAndSaveAsync([record], new() { TotalPulls = 40 }, DateTimeOffset.UtcNow);
+        using var stream = new MemoryStream();
+        await store.ExportAsync(stream);
+        var target = new WishHistoryStore(destination.Root);
+        var older = record with { TimestampUtc = record.TimestampUtc.AddDays(-1) };
+        await target.MergeAndSaveAsync([older], null, DateTimeOffset.UtcNow);
+        for (var i = 0; i < 2; i++)
+        {
+            stream.Position = 0;
+            var snapshot = await target.ImportAsync(stream);
+            AssertSequence([older, record], snapshot.Entries, "records");
+            AssertEqual(40, snapshot.Summary?.TotalPulls, "summary");
+        }
+    }
+
+    private static Task PoolTimeline()
+    {
+        const string instant = "2026-06-18T21:19:00Z";
+        var rows = WishHistoryProjector.Project([
+            Entry("first-id", instant, rarity: 4, pullNumber: 42),
+            Entry("last-id", instant, rarity: 5, pullNumber: 40),
+            Entry("unknown-rarity", instant, pullNumber: 43),
+            Entry("after-unknown", instant, rarity: 4, pullNumber: 44)
+        ], null, TimeZoneInfo.Utc).Rows;
+        var timeline = WishHistoryProjector.PoolTimeline(rows);
+        AssertSequence<int?>([44, 43, 42, 40], timeline.Select(item => item.Row.Entry.PullNumber), "same-time pull order");
+        AssertSequence<int?>([null, 3, 2, null], timeline.Select(item => item.Distance), "known five-star interval");
+        return Task.CompletedTask;
+    }
+
+    private static async Task InvalidBackup()
+    {
+        using var fixture = new TemporaryDirectory();
+        var store = new WishHistoryStore(fixture.Root);
+        await store.MergeAndSaveAsync([Entry("kept", "2026-05-01T00:00:00Z")], null, DateTimeOffset.UtcNow);
+        var before = await File.ReadAllBytesAsync(store.HistoryPath);
+        foreach (var json in new[] { "{}", """{"format":123}""",
+            """{"format":"nikkiward-wish-v1","history":{"schemaVersion":1,"entries":[{}]}}""" })
+        {
+            using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
+            try { await store.ImportAsync(stream); throw new Exception("invalid file accepted"); }
+            catch (InvalidDataException) { }
+            AssertSequence(before, await File.ReadAllBytesAsync(store.HistoryPath), "unchanged history");
+        }
+    }
 
     private static Task MergePreservesOlderRecords()
     {

@@ -7,17 +7,14 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Media.Animation;
 using Nikkiward.Features.Background;
-using Nikkiward.Features.Diagnostics;
 using Nikkiward.Features.Gallery;
 using Nikkiward.Features.GamepadControl;
 using Nikkiward.Features.Journal;
 using Nikkiward.Features.Launcher;
-using Nikkiward.Features.Profile;
+using Nikkiward.Features.Launcher.Skins;
 using Nikkiward.Features.Settings;
 using Nikkiward.Features.Shell;
-using Nikkiward.Features.Wish;
 using Nikkiward.Models;
-using Nikkiward.Pages;
 using Nikkiward.Services;
 using Nikkiward.ViewModels;
 using Windows.ApplicationModel.DataTransfer;
@@ -29,7 +26,6 @@ namespace Nikkiward;
 
 public sealed partial class MainPage : Page
 {
-    private const double CompactLaunchSettingsHostWidth = 900d;
     private const string JournalPagePath = "/tools/journal";
     private const string ResonanceHistoryPagePath = "/tools/journal/clothesPress";
     private const string PhotoAlbumPluginId = "nikkiward.photo-album-importer";
@@ -54,30 +50,17 @@ public sealed partial class MainPage : Page
     // Constructed on the UI thread so the service captures a real DispatcherQueue;
     // with a null queue it would mutate brushes on whichever thread published.
     private readonly ArtBackdropService _backdrop = new();
-    private readonly MotionBackgroundImporter _motionBackgroundImporter = new();
-    private readonly WallpaperAssetImporter _wallpaperAssetImporter = new();
+    private readonly MotionBackgroundImporter _motionBackgroundImporter;
+    private readonly WallpaperAssetImporter _wallpaperAssetImporter;
     private CancellationTokenSource? _lifetimeCancellation;
     private DispatcherTimer? _launchStateTimer;
     private int _launchStateRefreshInProgress;
     private string? _manualGameRootPath;
     private string? _manualLauncherRootPath;
     private string? _manualChannelStoreRootPath;
-    private SettingsDestination _activeSettingsDestination = SettingsDestination.Overview;
-    private bool _launchSettingsOpen;
-    private bool _returnToSettingsAfterGallery;
-    private int _statusDrawerAnimationVersion;
-    private int _launchSettingsAnimationVersion;
     private CancellationTokenSource? _shellNavigationDebounceCancellation;
-    private bool _xamlInitialized;
-    private ITitleBarMasthead? _hostedMasthead;
     private LauncherPage? _hostedLauncherPage;
-    private LaunchSettingsPage? _hostedLaunchSettingsPage;
     private JournalPage? _hostedJournalPage;
-    private ProfilePage? _hostedProfilePage;
-    private SettingsPage? _hostedSettingsPage;
-    private StatusPage? _hostedStatusPage;
-    private PhotoPluginPage? _hostedPhotoPluginPage;
-    private WishPage? _hostedWishPage;
     private bool _journalSyncInProgress;
     private bool _resonanceSyncInProgress;
     private bool _photoPluginOperationInProgress;
@@ -94,11 +77,8 @@ public sealed partial class MainPage : Page
     private DateTimeOffset _wishHistoryCapturedAtUtc;
     private LocalPluginInstallation? _photoPluginInstallation;
     private string _journalDurationText = "奇想手账未同步";
-    private string _journalDurationSourceText = "来源：官方手账 · 本次会话";
     private string _journalDurationDetailText =
         "打开官方奇想手账后，将页面显示的“游戏时长”数值粘贴到奇想手账页面。";
-    private string _backgroundStatusText =
-        "本次会话使用 Nikkiward 默认背景；可随时选择本地图片覆盖。";
     private string _currentBackgroundSource = DefaultBackgroundSource;
     private DispatcherTimer? _backgroundCarouselTimer;
     private int _backgroundCarouselIndex;
@@ -107,7 +87,6 @@ public sealed partial class MainPage : Page
         App.Settings,
         new WindowsInstallationInspector(),
         new RedactedDiagnosticReportExporter());
-
 
     public string JournalSnapshotPath => _journalCache.SnapshotPath;
 
@@ -134,24 +113,13 @@ public sealed partial class MainPage : Page
     {
         get
         {
+            if (_studio != null) return _studio.TitleBarRegions;
+            if (ContentFrame.IsEnabled && ContentFrame.Visibility == Visibility.Visible && CurrentWebPage is { } pages) return pages.TitleBarRegions;
             var regions = new List<FrameworkElement>(2);
-            if (ProfileQuickSwitchHost.Visibility == Visibility.Visible)
+            if (HomeInteractive && _hostedLauncherPage?.WebHome is { } web)
             {
-                regions.Add(ProfileQuickSwitchHost);
-            }
-
-            if (ContentFrame.Visibility == Visibility.Visible &&
-                ContentFrame.Content is ITitleBarMasthead masthead &&
-                masthead.MastheadInteractionRegion is { } mastheadRegion)
-            {
-                regions.Add(mastheadRegion);
-            }
-
-            if (LaunchSettingsFrame.Visibility == Visibility.Visible &&
-                LaunchSettingsFrame.Content is ITitleBarMasthead launchSettingsMasthead &&
-                launchSettingsMasthead.MastheadInteractionRegion is { } launchSettingsRegion)
-            {
-                regions.Add(launchSettingsRegion);
+                regions.Add(web.Masthead);
+                if (web.MastheadTool.Width > 0) regions.Add(web.MastheadTool);
             }
 
             return regions;
@@ -160,29 +128,34 @@ public sealed partial class MainPage : Page
 
     public MainPage()
     {
+        _motionBackgroundImporter = new(() => ViewModel.GalleryReadOnlyRoots);
+        _wallpaperAssetImporter = new(() => ViewModel.GalleryReadOnlyRoots);
         InitializeComponent();
-        ApplyLaunchSettingsHostLayout(RootGrid.ActualWidth);
-        AppearanceRuntimeValues.ApplyOpacityTransition(ProfileQuickSwitchRail);
-        _xamlInitialized = true;
+        NativeSkin.Observe(this, ApplyNativeSurface);
+        ApplyHomeSkin(ViewModel.AppearanceSettings.HomeSkin);
+        HomeDataChanged += RefreshWebJournal;
         ContentFrame.Navigated += OnContentFrameNavigated;
-        LaunchSettingsFrame.Navigated += OnLaunchSettingsFrameNavigated;
         Unloaded += OnPageUnloaded;
 
         ContentFrame.Visibility = Visibility.Visible;
         ContentFrame.Navigate(
             typeof(LauncherPage),
             new LauncherNavigationContext(ViewModel));
-        SetShellNavigationSelection(LauncherNavigationItem);
         UpdateJournalDurationUi();
 
         RefreshOnArtSurfaceRegistration();
     }
 
-    private void OnRootGridSizeChanged(object sender, SizeChangedEventArgs e) =>
-        ApplyLaunchSettingsHostLayout(e.NewSize.Width);
+    internal ArtBackdropService HomeBackdrop => _backdrop;
+    private HomeSkin? _homeSkin;
 
-    private void ApplyLaunchSettingsHostLayout(double width) =>
-        LaunchSettingsFrame.Margin = width < CompactLaunchSettingsHostWidth
-            ? new Thickness(56, 48, 8, 8)
-            : new Thickness(56, 60, 24, 24);
+    private void ApplyHomeSkin(string id)
+    {
+        var skin = HomeSkins.Resolve(id);
+        if (skin == _homeSkin) return;
+        LauncherBackground.ApplyArtFrame(default, default);
+        _homeSkin = skin;
+        SyncLauncherChrome();
+        NotifyTitleBarPassthroughChanged();
+    }
 }

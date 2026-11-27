@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN" data-skin="atelier"><head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'self' file:; font-src 'self' file:; img-src 'self' https://still.nikkiward.invalid data: file:; media-src https://motion.nikkiward.invalid; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>高定画册</title>
+<link rel="stylesheet" href="../../fonts/bodoni-moda.css">
+<link rel="stylesheet" href="../../fonts/noto-serif-sc.css">
+<link rel="stylesheet" href="home.css"><script src="../../shared/home.js" defer></script><script src="home.js" defer></script>
+<link rel="stylesheet" href="../../shared/theme.css"><link rel="stylesheet" href="../../shared/planner.css"><script defer src="../../shared/planner.js"></script>
+<link rel="stylesheet" href="../../shared/overlays.css"><script defer src="../../shared/overlays.js"></script>
+</head><body><div class="win pending" id="win">
+  <!-- 封面 -->
+  <div class="cover" aria-hidden="true">
+    <img id="coverImg" alt=""><video id="coverVideo" muted loop playsinline hidden></video>
+    <div class="wash top"></div><div class="wash bot"></div>
+  </div>
+
+  <header class="mast">
+    <button class="wordmark" data-action="nav-launcher" aria-label="Nikkiward · 回到封面">Nikkiward</button>
+    <nav aria-label="栏目" id="nav">
+      <button data-action="nav-launcher" aria-current="page">封面</button>
+      <button data-action="nav-library">手账</button>
+      <button data-action="nav-gallery">相册</button>
+      <button data-action="nav-gallery-favorites">收藏</button>
+      <button data-action="nav-resonance">共鸣</button>
+      <button data-action="nav-settings">设置</button>
+    </nav>
+    <div class="drag" title="标题栏拖拽区"></div>
+  </header>
+  <!-- 首页 -->
+  <section class="home" id="home" aria-label="封面 · 启动">
+    <div class="issue">
+      <span id="issueDate"></span><i></i><span>无限暖暖 PC</span><i></i><span id="platform"></span><i></i><span>非官方社区启动器</span>
+      <span class="sp"></span>
+      <button class="bgtask" id="bgtask" data-action="download"><span></span><span class="bar"></span><span><span class="num"></span> %</span></button>
+    </div>
+
+    <div class="headline">
+      <p class="kick">本期封面 · <span id="coverKick">内置原画</span></p>
+      <h1 id="coverTitle" data-len="2"></h1>
+      <div class="deck">
+        <p>你喜欢的画，<br>就是启动页。</p>
+        <p class="links"><button class="lnk" data-action="background">更换封面</button><button class="lnk" data-action="reset">恢复默认封面</button></p>
+      </div>
+    </div>
+
+    <div class="band">
+      <button class="col" data-action="status" id="colCheck">
+        <span class="kick">启动检查</span>
+        <span class="v" id="chkV"></span>
+        <span class="s" id="chkS"></span>
+      </button>
+      <button class="col" data-action="journal"><span class="kick">奇想手账</span><span class="v" id="official"></span><span class="s" id="journalInfo"></span><span class="s" id="local" hidden></span></button>
+      <button class="col checklist-col" data-planner="check" aria-haspopup="dialog"><span class="kick">今日清单</span><span class="v" id="checklist"></span><span class="s" id="nextTask" hidden></span></button>
+      <div class="col recent">
+        <div class="hd"><span class="kick">最近拍摄</span><span class="lg" id="lastSession" hidden></span><button class="lnk" id="allPhotos" data-action="gallery">全部</button></div>
+        <div class="thumbs" id="recent"></div>
+      </div>
+    </div>
+
+    <div class="tagzone">
+      <div class="tagrow">
+        <button class="profile" id="profileBtn" aria-haspopup="dialog" aria-controls="switcher" aria-expanded="false"><span class="kick">档案</span><b id="profileName"></b><svg viewBox="0 0 10 10"><path d="M1 3l4 4 4-4"/></svg></button>
+        <button class="lnk" data-action="settings">游戏设置</button>
+      </div>
+      <div class="tag" id="tag" data-kind="solid" data-state="ready">
+        <svg class="stitch" aria-hidden="true"><rect/></svg>
+        <button class="tag-main" id="launch" data-action="launch" aria-describedby="launchDetail">
+          <span class="tag-kick" id="tagKick"></span>
+          <span class="tag-title" id="tagTitle">启动游戏</span>
+          <span class="tag-sub" id="tagSub"></span>
+          <span id="launchDetail" hidden></span>
+          <svg class="tag-arrow" viewBox="0 0 34 14" aria-hidden="true"><path d="M0 7h32M26 1l6 6-6 6"/></svg>
+        </button>
+        <button class="tag-close" id="closeGame" data-action="close" hidden>关闭游戏</button>
+        <span class="tag-prog"></span>
+      </div>
+      <div class="tag-acts" id="tagActs" hidden><button class="lnk" id="locate" data-action="locate">定位游戏</button><button class="lnk" id="status" data-action="status">查看检查明细</button><button class="lnk" id="retry"></button></div>
+    </div>
+  </section>
+<div class="veil clear" id="veil"></div>
+  <div class="sheet" id="switcher" role="dialog" aria-label="切换档案">
+    <h4><span>档案</span><span class="kick"></span></h4>
+    <div id="profs" role="radiogroup" aria-label="档案"></div>
+    <div class="ft"><span></span><button class="lnk" id="rediscover" data-action="rediscover">刷新 · 重新发现安装</button></div>
+  </div>
+</div></body></html>

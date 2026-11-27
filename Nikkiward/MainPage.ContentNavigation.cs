@@ -7,17 +7,14 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Media.Animation;
 using Nikkiward.Features.Background;
-using Nikkiward.Features.Diagnostics;
 using Nikkiward.Features.Gallery;
 using Nikkiward.Features.GamepadControl;
 using Nikkiward.Features.Journal;
 using Nikkiward.Features.Launcher;
-using Nikkiward.Features.Profile;
+using Nikkiward.Features.Launcher.Skins;
 using Nikkiward.Features.Settings;
 using Nikkiward.Features.Shell;
-using Nikkiward.Features.Wish;
 using Nikkiward.Models;
-using Nikkiward.Pages;
 using Nikkiward.Services;
 using Nikkiward.ViewModels;
 using Windows.ApplicationModel.DataTransfer;
@@ -62,167 +59,50 @@ public sealed partial class MainPage
         {
             ApplyMotionPreference(ViewModel.AppearanceSettings.Motion);
             LauncherBackground.ConfigureAppearance(ViewModel.AppearanceSettings);
+            HomeInteractionChanged?.Invoke(this, EventArgs.Empty);
             SyncLauncherChrome();
         });
     }
 
-    private async Task ShowGalleryAsync(
-        bool returnToSettings = false,
-        GalleryViewMode viewMode = GalleryViewMode.All)
+    internal event EventHandler? HomeInteractionChanged;
+    internal bool HomeInteractive { get; private set; }
+
+    internal async Task<string?> SceneCoverAsync(string package, CancellationToken token)
     {
-        CloseProfileOverlay();
-        HideLibrary();
-        HideResonance();
-        HidePhotoPlugin();
-        _returnToSettingsAfterGallery = returnToSettings;
-        HideStatusDrawer();
-        ContentFrame.Visibility = Visibility.Visible;
-        SyncLauncherChrome();
-
-        var cancellationToken = _lifetimeCancellation?.Token ?? CancellationToken.None;
-        await ViewModel.InitializeAsync(cancellationToken);
-        if (ContentFrame.Content is GalleryPage galleryPage)
-        {
-            galleryPage.ApplyAppearanceSettings(ViewModel.AppearanceSettings);
-            galleryPage.SetSurfaceActive(true);
-            await galleryPage.LoadForProfileAsync(
-                ViewModel.SelectedProfileId,
-                ViewModel.GameRootPath,
-                ViewModel.GalleryRootPath,
-                cancellationToken,
-                viewMode,
-                forceReload: false);
-            return;
-        }
-
-        ContentFrame.Navigate(
-            typeof(GalleryPage),
-            new GalleryNavigationContext(
-                ViewModel.SelectedProfileId,
-                ViewModel.GameRootPath,
-                ViewModel.GalleryRootPath,
-                GalleryProtection,
-                cancellationToken,
-                viewMode,
-                ViewModel.AppearanceSettings),
-            AppearanceRuntimeValues.CreateNavigationTransitionInfo());
+        var preview = await Task.Run(() => WallpaperPackageReader.Inspect(package).PreviewPath, token);
+        if (preview != null) return preview;
+        var cached = await GalleryThumbnailFile.GetOrCreateAsync(HomeBackground.StillFolder(ApplicationDataPaths.Root),
+            null, new FileInfo(package), false, LauncherBackground.CaptureSceneFrameAsync, token);
+        return cached?.FilePath;
     }
 
-    private void ShowLibrary()
-    {
-        CloseProfileOverlay();
-        HideGallery();
-        HideResonance();
-        HidePhotoPlugin();
-        HideStatusDrawer();
-        ContentFrame.Visibility = Visibility.Visible;
-        SyncLauncherChrome();
-        if (ContentFrame.Content is JournalPage journalPage)
-        {
-            journalPage.ResetScroll();
-            return;
-        }
+    internal string HomeStillSource => _currentBackgroundSource;
 
-        ContentFrame.Navigate(
-            typeof(JournalPage),
-            null,
-            AppearanceRuntimeValues.CreateNavigationTransitionInfo());
-    }
-
-    private void ShowResonance()
-    {
-        CloseProfileOverlay();
-        HideLibrary();
-        HideGallery();
-        HidePhotoPlugin();
-        HideStatusDrawer();
-        ContentFrame.Visibility = Visibility.Visible;
-        SyncLauncherChrome();
-        if (ContentFrame.Content is WishPage wishPage)
-        {
-            wishPage.ResetScroll();
-            return;
-        }
-
-        ContentFrame.Navigate(
-            typeof(WishPage),
-            null,
-            AppearanceRuntimeValues.CreateNavigationTransitionInfo());
-    }
-
-    private void ShowPhotoPlugin()
-    {
-        if (_photoPluginInstallation?.IsInstalled is not true)
-        {
-            ShowSettingsPage(destination: SettingsDestination.Plugins);
-            return;
-        }
-
-        CloseProfileOverlay();
-        HideLibrary();
-        HideGallery();
-        HideResonance();
-        HideStatusDrawer();
-        ContentFrame.Visibility = Visibility.Visible;
-        SyncLauncherChrome();
-
-        if (ContentFrame.Content is PhotoPluginPage photoPluginPage)
-        {
-            UpdatePhotoPluginPageState(photoPluginPage);
-            return;
-        }
-
-        ContentFrame.Navigate(
-            typeof(PhotoPluginPage),
-            null,
-            AppearanceRuntimeValues.CreateNavigationTransitionInfo());
-    }
-
-    /// <summary>
-    /// Single source of truth for launcher chrome visibility. Every navigation
-    /// path calls this instead of toggling elements itself, so adding a page
-    /// cannot leave launcher content bleeding through it.
-    /// </summary>
-    private void SyncLauncherChrome()
+    internal void SyncLauncherChrome()
     {
         EnsureSystemMotionSubscription();
         bool contentOpen = ContentFrame.Visibility == Visibility.Visible;
         bool launcherOpen = contentOpen && ContentFrame.Content is LauncherPage;
-        var profilePage = contentOpen ? ContentFrame.Content as ProfilePage : null;
-        bool profileOpen = profilePage is not null;
-        bool profilePickerOpen = profilePage is { IsDetailsVisible: false };
-        bool pageOpen =
-            contentOpen &&
-            (profilePage?.IsDetailsVisible == true ||
-             ContentFrame.Content is not ProfilePage and not LauncherPage);
+        bool pageOpen = contentOpen && !launcherOpen;
 
-        bool blockingOverlayOpen =
-            StatusDrawer.Visibility == Visibility.Visible ||
-            LaunchSettingsFrame.Visibility == Visibility.Visible;
-        bool overlayOpen = blockingOverlayOpen || profileOpen;
-        bool launcherSurfaceVisible =
-            launcherOpen &&
-            !blockingOverlayOpen &&
-            !profilePickerOpen;
-        bool launcherSurfaceInteractive =
-            launcherOpen &&
-            !overlayOpen &&
-            !profilePickerOpen;
-
-        LauncherBackground.SetLauncherSurfaceState(
-            launcherSurfaceVisible,
-            launcherSurfaceInteractive);
-
-        PageHostBackdrop.Visibility = Visible(pageOpen);
-        ProfileQuickSwitchHost.Visibility =
-            Visible(profilePickerOpen || launcherSurfaceVisible);
-        if (!ViewModel.GeneralSettings.EnableProfileQuickSwitcher)
+        if (HomeInteractive != launcherOpen)
         {
-            ProfileQuickSwitchHost.Visibility = Visibility.Collapsed;
+            HomeInteractive = launcherOpen;
+            HomeInteractionChanged?.Invoke(this, EventArgs.Empty);
         }
+        bool webCover = launcherOpen && _hostedLauncherPage?.WebHome?.CoverVisible == true;
+        LauncherBackground.SetLauncherSurfaceState(
+            launcherOpen && _hostedLauncherPage?.IsSafeMode == true,
+            launcherOpen, webCover);
+        LauncherBackground.Visibility = Visible(!webCover);
+
+        ContentFrame.Margin = pageOpen && CurrentWebPage == null ? new Thickness(0, 48, 0, 0) : default;
+        PageHostBackdrop.Visibility = Visible(pageOpen);
+        UpdateNativeSkin();
+
         if (_hostedLauncherPage is { } launcherPage)
         {
-            launcherPage.IsHitTestVisible = launcherOpen && !overlayOpen;
+            launcherPage.IsHitTestVisible = launcherOpen;
         }
 
         RefreshOnArtSurfaceRegistration();
@@ -234,11 +114,7 @@ public sealed partial class MainPage
 
     private void RefreshOnArtSurfaceRegistration()
     {
-        var hosts = new List<FrameworkElement>
-        {
-            ProfileQuickSwitchRail,
-            ProfileOverlayMask,
-        };
+        var hosts = new List<FrameworkElement>();
 
         if (ContentFrame.Visibility == Visibility.Visible &&
             ContentFrame.Content is LauncherPage { OnArtHost: { } launcherOnArtHost })
@@ -246,43 +122,7 @@ public sealed partial class MainPage
             hosts.Add(launcherOnArtHost);
         }
 
-        if (LaunchSettingsFrame.Visibility == Visibility.Visible &&
-            LaunchSettingsFrame.Content is LaunchSettingsPage { OnArtHost: { } launchSettingsOnArtHost })
-        {
-            hosts.Add(launchSettingsOnArtHost);
-        }
-
-        if (ContentFrame.Visibility == Visibility.Visible &&
-            ContentFrame.Content is ProfilePage profilePage &&
-            !profilePage.IsDetailsVisible &&
-            profilePage.OnArtHost is { } profileOnArtHost)
-        {
-            hosts.Add(profileOnArtHost);
-        }
-
-        if (StatusDrawer.Visibility == Visibility.Visible)
-        {
-            hosts.Add(StatusDrawer);
-        }
-        else
-        {
-            StatusDrawer.RequestedTheme = ElementTheme.Default;
-        }
-
-        _backdrop.AttachOnArtSurface(OnArtScrim, hosts.ToArray());
-        ApplyOnArtScrimTheme();
-    }
-
-    private void ApplyOnArtScrimTheme()
-    {
-        OnArtScrim.RequestedTheme = ViewModel.ThemeMode switch
-        {
-            ThemeMode.WarmLight => ElementTheme.Light,
-            ThemeMode.WarmDark => ElementTheme.Dark,
-            _ => _backdrop.PreferredTheme == ArtPreferredTheme.Dark
-                ? ElementTheme.Dark
-                : ElementTheme.Light,
-        };
+        _backdrop.AttachOnArtSurface(hosts.ToArray());
     }
 
     /// <summary>
@@ -290,59 +130,11 @@ public sealed partial class MainPage
     /// has run. A region that just became visible still measures zero, so the
     /// immediate pass would register nothing and swallow its clicks.
     /// </summary>
-    private void NotifyTitleBarPassthroughChanged()
+    internal void NotifyTitleBarPassthroughChanged()
     {
         TitleBarPassthroughChanged?.Invoke(this, EventArgs.Empty);
         DispatcherQueue?.TryEnqueue(
             Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
             () => TitleBarPassthroughChanged?.Invoke(this, EventArgs.Empty));
-    }
-
-    private void HideLibrary()
-    {
-        if (ContentFrame.Content is JournalPage)
-        {
-            ContentFrame.Visibility = Visibility.Collapsed;
-        }
-    }
-
-    private void HideResonance()
-    {
-        if (ContentFrame.Content is WishPage)
-        {
-            ContentFrame.Visibility = Visibility.Collapsed;
-        }
-    }
-
-    private void HidePhotoPlugin()
-    {
-        if (ContentFrame.Content is PhotoPluginPage)
-        {
-            ContentFrame.Visibility = Visibility.Collapsed;
-        }
-    }
-
-    private void HideGallery()
-    {
-        if (ContentFrame.Content is GalleryPage galleryPage)
-        {
-            galleryPage.SetSurfaceActive(false);
-            galleryPage.ClosePreview();
-            ContentFrame.Visibility = Visibility.Collapsed;
-            _returnToSettingsAfterGallery = false;
-            SyncLauncherChrome();
-        }
-    }
-
-    private void OnCloseGalleryClicked(object sender, RoutedEventArgs e)
-    {
-        if (_returnToSettingsAfterGallery)
-        {
-            _returnToSettingsAfterGallery = false;
-            ShowSettingsPage(restoreDestination: true);
-            return;
-        }
-
-        CloseDetails();
     }
 }

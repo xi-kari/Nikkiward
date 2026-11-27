@@ -5,7 +5,6 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using Nikkiward.Features.Background;
 using Nikkiward.Features.Shell;
 using Nikkiward.Models;
-using Nikkiward.Pages;
 
 namespace Nikkiward;
 
@@ -15,6 +14,8 @@ public sealed partial class MainPage
 
     private void ApplyAppearanceSettings(AppearanceSettings settings)
     {
+        ApplyHomeSkin(settings.HomeSkin);
+        UpdateNativeSkin();
         ApplyThemeMode(settings.ThemeMode);
         if (settings.AccentMode == AccentColorMode.Fixed)
         {
@@ -31,11 +32,6 @@ public sealed partial class MainPage
         LauncherBackground.ConfigureAppearance(settings);
         ConfigureBackgroundCarousel(settings.Background);
         _hostedLauncherPage?.ApplyAppearanceSettings(settings);
-        _hostedLaunchSettingsPage?.ApplyAppearanceSettings(settings);
-        if (ContentFrame.Content is GalleryPage galleryPage)
-        {
-            galleryPage.ApplyAppearanceSettings(settings);
-        }
     }
 
     private void ApplyFixedAccent(AppearanceSettings settings)
@@ -105,19 +101,10 @@ public sealed partial class MainPage
         resources["PressScale"] = projection.PressScale;
         resources["ButtonHoverScale"] = projection.ButtonHoverScale;
         resources["ParallaxAmplitude"] = projection.ParallaxAmplitude;
-        var connectedAnimations = ConnectedAnimationService.GetForCurrentView();
-        connectedAnimations.DefaultDuration = TimeSpan.FromMilliseconds(
-            projection.ArtDurationMilliseconds);
         RefreshThemeResourceBindings();
         AppearanceRuntimeValues.RefreshTransitions(RootGrid);
         if (projection.IsZero)
         {
-            connectedAnimations
-                .GetAnimation(AppearanceRuntimeValues.GalleryPreviewAnimationKey)
-                ?.Cancel();
-            connectedAnimations
-                .GetAnimation(AppearanceRuntimeValues.JournalDetailAnimationKey)
-                ?.Cancel();
             ResetInteractiveScales(RootGrid);
         }
     }
@@ -185,13 +172,6 @@ public sealed partial class MainPage
             if (!IsAvailableBackgroundSource(_currentBackgroundSource))
             {
                 RestoreDefaultBackground();
-                _backgroundStatusText = "轮播已停止：当前背景文件不可用，已恢复默认背景。";
-                ApplySettingsPageState(_hostedSettingsPage);
-            }
-            else if (settings.CarouselEnabled)
-            {
-                _backgroundStatusText = "轮播已停止：至少需要两张可用图片。";
-                ApplySettingsPageState(_hostedSettingsPage);
             }
 
             return;
@@ -223,21 +203,14 @@ public sealed partial class MainPage
             if (!IsAvailableBackgroundSource(_currentBackgroundSource))
             {
                 RestoreDefaultBackground();
-                _backgroundStatusText = "轮播已停止：当前背景文件不可用，已恢复默认背景。";
-            }
-            else
-            {
-                _backgroundStatusText = "轮播已停止：至少需要两张可用图片。";
             }
 
-            ApplySettingsPageState(_hostedSettingsPage);
             return;
         }
 
         _backgroundCarouselIndex = (_backgroundCarouselIndex + 1) % sources.Length;
         var source = sources[_backgroundCarouselIndex];
         SetCurrentBackgroundSource(source);
-        _backgroundStatusText = $"轮播背景：{Path.GetFileName(source)}";
         var cancellationToken = _lifetimeCancellation?.Token ?? CancellationToken.None;
         var analyzed = await AnalyzeBackdropAsync(source, cancellationToken);
         if (!analyzed)
@@ -251,7 +224,6 @@ public sealed partial class MainPage
             return;
         }
 
-        ApplySettingsPageState(_hostedSettingsPage);
     }
 
     private async Task DisableBrokenCarouselSourceAsync(string failedSource)
@@ -262,9 +234,6 @@ public sealed partial class MainPage
         {
             _backgroundCarouselTimer?.Stop();
             RestoreDefaultBackground();
-            _backgroundStatusText =
-                $"轮播已停止：无法读取 {Path.GetFileName(failedSource)}，已恢复默认背景。";
-            ApplySettingsPageState(_hostedSettingsPage);
 
             var appearance = ViewModel.AppearanceSettings;
             var remaining = appearance.Background.CarouselSources
@@ -323,6 +292,7 @@ public sealed partial class MainPage
 
     private void SetCurrentBackgroundSource(string source)
     {
+        ViewModel.ShowArtwork(source);
         if (string.Equals(
             source,
             _currentBackgroundSource,

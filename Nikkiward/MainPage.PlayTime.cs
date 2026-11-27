@@ -108,7 +108,7 @@ public sealed partial class MainPage
         return (DateTimeOffset.UtcNow, games);
     }
 
-    private async void OnClearPlayTimeRequested(object? sender, EventArgs e)
+    private async Task ClearPlayTimeAsync()
     {
         if (!_dialogGate.Wait(0)) return;
         try
@@ -123,7 +123,7 @@ public sealed partial class MainPage
                 CloseButtonText = "取消",
                 DefaultButton = ContentDialogButton.Close,
             };
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+            if (await NativeSkin.ShowAsync(dialog) != ContentDialogResult.Primary) return;
         }
         catch (Exception ex)
         {
@@ -162,10 +162,23 @@ public sealed partial class MainPage
         RefreshPlayTimeViews();
     }
 
+    internal (PlaySession? Current, PlaySession? Previous, DateTimeOffset? Started) HomeSessions =>
+        ViewModel.GeneralSettings.RecordLocalPlayTime ? _playTime?.HomeSessions(ViewModel.PlayChannel) ?? default : default;
+
+    private (bool CanClear, string? Error) _lastWebPlayTime;
+
     private void RefreshPlayTimeViews()
     {
         var sessions = _playTime?.Sessions ?? [];
-        _hostedSettingsPage?.ApplyPlayTimeState(sessions.Count > 0, _playTimeError);
-        _hostedJournalPage?.ApplyPlayTime(ViewModel.GeneralSettings.RecordLocalPlayTime, sessions, _playTimeError);
+        ViewModel.LocalPlayDuration = ViewModel.GeneralSettings.RecordLocalPlayTime && sessions.Count > 0
+            ? $"本机 {sessions.Sum(session => session.Duration.TotalHours):0.#} 小时" : null;
+        _webGallery?.PlayTimeChanged();
+        HomeDataChanged?.Invoke(this, EventArgs.Empty);
+        var settingsState = (sessions.Count > 0, _playTimeError);
+        if (_lastWebPlayTime != settingsState)
+        {
+            _lastWebPlayTime = settingsState;
+            CurrentWebPage?.Refresh();
+        }
     }
 }

@@ -35,6 +35,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="Assets\NikkiDefaultBackground.jpg;Assets\NikkiPresetBackground2.jpg" Link="Web\art\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="Web\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Remove="Assets\NikkiBackground.png;Assets\NikkiDefaultBackground.png" />
     <Content Include="Assets\SplashScreen.scale-200.png" />
     <Content Include="Assets\LockScreenLogo.scale-200.png" />
@@ -65,6 +67,12 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
+    <Content Update="Assets\HomeSkins\*.jpg">
+      <Link>Web\art\HomeSkins\%(Filename)%(Extension)</Link>
+      <TargetPath>Web\art\HomeSkins\%(Filename)%(Extension)</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
     <Content Update="Assets\DefaultFavorites\*.jpg">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
@@ -73,10 +81,7 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
-    <Content Include="Shaders\LauncherNebula.bin">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </Content>
+
     <Content Include="$(Nuan5LibraryPath)" Link="runtimes\win-x64\native\nuan5_decryption.dll" Condition="'$(Nuan5LibraryPath)' != '' and Exists('$(Nuan5LibraryPath)')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
@@ -154,4 +159,7 @@
     <PublishReadyToRun Condition="'$(Configuration)' != 'Debug'">True</PublishReadyToRun>
     <PublishTrimmed>False</PublishTrimmed>
   </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Web/shared/theme.css" LogicalName="Nikkiward.NativeTheme.css" />
+  </ItemGroup>
 </Project>

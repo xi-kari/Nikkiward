@@ -7,8 +7,8 @@ internal static class AppearanceSettingsTests
     public static (string Name, Func<Task> Run)[] All =>
     [
         ("appearance defaults target the current schema", DefaultsTargetCurrentSchema),
-        ("launcher masthead defaults are customizable", LauncherMastheadDefaultsAreCustomizable),
-        ("launcher masthead text normalization restores safe defaults", LauncherMastheadTextNormalizationRestoresDefaults),
+        (nameof(HomeAppearanceDefaults), HomeAppearanceDefaults),
+        (nameof(ArtworkTitleNormalization), ArtworkTitleNormalization),
         ("appearance choices expose the planned mode counts", ChoicesExposePlannedModeCounts),
         ("fixed accents match the five brand colors", FixedAccentsMatchBrandColors),
         ("custom fixed accent is projected opaque", CustomFixedAccentIsProjectedOpaque),
@@ -26,7 +26,7 @@ internal static class AppearanceSettingsTests
         ("motion levels remain ordered and off is zero", MotionLevelsRemainOrdered),
         ("missing background projects to shipped artwork", MissingBackgroundUsesShippedArtwork),
         ("available background remains selected", AvailableBackgroundRemainsSelected),
-        ("built-in background presets bind sources and capsule styles", BuiltInBackgroundPresetsBindSourcesAndStyles),
+        ("built-in background presets carry their artwork names", BuiltInBackgroundPresetsBindSourcesAndNames),
         ("built-in background sources remain selectable", BuiltInBackgroundSourcesRemainSelectable),
     ];
 
@@ -35,7 +35,7 @@ internal static class AppearanceSettingsTests
         var userSettings = new UserSettings();
         var settings = userSettings.Appearance;
 
-        AssertEqual(8, UserSettings.CurrentSchemaVersion, "schema version");
+        AssertEqual(9, UserSettings.CurrentSchemaVersion, "schema version");
         AssertEqual(ThemeMode.WarmDark, settings.ThemeMode, "theme mode");
         AssertEqual(AccentColorMode.Adaptive, settings.AccentMode, "accent mode");
         AssertEqual(FixedAccentColor.Blush, settings.FixedAccent, "fixed accent");
@@ -43,10 +43,7 @@ internal static class AppearanceSettingsTests
         Assert(settings.UseSerifTitles, "serif titles should be enabled");
         AssertEqual(AppearanceMotionMode.Full, settings.Motion, "motion mode");
         AssertEqual(InterfaceDensity.Standard, settings.Density, "density");
-        AssertEqual(
-            LauncherCapsuleStyle.Ocean,
-            settings.LauncherCapsuleStyle,
-            "launcher capsule style");
+
         Assert(settings.Background.SelectedSource is null, "selected background");
         AssertEqual(0, settings.Background.CarouselSources.Count, "carousel sources");
         Assert(!settings.Background.CarouselEnabled, "carousel should be disabled");
@@ -70,48 +67,20 @@ internal static class AppearanceSettingsTests
         return Task.CompletedTask;
     }
 
-    private static Task LauncherMastheadDefaultsAreCustomizable()
+    private static Task HomeAppearanceDefaults()
     {
         var settings = new AppearanceSettings();
-
-        AssertEqual(
-            AppearanceSettings.DefaultLauncherMastheadLabel,
-            settings.LauncherMastheadLabel,
-            "masthead label default");
-        AssertEqual(
-            AppearanceSettings.DefaultLauncherMastheadTitle,
-            settings.LauncherMastheadTitle,
-            "masthead title default");
-        AssertEqual(
-            AppearanceSettings.DefaultLauncherMastheadSubtitle,
-            settings.LauncherMastheadSubtitle,
-            "masthead subtitle default");
-        AssertEqual("无限暖暖启动！", settings.LauncherMastheadSubtitle, "stable launcher subtitle");
-        Assert(!settings.ShowLauncherUtilityPanels, "launcher notice panel should be hidden by default");
+        AssertEqual("WishStar", settings.HomeSkin, "requested skin");
+        AssertEqual(0, settings.ArtworkTitles.Count, "no invented artwork names");
         return Task.CompletedTask;
     }
 
-    private static Task LauncherMastheadTextNormalizationRestoresDefaults()
+    private static Task ArtworkTitleNormalization()
     {
-        var normalized = AppearanceSettingsValidator.Normalize(new AppearanceSettings
-        {
-            LauncherMastheadLabel = "  ",
-            LauncherMastheadTitle = "  自定义标题  ",
-            LauncherMastheadSubtitle = "  ",
-        });
-
-        AssertEqual(
-            AppearanceSettings.DefaultLauncherMastheadLabel,
-            normalized.LauncherMastheadLabel,
-            "blank masthead label");
-        AssertEqual("自定义标题", normalized.LauncherMastheadTitle, "trimmed masthead title");
-        AssertEqual(string.Empty, normalized.LauncherMastheadSubtitle, "blank masthead subtitle");
-
-        var limited = AppearanceSettingsValidator.Normalize(new AppearanceSettings
-        {
-            LauncherMastheadSubtitle = new string('x', 160),
-        });
-        AssertEqual(120, limited.LauncherMastheadSubtitle.Length, "masthead subtitle length");
+        var art = new AppearanceSettings().WithArtworkTitle("image", original: "花.jpg")
+            .WithArtworkTitle("image", name: new string('花', 130));
+        AssertEqual(120, art.ArtworkTitles["image"].Name!.Length, "title length");
+        AssertEqual("", art.WithArtworkTitle("image", "  ").ArtworkTitles["image"].Name!, "blank title uses filename");
         return Task.CompletedTask;
     }
 
@@ -122,11 +91,7 @@ internal static class AppearanceSettingsTests
         AssertEqual(5, Enum.GetValues<FixedAccentColor>().Length, "fixed accents");
         AssertEqual(3, Enum.GetValues<AppearanceMotionMode>().Length, "motion choices");
         AssertEqual(3, Enum.GetValues<InterfaceDensity>().Length, "density choices");
-        AssertEqual(6, Enum.GetValues<LauncherCapsuleStyle>().Length, "launcher capsule styles");
-        Assert(
-            Enum.GetNames<LauncherCapsuleStyle>().SequenceEqual(
-                ["Original", "Ocean", "Klein", "Ultraviolet", "Chrome", "Plus"]),
-            "launcher capsule styles must retain the six reference values");
+
         return Task.CompletedTask;
     }
 
@@ -445,7 +410,7 @@ internal static class AppearanceSettingsTests
         AssertThrows<ArgumentOutOfRangeException>(() =>
             AppearanceSettingsValidator.Normalize(new AppearanceSettings
             {
-                LauncherCapsuleStyle = (LauncherCapsuleStyle)99,
+                Density = (InterfaceDensity)99,
             }));
         AssertThrows<ArgumentOutOfRangeException>(() =>
             AppearanceSettingsValidator.Normalize(new AppearanceSettings
@@ -538,33 +503,21 @@ internal static class AppearanceSettingsTests
         return Task.CompletedTask;
     }
 
-    private static Task BuiltInBackgroundPresetsBindSourcesAndStyles()
+    private static Task BuiltInBackgroundPresetsBindSourcesAndNames()
     {
         AssertEqual(2, AppearanceBackgroundPresets.All.Count, "preset count");
         AssertEqual(
             AppearanceBackgroundPresets.Preset1Source,
             AppearanceBackgroundPresets.All[0].Source,
             "preset 1 source");
-        AssertEqual(
-            LauncherCapsuleStyle.Ocean,
-            AppearanceBackgroundPresets.All[0].CapsuleStyle,
-            "preset 1 capsule style");
-        AssertEqual(
-            ThemeMode.WarmDark,
-            AppearanceBackgroundPresets.All[0].SurfaceThemeMode,
-            "preset 1 surface theme");
+
+        AssertEqual("海月", AppearanceBackgroundPresets.All[0].Title, "artwork name");
         AssertEqual(
             AppearanceBackgroundPresets.Preset2Source,
             AppearanceBackgroundPresets.All[1].Source,
             "preset 2 source");
-        AssertEqual(
-            LauncherCapsuleStyle.Plus,
-            AppearanceBackgroundPresets.All[1].CapsuleStyle,
-            "preset 2 capsule style");
-        AssertEqual(
-            ThemeMode.WarmLight,
-            AppearanceBackgroundPresets.All[1].SurfaceThemeMode,
-            "preset 2 surface theme");
+
+        AssertEqual("花信", AppearanceBackgroundPresets.All[1].Title, "artwork name");
         AssertEqual(
             AppearanceProjector.BuiltInBackgroundSource,
             AppearanceBackgroundPresets.Preset1Source,

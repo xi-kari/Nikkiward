@@ -14,6 +14,7 @@ internal static class GalleryMetadataTests
         ("gallery metadata enforces the inclusive 10 MB boundary", TestFileSizeBoundary),
         ("gallery native calls are process-wide serial", TestProcessWideSerialization),
         ("gallery metadata parses audited fields and releases native resources", TestSuccessfulParseAndRelease),
+        ("gallery reads terminated camera data after interactive photo maps", TestGamePayload),
         ("gallery metadata frees returned bytes on native failure", TestFailureRelease),
         ("gallery metadata frees returned camera bytes on native failure", TestCameraFailureRelease),
         ("gallery metadata avoids double-free for aliased keys", TestAliasedKeyRelease),
@@ -172,6 +173,16 @@ internal static class GalleryMetadataTests
             property.Name.Contains("Json", StringComparison.OrdinalIgnoreCase) ||
             property.Name.Contains("Key", StringComparison.OrdinalIgnoreCase)),
             "UI model must not expose raw JSON or keys");
+    }
+
+    private static async Task TestGamePayload()
+    {
+        using var fixture = GalleryMetadataFixture.CreateFile(32);
+        var native = FakeNativeAdapter.ForSuccess();
+        native.FirstPayload = [.. "{\"InteractivePhoto\":[:key:true],\"SocialPhoto\":{\"CameraParams\":\"camera-ciphertext\",\"PhotoInfo\":{\"pose_id\":19}}}"u8, 0, 0xff];
+        native.CameraPayload = [.. native.CameraPayload, 0, 0x91];
+        var result = await new Nuan5GalleryMetadataService(native).ReadAsync(fixture.FilePath);
+        Assert(result.HasParameters && result.PoseId == 19, "read social and camera fields");
     }
 
     private static async Task TestFailureRelease()

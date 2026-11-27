@@ -8,16 +8,12 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Media.Animation;
 using Nikkiward.Features.Background;
-using Nikkiward.Features.Diagnostics;
 using Nikkiward.Features.Gallery;
 using Nikkiward.Features.GamepadControl;
 using Nikkiward.Features.Journal;
 using Nikkiward.Features.Launcher;
-using Nikkiward.Features.Profile;
 using Nikkiward.Features.Settings;
-using Nikkiward.Features.Wish;
 using Nikkiward.Models;
-using Nikkiward.Pages;
 using Nikkiward.Services;
 using Nikkiward.ViewModels;
 using Windows.ApplicationModel.DataTransfer;
@@ -57,9 +53,6 @@ public sealed partial class MainPage
             return Win32FolderDialog.PickFolder(windowHandle, commitButtonText);
         }
     }
-
-    private async void OnChooseBackgroundClicked(object sender, RoutedEventArgs e) =>
-        await ChooseWallpaperAsync(null);
 
     private async Task ChooseWallpaperAsync(WallpaperImportMode? requestedMode)
     {
@@ -157,7 +150,7 @@ public sealed partial class MainPage
 
             await CommitStillBackgroundAsync(
                 frame.ImportedPath,
-                $"{displayName}（预览帧）",
+                displayName,
                 cancellationToken);
             return;
         }
@@ -198,18 +191,13 @@ public sealed partial class MainPage
         {
             var previousAppearance = ViewModel.AppearanceSettings;
             var previousSource = _currentBackgroundSource;
-            var previousStatus = _backgroundStatusText;
             SetCurrentBackgroundSource(importedPath);
-            _backgroundStatusText = $"当前背景：{displayName}";
-            ApplySettingsPageState(_hostedSettingsPage);
-            _hostedLaunchSettingsPage?.ApplyBackgroundPreview(LauncherBackground.Source);
 
             var analyzed = await AnalyzeBackdropAsync(importedPath, cancellationToken);
             if (!analyzed && !cancellationToken.IsCancellationRequested)
             {
                 await RestoreBackgroundVisualAsync(
                     previousSource,
-                    previousStatus,
                     cancellationToken);
                 await TryShowDialogAsync(
                     "无法构建光栅卡片",
@@ -222,7 +210,7 @@ public sealed partial class MainPage
                 .Where(path => !string.IsNullOrWhiteSpace(path))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
-            var updated = previousAppearance with
+            var updated = previousAppearance.WithArtworkTitle(importedPath, original: displayName) with
             {
                 Background = previousAppearance.Background with
                 {
@@ -243,14 +231,12 @@ public sealed partial class MainPage
             {
                 await RestoreBackgroundVisualAsync(
                     previousSource,
-                    previousStatus,
                     cancellationToken);
                 ApplyAppearanceSettings(previousAppearance);
                 throw;
             }
 
             ApplyAppearanceSettings(ViewModel.AppearanceSettings);
-            ApplySettingsPageState(_hostedSettingsPage);
         }
         finally
         {
@@ -262,12 +248,9 @@ public sealed partial class MainPage
     {
         try
         {
-            var appearance = ViewModel.AppearanceSettings;
             await SaveAndApplyAppearanceAsync(
-                appearance with
+                appearance => appearance with
                 {
-                    LauncherCapsuleStyle = LauncherCapsuleStyle.Ocean,
-                    ThemeMode = ThemeMode.WarmDark,
                     Background = new BackgroundArtSettings(),
                 },
                 restoreDefaultBackground: true);
@@ -278,7 +261,6 @@ public sealed partial class MainPage
         catch (Exception ex)
         {
             ViewModel.ReportUiError($"背景设置保存失败：{ex.GetType().Name}: {ex.Message}");
-            ApplySettingsPageState(_hostedSettingsPage);
         }
     }
 
@@ -289,10 +271,6 @@ public sealed partial class MainPage
     private void RestoreDefaultBackground()
     {
         SetCurrentBackgroundSource(DefaultBackgroundSource);
-        _backgroundStatusText = "使用 Nikkiward 内置背景；可随时选择本地图片覆盖。";
-        ApplySettingsPageState(_hostedSettingsPage);
-        _hostedLaunchSettingsPage?.ApplyBackgroundPreview(
-            LauncherBackground.Source);
         _ = AnalyzeBackdropAsync(
             DefaultBackgroundSource,
             _lifetimeCancellation?.Token ?? CancellationToken.None);
@@ -300,7 +278,6 @@ public sealed partial class MainPage
 
     private async Task RestoreBackgroundVisualAsync(
         string source,
-        string status,
         CancellationToken cancellationToken)
     {
         var canRestore = source.StartsWith("ms-appx:///", StringComparison.OrdinalIgnoreCase) ||
@@ -310,10 +287,6 @@ public sealed partial class MainPage
             SetCurrentBackgroundSource(source);
             if (await AnalyzeBackdropAsync(source, cancellationToken))
             {
-                _backgroundStatusText = status;
-                ApplySettingsPageState(_hostedSettingsPage);
-                _hostedLaunchSettingsPage?.ApplyBackgroundPreview(
-                    LauncherBackground.Source);
                 return;
             }
         }
@@ -356,8 +329,8 @@ public sealed partial class MainPage
                 ApplyAccentForActualTheme();
             }
 
-            ApplyOnArtScrimTheme();
             App.MainWindow.ApplyCaptionButtonPolarity(analysis.PreferredTheme);
+            UpdateNativeSkin();
 
             return true;
         }
@@ -383,7 +356,6 @@ public sealed partial class MainPage
         {
             var previousAppearance = ViewModel.AppearanceSettings;
             var previousSource = _currentBackgroundSource;
-            var previousStatus = _backgroundStatusText;
             var importedPackage = await _wallpaperAssetImporter.ImportPackageAsync(
                 resolution.SourcePath!,
                 cancellationToken);
@@ -408,11 +380,6 @@ public sealed partial class MainPage
             }
 
             SetCurrentBackgroundSource(previewPath);
-            _backgroundStatusText = mode == WallpaperImportMode.HolographicCard
-                ? $"Wallpaper Engine 卡片：{displayName}"
-                : $"Wallpaper Engine 动态背景：{displayName}";
-            ApplySettingsPageState(_hostedSettingsPage);
-            _hostedLaunchSettingsPage?.ApplyBackgroundPreview(LauncherBackground.Source);
             if (!await AnalyzeBackdropAsync(previewPath, cancellationToken) &&
                 !cancellationToken.IsCancellationRequested)
             {
@@ -431,7 +398,6 @@ public sealed partial class MainPage
                 await RestoreConfiguredBackgroundAsync(
                     previousAppearance,
                     previousSource,
-                    previousStatus,
                     cancellationToken);
                 await TryShowDialogAsync(
                     "无法运行 Wallpaper Engine 场景",
@@ -446,7 +412,8 @@ public sealed partial class MainPage
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToArray()
                 : previousAppearance.Background.CarouselSources;
-            var updated = previousAppearance with
+            ViewModel.ShowArtwork(importedPackage.ImportedPath);
+            var updated = previousAppearance.WithArtworkTitle(importedPackage.ImportedPath, original: displayName) with
             {
                 Background = previousAppearance.Background with
                 {
@@ -465,15 +432,12 @@ public sealed partial class MainPage
             {
                 await ViewModel.SaveAppearanceSettingsAsync(updated, cancellationToken);
                 ApplyAppearanceSettings(ViewModel.AppearanceSettings);
-                ApplySettingsPageState(_hostedSettingsPage);
-                _hostedLaunchSettingsPage?.ApplyBackgroundPreview(LauncherBackground.Source);
             }
             catch
             {
                 await RestoreConfiguredBackgroundAsync(
                     previousAppearance,
                     previousSource,
-                    previousStatus,
                     cancellationToken);
                 throw;
             }
@@ -494,7 +458,6 @@ public sealed partial class MainPage
         {
             var previousAppearance = ViewModel.AppearanceSettings;
             var previousSource = _currentBackgroundSource;
-            var previousStatus = _backgroundStatusText;
             var imported = await _motionBackgroundImporter.ImportAsync(
                 sourcePath,
                 cancellationToken);
@@ -514,7 +477,6 @@ public sealed partial class MainPage
                 await RestoreConfiguredBackgroundAsync(
                     previousAppearance,
                     previousSource,
-                    previousStatus,
                     cancellationToken);
                 await TryShowDialogAsync(
                     "无法使用所选动态壁纸",
@@ -524,8 +486,8 @@ public sealed partial class MainPage
 
             await AnalyzeMotionOrFallbackAsync(descriptor, cancellationToken);
 
-            _backgroundStatusText = $"动态壁纸：{displayName}";
-            var updated = previousAppearance with
+            ViewModel.ShowArtwork(imported.ImportedPath);
+            var updated = previousAppearance.WithArtworkTitle(imported.ImportedPath, original: displayName) with
             {
                 Background = previousAppearance.Background with
                 {
@@ -540,15 +502,12 @@ public sealed partial class MainPage
             {
                 await ViewModel.SaveAppearanceSettingsAsync(updated, cancellationToken);
                 ApplyAppearanceSettings(ViewModel.AppearanceSettings);
-                ApplySettingsPageState(_hostedSettingsPage);
-                _hostedLaunchSettingsPage?.ApplyBackgroundPreview(LauncherBackground.Source);
             }
             catch
             {
                 await RestoreConfiguredBackgroundAsync(
                     previousAppearance,
                     previousSource,
-                    previousStatus,
                     cancellationToken);
                 throw;
             }
@@ -562,7 +521,6 @@ public sealed partial class MainPage
     private async Task RestoreConfiguredBackgroundAsync(
         AppearanceSettings appearance,
         string previousSource,
-        string previousStatus,
         CancellationToken cancellationToken,
         bool appearanceGateHeld = true)
     {
@@ -586,8 +544,6 @@ public sealed partial class MainPage
                         cancellationToken,
                         appearanceGateHeld))
                 {
-                    _backgroundStatusText = previousStatus;
-                    ApplySettingsPageState(_hostedSettingsPage);
                     return;
                 }
             }
@@ -602,8 +558,6 @@ public sealed partial class MainPage
             if (await LauncherBackground.ShowMotionAsync(motionSource, cancellationToken))
             {
                 await AnalyzeMotionOrFallbackAsync(descriptor, cancellationToken);
-                _backgroundStatusText = previousStatus;
-                ApplySettingsPageState(_hostedSettingsPage);
                 return;
             }
         }
@@ -611,8 +565,22 @@ public sealed partial class MainPage
         LauncherBackground.ShowStill();
         await RestoreBackgroundVisualAsync(
             previousSource,
-            previousStatus,
             cancellationToken);
+    }
+
+    private void UpdateNativeSkin()
+    {
+        NativeSkin.Select(StudioSkin, StudioTone);
+        ApplyNativeSurface();
+    }
+
+    private void ApplyNativeSurface()
+    {
+        NativeSurfacePaper.Background = new Windows.UI.ViewManagement.AccessibilitySettings().HighContrast ? null : NativeSkin.Paper;
+        bool native = ContentFrame.Content is Features.Pages.WebPageErrorView or Features.Journal.JournalPage ||
+            ContentFrame.Content is Features.Launcher.LauncherPage { WebHome: null };
+        bool light = native || CurrentWebPage != null ? NativeSkin.Light : StudioTone == "light";
+        App.MainWindow?.ApplyCaptionButtonPolarity(light ? ArtPreferredTheme.Light : ArtPreferredTheme.Dark);
     }
 
     private void ApplyThemeMode(ThemeMode themeMode)
@@ -655,20 +623,13 @@ public sealed partial class MainPage
         ApplyFixedAccent(ViewModel.AppearanceSettings);
     }
 
-    private void InitializeThemeModeUi()
-    {
-        ApplySettingsPageState(_hostedSettingsPage);
-    }
-
-    private async void OnSettingsAppearanceChanged(
-        object? sender,
-        AppearanceSettingsChangedEventArgs e)
+    private async void SelectHomeBackground(BackgroundArtSettings background)
     {
         try
         {
             await SaveAndApplyAppearanceAsync(
-                e.Settings,
-                forceStaticBackgroundReload: e.ForceStaticBackgroundReload);
+                settings => settings with { Background = background },
+                forceStaticBackgroundReload: true);
         }
         catch (OperationCanceledException)
         {
@@ -676,12 +637,11 @@ public sealed partial class MainPage
         catch (Exception ex)
         {
             ViewModel.ReportUiError($"外观设置保存失败：{ex.GetType().Name}: {ex.Message}");
-            InitializeThemeModeUi();
         }
     }
 
     private async Task SaveAndApplyAppearanceAsync(
-        AppearanceSettings settings,
+        Func<AppearanceSettings, AppearanceSettings> change,
         bool restoreDefaultBackground = false,
         bool forceStaticBackgroundReload = false)
     {
@@ -690,6 +650,7 @@ public sealed partial class MainPage
         try
         {
             var previous = ViewModel.AppearanceSettings;
+            var settings = change(previous);
             ApplyAppearanceSettings(settings);
             try
             {
@@ -718,13 +679,18 @@ public sealed partial class MainPage
                 RestoreDefaultBackground();
             }
 
-            ApplySettingsPageState(_hostedSettingsPage);
         }
         finally
         {
             _appearanceSaveGate.Release();
         }
     }
+
+    private Task SaveAndApplyAppearanceAsync(
+        AppearanceSettings settings,
+        bool restoreDefaultBackground = false,
+        bool forceStaticBackgroundReload = false) =>
+        SaveAndApplyAppearanceAsync(_ => settings, restoreDefaultBackground, forceStaticBackgroundReload);
 
     private async Task<bool> TryActivateConfiguredMotionAsync(
         AppearanceSettings settings,
@@ -760,7 +726,7 @@ public sealed partial class MainPage
                 source,
                 StringComparison.OrdinalIgnoreCase))
         {
-            _backgroundStatusText = $"视频背景：{Path.GetFileName(source)}";
+            ViewModel.ShowArtwork(source);
             return true;
         }
 
@@ -773,10 +739,8 @@ public sealed partial class MainPage
         }
 
         await AnalyzeMotionOrFallbackAsync(descriptor, cancellationToken);
+        ViewModel.ShowArtwork(source);
 
-        _backgroundStatusText = $"视频背景：{Path.GetFileName(source)}";
-        ApplySettingsPageState(_hostedSettingsPage);
-        _hostedLaunchSettingsPage?.ApplyBackgroundPreview(LauncherBackground.Source);
         return true;
     }
 
@@ -829,11 +793,7 @@ public sealed partial class MainPage
                 appearanceGateHeld);
         }
 
-        _backgroundStatusText = presentation == WallpaperEnginePresentation.HolographicCard
-            ? $"Wallpaper Engine 卡片：{Path.GetFileName(importedPackage.ImportedPath)}"
-            : $"Wallpaper Engine 动态背景：{Path.GetFileName(importedPackage.ImportedPath)}";
-        ApplySettingsPageState(_hostedSettingsPage);
-        _hostedLaunchSettingsPage?.ApplyBackgroundPreview(LauncherBackground.Source);
+        ViewModel.ShowArtwork(importedPackage.ImportedPath);
         return true;
     }
 
@@ -892,8 +852,7 @@ public sealed partial class MainPage
 
     private async Task RestoreStaticBackgroundAsync(
         AppearanceSettings settings,
-        CancellationToken cancellationToken,
-        string? fallbackStatus = null)
+        CancellationToken cancellationToken)
     {
         LauncherBackground.ShowStill();
         var projection = AppearanceProjector.ProjectBackground(
@@ -902,21 +861,14 @@ public sealed partial class MainPage
             DefaultBackgroundSource);
         var source = projection.Source;
         SetCurrentBackgroundSource(source);
-        _backgroundStatusText = fallbackStatus ??
-            (projection.UsesFallback
-                ? "使用 Nikkiward 内置背景；可随时选择本地图片覆盖。"
-                : $"当前背景：{Path.GetFileName(source)}");
 
         if (!await AnalyzeBackdropAsync(source, cancellationToken) &&
             !cancellationToken.IsCancellationRequested)
         {
             SetCurrentBackgroundSource(DefaultBackgroundSource);
-            _backgroundStatusText = "背景文件不可用，已恢复 Nikkiward 内置背景。";
             await AnalyzeBackdropAsync(DefaultBackgroundSource, cancellationToken);
         }
 
-        ApplySettingsPageState(_hostedSettingsPage);
-        _hostedLaunchSettingsPage?.ApplyBackgroundPreview(LauncherBackground.Source);
     }
 
     private async Task ReconcileMotionRuntimeAsync(
@@ -976,10 +928,7 @@ public sealed partial class MainPage
 
         await RestoreStaticBackgroundAsync(
             current,
-            cancellationToken,
-            current.Background.MotionEnabled
-                ? "视频背景不可用，已回退到静态背景。"
-                : null);
+            cancellationToken);
     }
 
 }

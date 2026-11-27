@@ -28,7 +28,6 @@ public sealed class SettingsMaintenanceService
     private static readonly string[] LogDirectories = ["Logs", "log", "crash"];
     private static readonly string[] ImageDirectories =
     [
-        Path.Combine("GalleryCache", "Thumbnails"),
         Path.Combine("JournalCache", "Assets"),
         Path.Combine("JournalCache", "ResonanceAssets"),
     ];
@@ -42,9 +41,11 @@ public sealed class SettingsMaintenanceService
         "settings.pre-schema6.rollback.json",
         "settings.pre-schema7.rollback.json",
         "settings.pre-schema8.rollback.json",
+        "settings.pre-schema9.rollback.json",
         "JournalCache/journal-snapshot.json",
         "JournalCache/resonance-history.json",
         PlayTimeStore.RelativePath,
+        PlannerStore.RelativePath,
         "WishHistory/wish-history.json",
         "Gallery/stars.json",
         "Gallery/default-favorites-v1.seed",
@@ -247,12 +248,15 @@ public sealed class SettingsMaintenanceService
         }
     }
 
-    public Task<SettingsCacheClearReceipt> ClearCachesAsync(
-        bool clearLauncherBackgroundFiles,
-        CancellationToken cancellationToken = default) =>
-        Task.Run(
-            () => ClearCaches(clearLauncherBackgroundFiles, cancellationToken),
-            cancellationToken);
+    public async Task<SettingsCacheClearReceipt> ClearCachesAsync(
+        bool clearLauncherBackgroundFiles, IReadOnlyList<string> protectedRoots,
+        CancellationToken cancellationToken = default)
+    {
+        var thumbnails = await GalleryThumbnailCache.ClearAsync(ThumbnailFolder, protectedRoots, cancellationToken).ConfigureAwait(false);
+        var others = await Task.Run(() => ClearCaches(clearLauncherBackgroundFiles, protectedRoots, cancellationToken), cancellationToken).ConfigureAwait(false);
+        return new(thumbnails.DeletedFileCount + others.DeletedFileCount, thumbnails.DeletedBytes + others.DeletedBytes,
+            thumbnails.IsAvailable && thumbnails.FailedFileCount == 0 ? others.FailedPaths : [ThumbnailFolder, .. others.FailedPaths]);
+    }
 
     public Task DeleteSettingsAsync(CancellationToken cancellationToken = default) =>
         Task.Run(
@@ -269,7 +273,7 @@ public sealed class SettingsMaintenanceService
     private SettingsCacheStatistics GetCacheStatistics(CancellationToken cancellationToken)
     {
         var logs = SumRelativeDirectories(LogDirectories, cancellationToken);
-        var images = SumRelativeDirectories(ImageDirectories, cancellationToken);
+        var images = SumRelativeDirectories(ImageDirectories, cancellationToken) + GalleryThumbnailCache.ReadStatistics(ThumbnailFolder, cancellationToken).TotalBytes;
         var browser = BrowserCacheDirectories()
             .Where(IsAllowedExternalDirectory)
             .Sum(path => GetDirectorySize(path, cancellationToken));
@@ -279,7 +283,7 @@ public sealed class SettingsMaintenanceService
     }
 
     private SettingsCacheClearReceipt ClearCaches(
-        bool clearLauncherBackgroundFiles,
+        bool clearLauncherBackgroundFiles, IReadOnlyList<string> protectedRoots,
         CancellationToken cancellationToken)
     {
         var targets = LogDirectories
@@ -293,6 +297,7 @@ public sealed class SettingsMaintenanceService
             targets.AddRange(BackgroundDirectories.Select(relative => Path.Combine(DataRoot, relative)));
         }
 
+        string[] exclusions = [ThumbnailFolder, .. protectedRoots];
         var deletedFiles = 0;
         var deletedBytes = 0L;
         var failed = new List<string>();
@@ -306,6 +311,7 @@ public sealed class SettingsMaintenanceService
 
             try
             {
+                PhotoDirectoryPolicy.ThumbnailFolder(target, exclusions);
                 var (count, bytes) = InspectDirectory(target, cancellationToken);
                 Directory.Delete(target, recursive: true);
                 deletedFiles += count;
@@ -317,9 +323,12 @@ public sealed class SettingsMaintenanceService
             }
         }
 
-        Directory.CreateDirectory(LogFolder);
+        if (!Directory.Exists(LogFolder))
+            Directory.CreateDirectory(PhotoDirectoryPolicy.ThumbnailFolder(LogFolder, exclusions));
         return new SettingsCacheClearReceipt(deletedFiles, deletedBytes, failed);
     }
+
+    private string ThumbnailFolder => Path.Combine(DataRoot, "GalleryCache", "Thumbnails");
 
     private long SumRelativeDirectories(
         IEnumerable<string> directories,

@@ -7,32 +7,17 @@
     <CornerRadius x:Key="RadiusCard">10</CornerRadius>
     <CornerRadius x:Key="RadiusWindow">12</CornerRadius>
     <CornerRadius x:Key="RadiusIsland">16</CornerRadius>
-    <CornerRadius x:Key="RadiusArtInset">20</CornerRadius>
     <CornerRadius x:Key="RadiusPill">22</CornerRadius>
     <CornerRadius x:Key="RadiusAction">28</CornerRadius>
-    <CornerRadius x:Key="RadiusActionLeading">28,0,0,28</CornerRadius>
-    <CornerRadius x:Key="RadiusActionTrailing">0,28,28,0</CornerRadius>
 
     <!-- Safe area and spacing -->
     <x:Double x:Key="SafeArea">24</x:Double>
     <x:Double x:Key="CaptionReserve">48</x:Double>
     <Thickness x:Key="SafeAreaThickness">24</Thickness>
-    <Thickness x:Key="ContentSafeArea">24,48,24,24</Thickness>
 
-    <x:Double x:Key="SpaceHair">4</x:Double>
-    <x:Double x:Key="SpaceTight">8</x:Double>
-    <x:Double x:Key="SpaceBase">12</x:Double>
-    <x:Double x:Key="SpaceLoose">16</x:Double>
-    <x:Double x:Key="SpaceSection">24</x:Double>
     <x:Double x:Key="SpaceHero">40</x:Double>
 
-    <Thickness x:Key="SpaceHairThickness">4</Thickness>
-    <Thickness x:Key="SpaceBaseThickness">12</Thickness>
-    <Thickness x:Key="SpaceTightHorizontalPaddingThickness">8,0</Thickness>
-    <Thickness x:Key="SpaceBaseHorizontalPaddingThickness">12,0</Thickness>
-    <Thickness x:Key="SpaceTightVerticalMarginThickness">0,8</Thickness>
     <Thickness x:Key="PrimaryActionContentPaddingThickness">24,0,16,0</Thickness>
-    <Thickness x:Key="NoticeIslandPaddingThickness">24,16</Thickness>
 
     <!-- Shell metrics -->
     <x:Double x:Key="IslandInset">20</x:Double>
@@ -46,9 +31,7 @@
     <x:Double x:Key="MediaOverscanScale">1.002</x:Double>
 
     <!-- Thickness helpers -->
-    <Thickness x:Key="IslandInsetThickness">20</Thickness>
     <Thickness x:Key="IslandPaddingThickness">24,20</Thickness>
-    <Thickness x:Key="MastheadPaddingThickness">28,24</Thickness>
     <Thickness x:Key="CardPaddingThickness">16</Thickness>
     <Thickness x:Key="SectionGapThickness">0,0,0,24</Thickness>
     <Thickness x:Key="ContentPaddingThickness">24,16</Thickness>

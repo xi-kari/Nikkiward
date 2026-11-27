@@ -1,36 +1,34 @@
-using System.Numerics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using Nikkiward.Features.Gallery;
 using Microsoft.UI.Xaml.Navigation;
+using Nikkiward.Features.Launcher.Skins;
 using Nikkiward.Features.Shell;
 using Nikkiward.Models;
 using Nikkiward.ViewModels;
 
 namespace Nikkiward.Features.Launcher;
 
-public sealed partial class LauncherPage : PageBase
+public sealed partial class LauncherPage : Page
 {
-    private const double ShellRailWidth = 56;
-    private const double MediumWindowBreakpoint = 780;
-    private const double WideWindowBreakpoint = 1100;
-
-    private bool _xamlInitialized;
+    private HomeSkin? _skin;
+    private GalleryFolderWatcher? _watcher;
+    private CancellationTokenSource? _scan;
+    private (string? Profile, string? Root)? _scope;
+    internal DateTime[]? AlbumTimes { get; private set; }
+    public ObservableCollection<GalleryPhotoItemViewModel> RecentPhotos { get; } = [];
+    public event EventHandler<GalleryPhotoItemViewModel>? PhotoRequested;
+    public MainPageViewModel ViewModel { get; private set; } = null!;
+    public FrameworkElement OnArtHost => SkinHost;
 
     public LauncherPage()
     {
         InitializeComponent();
-        _xamlInitialized = true;
-        AppearanceRuntimeValues.ApplyScaleTransition(PrimaryActionSurface);
-        SizeChanged += OnPageSizeChanged;
+        Loaded += (_, _) => Activate();
+        Unloaded += (_, _) => Deactivate();
     }
-
-    public MainPageViewModel ViewModel { get; private set; } = null!;
-
-    public override string PageTitle => "启动管理";
-
-    public FrameworkElement OnArtHost => LauncherRoot;
 
     public event EventHandler? DownloadStatusRequested;
 
@@ -40,169 +38,175 @@ public sealed partial class LauncherPage : PageBase
 
     public event EventHandler? CloseGameRequested;
 
-    public event EventHandler? LaunchSettingsRequested;
-
     public event EventHandler? JournalRequested;
 
     public event EventHandler? GalleryRequested;
 
     public event EventHandler? BackgroundResetRequested;
 
-    public event EventHandler? ProfileRequested;
-
-    protected override void OnEntering(NavigationEventArgs e)
+    protected override void OnNavigatedTo(NavigationEventArgs e)
     {
-        if (e.Parameter is not LauncherNavigationContext context)
-        {
-            throw new InvalidOperationException("Launcher navigation context is required.");
-        }
+        ViewModel = ((LauncherNavigationContext)e.Parameter).ViewModel;
+        Activate();
+    }
 
-        ViewModel = context.ViewModel;
-        Bindings.Update();
-        UpdatePrimaryActionState();
-        MastheadHost.Bind(ViewModel);
+    private void Activate()
+    {
+        if (_watcher != null || ViewModel == null) return;
         ApplyAppearanceSettings(ViewModel.AppearanceSettings);
-        NoticeHost.Bind(ViewModel);
-        ApplyResponsiveLayout(ActualWidth);
-        base.OnEntering(e);
+        WebHome?.SetAway(false);
+        _watcher = new GalleryFolderWatcher(DispatcherQueue, () => RefreshRecentPhotos(force: true));
+        ViewModel.PropertyChanged += OnModelChanged;
+        RefreshRecentPhotos();
+    }
+
+    protected override void OnNavigatedFrom(NavigationEventArgs e) => Deactivate();
+
+    private void Deactivate()
+    {
+        if (_watcher == null) return;
+        ViewModel.PropertyChanged -= OnModelChanged;
+        _scan?.Cancel();
+        _watcher.Dispose();
+        _watcher = null;
+        _scope = null;
+        // Keep the home page (and its recent photos) loaded but suspended; MainPage releases it when the window goes away.
+        WebHome?.SetAway(true);
+    }
+
+    internal void ReleaseHome() => ReleaseSkin();
+
+    private DateTime _photosDay = DateTime.Today;
+
+    private void OnModelChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ViewModel.GalleryRootPath) or nameof(ViewModel.SelectedProfileId) or nameof(ViewModel.GameRootPath))
+            RefreshRecentPhotos();
+        else if (e.PropertyName is nameof(ViewModel.HomeCheckTime) or nameof(ViewModel.LastUpdatedText) && _photosDay != DateTime.Today)
+        {
+            _photosDay = DateTime.Today;
+            RefreshRecentPhotos(force: true);
+        }
+    }
+
+    private async void RefreshRecentPhotos(bool force = false)
+    {
+        var root = ViewModel.GalleryRootPath ?? (Path.IsPathFullyQualified(ViewModel.GameRootPath)
+            ? GalleryFiles.DefaultRoot(ViewModel.GameRootPath) : null);
+        var profile = ViewModel.SelectedProfileId;
+        if (_scope != (profile, root))
+        {
+            _scope = (profile, root);
+            AlbumTimes = null;
+            RecentPhotos.Clear();
+            _watcher?.Watch(root);
+        }
+        else if (!force) return;
+        _scan?.Cancel();
+        if (root == null) return;
+        using var scan = new CancellationTokenSource();
+        _scan = scan;
+        try
+        {
+            var items = await Task.Run(() =>
+            {
+                var scope = GalleryAnnotationStore.CreateScopeId(profile, root);
+                var files = GalleryFiles.NewestFirst(root, scan.Token).ToArray();
+                return (Times: files.Select(f => GalleryTimestamp.Resolve(f.Name, f.LastWriteTimeUtc)).Order().ToArray(),
+                    Recent: files.Take(4).Select(file => GalleryPhotoItemViewModel.CreatePhoto(file, root, scope)).ToArray());
+            }, scan.Token);
+            if (scan.IsCancellationRequested) return;
+            RecentPhotos.Clear();
+            AlbumTimes = items.Times;
+            foreach (var item in items.Recent) RecentPhotos.Add(item);
+        }
+        catch (OperationCanceledException) when (scan.IsCancellationRequested) { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            if (!scan.IsCancellationRequested) { AlbumTimes = null; RecentPhotos.Clear(); }
+        }
+        finally
+        {
+            if (_scan == scan) _scan = null;
+        }
+    }
+
+    private void ReleaseSkin()
+    {
+        if (SkinHost.Content is IDisposable disposable) disposable.Dispose();
+        SkinHost.Content = null;
+        _skin = null;
     }
 
     public void ApplyAppearanceSettings(AppearanceSettings settings)
     {
-        MastheadHost.ApplySettings(settings);
-        NoticeHost.Visibility = Visibility.Collapsed;
-        ActionCluster.Visibility = Visibility.Visible;
-        PrimaryCapsuleVisual.ApplyStyle(settings.LauncherCapsuleStyle);
-        UtilityCapsuleVisual.ApplyStyle(settings.LauncherCapsuleStyle);
-        PrimaryCapsuleVisual.ApplyMotion(settings.Motion);
-        UtilityCapsuleVisual.ApplyMotion(settings.Motion);
-        var identity = ResolveCapsuleIdentity(settings.LauncherCapsuleStyle);
-        LauncherCapsuleCode.Text = $"{identity.Code} /";
-        LauncherCapsuleName.Text = identity.Name;
-        PrimaryActionCodeText.Text = identity.Code;
-    }
-
-    public void ApplyJournalDuration(string text, string detail)
-    {
-        NoticeHost.ApplyJournalDuration(text, detail);
-    }
-
-    private void OnPageSizeChanged(object sender, SizeChangedEventArgs e) =>
-        ApplyResponsiveLayout(e.NewSize.Width);
-
-    private void ApplyResponsiveLayout(double width)
-    {
-        var windowWidth = width + ShellRailWidth;
-        if (windowWidth < MediumWindowBreakpoint)
+        var skin = HomeSkins.Resolve(settings.HomeSkin);
+        if (skin == _skin) return;
+        ReleaseSkin();
+        ViewModel.HomeFallback = "";
+        UserControl view;
+        try { view = skin.Create(); }
+        catch (Exception ex)
         {
-            MastheadHost.ApplyCompactLayout();
-            NoticeHost.ApplyCompactLayout();
+            UseCinema($"{ex.GetType().Name}: {ex.Message}");
+            return;
         }
-        else if (windowWidth < WideWindowBreakpoint)
-        {
-            MastheadHost.ApplyMediumLayout();
-            NoticeHost.ApplyMediumLayout();
-        }
-        else
-        {
-            MastheadHost.ApplyWideLayout();
-            NoticeHost.ApplyWideLayout();
-        }
+        view.DataContext = ViewModel;
+        SkinHost.Content = view;
+        _skin = skin;
+        SkinChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void OnNoticeDownloadRequested(object? sender, EventArgs e) =>
-        DownloadStatusRequested?.Invoke(this, EventArgs.Empty);
+    internal bool IsSafeMode => SkinHost.Content is CinemaView;
+    internal WebHomeView? WebHome => SkinHost.Content as WebHomeView;
+    internal event EventHandler? SkinChanged;
+    internal event EventHandler<string>? NavigationRequested;
 
-    private void OnNoticePlayTimeRequested(object? sender, EventArgs e) =>
-        PlayTimeRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnNoticeProfileRequested(object? sender, EventArgs e) =>
-        ProfileRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnOfficialFlowClicked(object sender, RoutedEventArgs e) =>
-        OfficialFlowRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnCloseGameClicked(object sender, RoutedEventArgs e) =>
-        CloseGameRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnLaunchSettingsClicked(object sender, RoutedEventArgs e) =>
-        LaunchSettingsRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnPrimaryActionPointerEntered(object sender, PointerRoutedEventArgs e) =>
-        SetPrimaryActionScaleIfEnabled(
-            AppearanceRuntimeValues.ReadScale("ButtonHoverScale"));
-
-    private void OnPrimaryActionPointerExited(object sender, PointerRoutedEventArgs e) =>
-        SetPrimaryActionScale(1f);
-
-    private void OnPrimaryActionPointerPressed(object sender, PointerRoutedEventArgs e) =>
-        SetPrimaryActionScaleIfEnabled(
-            AppearanceRuntimeValues.ReadScale("PressScale"));
-
-    private void OnPrimaryActionPointerReleased(object sender, PointerRoutedEventArgs e) =>
-        SetPrimaryActionScaleIfEnabled(
-            AppearanceRuntimeValues.ReadScale("ButtonHoverScale"));
-
-    private void OnPrimaryActionIsEnabledChanged(
-        object sender,
-        DependencyPropertyChangedEventArgs e)
+    internal void UseCinema(string reason)
     {
-        if (_xamlInitialized)
+        ViewModel.HomeFallback = string.Join(Environment.NewLine, System.Text.RegularExpressions.Regex.Replace(
+            MainPageViewModel.RedactUiText(reason), @"(?<=[。.!！])\s+(?=\S)", Environment.NewLine)
+            .Split(['\r','\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct());
+        System.Diagnostics.Debug.WriteLine(ViewModel.HomeFallback);
+        ReleaseSkin();
+        var cinema = new CinemaView(this) { DataContext = ViewModel };
+        SkinHost.Content = cinema;
+        _skin = HomeSkins.Resolve(ViewModel.AppearanceSettings.HomeSkin);
+        SkinChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    internal void RetryWebHome()
+    {
+        _skin = null;
+        ApplyAppearanceSettings(ViewModel.AppearanceSettings);
+    }
+
+    internal void InvokeAction(string name, GalleryPhotoItemViewModel? photo = null)
+    {
+#if DEBUG
+        if (HomePreview.Active) return;
+#endif
+        if (name == "photo" && photo != null)
         {
-            UpdatePrimaryActionState();
+            if (RecentPhotos.Contains(photo)) PhotoRequested?.Invoke(this, photo);
+            return;
         }
-    }
-
-    private void SetPrimaryActionScaleIfEnabled(float scale) =>
-        SetPrimaryActionScale(PrimaryActionButton.IsEnabled ? scale : 1f);
-
-    private void UpdatePrimaryActionState()
-    {
-        var enabled = PrimaryActionButton.IsEnabled;
-        PrimaryActionDisabledPlate.Visibility = enabled
-            ? Visibility.Collapsed
-            : Visibility.Visible;
-        var foreground = (Brush)Application.Current.Resources[
-            enabled ? "InkOnAccentBrush" : "InkSecondaryBrush"];
-        PrimaryActionLabel.Foreground = foreground;
-        PrimaryActionCodeText.Foreground = foreground;
-        LauncherCapsuleStudy.Foreground = foreground;
-        PrimaryActionProgressRing.Foreground = foreground;
-        if (!enabled)
+        if (name.StartsWith("nav-", StringComparison.Ordinal))
         {
-            SetPrimaryActionScale(1f);
+            NavigationRequested?.Invoke(this, name[4..]);
+            return;
         }
+        var action = name switch
+        {
+            "launch" when ViewModel.HomeLaunchEnabled => OfficialFlowRequested,
+            "close" when ViewModel.HomeCloseEnabled => CloseGameRequested,
+            "gallery" => GalleryRequested,
+            "journal" => JournalRequested,
+            "reset" => BackgroundResetRequested,
+            "download" => DownloadStatusRequested,
+            "time" => PlayTimeRequested,
+            _ => null
+        };
+        action?.Invoke(this, EventArgs.Empty);
     }
-
-    private void SetPrimaryActionScale(float scale)
-    {
-        PrimaryActionSurface.CenterPoint = new Vector3(
-            (float)PrimaryActionSurface.ActualWidth / 2f,
-            (float)PrimaryActionSurface.ActualHeight / 2f,
-            0f);
-        PrimaryActionSurface.Scale = new Vector3(scale, scale, 1f);
-    }
-
-    private void OnJournalClicked(object sender, RoutedEventArgs e) =>
-        JournalRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnProfileClicked(object sender, RoutedEventArgs e) =>
-        ProfileRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnGalleryClicked(object sender, RoutedEventArgs e) =>
-        GalleryRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnBackgroundResetClicked(object sender, RoutedEventArgs e) =>
-        BackgroundResetRequested?.Invoke(this, EventArgs.Empty);
-
-    private static (string Code, string Name) ResolveCapsuleIdentity(
-        LauncherCapsuleStyle style) => style switch
-    {
-        LauncherCapsuleStyle.Ocean => ("NC-02", "OCEAN"),
-        LauncherCapsuleStyle.Klein => ("NC-03", "KLEIN"),
-        LauncherCapsuleStyle.Ultraviolet => ("NC-04", "ULTRAVIOLET"),
-        LauncherCapsuleStyle.Chrome => ("NC-05", "CHROME"),
-        LauncherCapsuleStyle.Plus => ("NC-06", "PLUS"),
-        _ => ("NC-01", "ORIGINAL"),
-    };
 }

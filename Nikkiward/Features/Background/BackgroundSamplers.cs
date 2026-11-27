@@ -214,8 +214,11 @@ public sealed class MotionBackgroundImporter
     private readonly MotionSampler _sampler;
     private readonly string _rootPath;
 
-    public MotionBackgroundImporter(MotionSampler? sampler = null, string? localDataRoot = null)
+    private readonly Func<IReadOnlyList<string>> _protectedRoots;
+
+    public MotionBackgroundImporter(Func<IReadOnlyList<string>> protectedRoots, MotionSampler? sampler = null, string? localDataRoot = null)
     {
+        _protectedRoots = protectedRoots;
         _sampler = sampler ?? new MotionSampler();
         var applicationRoot = string.IsNullOrWhiteSpace(localDataRoot)
             ? Nikkiward.Services.ApplicationDataPaths.Root
@@ -246,7 +249,8 @@ public sealed class MotionBackgroundImporter
                 return (new(false, "视频背景文件不能为空。"), null);
             }
 
-            Directory.CreateDirectory(_rootPath);
+            var destination = WallpaperImportDirectory.Prepare(_rootPath, _protectedRoots());
+            if (!destination.IsUsable) return (destination, null);
         }
         catch (Exception ex) when (ex is
             IOException or

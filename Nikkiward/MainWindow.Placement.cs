@@ -28,18 +28,51 @@ public sealed partial class MainWindow
 
         const int smCxMinTrack = 34, smCyMinTrack = 35;
         var minimum = new Size(GetSystemMetricsForDpi(smCxMinTrack, 96), GetSystemMetricsForDpi(smCyMinTrack, 96));
-        var (bounds, maximized) = WindowPlacement.Resolve(
-            displays, saved, new Size(DesignWidth, DesignHeight), minimum);
+        // Only the position is remembered: the size is fixed and the window cannot be maximized.
+        var fixedSaved = saved is null ? null : saved with
+        {
+            Width = (int)Math.Round(DesignWidth * saved.Dpi / 96d),
+            Height = (int)Math.Round(DesignHeight * saved.Dpi / 96d),
+            IsMaximized = false,
+        };
+        var (bounds, _) = WindowPlacement.Resolve(
+            displays, fixedSaved, new Size(DesignWidth, DesignHeight), minimum);
         // The window is created on whichever display Windows picks. Moving it onto a
         // display with another DPI makes Windows rescale it, so apply the rectangle a
         // second time once the window already sits on the target display.
         var rect = new RectInt32(bounds.X, bounds.Y, bounds.Width, bounds.Height);
         AppWindow.MoveAndResize(rect);
         AppWindow.MoveAndResize(rect);
-        if (maximized && AppWindow.Presenter is OverlappedPresenter presenter)
+        ApplyFixedClientSize();
+    }
+
+    /// <summary>
+    /// Sizes the content to the fixed 1200 x 675 view pixels at the window's current scale. Runs again
+    /// when the scale changes, for example after the window moves to a monitor with another DPI.
+    /// </summary>
+    private double _fixedSizeScale;
+
+    private void ApplyFixedClientSize()
+    {
+        var scale = Math.Max(96u, GetDpiForWindow(WinRT.Interop.WindowNative.GetWindowHandle(this))) / 96d;
+        _fixedSizeScale = scale;
+        var work = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
+        if (Content?.XamlRoot is { } root && root.Size.Width > 0 && root.Size.Height > 0)
         {
-            presenter.Maximize();
+            // The content extends into the title bar, so the XAML size, not the client rectangle
+            // (which leaves the caption out), is what people see.
+            if (Math.Abs(root.Size.Width - DesignWidth) < 1 && Math.Abs(root.Size.Height - DesignHeight) < 1) return;
+            var outer = AppWindow.Size;
+            var width = (int)Math.Round(outer.Width + (DesignWidth - root.Size.Width) * scale);
+            var height = (int)Math.Round(outer.Height + (DesignHeight - root.Size.Height) * scale);
+            AppWindow.Resize(new SizeInt32(Math.Min(width, work.Width), Math.Min(height, work.Height)));
+            return;
         }
+
+        // Before the content exists: a first approximation, corrected once it has loaded.
+        AppWindow.ResizeClient(new SizeInt32(
+            Math.Min((int)Math.Round(DesignWidth * scale), work.Width),
+            Math.Min((int)Math.Round(DesignHeight * scale), work.Height)));
     }
 
     private Task SaveWindowPlacementAsync()
@@ -115,6 +148,9 @@ public sealed partial class MainWindow
 
     [DllImport("user32.dll")]
     private static extern bool GetWindowPlacement(IntPtr window, ref NativePlacement placement);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr window);
 
     [DllImport("user32.dll")]
     private static extern int GetSystemMetricsForDpi(int index, uint dpi);

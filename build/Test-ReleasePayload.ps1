@@ -53,8 +53,23 @@ foreach ($file in $files) {
     }
 }
 
+$retiredXaml = @($records.Keys | Where-Object {
+    $_ -match '^(?:Pages\\Gallery|Styles\\Gallery|Features\\(?:Wish\\WishPage|Settings\\|Profile\\|Diagnostics\\StatusPage|Shell\\HomeNavigation|Launcher\\LaunchSettingsPage|Gallery\\PhotoPluginPage|Journal\\Journal(?:Summary|Snapshot)Panel)).*\.xbf$'
+})
+if ($retiredXaml.Count) {
+    throw "Release payload contains retired native UI: $($retiredXaml -join ', ')"
+}
+
+$webHashes = @{}
+foreach ($line in Get-Content -LiteralPath (Join-Path $PSScriptRoot 'WebFonts.sha256'), (Join-Path $PSScriptRoot 'WebSkins.sha256')) {
+    $hash, $path = $line -split '  ', 2
+    $webHashes.Add($path.Replace('/', '\'), $hash)
+}
+
 $blockedDirectoryNames = @(
     'Plugins',
+    'Web.dev',
+    'HomeWebView2',
     'ProtectedFavorites',
     'ArtCache',
     'Settings',
@@ -78,6 +93,9 @@ $blockedExtensionPattern = '(?i)^(\.pdb|\.log|\.cache|\.cookie|\.token|\.sqlite|
 $blockedPathRecords = @(
     $records.Values | Where-Object {
         $parts = $_.RelativePath -split '\\'
+        if ($_.RelativePath -like 'Web\pages\settings\*' -and $webHashes.ContainsKey($_.RelativePath)) {
+            $parts = $parts | Select-Object -Skip 3
+        }
         ($parts | Where-Object { $blockedDirectoryNames -contains $_ }).Count -gt 0 -or
         $blockedFileNames -contains ([IO.Path]::GetFileName($_.RelativePath).ToLowerInvariant()) -or
         ([IO.Path]::GetExtension($_.RelativePath) -match $blockedExtensionPattern) -or
@@ -118,7 +136,14 @@ if ($unexpectedExecutablePaths.Count -gt 0) {
     throw "Release payload executable allowlist rejected: $($unexpectedExecutablePaths -join ', ')"
 }
 
-$allowedMediaPaths = @(
+$webArt = @('Web\art\NikkiDefaultBackground.jpg', 'Web\art\NikkiPresetBackground2.jpg')
+$webPreviews = 'Atelier','Cinema','Journal','Stitch','WishStar' | ForEach-Object { "Web\art\HomeSkins\$_.jpg" }
+$webHomeFiles = $webArt + $webPreviews
+$extraWebFiles = @($records.Keys | Where-Object { $_ -like 'Web\*' -and $_ -notin $webHomeFiles -and !$webHashes.ContainsKey($_) })
+if ($extraWebFiles.Count) {
+    throw "Release payload web home allowlist rejected: $($extraWebFiles -join ', ')"
+}
+$allowedMediaPaths = $webHomeFiles + @($webHashes.Keys) + @(
     'Assets\NikkiDefaultBackground.jpg',
     'Assets\NikkiPresetBackground2.jpg',
     'Assets\NikkiDefaultBackgroundBlur.jpg',
@@ -151,7 +176,6 @@ if ($unexpectedMediaPaths.Count -gt 0) {
 $unexpectedBinaryPaths = @(
     $records.Values |
         Where-Object { [IO.Path]::GetExtension($_.RelativePath) -ieq '.bin' } |
-        Where-Object { $_.RelativePath -ne 'Shaders\LauncherNebula.bin' } |
         ForEach-Object RelativePath |
         Sort-Object
 )
@@ -166,15 +190,23 @@ $requiredHashes = [ordered]@{
     'Assets\NikkiGameIcon.png' = '58F6FF748453DF0509C050D35FF1B109D96DFCBB2910F8076FA604E1D1A4E103'
     'Assets\NikkiwardIcon.ico' = '984927AC315620ED7F3668B157C5CB11D5127C4E19217CAADEAC17B7EC3280BE'
     'Assets\XikariAvatar.jpg' = '56AD9D85D6AAB0828BA7BF279AFE1D0AE4271DCD3550C835C7BB0394E46CEEED'
+    'Web\art\HomeSkins\Atelier.jpg' = '9BC42BE066032CC82136972A848FC5CE8C863B31A9915FAD087535AA8856323C'
+    'Web\art\HomeSkins\Cinema.jpg' = 'F13B54720F724FD7527A02DEAD0385A75C8F548392214D65AEFA220AFF06F0C4'
+    'Web\art\HomeSkins\Journal.jpg' = '9C45C1640617821353253CF5307E37D8ADF49AA4096F470E5DB9173DDE597A98'
+    'Web\art\HomeSkins\Stitch.jpg' = '56C85EFC9171D6117DAF743C4E698B913A12C9A8EBDA445F1FF1FF29C458239C'
+    'Web\art\HomeSkins\WishStar.jpg' = '5F55CFABFAD81C059E1E222AA95F2BEF478E5F238542A605A4F180CB1765E928'
     'Assets\DefaultFavorites\01.jpg' = '21093DD12A21385F76AD57819FF1EB2A80AF751579CB50EAF3C598BC0768F902'
     'Assets\DefaultFavorites\02.jpg' = '0FC974EE740B09D5E620F2AC34EB23126D56E8E957422BC580CB35C5AADBBB22'
     'Assets\DefaultFavorites\03.jpg' = '79E98642EC260C9CA8F4A89A12D8294B0474B78658DAB6DE330BFCB192514880'
     'Assets\DefaultFavorites\04.jpg' = 'C2ADB227F963C6C46F98874A04027E8169DEEF425AE87FC8437BA810F68E275D'
     'Assets\DefaultFavorites\05.jpg' = 'EC0C9FFE241C771256CE4B8500079850DC4FCCECA9F42B8F2D644A12DD672072'
-    'Shaders\LauncherNebula.bin' = '50BBEC06E2C387675A83311458001154415D3F544C5CB06F39277A35B2482A6F'
     'runtimes\win-x64\native\nuan5_decryption.dll' = '3F0D88A2510106FF8E66A4730A77EF9F7FFC27C89411F81FA223CC3E1170E601'
 }
-$requiredPaths = @(
+foreach ($art in $webArt) {
+    $requiredHashes[$art] = $requiredHashes['Assets\' + [IO.Path]::GetFileName($art)]
+}
+$requiredHashes += $webHashes
+$requiredPaths = $webHomeFiles + @(
     'Nikkiward.exe',
     'Nikkiward.dll',
     'Nikkiward.deps.json',

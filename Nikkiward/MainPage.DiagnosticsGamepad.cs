@@ -7,16 +7,12 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Media.Animation;
 using Nikkiward.Features.Background;
-using Nikkiward.Features.Diagnostics;
 using Nikkiward.Features.Gallery;
 using Nikkiward.Features.GamepadControl;
 using Nikkiward.Features.Journal;
 using Nikkiward.Features.Launcher;
-using Nikkiward.Features.Profile;
 using Nikkiward.Features.Settings;
-using Nikkiward.Features.Wish;
 using Nikkiward.Models;
-using Nikkiward.Pages;
 using Nikkiward.Services;
 using Nikkiward.ViewModels;
 using Windows.ApplicationModel.DataTransfer;
@@ -28,7 +24,9 @@ namespace Nikkiward;
 
 public sealed partial class MainPage
 {
-    private async void OnExportDiagnosticsClicked(object sender, RoutedEventArgs e)
+    private async void OnExportDiagnosticsClicked(object sender, RoutedEventArgs e) => await ExportSettingsDiagnosticsAsync();
+
+    private async Task ExportSettingsDiagnosticsAsync()
     {
         try
         {
@@ -82,7 +80,7 @@ public sealed partial class MainPage
         }
     }
 
-    private async void OnProviderValidationDetailsClicked(object sender, RoutedEventArgs e)
+    private async Task ShowValidationDetailsAsync()
     {
         try
         {
@@ -104,7 +102,7 @@ public sealed partial class MainPage
             };
 
             await ShowDialogAsync(
-                "Provider validation receipt · 只读详情",
+                "启动验证记录 · 只读详情",
                 scrollViewer);
         }
         catch (Exception ex)
@@ -145,7 +143,7 @@ public sealed partial class MainPage
                 DefaultButton = ContentDialogButton.Close,
             };
 
-            await dialog.ShowAsync();
+            await NativeSkin.ShowAsync(dialog);
         }
         finally
         {
@@ -178,7 +176,6 @@ public sealed partial class MainPage
             GamepadController.Apply(settings);
         }
 
-        ApplySettingsPageState(_hostedSettingsPage);
     }
 
     /// <summary>
@@ -198,49 +195,14 @@ public sealed partial class MainPage
         });
     }
 
-    private void OnGamepadStateChanged(object? sender, EventArgs e) =>
-        ApplySettingsPageState(_hostedSettingsPage);
-
-    private async void OnSettingsGamepadChanged(
-        object? sender,
-        GamepadSettingsChangedEventArgs e)
+    private void OnGamepadStateChanged(object? sender, EventArgs e)
     {
-        try
+        if (CurrentWebPage is { CurrentPage: "settings" } web)
         {
-            await ViewModel.SaveAndApplyGamepadAsync(e.Settings, settings =>
-            {
-                if (settings.Enabled && e.ChangeKind is GamepadSettingsChangeKind.Enabled)
-                {
-                    StartGamepadController(settings);
-                }
-                else
-                {
-                    GamepadController.Apply(settings);
-                }
-            }, _lifetimeCancellation?.Token ?? CancellationToken.None);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception ex)
-        {
-            ViewModel.ReportUiError($"手柄设置保存失败：{ex.GetType().Name}: {ex.Message}");
-        }
-        finally
-        {
-            ApplySettingsPageState(_hostedSettingsPage);
+            _publishingGamepadConnection = true;
+            try { web.Refresh(); }
+            finally { _publishingGamepadConnection = false; }
         }
     }
 
-    private async void OnGamepadRedistDownloadClicked(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            await Launcher.LaunchUriAsync(new Uri(GamepadController.RuntimeDownloadUrl));
-        }
-        catch (Exception ex)
-        {
-            ViewModel.ReportUiError($"打开下载页面失败：{ex.GetType().Name}: {ex.Message}");
-        }
-    }
 }

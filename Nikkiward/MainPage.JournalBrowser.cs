@@ -7,16 +7,12 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Media.Animation;
 using Nikkiward.Features.Background;
-using Nikkiward.Features.Diagnostics;
 using Nikkiward.Features.Gallery;
 using Nikkiward.Features.GamepadControl;
 using Nikkiward.Features.Journal;
 using Nikkiward.Features.Launcher;
-using Nikkiward.Features.Profile;
 using Nikkiward.Features.Settings;
-using Nikkiward.Features.Wish;
 using Nikkiward.Models;
-using Nikkiward.Pages;
 using Nikkiward.Services;
 using Nikkiward.Serialization;
 using Nikkiward.ViewModels;
@@ -29,42 +25,32 @@ namespace Nikkiward;
 
 public sealed partial class MainPage
 {
-    private async void OnJournalOpenClicked(object sender, RoutedEventArgs e)
-    {
-        await OpenJournalAsync();
-    }
-
-    private async void OnJournalCacheClearClicked(object sender, RoutedEventArgs e)
-    {
-        await ClearJournalCacheAsync();
-    }
-
-    private async void OnJournalOpenRequested(object? sender, EventArgs e)
-    {
-        await OpenJournalAsync();
-    }
-
-    private async Task OpenJournalAsync()
+    private async Task OpenJournalAsync(bool resonance = false)
     {
         try
         {
-            SetShellNavigationSelection(LibraryNavigationItem);
-            ShowLibrary();
+            ContentFrame.Navigate(typeof(JournalPage), null, Features.Shell.AppearanceRuntimeValues.CreateNavigationTransitionInfo());
             var journalPage = ContentFrame.Content as JournalPage
                 ?? throw new InvalidOperationException("Journal page navigation did not complete.");
-            _journalRouteIntent = JournalRouteIntent.Overview;
-            await journalPage.ShowBrowserAsync();
+            _journalRouteIntent = resonance ? JournalRouteIntent.ResonanceHistory : JournalRouteIntent.Overview;
+            await journalPage.ShowBrowserAsync(resonance ? JournalPage.ResonanceUri : JournalPage.LoginUri);
         }
         catch (Exception ex)
         {
             var detail = ex is JournalWebView2RuntimeUnavailableException
                 ? $"{ex.Message}\n下载地址：{JournalPage.WebView2RuntimeDownloadUri}"
-                : $"内置页面暂时不可用；可使用“系统浏览器打开”。\n\n{ex.GetType().Name}: {ex.Message}";
+                : $"内置页面暂时不可用。\n\n{ex.GetType().Name}: {ex.Message}";
             ViewModel.ReportUiError($"奇想手账内置页面打开失败：{detail}");
-            _hostedJournalPage?.SetBrowserStatus(detail);
-            await TryShowDialogAsync(
-                "奇想手账内置页面打开失败",
-                detail + "\n\n请点击手账面板中的“系统浏览器打开”，登录后仍可回到 Nikkiward 手动同步当前页面。");
+            await TryShowDialogAsync("奇想手账内置页面打开失败", MainPageViewModel.RedactUiText(detail));
+        }
+        finally
+        {
+            _journalRouteIntent = JournalRouteIntent.Unknown;
+            if (_hostedJournalPage != null)
+            {
+                if (resonance) ShowWebPage("wish");
+                else ShowWebPage("journal");
+            }
         }
     }
 
@@ -195,18 +181,6 @@ public sealed partial class MainPage
             ViewModel.ReportUiError($"系统浏览器打开失败：{ex.GetType().Name}: {ex.Message}");
             await TryShowDialogAsync("系统浏览器打开失败", ViewModel.LastErrorText);
         }
-    }
-
-    private void OnJournalBrowserClosed(object? sender, EventArgs e)
-    {
-        var returnToResonance = IsResonanceHistoryUri(_hostedJournalPage?.LastContentUri);
-        if (returnToResonance)
-        {
-            SetShellNavigationSelection(ResonanceNavigationItem);
-            ShowResonance();
-        }
-
-        _journalRouteIntent = JournalRouteIntent.Unknown;
     }
 
     private async Task<bool> SyncJournalPageAsync(bool isAutomatic)

@@ -44,6 +44,8 @@ public sealed class NativeWindowRuntime : IDisposable
     private const uint WmSize = 0x0005;
     private const uint WmActivateApp = 0x001C;
     private const uint WmHotkey = 0x0312;
+    private const uint WmSettingChange = 0x001A;
+    private const uint WmThemeChanged = 0x031A;
     private const uint WmAppTray = 0x8000 + 0x42;
     private const uint WmAppForegroundSync = 0x8000 + 0x43;
     private const uint WmLButtonUp = 0x0202;
@@ -82,6 +84,7 @@ public sealed class NativeWindowRuntime : IDisposable
     private HotkeyGesture? _showWindowGesture;
     private HotkeyGesture? _screenshotGesture;
     private IntPtr _trayIconHandle;
+    private bool _trayRequested;
     private bool _ownsTrayIconHandle;
     private bool _trayVisible;
     private bool _applicationActive;
@@ -93,6 +96,7 @@ public sealed class NativeWindowRuntime : IDisposable
     public event EventHandler? ExitRequested;
 
     public event EventHandler? ScreenshotRequested;
+    public event EventHandler? SystemAppearanceChanged;
 
     public event EventHandler<NativeWindowActivationChangedEventArgs>? ActivationChanged;
 
@@ -162,20 +166,8 @@ public sealed class NativeWindowRuntime : IDisposable
         string screenshotHotkey)
     {
         ThrowIfDisposed();
-        if (!HotkeyGesture.TryParse(showWindowHotkey, out var showGesture, out var showError))
-        {
-            return HotkeyRegistrationResult.Failure($"显示主窗口快捷键无效：{showError}");
-        }
-
-        if (!HotkeyGesture.TryParse(screenshotHotkey, out var screenshotGesture, out var screenshotError))
-        {
-            return HotkeyRegistrationResult.Failure($"游戏截图快捷键无效：{screenshotError}");
-        }
-
-        if (showGesture == screenshotGesture)
-        {
-            return HotkeyRegistrationResult.Failure("显示主窗口与游戏截图不能使用同一个快捷键。");
-        }
+        var validation = ParseHotkeys(showWindowHotkey, screenshotHotkey, out var showGesture, out var screenshotGesture);
+        if (!validation.Succeeded) return validation;
 
         var previousShowGesture = _showWindowGesture;
         var previousScreenshotGesture = _screenshotGesture;
@@ -207,9 +199,32 @@ public sealed class NativeWindowRuntime : IDisposable
             $"快捷键已注册：显示主窗口 {showGesture.DisplayText}；游戏截图 {screenshotGesture.DisplayText}");
     }
 
+    internal static HotkeyRegistrationResult ParseHotkeys(string showWindowHotkey, string screenshotHotkey,
+        out HotkeyGesture showGesture, out HotkeyGesture screenshotGesture)
+    {
+        screenshotGesture = null!;
+        if (!HotkeyGesture.TryParse(showWindowHotkey, out showGesture, out var showError))
+        {
+            return HotkeyRegistrationResult.Failure($"显示主窗口快捷键无效：{showError}");
+        }
+
+        if (!HotkeyGesture.TryParse(screenshotHotkey, out screenshotGesture, out var screenshotError))
+        {
+            return HotkeyRegistrationResult.Failure($"游戏截图快捷键无效：{screenshotError}");
+        }
+
+        if (showGesture == screenshotGesture)
+        {
+            return HotkeyRegistrationResult.Failure("显示主窗口与游戏截图不能使用同一个快捷键。");
+        }
+
+        return HotkeyRegistrationResult.Success(string.Empty);
+    }
+
     public void SetTrayEnabled(bool enabled)
     {
         ThrowIfDisposed();
+        _trayRequested = enabled;
         if (enabled == _trayVisible)
         {
             return;
@@ -253,7 +268,11 @@ public sealed class NativeWindowRuntime : IDisposable
         UIntPtr subclassId,
         UIntPtr referenceData)
     {
-        if (message == WmSize)
+        if (message is WmSettingChange or WmThemeChanged)
+        {
+            SystemAppearanceChanged?.Invoke(this, EventArgs.Empty);
+        }
+        else if (message == WmSize)
         {
             LastNonMinimizedWasMaximized = TrackMaximizedState(LastNonMinimizedWasMaximized, wParam);
         }
@@ -276,6 +295,11 @@ public sealed class NativeWindowRuntime : IDisposable
         else if (message == WmAppTray)
         {
             var mouseMessage = unchecked((uint)lParam.ToInt64()) & 0xFFFF;
+            if (!_trayRequested && mouseMessage is 0x403 or 0x404 or 0x405) // balloon hidden, timed out or clicked
+            {
+                RemoveTrayIcon();
+                return IntPtr.Zero;
+            }
             if (mouseMessage is WmLButtonUp or WmLButtonDoubleClick)
             {
                 ShowWindowRequested?.Invoke(this, EventArgs.Empty);
@@ -334,6 +358,22 @@ public sealed class NativeWindowRuntime : IDisposable
 
         _ = GetWindowThreadProcessId(foregroundWindow, out var processId);
         return processId == (uint)Environment.ProcessId;
+    }
+
+    internal void NotifyReminder(string message)
+    {
+        if (!_trayVisible) AddTrayIcon();
+        var data = CreateTrayData();
+        data.Flags = 0x10; // NIF_INFO
+        data.InfoTitle = "清单与提醒";
+        data.Info = message.Length <= 255 ? message : message[..254] + "…";
+        data.InfoFlags = 1;
+        if (!ShellNotifyIcon(NimModify, ref data))
+        {
+            int error = Marshal.GetLastWin32Error();
+            if (!_trayRequested) RemoveTrayIcon();
+            throw new InvalidOperationException($"无法显示提醒，Windows 错误码 {error}。");
+        }
     }
 
     private void AddTrayIcon()
@@ -499,7 +539,7 @@ public sealed class NativeWindowRuntime : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
     }
 
-    private sealed record HotkeyGesture(uint Modifiers, uint VirtualKey, string DisplayText)
+    internal sealed record HotkeyGesture(uint Modifiers, uint VirtualKey, string DisplayText)
     {
         public static bool TryParse(
             string? value,

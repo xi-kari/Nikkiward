@@ -5,6 +5,7 @@ internal static class WallpaperImportTests
 {
     public static (string Name, Func<Task> Run)[] All =>
     [
+        (nameof(AutomaticBackgroundImportUsesAvailableMedia), AutomaticBackgroundImportUsesAvailableMedia),
         ("Wallpaper PKGV scene packages resolve their preview card", PkgSceneResolvesPreviewCard),
         ("Standalone Wallpaper PKGV packages resolve without project metadata", StandalonePkgResolvesRuntime),
         ("Wallpaper video projects route to the existing motion pipeline", VideoProjectRoutesToMotion),
@@ -14,6 +15,29 @@ internal static class WallpaperImportTests
         ("Wallpaper package cache retains the runtime scene layout", PackageCacheRetainsRuntimeLayout),
         ("Wallpaper package cache backfills missing companions after a canonical hit", PackageCacheBackfillsMissingCompanions),
     ];
+
+    private static Task AutomaticBackgroundImportUsesAvailableMedia()
+    {
+        using var fixture = new WallpaperFixture();
+        var preview = fixture.WriteFile("preview.jpg", [0xff, 0xd8]);
+        var project = fixture.WriteProject("""{ "type":"scene", "file":"scene.json", "preview":"preview.jpg" }""");
+        void Expect(string input, WallpaperResolvedKind kind, string source)
+        {
+            var result = WallpaperSourceRules.Resolve(input, WallpaperSourceRules.InferMode(input));
+            Assert(result.IsUsable && result.Kind == kind && result.SourcePath == source, input);
+        }
+        Expect(preview, WallpaperResolvedKind.Still, preview);
+        Expect(project, WallpaperResolvedKind.Still, preview);
+        var package = fixture.WritePackage("scene.pkg", "PKGV0001", [("scene.json", new byte[] { 123, 125 })]);
+        Expect(project, WallpaperResolvedKind.WallpaperEnginePackage, package);
+        Expect(package, WallpaperResolvedKind.WallpaperEnginePackage, package);
+        fixture.WriteProject("""{ "type":"video", "file":"loop.mp4", "preview":"preview.jpg" }""");
+        Expect(project, WallpaperResolvedKind.Still, preview);
+        var video = fixture.WriteFile("loop.mp4", [0, 0, 0, 24]);
+        Expect(project, WallpaperResolvedKind.Motion, video);
+        Expect(video, WallpaperResolvedKind.Motion, video);
+        return Task.CompletedTask;
+    }
 
     private static Task PkgSceneResolvesPreviewCard()
     {

@@ -63,7 +63,7 @@ internal interface INuan5GalleryNativeAdapter
     void FreeBytes(Nuan5CBytes bytes);
 }
 
-public sealed class Nuan5GalleryMetadataService
+public sealed partial class Nuan5GalleryMetadataService
 {
     public const uint ExpectedAbiVersion = 1;
     public const long MaximumFileSize = 10L * 1024 * 1024;
@@ -342,6 +342,28 @@ public sealed class Nuan5GalleryMetadataService
         }
     }
 
+    private static ReadOnlyMemory<byte> TextPayload(byte[] payload)
+    {
+        int terminator = Array.IndexOf(payload, (byte)0);
+        return terminator < 0 ? payload : payload.AsMemory(0, terminator);
+    }
+
+    private static JsonDocument ReadSocialDocument(byte[] payload)
+    {
+        var text = TextPayload(payload);
+        // InteractivePhoto can be a game-specific map literal. The remaining members are JSON.
+        if (text.Span.StartsWith("{\"InteractivePhoto\":[:"u8))
+        {
+            int end = text.Span.IndexOf((byte)']');
+            if (end >= 0 && text.Span[(end + 1)..].StartsWith(",\"SocialPhoto\":{"u8))
+            {
+                payload[end + 1] = (byte)'{';
+                return JsonDocument.Parse(text[(end + 1)..]);
+            }
+        }
+        return JsonDocument.Parse(text);
+    }
+
     private static bool TryReadSocialPhoto(
         byte[] payload,
         out SocialPhotoSnapshot snapshot)
@@ -354,7 +376,7 @@ public sealed class Nuan5GalleryMetadataService
 
         try
         {
-            using var document = JsonDocument.Parse(payload);
+            using var document = ReadSocialDocument(payload);
             if (document.RootElement.ValueKind != JsonValueKind.Object)
             {
                 return false;
@@ -433,7 +455,7 @@ public sealed class Nuan5GalleryMetadataService
 
         try
         {
-            using var document = JsonDocument.Parse(payload);
+            using var document = JsonDocument.Parse(TextPayload(payload));
             var root = document.RootElement;
             JsonElement values;
             if (root.ValueKind == JsonValueKind.Array)

@@ -251,15 +251,49 @@ internal static class UpdateReleaseTests
         {
             CreateValidPayloadFixture(root, payloadRoot);
             var valid = await RunPayloadValidatorAsync(root, payloadRoot);
-            AssertEqual(0, valid.ExitCode, "valid release payload");
+            AssertEqual(0, valid.ExitCode, $"valid release payload: {valid.Output}");
             AssertContains(valid.Output, "PAYLOAD_VERIFY=PASS", "valid release payload result");
+
+            foreach (var name in new[] { "index.html", "home.css", "home.js" })
+            {
+                var path = Path.Combine(payloadRoot, "Web", "skins", "atelier", name);
+                var content = await File.ReadAllBytesAsync(path);
+                File.Delete(path);
+                var missing = await RunPayloadValidatorAsync(root, payloadRoot);
+                Assert(missing.ExitCode != 0 && missing.Output.Contains("file is missing"), name);
+                await File.WriteAllBytesAsync(path, content);
+            }
+
+            var page = Path.Combine(payloadRoot, "Web", "shared", "home.js");
+            var script = await File.ReadAllBytesAsync(page);
+            await File.AppendAllTextAsync(page, " ");
+            var tamperedScript = await RunPayloadValidatorAsync(root, payloadRoot);
+            Assert(tamperedScript.ExitCode != 0 && tamperedScript.Output.Contains("hash mismatch"), "skin manifest");
+            await File.WriteAllBytesAsync(page, script);
+
+            var font = Directory.EnumerateFiles(Path.Combine(payloadRoot, "Web", "fonts"), "*.woff2", SearchOption.AllDirectories).First();
+            var original = await File.ReadAllBytesAsync(font);
+            await File.WriteAllBytesAsync(font, [0]);
+            var tamperedFont = await RunPayloadValidatorAsync(root, payloadRoot);
+            Assert(tamperedFont.ExitCode != 0 && tamperedFont.Output.Contains("hash mismatch"), "font hash");
+            await File.WriteAllBytesAsync(font, original);
 
             foreach (var (relativePath, content) in new[]
             {
+                ("Features\\Wish\\WishPage.xbf", "retired page"),
                 ("Plugins\\plugin.json", "{}"),
                 ("ProtectedFavorites\\object.bin", "object"),
                 ("ArtCache\\blur.jpg", "cache"),
                 ("settings.json", "{}"),
+                ("Web\\pages\\settings\\private.json", "{}"),
+                ("Settings\\page.js", "private"),
+                ("Assets\\HomeSkins\\Cinema.jpg", "duplicate preview"),
+                ("Assets\\HomeSkins\\JournalPaperGrain.png", "retired texture"),
+                ("Assets\\HomeSkins\\WishStarIrisRing.png", "retired texture"),
+                ("Web\\skins\\atelier\\extra.js", ""),
+                ("Web.dev\\atelier\\cases.js", ""),
+                ("Web\\fonts\\extra.woff2", ""),
+                ("HomeWebView2\\Preferences", "{}"),
                 ("Logs\\app.log", "log"),
                 ("cache\\state.dat", "cache"),
                 ("cookie.json", "{}"),
@@ -361,6 +395,15 @@ internal static class UpdateReleaseTests
             File.WriteAllBytes(path, [0]);
         }
 
+        var art = Directory.CreateDirectory(Path.Combine(payloadRoot, "Web", "art"));
+        foreach (var file in new[] { "NikkiDefaultBackground.jpg", "NikkiPresetBackground2.jpg" })
+            File.Copy(Path.Combine(root, "Nikkiward", "Assets", file), Path.Combine(art.FullName, file));
+
+        var previews = art.CreateSubdirectory("HomeSkins");
+        foreach (var id in new[] { "Atelier", "Cinema", "Journal", "Stitch", "WishStar" })
+            File.Copy(Path.Combine(root, "Nikkiward", "Assets", "HomeSkins", id + ".jpg"),
+                Path.Combine(previews.FullName, id + ".jpg"));
+
         foreach (var relativePath in new[]
         {
             "Assets\\NikkiwardIcon.ico",
@@ -369,20 +412,23 @@ internal static class UpdateReleaseTests
             "Assets\\NikkiDefaultBackgroundBlur.jpg",
             "Assets\\NikkiGameIcon.png",
             "Assets\\XikariAvatar.jpg",
+            "Web\\skins\\atelier\\index.html",
+            "Web\\skins\\atelier\\home.css",
+            "Web\\skins\\atelier\\home.js",
             "Assets\\DefaultFavorites\\01.jpg",
             "Assets\\DefaultFavorites\\02.jpg",
             "Assets\\DefaultFavorites\\03.jpg",
             "Assets\\DefaultFavorites\\04.jpg",
             "Assets\\DefaultFavorites\\05.jpg",
-            "Shaders\\LauncherNebula.bin",
             "runtimes\\win-x64\\native\\nuan5_decryption.dll",
             "LICENSE",
             "PRIVACY.md",
             "THIRD-PARTY-NOTICES.md",
-        })
+        }.Concat(Directory.EnumerateFiles(Path.Combine(root, "Nikkiward", "Web"), "*", SearchOption.AllDirectories)
+            .Select(path => Path.GetRelativePath(Path.Combine(root, "Nikkiward"), path))))
         {
             var sourceRoot = relativePath.StartsWith("Assets\\", StringComparison.OrdinalIgnoreCase)
-                || relativePath.StartsWith("Shaders\\", StringComparison.OrdinalIgnoreCase)
+                || relativePath.StartsWith("Web\\", StringComparison.OrdinalIgnoreCase)
                 || relativePath.StartsWith("runtimes\\", StringComparison.OrdinalIgnoreCase)
                 ? Path.Combine(root, "Nikkiward")
                 : root;

@@ -1,0 +1,9 @@
+<Page
+    x:Class="Nikkiward.Features.Pages.WebPagesView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    NavigationCacheMode="Required">
+    <Grid x:Name="Root">
+        <WebView2 x:Name="Web" />
+    </Grid>
+</Page>

@@ -8,6 +8,8 @@ internal static class UserSettingsTests
 {
     public static (string Name, Func<Task> Run)[] All =>
     [
+        (nameof(MissingSettingsMembersUseModelDefaults), MissingSettingsMembersUseModelDefaults),
+        (nameof(OlderHomeSettingsKeepRecentPhotosAndIdleDelay), OlderHomeSettingsKeepRecentPhotosAndIdleDelay),
         ("old general settings keep the window and after-launch choices round trip", AfterLaunchSettingsRoundTrip),
         ("damaged settings survive profile discovery and window close", () => DiscoverWithSettingsAsync("{broken")),
         ("future settings survive profile discovery and window close", () => DiscoverWithSettingsAsync("{\"schemaVersion\":999}")),
@@ -35,6 +37,68 @@ internal static class UserSettingsTests
         ("settings atomic replacement leaves no temporary files", AtomicReplacementLeavesNoTemporaryFiles),
         ("application paths preserve Windows drive roots", ApplicationPathsPreserveDriveRoots),
     ];
+
+    private static async Task MissingSettingsMembersUseModelDefaults()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var store = new JsonUserSettingsStore(root);
+            await store.SaveAsync(new UserSettings());
+            var defaults = JsonNode.Parse(await File.ReadAllTextAsync(store.SettingsFilePath))!.AsObject();
+            foreach (var (key, value) in defaults)
+            {
+                if (key == "schemaVersion") continue;
+                var partial = defaults.DeepClone().AsObject();
+                if (value is JsonObject) partial[key] = new JsonObject();
+                else partial.Remove(key);
+                await File.WriteAllTextAsync(store.SettingsFilePath, partial.ToJsonString());
+                var read = JsonSerializer.SerializeToNode(await store.LoadAsync(), JsonUserSettingsStore.UserSettingsJsonTypeInfo);
+                Assert(JsonNode.DeepEquals(defaults, read), $"model defaults for {key}");
+            }
+            var nested = defaults.DeepClone().AsObject();
+            nested["appearance"]!["background"] = new JsonObject { ["holographicCardEnabled"] = false };
+            nested.Remove("screenshot");
+            nested["channelStore"] = null;
+            nested["general"]!["checklistReset"] = "00:00:00";
+            nested["download"] = new JsonObject { ["enableHardLinks"] = false };
+            nested["fileManagement"] = new JsonObject { ["clearLauncherBackgroundFiles"] = true };
+            nested["gamepad"] = new JsonObject { ["enabled"] = true };
+            nested["galleryProfiles"] = new JsonArray(new JsonObject { ["profileId"] = "album", ["rootPath"] = root });
+            await File.WriteAllTextAsync(store.SettingsFilePath, nested.ToJsonString());
+            var loaded = await store.LoadAsync();
+            Assert(!loaded.Appearance.Background.HolographicCardEnabled && loaded.General.ChecklistReset == TimeOnly.MinValue &&
+                loaded.Appearance.Background.CarouselIntervalMinutes == new BackgroundArtSettings().CarouselIntervalMinutes &&
+                loaded.ChannelStore.Profiles.Count == 0 && loaded.Screenshot == new ScreenshotSettings() &&
+                !loaded.Download.EnableHardLinks && loaded.FileManagement.ClearLauncherBackgroundFiles &&
+                loaded.Gamepad.Enabled && loaded.Gamepad.GuideLongPressOpensMainWindow &&
+                loaded.GalleryProfiles.Single().RootPath == root, "nested defaults and explicit overrides");
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    private static async Task OlderHomeSettingsKeepRecentPhotosAndIdleDelay()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var store = new JsonUserSettingsStore(root);
+            await store.SaveAsync(new UserSettings());
+            var document = JsonNode.Parse(await File.ReadAllTextAsync(store.SettingsFilePath))!;
+            var appearance = document["appearance"]!.AsObject();
+            appearance.Remove("showRecentPhotos");
+            appearance.Remove("appreciationDelaySeconds");
+            await File.WriteAllTextAsync(store.SettingsFilePath, document.ToJsonString());
+            var before = (await store.LoadAsync()).Appearance;
+            Assert(before.ShowRecentPhotos && before.AppreciationDelaySeconds == 8, "old home defaults");
+            appearance["showRecentPhotos"] = false;
+            appearance["appreciationDelaySeconds"] = 0;
+            await File.WriteAllTextAsync(store.SettingsFilePath, document.ToJsonString());
+            var after = (await store.LoadAsync()).Appearance;
+            Assert(!after.ShowRecentPhotos && after.AppreciationDelaySeconds == 0, "explicit home preferences");
+        }
+        finally { Directory.Delete(root, true); }
+    }
 
     private static async Task AfterLaunchSettingsRoundTrip()
     {
@@ -254,10 +318,7 @@ internal static class UserSettingsTests
         var settings = new UserSettings();
         AssertEqual(UserSettings.CurrentSchemaVersion, settings.SchemaVersion, "schema version");
         AssertEqual(ThemeMode.WarmDark, settings.Appearance.ThemeMode, "theme mode");
-        AssertEqual(
-            LauncherCapsuleStyle.Ocean,
-            settings.Appearance.LauncherCapsuleStyle,
-            "launcher capsule style");
+        AssertEqual("WishStar", settings.Appearance.HomeSkin, "home skin");
         AssertEqual(0, settings.GalleryProfiles.Count, "gallery profile count");
         Assert(!settings.DeveloperModeEnabled, "developer mode must default off");
         return Task.CompletedTask;
@@ -279,11 +340,7 @@ internal static class UserSettingsTests
                     FixedAccent = FixedAccentColor.Gold,
                     CustomAccentArgb = 0x00776655,
                     UseSerifTitles = false,
-                    LauncherMastheadLabel = " 标签 ",
-                    LauncherMastheadTitle = " 自定义标题 ",
-                    LauncherMastheadSubtitle = " 自定义副标题 ",
-                    ShowLauncherUtilityPanels = true,
-                    LauncherCapsuleStyle = LauncherCapsuleStyle.Ultraviolet,
+                    HomeSkin = "Cinema",
                     Motion = AppearanceMotionMode.Reduced,
                     Density = InterfaceDensity.Compact,
                     Background = new BackgroundArtSettings
@@ -311,14 +368,7 @@ internal static class UserSettingsTests
             AssertEqual(AppearanceMotionMode.Reduced, loaded.Appearance.Motion, "motion mode");
             AssertEqual(InterfaceDensity.Compact, loaded.Appearance.Density, "density");
             AssertEqual(0xFF776655u, loaded.Appearance.CustomAccentArgb, "custom accent");
-            AssertEqual("标签", loaded.Appearance.LauncherMastheadLabel, "masthead label");
-            AssertEqual("自定义标题", loaded.Appearance.LauncherMastheadTitle, "masthead title");
-            AssertEqual("自定义副标题", loaded.Appearance.LauncherMastheadSubtitle, "masthead subtitle");
-            Assert(loaded.Appearance.ShowLauncherUtilityPanels, "utility panels setting");
-            AssertEqual(
-                LauncherCapsuleStyle.Ultraviolet,
-                loaded.Appearance.LauncherCapsuleStyle,
-                "launcher capsule style");
+            AssertEqual("Cinema", loaded.Appearance.HomeSkin, "home skin");
             AssertEqual("D:\\Art\\one.png", loaded.Appearance.Background.SelectedSource, "source");
             Assert(!loaded.Appearance.Background.HolographicCardEnabled, "holographic card");
             Assert(loaded.Appearance.Background.MotionEnabled, "motion enabled");
@@ -340,8 +390,8 @@ internal static class UserSettingsTests
                 json.Contains("\"themeMode\": \"warmDark\"", StringComparison.Ordinal),
                 "appearance theme must serialize as camel-case enum text");
             Assert(
-                json.Contains("\"launcherCapsuleStyle\": \"ultraviolet\"", StringComparison.Ordinal),
-                "launcher capsule style must serialize as camel-case enum text");
+                json.Contains("\"homeSkin\": \"Cinema\"", StringComparison.Ordinal),
+                "home skin id must round-trip");
             Assert(
                 json.Contains("\"holographicCardEnabled\": false", StringComparison.Ordinal),
                 "holographic card setting must serialize");
@@ -681,10 +731,7 @@ internal static class UserSettingsTests
             AssertEqual("Ctrl+G", loaded.Gamepad.GuideMapKeys, "guide map");
             Assert(!loaded.Appearance.Background.MotionEnabled, "migrated motion default");
             AssertEqual(30, loaded.Appearance.Background.MotionFpsCap, "migrated motion FPS");
-            AssertEqual(
-                LauncherCapsuleStyle.Ocean,
-                loaded.Appearance.LauncherCapsuleStyle,
-                "migrated launcher capsule style");
+            AssertEqual("WishStar", loaded.Appearance.HomeSkin, "home skin");
         }
         finally
         {
@@ -718,8 +765,8 @@ internal static class UserSettingsTests
             Assert(json.Contains($"\"schemaVersion\": {UserSettings.CurrentSchemaVersion}", StringComparison.Ordinal), "current schema output");
             Assert(json.Contains("\"appearance\"", StringComparison.Ordinal), "appearance output");
             Assert(
-                json.Contains("\"launcherCapsuleStyle\": \"ocean\"", StringComparison.Ordinal),
-                "launcher capsule default output");
+                json.Contains("\"homeSkin\": \"WishStar\"", StringComparison.Ordinal),
+                "default home skin output");
             Assert(!json.Contains("\n  \"themeMode\"", StringComparison.Ordinal), "legacy theme removed");
             AssertEqual(ThemeMode.WarmLight, (await store.LoadAsync()).Appearance.ThemeMode, "saved theme");
         }
@@ -765,7 +812,7 @@ internal static class UserSettingsTests
             "[]",
             "{\"schemaVersion\":6}",
             "{\"schemaVersion\":6,\"appearance\":{\"motion\":99},\"profiles\":[],\"galleryProfiles\":[],\"gamepad\":{}}",
-            "{\"schemaVersion\":6,\"appearance\":{\"launcherCapsuleStyle\":\"unknown\"},\"profiles\":[],\"galleryProfiles\":[],\"gamepad\":{}}",
+            "{\"schemaVersion\":6,\"appearance\":{\"accentMode\":\"unknown\"},\"profiles\":[],\"galleryProfiles\":[],\"gamepad\":{}}",
             "{\"schemaVersion\":6,\"appearance\":{},\"profiles\":[],\"galleryProfiles\":[],\"gamepad\":{},\"unknownSection\":true}",
         };
 
@@ -809,7 +856,7 @@ internal static class UserSettingsTests
                 {
                     Appearance = new AppearanceSettings
                     {
-                        LauncherCapsuleStyle = (LauncherCapsuleStyle)99,
+                        Density = (InterfaceDensity)99,
                     },
                 }));
             Assert(!File.Exists(store.SettingsFilePath), "invalid settings should not be written");

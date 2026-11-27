@@ -14,16 +14,18 @@ namespace Nikkiward;
 
 public sealed partial class MainWindow : Window
 {
-    private const int DesignWidth = 1440;
-    private const int DesignHeight = 810;
+    // The window keeps one size, close to Starward's (about 1185 x 669): 1200 x 675 view pixels of content.
+    private const int DesignWidth = 1200;
+    private const int DesignHeight = 675;
 
     private const double TitleBarStripHeight = 48;
-    private const double NavigationRailWidth = 56;
     private const double CaptionButtonsWidth = 160;
 
     private InputNonClientPointerSource? _nonClientPointerSource;
     private readonly NativeWindowRuntime _nativeWindowRuntime;
     private MainPage? _mainPage;
+    internal void NotifyReminder(string text) => _nativeWindowRuntime.NotifyReminder(text);
+
     private readonly WindowTray _tray;
     private bool _allowClose;
     private bool _exitPending;
@@ -44,13 +46,8 @@ public sealed partial class MainWindow : Window
         Title = "Nikkiward";
         ExtendsContentIntoTitleBar = true;
 
-        // Deliberately not SetTitleBar(AppTitleBar): a XAML drag element wins
-        // over Passthrough regions, so page headers drawn in the same strip
-        // become undraggable-but-unclickable. The Caption region is declared
-        // from geometry below instead, carved around those headers.
-
         AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
-        AppWindow.TitleBar.IconShowOptions = IconShowOptions.ShowIconAndSystemMenu;
+        AppWindow.TitleBar.IconShowOptions = IconShowOptions.HideIconAndSystemMenu;
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
         AppWindow.TitleBar.BackgroundColor = Colors.Transparent;
         AppWindow.TitleBar.InactiveBackgroundColor = Colors.Transparent;
@@ -90,14 +87,21 @@ public sealed partial class MainWindow : Window
         _nativeWindowRuntime.ShowWindowRequested += OnNativeShowWindowRequested;
         _nativeWindowRuntime.ExitRequested += OnNativeExitRequested;
         _nativeWindowRuntime.ScreenshotRequested += OnNativeScreenshotRequested;
+        _nativeWindowRuntime.SystemAppearanceChanged += (_, _) => DispatcherQueue.TryEnqueue(NativeSkin.Refresh);
         Closed += OnWindowClosed;
 
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
-            presenter.IsMaximizable = true;
-            presenter.IsResizable = true;
+            presenter.IsMaximizable = false;
+            presenter.IsResizable = false;
         }
 
+        AppWindow.Changed += OnWindowMetricsChanged;
+        RootFrame.Loaded += (_, _) =>
+        {
+            RootFrame.XamlRoot.Changed += OnRootMetricsChanged;
+            ApplyFixedClientSize();
+        };
         RootFrame.Navigate(typeof(MainPage));
         if (RootFrame.Content is MainPage mainPage)
         {
@@ -221,14 +225,19 @@ public sealed partial class MainWindow : Window
         return save;
     }
 
-    private void OnNativeShowWindowRequested(object? sender, EventArgs e) =>
-        ShowWindowCore();
+    private void OnNativeShowWindowRequested(object? sender, EventArgs e)
+    {
+        if (_mainPage?.CaptureRegisteredSettingsHotkey(screenshot: false) != true) ShowWindowCore();
+    }
 
     private async void OnNativeExitRequested(object? sender, EventArgs e) =>
         await ExitApplicationAsync();
 
-    private void OnNativeScreenshotRequested(object? sender, EventArgs e) =>
-        _mainPage?.CaptureGameScreenshotFromHotkey();
+    private void OnNativeScreenshotRequested(object? sender, EventArgs e)
+    {
+        if (_mainPage?.CaptureRegisteredSettingsHotkey(screenshot: true) != true)
+            _mainPage?.CaptureGameScreenshotFromHotkey();
+    }
 
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
@@ -237,10 +246,26 @@ public sealed partial class MainWindow : Window
             _mainPage.ViewModel.AfterLaunchWindowRequested -= OnAfterLaunchWindowRequested;
         }
 
+        AppWindow.Changed -= OnWindowMetricsChanged;
+        if (RootFrame.XamlRoot is { } root) root.Changed -= OnRootMetricsChanged;
         _nativeWindowRuntime.ShowWindowRequested -= OnNativeShowWindowRequested;
         _nativeWindowRuntime.ExitRequested -= OnNativeExitRequested;
         _nativeWindowRuntime.ScreenshotRequested -= OnNativeScreenshotRequested;
         _nativeWindowRuntime.Dispose();
+    }
+
+    // The drag and click regions are in client coordinates, so moving the window leaves them as they are.
+    // Recomputing them on every position change made dragging the window stutter.
+    private void OnWindowMetricsChanged(AppWindow sender, AppWindowChangedEventArgs args)
+    {
+        if (args.DidSizeChange || args.DidPresenterChange || args.DidVisibilityChange) UpdateTitleBarPassthroughRegion();
+    }
+
+    private void OnRootMetricsChanged(XamlRoot sender, XamlRootChangedEventArgs args)
+    {
+        // Once per scale change, so a resize that lands a pixel off cannot keep resizing.
+        if (sender.RasterizationScale != _fixedSizeScale) ApplyFixedClientSize();
+        UpdateTitleBarPassthroughRegion();
     }
 
     private void OnTitleBarPassthroughChanged(object? sender, EventArgs e)
@@ -261,11 +286,12 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void UpdateTitleBarPassthroughRegion()
     {
-        if (_nonClientPointerSource is null || _mainPage is null)
+        if (_nonClientPointerSource is null || _mainPage?.XamlRoot is not { } root)
         {
             return;
         }
 
+        int inset = CaptionWidth(root.RasterizationScale);
         var rects = new List<RectInt32>();
         foreach (var region in _mainPage.TitleBarPassthroughRegions)
         {
@@ -284,10 +310,15 @@ public sealed partial class MainWindow : Window
                     0,
                     region.ActualWidth,
                     region.ActualHeight));
+            if (bounds.IsEmpty) continue;
             var left = checked((int)Math.Floor(bounds.X * scale));
             var top = checked((int)Math.Floor(bounds.Y * scale));
             var right = checked((int)Math.Ceiling((bounds.X + bounds.Width) * scale));
             var bottom = checked((int)Math.Ceiling((bounds.Y + bounds.Height) * scale));
+            left = Math.Max(0, left);
+            right = Math.Min(right, AppWindow.ClientSize.Width);
+            if (top < TitleBarStripHeight * scale)
+                right = Math.Min(right, AppWindow.ClientSize.Width - inset);
             if (right <= left || bottom <= top)
             {
                 continue;
@@ -303,10 +334,12 @@ public sealed partial class MainWindow : Window
         UpdateCaptionRegion(rects);
     }
 
-    /// <summary>
-    /// Declares the draggable strip around the navigation rail, caption
-    /// buttons, and page-owned interactive regions.
-    /// </summary>
+    private int CaptionWidth(double scale)
+    {
+        var inset = AppWindow.TitleBar.RightInset;
+        return inset > 0 ? inset : checked((int)Math.Ceiling(CaptionButtonsWidth * scale));
+    }
+
     private void UpdateCaptionRegion(List<RectInt32> passthrough)
     {
         if (_nonClientPointerSource is null || _mainPage?.XamlRoot is null)
@@ -316,9 +349,9 @@ public sealed partial class MainWindow : Window
 
         var scale = _mainPage.XamlRoot.RasterizationScale;
         var stripHeight = checked((int)Math.Ceiling(TitleBarStripHeight * scale));
-        var leftReserve = checked((int)Math.Ceiling(NavigationRailWidth * scale));
+        const int leftReserve = 0;
         var windowWidth = AppWindow.ClientSize.Width;
-        var captionWidth = checked((int)Math.Ceiling(CaptionButtonsWidth * scale));
+        var captionWidth = CaptionWidth(scale);
         var right = Math.Max(leftReserve, windowWidth - captionWidth);
         if (right <= leftReserve)
         {

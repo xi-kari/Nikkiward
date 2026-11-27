@@ -1,18 +1,24 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using Nikkiward.Services;
 
 namespace Nikkiward.Features.Gallery;
 
 internal sealed record GalleryThumbnail(string? FilePath, byte[]? Bytes);
 
-internal static class GalleryThumbnailFile
+internal static partial class GalleryThumbnailFile
 {
     public static async Task<GalleryThumbnail?> GetOrCreateAsync(string? folder, string? galleryRoot, FileInfo source,
         bool allowMemory, Func<Task<byte[]?>> render, CancellationToken token)
     {
         var path = GetCachePath(folder, galleryRoot, source);
-        if (File.Exists(path)) return new GalleryThumbnail(path, null);
+        if (path != null)
+        {
+            if (File.Exists(path)) return new GalleryThumbnail(path, null);
+            var legacy = Path.Combine(Path.GetDirectoryName(path)!, Path.GetFileName(path)[CachePrefix.Length..]);
+            if (File.Exists(legacy)) return new GalleryThumbnail(legacy, null);
+        }
 
         if (path is null && !allowMemory) return null;
         var bytes = await render();
@@ -68,6 +74,13 @@ internal static class GalleryThumbnailFile
         }
     }
 
+    private const string CachePrefix = "nikkiward-thumb-";
+
+    [GeneratedRegex(@"\A" + CachePrefix + @"[0-9a-f]{32}\.jpg(?:\.[0-9a-f]{32}\.tmp)?\z")]
+    private static partial Regex CacheFilePattern();
+
+    internal static bool IsCacheFileName(string name) => CacheFilePattern().IsMatch(name);
+
     /// <summary>
     /// Keyed on path plus mtime plus length, so replacing a photo in place
     /// produces a different key rather than a stale hit.
@@ -78,6 +91,6 @@ internal static class GalleryThumbnailFile
             System.Globalization.CultureInfo.InvariantCulture,
             $"{source.FullName.ToLowerInvariant()}|{source.LastWriteTimeUtc.Ticks}|{source.Length}");
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(key));
-        return $"{Convert.ToHexString(hash).ToLowerInvariant()[..32]}.jpg";
+        return $"{CachePrefix}{Convert.ToHexString(hash).ToLowerInvariant()[..32]}.jpg";
     }
 }

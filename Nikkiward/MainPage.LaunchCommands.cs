@@ -7,16 +7,12 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Media.Animation;
 using Nikkiward.Features.Background;
-using Nikkiward.Features.Diagnostics;
 using Nikkiward.Features.Gallery;
 using Nikkiward.Features.GamepadControl;
 using Nikkiward.Features.Journal;
 using Nikkiward.Features.Launcher;
-using Nikkiward.Features.Profile;
 using Nikkiward.Features.Settings;
-using Nikkiward.Features.Wish;
 using Nikkiward.Models;
-using Nikkiward.Pages;
 using Nikkiward.Services;
 using Nikkiward.ViewModels;
 using Windows.ApplicationModel.DataTransfer;
@@ -148,40 +144,5 @@ public sealed partial class MainPage
     private async void OnServiceShortcutClicked(object sender, RoutedEventArgs e)
     {
         await OpenJournalAsync();
-    }
-
-    private async void OnResonanceOpenClicked(object sender, RoutedEventArgs e)
-    {
-        await OpenResonanceJournalAsync();
-    }
-
-    private async Task OpenResonanceJournalAsync()
-    {
-        try
-        {
-            SetShellNavigationSelection(LibraryNavigationItem);
-            ShowLibrary();
-            var journalPage = ContentFrame.Content as JournalPage
-                ?? throw new InvalidOperationException("Journal page navigation did not complete.");
-            _journalRouteIntent = JournalRouteIntent.ResonanceHistory;
-            var alreadyOpen = IsResonanceHistoryUri(journalPage.CurrentUri);
-            await journalPage.ShowBrowserAsync(
-                alreadyOpen ? null : JournalPage.ResonanceUri);
-            if (alreadyOpen)
-            {
-                journalPage.SetBrowserStatus("共鸣衣橱已打开；正在重新整理历史。");
-                await SyncResonanceHistoryAsync(isAutomatic: false);
-            }
-            else
-            {
-                journalPage.SetBrowserStatus("正在打开共鸣衣橱。");
-            }
-        }
-        catch (Exception ex)
-        {
-            _hostedWishPage?.SetStatus("打开失败");
-            ViewModel.ReportUiError(
-                $"共鸣衣橱打开失败：{ex.GetType().Name}: {ex.Message}");
-        }
     }
 }

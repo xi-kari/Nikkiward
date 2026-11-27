@@ -25,11 +25,12 @@ public sealed record GeneralSettings
 
     public CloseWindowBehavior CloseWindowBehavior { get; init; } = CloseWindowBehavior.Exit;
 
+    public TimeOnly ChecklistReset { get; init; } = new(4, 0);
+
     public bool RecordLocalPlayTime { get; init; }
 
     public AfterLaunchBehavior AfterLaunchBehavior { get; init; } = AfterLaunchBehavior.KeepWindow;
 
-    public bool EnableProfileQuickSwitcher { get; init; } = true;
 }
 
 public sealed record DownloadSettings
@@ -249,7 +250,7 @@ public static class ApplicationSettingsMigration
 
         var migrated = (JsonObject)schema7Settings.DeepClone();
         migrated.Remove("windowPlacement");
-        migrated["schemaVersion"] = UserSettings.CurrentSchemaVersion;
+        migrated["schemaVersion"] = UserSettings.WindowPlacementSchemaVersion;
         return migrated;
     }
 

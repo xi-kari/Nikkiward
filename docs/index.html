@@ -295,6 +295,7 @@
     /* ————— 壁纸故事：原画 → 启动页 ————— */
     .duo { display: grid; grid-template-columns: 1fr 54px 1fr; align-items: center; gap: 16px; margin-top: 46px; }
     .duo-card { border-radius: 22px; padding: 14px; }
+    .skin-sheet { margin: 28px 0 0; }
     .duo-card img { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--glass-line-soft); }
     .duo-tags { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 10px 6px 2px; }
     .duo-tags b { font-family: var(--serif); font-size: 15px; font-weight: 600; }
@@ -489,7 +490,7 @@
             <article class="card glass reveal f-3">
               <span class="num" lang="en">03 / GALLERY</span>
               <h3>相册与收藏</h3>
-              <p>游戏截图按日期浏览，收藏可加保护；原生页面保持只读，原图一个字节都不动。</p>
+              <p>按滤镜、服装部件、主色、本次游玩或连拍筛选，收藏可加保护。点照片进入工坊，导出的副本有独立页签。</p>
             </article>
             <article class="card glass reveal f-4">
               <span class="num" lang="en">04 / JOURNAL</span>
@@ -499,7 +500,7 @@
             <article class="card glass reveal f-5">
               <span class="num" lang="en">05 / WISHES</span>
               <h3>心愿共鸣记录</h3>
-              <p>导入后增量合并，重复同步不会覆盖已有历史。</p>
+              <p>可导出和导入 Nikkiward 自己的 JSON，按条目去重并保留已有历史。其他社区工具的格式暂不支持。</p>
             </article>
             <article class="card glass card-tint-c reveal f-6">
               <div>
@@ -508,7 +509,7 @@
                 <p>全局快捷键截图，PNG、AVIF、JPEG XL 随你选；HDR 画面自动另存一份 SDR，色彩管理和自动复制也在设置里说明白。</p>
               </div>
               <figure>
-                <img src="assets/shot-settings.jpg" alt="Nikkiward 游戏截图设置页：格式与质量、截图快捷键、HDR 转 SDR 等选项" loading="lazy" width="1400" height="788">
+                <img src="assets/shot-settings.jpg" alt="浅色游戏截图设置页，显示截图目录、快捷键、图片格式和截图处理开关" loading="lazy" width="1400" height="788">
                 <figcaption>截图设置页 · 实拍</figcaption>
               </figure>
             </article>
@@ -520,8 +521,9 @@
         <div class="shell">
           <p class="kicker reveal" lang="en">Your wallpaper</p>
           <h2 class="title reveal">把你喜欢的画，挂进启动页。</h2>
-          <p class="lede reveal">静态原画、视频，甚至 Wallpaper Engine 场景（需已安装桌面版 Wallpaper Engine），都可以成为启动器的背景。玻璃、文字与按钮会跟着画面换气质——下面两组，就是本页两套主题的出处。</p>
+          <p class="lede reveal">在「设置 → 外观」选择五套首页皮肤之一，界面会跟着背景取色。首页可打开最近拍摄、清单与提醒，五套皮肤都可在启动就绪且闲置时进入鉴赏模式，移动鼠标或按键即可返回。图片与视频都可作背景，Wallpaper Engine 实时场景目前只显示静态预览。</p>
 
+          <figure class="duo-card glass reveal skin-sheet"><img src="assets/shot-skins.jpg" alt="五套首页皮肤在海月与花信背景下的布局拼图" loading="lazy" width="1620" height="618"></figure>
           <div class="duo only-blossom">
             <div class="duo-card glass reveal">
               <img src="assets/hero-blossom.jpg" alt="《无限暖暖》原画：戴花帽的粉发少女与白鸽" loading="lazy" width="2400" height="1350">
@@ -529,7 +531,7 @@
             </div>
             <div class="duo-arrow glass reveal" aria-hidden="true">→</div>
             <div class="duo-card glass reveal">
-              <img src="assets/shot-ui-01.jpg" alt="Nikkiward 启动器实拍：花信壁纸下的浅色玻璃界面" loading="lazy" width="1600" height="901">
+              <img src="assets/shot-ui-01.jpg" alt="穿针引线首页，浅色花信背景下方是最近拍摄和启动按钮" loading="lazy" width="1600" height="901">
               <div class="duo-tags"><b>启动页 · 实拍</b><span>界面随画面变亮</span></div>
             </div>
           </div>
@@ -540,12 +542,12 @@
             </div>
             <div class="duo-arrow glass reveal" aria-hidden="true">→</div>
             <div class="duo-card glass reveal">
-              <img src="assets/shot-ui-02.jpg" alt="Nikkiward 启动器实拍：海月壁纸下的深色玻璃界面" loading="lazy" width="1600" height="901">
+              <img src="assets/shot-ui-02.jpg" alt="穿针引线首页，深色海月背景下方是最近拍摄和启动按钮" loading="lazy" width="1600" height="901">
               <div class="duo-tags"><b>启动页 · 实拍</b><span>界面随画面变深</span></div>
             </div>
           </div>
 
-          <p class="wall-note reveal">用右上角的 <b>花信 / 海月</b> 切换本页主题，就是启动器换壁纸时的样子。</p>
+          <p class="wall-note reveal">用右上角的 <b>花信 / 海月</b> 切换主题，可查看穿针引线首页的两种配色。</p>
         </div>
       </section>
 
@@ -558,6 +560,16 @@
             <figure class="art art-tall"><img src="assets/art-fae.jpg" alt="《无限暖暖》原画：花间的竖幅精灵装扮" loading="lazy" width="900" height="1600"></figure>
             <figure class="art"><img src="assets/art-gown.jpg" alt="《无限暖暖》原画：花境中的金色长裙" loading="lazy" width="1400" height="875"></figure>
             <figure class="art"><img src="assets/art-veil.jpg" alt="《无限暖暖》原画：金纱礼服" loading="lazy" width="1400" height="875"></figure>
+          </div>
+          <div class="feature-grid">
+            <article class="card glass f-6 reveal">
+              <div><h3>从相册到照片工坊</h3><p>按日期浏览，或搜索文件名、滤镜和服装部件。选中一张照片后，工坊会沿用当前的排列顺序。</p></div>
+              <figure><img src="assets/shot-gallery.jpg" alt="深色相册中的分类页签、筛选工具和按日期排列的示例照片" loading="lazy" width="1600" height="901"></figure>
+            </article>
+            <article class="card glass f-6 reveal">
+              <div><h3>照片工坊</h3><p>裁切、调色，为照片加上展签边框、记录分享码或遮住 UID。连拍可并排选片。修图记录留在应用数据目录；成图可以复制、设为首页背景，或导出到 Nikkiward 的导出目录，副本不带原照片元数据。</p></div>
+              <figure><img src="assets/shot-studio.jpg" alt="照片工坊里的花间人物照片、纸白展签和右侧参数面板" loading="lazy" width="1600" height="901"></figure>
+            </article>
           </div>
           <p class="art-note reveal">以上画面截取自《无限暖暖》，权利归其各自权利人，仅用于功能说明。</p>
         </div>
@@ -583,7 +595,7 @@
             </div>
             <div class="rule-card glass reveal">
               <span class="rule-mark" aria-hidden="true">✎</span>
-              <p><b>相册保持只读</b>照片原图不做修改；需要编辑或批处理时，交给你已安装的外部工具。</p>
+              <p><b>相册保持只读</b>工坊将修图记录保存在应用数据目录，编辑和导出都保留游戏原图。</p>
             </div>
           </div>
         </div>

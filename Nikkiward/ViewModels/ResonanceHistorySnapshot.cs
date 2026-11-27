@@ -140,6 +140,15 @@ public sealed class ResonanceHistoryCache
 
     public string SnapshotPath { get; }
 
+    internal string EnsureAssetsDirectory()
+    {
+        Directory.CreateDirectory(RootPath);
+        EnsureSafeStoragePath(RootPath, expectDirectory: true);
+        Directory.CreateDirectory(AssetsPath);
+        EnsureSafeStoragePath(AssetsPath, expectDirectory: true);
+        return AssetsPath;
+    }
+
     public async Task<ResonanceHistorySnapshot?> LoadAsync(
         CancellationToken cancellationToken = default)
     {
@@ -190,10 +199,7 @@ public sealed class ResonanceHistoryCache
         EnsureCommitAllowed(commitGuard, cancellationToken);
 
         var safeSnapshot = CreateSafeSnapshot(snapshot, preserveCachedPaths: false);
-        Directory.CreateDirectory(RootPath);
-        EnsureSafeStoragePath(RootPath, expectDirectory: true);
-        Directory.CreateDirectory(AssetsPath);
-        EnsureSafeStoragePath(AssetsPath, expectDirectory: true);
+        EnsureAssetsDirectory();
 
         var existingBytes = CalculateExistingCacheBytes();
         if (existingBytes > MaximumTotalCacheBytes)

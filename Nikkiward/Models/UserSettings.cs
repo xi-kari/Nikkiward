@@ -12,7 +12,9 @@ public sealed record UserSettings
 
     public const int ApplicationSettingsSchemaVersion = 7;
 
-    public const int CurrentSchemaVersion = 8;
+    public const int WindowPlacementSchemaVersion = 8;
+
+    public const int CurrentSchemaVersion = 9;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 

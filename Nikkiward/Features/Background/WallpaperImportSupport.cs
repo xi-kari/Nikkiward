@@ -70,6 +70,7 @@ public static class WallpaperSourceRules
             ".webp",
             ".bmp",
             ".gif",
+            ".jxl",
             ".tif",
             ".tiff",
             ".heic",
@@ -95,10 +96,21 @@ public static class WallpaperSourceRules
             "project.json",
             StringComparison.OrdinalIgnoreCase);
 
-    public static WallpaperImportMode InferMode(string path) =>
-        MotionSourceRules.IsSupportedExtension(Path.GetExtension(path))
-            ? WallpaperImportMode.MotionBackdrop
-            : WallpaperImportMode.HolographicCard;
+    public static WallpaperImportMode InferMode(string path)
+    {
+        var extension = Path.GetExtension(path);
+        if (MotionSourceRules.IsSupportedExtension(extension)) return WallpaperImportMode.MotionBackdrop;
+        if (IsPackageExtension(extension) || IsProjectMetadata(path))
+        {
+            var metadata = WallpaperPackageReader.ReadProjectMetadata(path);
+            if (metadata.ProjectType == WallpaperPackageType.Scene &&
+                (IsPackageExtension(extension) || TryResolveSafeSibling(Path.GetDirectoryName(Path.GetFullPath(path))!, "scene.pkg", out _)) ||
+                metadata.ProjectType == WallpaperPackageType.Video && metadata.MediaPath != null ||
+                metadata.ProjectType == WallpaperPackageType.Unknown && IsPackageExtension(extension))
+                return WallpaperImportMode.MotionBackdrop;
+        }
+        return WallpaperImportMode.HolographicCard;
+    }
 
     public static WallpaperImportResolution Resolve(
         string sourcePath,
@@ -262,6 +274,13 @@ public static class WallpaperSourceRules
                 metadata.RejectReason ?? "project.json 无法读取。");
         }
 
+        if (metadata.ProjectType == WallpaperPackageType.Scene && mode == WallpaperImportMode.MotionBackdrop)
+        {
+            return TryResolveSafeSibling(Path.GetDirectoryName(projectPath)!, "scene.pkg", out var package)
+                ? ResolvePackage(package!, mode)
+                : WallpaperImportResolution.Reject("没有找到场景包。请选择这个 Wallpaper Engine 项目的 .pkg 文件。");
+        }
+
         return metadata.ProjectType switch
         {
             WallpaperPackageType.Video when mode == WallpaperImportMode.MotionBackdrop =>
@@ -401,6 +420,41 @@ public static class WallpaperSourceRules
     }
 }
 
+internal static class WallpaperImportDirectory
+{
+    internal static BackgroundSourceValidation Prepare(string path, IEnumerable<string> protectedRoots)
+    {
+        try
+        {
+            var actual = Resolve(path);
+            foreach (var root in protectedRoots)
+            {
+                var protectedPath = Resolve(root);
+                if (Services.VariantPathPolicy.PathsOverlap(actual, protectedPath) || Services.VariantPathPolicy.PathsOverlap(path, root))
+                    return new(false, "背景导入目录与游戏或图库目录重叠，无法写入。");
+            }
+            Directory.CreateDirectory(path);
+            return BackgroundSourceValidation.Accepted;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return new(false, $"无法检查或创建背景导入目录：{ex.Message}");
+        }
+    }
+    private static string Resolve(string path)
+    {
+        var current = Path.GetFullPath(path);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        while (seen.Add(current))
+        {
+            var resolved = Gallery.GalleryFavoriteProtectionService.ResolveDirectoryLinks(current);
+            if (string.Equals(resolved, current, StringComparison.OrdinalIgnoreCase)) return resolved;
+            current = resolved;
+        }
+        throw new IOException("背景导入路径包含循环目录链接。");
+    }
+}
+
 public sealed class WallpaperPackageCache
 {
     private const long MaximumPackageBytes = 512L * 1024 * 1024;
@@ -414,7 +468,8 @@ public sealed class WallpaperPackageCache
 
     public async Task<(BackgroundSourceValidation Validation, string? ImportedPath)> ImportAsync(
         string sourcePath,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyList<string>? protectedRoots = null)
     {
         string fullSourcePath;
         try
@@ -432,7 +487,8 @@ public sealed class WallpaperPackageCache
                 return (new(false, "Wallpaper .pkg 文件不存在或超出支持范围。"), null);
             }
 
-            Directory.CreateDirectory(_rootPath);
+            var destination = WallpaperImportDirectory.Prepare(_rootPath, protectedRoots ?? []);
+            if (!destination.IsUsable) return (destination, null);
         }
         catch (Exception ex) when (ex is
             IOException or
@@ -446,6 +502,11 @@ public sealed class WallpaperPackageCache
         var packageHash = await ComputeHashAsync(fullSourcePath, cancellationToken);
         var packageDirectory = Path.Combine(_rootPath, packageHash);
         var importedPath = Path.Combine(packageDirectory, RuntimePackageFileName);
+        if (Directory.Exists(packageDirectory))
+        {
+            var destination = WallpaperImportDirectory.Prepare(packageDirectory, protectedRoots ?? []);
+            if (!destination.IsUsable) return (destination, null);
+        }
         if (File.Exists(importedPath))
         {
             try

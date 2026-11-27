@@ -57,6 +57,7 @@ public sealed partial class ArtBackdropView : UserControl
     private AppearanceMotionMode _motionMode = AppearanceMotionMode.Full;
     private bool _parallaxPreferenceEnabled = true;
     private bool _holographicCardEnabled = true;
+    private bool _webCover;
     private bool _launcherSurfaceVisible = true;
     private bool _launcherSurfaceActive = true;
     private double _parallaxAmplitude;
@@ -261,8 +262,18 @@ public sealed partial class ArtBackdropView : UserControl
     public void SetLauncherSurfaceActive(bool active) =>
         SetLauncherSurfaceState(active, active);
 
-    public void SetLauncherSurfaceState(bool visible, bool interactionEnabled)
+    public void SetLauncherSurfaceState(bool visible, bool interactionEnabled, bool webCover = false)
     {
+        if (_webCover != webCover)
+        {
+            _webCover = webCover;
+            if (webCover)
+            {
+                _motionResampleTimer?.Stop();
+                _mediaPlayer?.Pause();
+            }
+            else ResumeMotionIfAllowed();
+        }
         _launcherSurfaceVisible = visible;
         _launcherSurfaceActive = visible && interactionEnabled;
         HolographicOverlay.SetInteractionEnabled(_launcherSurfaceActive);
@@ -677,6 +688,19 @@ public sealed partial class ArtBackdropView : UserControl
             _holographicCardEnabled && _stillArtSource is not null
                 ? Visibility.Visible
                 : Visibility.Collapsed;
+    }
+
+    internal async Task<byte[]?> CaptureSceneFrameAsync()
+    {
+        var frame = WallpaperEngineBackdropFrame.Source != null ? WallpaperEngineBackdropFrame : WallpaperEngineCardFrame;
+        if (frame.Source == null || frame.ActualWidth <= 0 || frame.ActualHeight <= 0) return null;
+        var snapshot = new RenderTargetBitmap();
+        await snapshot.RenderAsync(frame);
+        var pixels = await snapshot.GetPixelsAsync();
+        using var reader = Windows.Storage.Streams.DataReader.FromBuffer(pixels);
+        var bytes = new byte[pixels.Length];
+        reader.ReadBytes(bytes);
+        return await ArtDecoder.EncodeJpegAsync(new ArtPixelBuffer(bytes, snapshot.PixelWidth, snapshot.PixelHeight));
     }
 
     private void ClearWallpaperEngineFrames()
@@ -1216,7 +1240,7 @@ public sealed partial class ArtBackdropView : UserControl
 
         // Translation only. Animating Margin or Width would leave the compositor
         // thread and re-run layout on every pointer sample.
-        ArtSharpHost.Translation = _parallaxCurrent;
+        if (!FullBleed) ArtSharpHost.Translation = _parallaxCurrent;
         if (_motionReady && _appearanceSettings.Background.MotionPanEnabled)
         {
             MotionHost.Translation = _parallaxCurrent;
@@ -1280,6 +1304,7 @@ public sealed partial class ArtBackdropView : UserControl
         var tiltEnabled =
             _launcherSurfaceActive &&
             _holographicCardEnabled &&
+            !FullBleed &&
             pointerOverCard &&
             !_motionReady &&
             _motionMode == AppearanceMotionMode.Full &&
@@ -1488,6 +1513,7 @@ public sealed partial class ArtBackdropView : UserControl
     }
 
     private bool CanResumeMotion() =>
+        !_webCover &&
         _hostFocused &&
         !_hostMinimized &&
         IsMotionTier(GlassCapabilities.Current.Tier);
@@ -1855,6 +1881,18 @@ public sealed partial class ArtBackdropView : UserControl
         _stillSourcePixelHeight = bitmap.PixelHeight;
     }
 
+    public void ApplyArtFrame(Thickness inset, CornerRadius radius)
+    {
+        ArtSharpHost.Margin = inset;
+        ArtSharpHost.CornerRadius = radius;
+        HolographicOverlay.HasFrame = !FullBleed;
+        HolographicOverlay.MaterialCornerRadius = radius.TopLeft;
+        ResetParallax();
+        UpdateStillArtworkLayout();
+    }
+
+    private bool FullBleed => ArtSharpHost.Margin == default(Thickness);
+
     private void UpdateStillArtworkLayout()
     {
         var margin = ArtSharpHost.Margin;
@@ -1865,7 +1903,8 @@ public sealed partial class ArtBackdropView : UserControl
             _stillSourcePixelHeight,
             viewportWidth,
             viewportHeight);
-        if (layout.UsesBoundedSurface)
+        ArtSharp.Stretch = WallpaperEngineCardFrame.Stretch = FullBleed ? Stretch.UniformToFill : Stretch.Uniform;
+        if (!FullBleed && layout.UsesBoundedSurface)
         {
             ArtSharpHost.HorizontalAlignment = HorizontalAlignment.Center;
             ArtSharpHost.VerticalAlignment = VerticalAlignment.Center;
@@ -1880,9 +1919,8 @@ public sealed partial class ArtBackdropView : UserControl
         ArtSharpHost.VerticalAlignment = VerticalAlignment.Stretch;
         ArtSharpHost.Width = double.NaN;
         ArtSharpHost.Height = double.NaN;
-        ArtSharp.Stretch = Stretch.Uniform;
-        HolographicOverlay.Width = layout.IsValid ? layout.Width : double.NaN;
-        HolographicOverlay.Height = layout.IsValid ? layout.Height : double.NaN;
+        HolographicOverlay.Width = !FullBleed && layout.IsValid ? layout.Width : double.NaN;
+        HolographicOverlay.Height = !FullBleed && layout.IsValid ? layout.Height : double.NaN;
     }
 
     private static double ReadDoubleResource(string key, double fallback) =>

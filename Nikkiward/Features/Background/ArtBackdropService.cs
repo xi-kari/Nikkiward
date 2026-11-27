@@ -23,10 +23,6 @@ public sealed class ArtBackdropService : INotifyPropertyChanged
     public const string ActionAccentBrushKey = "PrimaryActionSolidBrush";
 
     private const int PaletteSampleSize = 16;
-    private const double GlobalScrimBaseLayerOpacity = 0.34;
-    private const double LocalScrimReferenceOpacityFallback = 0.34;
-    private const double LocalScrimMinimumFactor = 0.60;
-    private const double LocalScrimMaximumFactor = 1.40;
     private const double MotionScrimFloorFallback = 0.28;
     private const double DynamicLuminanceDelta = 0.08;
     private readonly IArtAnalysisCache _cache;
@@ -38,7 +34,6 @@ public sealed class ArtBackdropService : INotifyPropertyChanged
     private readonly List<FrameworkElement> _onArtInkHosts = [];
 
     private MotionPlaybackSampling? _motionSampling = new();
-    private FrameworkElement? _scrimLayer;
     private ArtAnalysis? _currentAnalysis;
 
     private Color _accentColor = Color.FromArgb(0xFF, 0xE8, 0xA0, 0xB4);
@@ -185,36 +180,10 @@ public sealed class ArtBackdropService : INotifyPropertyChanged
         ApplyAccentToResources(accent, ResolveActionBackdropLuminances(_currentAnalysis));
     }
 
-    /// <summary>
-    /// Registers the on-art surface this service drives. <paramref name="scrimLayer"/>
-    /// carries <see cref="ScrimOpacity"/> on its own Opacity and, together with
-    /// every element in <paramref name="inkHosts"/>, carries
-    /// <see cref="PreferredTheme"/> on its RequestedTheme.
-    /// </summary>
-    /// <remarks>
-    /// Call on the UI thread. Only chrome that composites directly onto the
-    /// artwork belongs in <paramref name="inkHosts"/>: RequestedTheme selects the
-    /// OnArt ink ramp from the artwork's luminance, so an element sitting on an
-    /// opaque page surface would take a ramp chosen for pixels it never shows.
-    /// Attaching applies the published values only once an artwork has actually
-    /// been analysed, so a host registered late is caught up while a host
-    /// registered before the first analysis keeps its XAML defaults rather than
-    /// being flipped to a placeholder polarity.
-    /// </remarks>
-    public void AttachOnArtSurface(FrameworkElement scrimLayer, params FrameworkElement[] inkHosts)
+    public void AttachOnArtSurface(params FrameworkElement[] inkHosts)
     {
-        ArgumentNullException.ThrowIfNull(scrimLayer);
-
-        DetachOnArtSurface();
-        _scrimLayer = scrimLayer;
-        foreach (var host in inkHosts)
-        {
-            if (host is not null && !ReferenceEquals(host, scrimLayer))
-            {
-                _onArtInkHosts.Add(host);
-            }
-        }
-
+        _onArtInkHosts.Clear();
+        _onArtInkHosts.AddRange(inkHosts);
         if (IsReady && _currentAnalysis is not null)
         {
             ApplyOnArtSurface(_currentAnalysis);
@@ -224,7 +193,6 @@ public sealed class ArtBackdropService : INotifyPropertyChanged
     /// <summary>Releases the registered on-art surface without resetting it.</summary>
     public void DetachOnArtSurface()
     {
-        _scrimLayer = null;
         _onArtInkHosts.Clear();
     }
 
@@ -605,33 +573,10 @@ public sealed class ArtBackdropService : INotifyPropertyChanged
         }
     }
 
-    /// <summary>
-    /// Drives the registered scrim element's Opacity and the on-art ink polarity.
-    /// </summary>
-    /// <remarks>
-    /// Opacity is set on the element, never on OnArtScrimBrush: that brush is
-    /// shared with the gallery preview chrome and is theme-scoped, so mutating it
-    /// would move every other on-art surface and overwrite the HighContrast
-    /// contract. RequestedTheme selects the OnArt ink ramp from the artwork's
-    /// luminance rather than the app theme, so it is pinned per host and never on
-    /// the page, which also owns the deliberately warm-light journal surfaces.
-    /// HighContrast is left alone: the system theme outranks the artwork.
-    /// </remarks>
     private void ApplyOnArtSurface(ArtAnalysis analysis)
     {
         var requested = ToElementTheme(analysis.PreferredTheme);
-
-        if (_scrimLayer is not null)
-        {
-            _scrimLayer.Opacity = Math.Clamp(analysis.ScrimOpacity, 0.0, 1.0);
-            ApplyInkPolarity(_scrimLayer, requested);
-        }
-
-        foreach (var host in _onArtInkHosts)
-        {
-            ApplyInkPolarity(host, requested);
-            ApplyLocalReadability(host, analysis);
-        }
+        foreach (var host in _onArtInkHosts) ApplyInkPolarity(host, requested);
     }
 
     private static ElementTheme ToElementTheme(ArtPreferredTheme preferredTheme) =>
@@ -650,98 +595,8 @@ public sealed class ArtBackdropService : INotifyPropertyChanged
         }
     }
 
-    private static void ApplyLocalReadability(DependencyObject root, ArtAnalysis analysis)
-    {
-        if (root is GlassIsland { LocalScrimBrush: not null } island)
-        {
-            var regionId = island.ReadabilityRegion switch
-            {
-                GlassIslandReadabilityRegion.Masthead => "masthead",
-                GlassIslandReadabilityRegion.Notice => "notice",
-                GlassIslandReadabilityRegion.Cta => "cta",
-                GlassIslandReadabilityRegion.Pill => "pill",
-                _ => "global",
-            };
-            var region = analysis.Regions.FirstOrDefault(item =>
-                string.Equals(item.RegionId, regionId, StringComparison.Ordinal));
-            var regionMean = string.IsNullOrEmpty(region.RegionId)
-                ? analysis.MeanLuminance
-                : region.MeanLuminance;
-            var regionP95 = string.IsNullOrEmpty(region.RegionId)
-                ? analysis.MeanLuminance
-                : region.P95Luminance;
-            var preferredTheme = analysis.SourceKind == BackgroundSourceKind.Motion
-                ? ArtPreferredTheme.Dark
-                : ArtPaletteAnalyzer.PreferredThemeForLuminance(regionMean);
-            var reference = ResolveDoubleResource(
-                "LocalScrimReferenceAlpha",
-                LocalScrimReferenceOpacityFallback);
-            var required = ArtPaletteAnalyzer.SolveScrimOpacity(
-                regionP95,
-                preferredTheme);
-            island.LocalScrimOpacity = Math.Clamp(
-                required / Math.Max(0.01, reference),
-                LocalScrimMinimumFactor,
-                LocalScrimMaximumFactor);
-
-            if (island.ReadabilityRegion != GlassIslandReadabilityRegion.Global)
-            {
-                ApplyInkPolarity(island, ToElementTheme(preferredTheme));
-            }
-        }
-
-        var childCount = VisualTreeHelper.GetChildrenCount(root);
-        for (var index = 0; index < childCount; index++)
-        {
-            ApplyLocalReadability(VisualTreeHelper.GetChild(root, index), analysis);
-        }
-    }
-
-    private static double[] ResolveActionBackdropLuminances(ArtAnalysis? analysis)
-    {
-        if (analysis is null)
-        {
-            return [0.5];
-        }
-
-        var scrimOpacity = Math.Clamp(analysis.ScrimOpacity, 0.0, 1.0);
-        var baseLayerOpacity = GlobalScrimBaseLayerOpacity * scrimOpacity;
-        var edgeOpacity = 1.0 - ((1.0 - baseLayerOpacity) * (1.0 - scrimOpacity));
-        var cornerOpacity = 1.0 -
-            ((1.0 - baseLayerOpacity) *
-             (1.0 - scrimOpacity) *
-             (1.0 - scrimOpacity));
-
-        return
-        [
-            analysis.CtaLuminance,
-            analysis.CtaP95Luminance,
-            ArtActionFill.CompositeWithScrim(
-                analysis.CtaLuminance,
-                analysis.PreferredTheme,
-                baseLayerOpacity),
-            ArtActionFill.CompositeWithScrim(
-                analysis.CtaP95Luminance,
-                analysis.PreferredTheme,
-                baseLayerOpacity),
-            ArtActionFill.CompositeWithScrim(
-                analysis.CtaLuminance,
-                analysis.PreferredTheme,
-                edgeOpacity),
-            ArtActionFill.CompositeWithScrim(
-                analysis.CtaP95Luminance,
-                analysis.PreferredTheme,
-                edgeOpacity),
-            ArtActionFill.CompositeWithScrim(
-                analysis.CtaLuminance,
-                analysis.PreferredTheme,
-                cornerOpacity),
-            ArtActionFill.CompositeWithScrim(
-                analysis.CtaP95Luminance,
-                analysis.PreferredTheme,
-                cornerOpacity),
-        ];
-    }
+    private static double[] ResolveActionBackdropLuminances(ArtAnalysis? analysis) =>
+        analysis is null ? [0.5] : [analysis.CtaLuminance, analysis.CtaP95Luminance];
 
     private static double ResolveDoubleResource(string resourceKey, double fallback) =>
         Application.Current?.Resources.TryGetValue(resourceKey, out var value) == true &&

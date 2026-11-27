@@ -1,0 +1,7 @@
+.mast{padding-right:0}
+.winbtns{display:flex;height:40px;align-self:flex-start;width:138px}
+.winbtns button{width:46px;height:40px;display:grid;place-items:center;color:var(--ink);opacity:.85}
+.winbtns button:hover{background:rgba(128,128,128,.22);opacity:1}
+.winbtns button:last-child:hover{background:#c42b1c;color:#fff}
+.winbtns svg{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1}
+.quiet-sample .bgtask{visibility:hidden}

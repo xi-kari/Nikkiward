@@ -1,0 +1,32 @@
+/* 五套皮肤共用页面（清单与提醒面板、照片工坊等）用的主题变量。
+   页面根元素上要有 data-skin=atelier|cinema|stitch|journal|wishstar 和 data-tone=dark|light。
+   这份文件由设计稿 concepts/panel/index.html 提取，值不要改。 */
+[data-skin=atelier]{--nk-font-display:'Noto Serif SC',serif;--nk-font-ui:'Segoe UI Variable Text','Microsoft YaHei UI',sans-serif;--nk-font-num:'Bodoni Moda','Noto Serif SC',serif;--nk-font-label:'Noto Serif SC',serif;--nk-title-weight:900;--nk-title-spacing:.06em;--nk-label-spacing:.22em;--nk-label-ink:#b08d57;--nk-panel-radius:2px;--nk-panel-radius-s:1px;--nk-check-radius:0;--nk-chip-radius:1px;--nk-backdrop-blur:5px;--nk-panel-shadow:0 30px 80px rgba(0,0,0,.42)}
+[data-skin=atelier][data-tone=dark]{--nk-panel-bg:#0e1117;--nk-panel-ink:#f4efe6;--nk-panel-ink-2:#a9a59c;--nk-panel-line:rgba(176,141,87,.42);--nk-panel-accent:#a9dbff;--nk-panel-accent-ink:#0e1117;--nk-backdrop:rgba(8,10,14,.5)}
+[data-skin=atelier][data-tone=light]{--nk-panel-bg:#f7f3ec;--nk-panel-ink:#15171c;--nk-panel-ink-2:#6e6a62;--nk-panel-line:rgba(138,106,58,.45);--nk-label-ink:#8a6a3a;--nk-panel-accent:#b43b56;--nk-panel-accent-ink:#fff;--nk-backdrop:rgba(247,243,236,.5)}
+[data-skin=cinema]{--nk-font-display:'Manrope','Noto Sans SC',sans-serif;--nk-font-ui:'Manrope','Noto Sans SC','Microsoft YaHei UI',sans-serif;--nk-font-num:'JetBrains Mono',monospace;--nk-title-weight:300;--nk-title-spacing:.02em;--nk-label-spacing:.16em;--nk-panel-radius:6px;--nk-panel-radius-s:4px;--nk-check-radius:3px;--nk-chip-radius:4px;--nk-backdrop-blur:0px;--nk-panel-shadow:0 24px 60px rgba(0,0,0,.5)}
+[data-skin=cinema][data-tone=dark]{--nk-panel-bg:#07090f;--nk-panel-ink:#f3f5fa;--nk-panel-ink-2:#9097a6;--nk-panel-line:rgba(255,255,255,.14);--nk-panel-accent:#8fc4f2;--nk-panel-accent-ink:#07090f;--nk-backdrop:rgba(3,4,8,.62)}
+[data-skin=cinema][data-tone=light]{--nk-panel-bg:#f8f4f1;--nk-panel-ink:#1b1418;--nk-panel-ink-2:#6f666a;--nk-panel-line:rgba(27,20,24,.16);--nk-panel-accent:#b43b56;--nk-panel-accent-ink:#fff;--nk-backdrop:rgba(27,20,24,.36)}
+[data-skin=stitch]{--nk-font-display:'ZCOOL XiaoWei','Noto Serif SC',serif;--nk-font-ui:'Segoe UI Variable Text','Microsoft YaHei UI',sans-serif;--nk-font-num:'Fraunces','Noto Serif SC',serif;--nk-font-label:'ZCOOL XiaoWei',serif;--nk-title-weight:400;--nk-title-spacing:.16em;--nk-label-spacing:.3em;--nk-panel-radius:18px;--nk-panel-radius-s:999px;--nk-check-radius:50%;--nk-backdrop-blur:4px;--nk-panel-shadow:0 26px 70px rgba(4,8,22,.5)}
+[data-skin=stitch][data-tone=dark]{--nk-panel-bg:#101a36;--nk-panel-ink:#eef2fb;--nk-panel-ink-2:#9aa6c4;--nk-panel-line:rgba(190,208,255,.26);--nk-panel-accent:#f3ecdc;--nk-panel-accent-ink:#101a36;--nk-backdrop:rgba(6,10,24,.46)}
+[data-skin=stitch][data-tone=light]{--nk-panel-bg:#fdf1f1;--nk-panel-ink:#3f1626;--nk-panel-ink-2:#93626f;--nk-panel-line:rgba(160,70,96,.3);--nk-panel-accent:#4a1c2c;--nk-panel-accent-ink:#fde9ee;--nk-backdrop:rgba(253,236,240,.5)}
+[data-skin=journal]{--nk-font-display:'LXGW WenKai TC','KaiTi',serif;--nk-font-ui:'Segoe UI Variable Text','Microsoft YaHei UI',sans-serif;--nk-font-num:'JetBrains Mono',monospace;--nk-font-label:'LXGW WenKai TC','KaiTi',serif;--nk-title-weight:700;--nk-title-spacing:.04em;--nk-label-spacing:.08em;--nk-label-weight:700;--nk-panel-bg:#fbf6ea;--nk-panel-ink:#352b27;--nk-panel-ink-2:#8a7b70;--nk-panel-line:rgba(80,56,40,.2);--nk-label-ink:#352b27;--nk-panel-radius:3px;--nk-panel-radius-s:3px;--nk-check-radius:2px;--nk-chip-radius:3px;--nk-backdrop-blur:3px;--nk-panel-shadow:0 0 0 .5px rgba(80,56,40,.2),0 1px 1px rgba(0,0,0,.14),0 22px 50px rgba(20,14,10,.42)}
+[data-skin=journal][data-tone=dark]{--nk-panel-accent:#2c3f86;--nk-panel-accent-ink:#fbf6ea;--nk-backdrop:rgba(10,14,30,.42)}
+[data-skin=journal][data-tone=light]{--nk-panel-accent:#b43b56;--nk-panel-accent-ink:#fbf6ea;--nk-backdrop:rgba(60,30,36,.22)}
+[data-skin=wishstar]{--nk-font-display:'ZCOOL XiaoWei','Noto Serif SC',serif;--nk-font-ui:'Manrope','Microsoft YaHei UI',sans-serif;--nk-font-num:'Manrope',sans-serif;--nk-font-label:'ZCOOL XiaoWei',serif;--nk-title-weight:400;--nk-title-spacing:.14em;--nk-label-spacing:.24em;--nk-panel-radius:26px 26px 26px 8px;--nk-panel-radius-s:999px;--nk-check-radius:50%;--nk-backdrop-blur:6px;--nk-panel-line:rgba(255,255,255,.2)}
+[data-skin=wishstar][data-tone=dark]{--nk-panel-bg:rgba(16,22,52,.74);--nk-panel-ink:#f2f5ff;--nk-panel-ink-2:#aab3d6;--nk-panel-accent:#cfe6ff;--nk-panel-accent-ink:#141a3c;--nk-backdrop:rgba(8,10,30,.34);--nk-panel-shadow:0 26px 70px rgba(6,8,30,.5)}
+[data-skin=wishstar][data-tone=light]{--nk-panel-bg:rgba(255,246,249,.78);--nk-panel-ink:#4a2038;--nk-panel-ink-2:#9a7088;--nk-panel-line:rgba(190,110,140,.24);--nk-panel-accent:#c2456e;--nk-panel-accent-ink:#fff;--nk-backdrop:rgba(255,240,246,.3);--nk-panel-shadow:0 26px 70px rgba(150,60,90,.26)}
+
+.art-caption{display:none;position:absolute;bottom:30px;left:32px;max-width:calc(100% - 64px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:8px 15px;background:var(--nk-panel-bg);color:var(--nk-panel-ink);font:500 16px/1.5 var(--nk-font-display);border-radius:var(--nk-panel-radius);pointer-events:none}
+#win.appreciating > :not(.appreciation-art,.art-caption){display:none!important}
+#win.appreciating > .appreciation-art{position:absolute;inset:0;width:100%;height:100%;transform:none}
+#win.appreciating .appreciation-art .wash{visibility:hidden}
+#win.appreciating .art-caption{display:block}
+[data-skin=atelier] .art-caption{border-left:2px solid var(--nk-label-ink);letter-spacing:.12em}
+[data-skin=stitch] .art-caption{outline:1px dashed var(--nk-panel-accent);outline-offset:-4px}
+[data-skin=journal] .art-caption{transform:rotate(-2deg);box-shadow:2px 3px 0 var(--nk-panel-line)}
+[data-skin=wishstar] .art-caption::before{content:'✧';margin-right:.55em}
+@media(prefers-reduced-motion:no-preference){
+  #win.appreciating .art-caption{animation:art-caption-in .3s ease-out both}
+  @keyframes art-caption-in{from{opacity:0;translate:0 4px}to{opacity:1;translate:0 0}}
+}

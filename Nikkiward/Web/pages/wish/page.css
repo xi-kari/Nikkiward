@@ -1,0 +1,15 @@
+#wish .cols{grid-template-columns:330px minmax(0,1fr)}
+#wish table{margin-top:14px}
+#wish .pool{cursor:pointer}
+#wish .pool:hover,#wish .pool:focus-within{background:var(--wall3)}
+#wish .records{padding:12px 18px;background:var(--wall3)}
+#wish .records header{display:flex;align-items:center;justify-content:space-between}
+#wish .records tr[id]{scroll-margin-top:16px}
+#wish .empty,#wish details{margin-top:16px}
+#wish .cover{display:block;max-width:min(100%,340px);max-height:190px;margin:12px 0;object-fit:contain}
+#wish .slot{width:40px;height:40px;object-fit:contain;vertical-align:middle;margin-right:12px}
+#wish summary{cursor:pointer}
+#wish .empty .btn{margin-top:12px}
+@media(max-width:900px){#wish .cols{grid-template-columns:minmax(190px,27%) minmax(0,1fr);gap:20px}}
+@media(max-width:680px){#wish .cols{display:block}#wish .cols>.mod+.mod{margin-top:24px}#wish .ph{flex-wrap:wrap;height:auto;align-items:center}#wish .meta{order:2;width:100%}}
+

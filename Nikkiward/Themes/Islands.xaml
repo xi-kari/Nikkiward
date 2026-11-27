@@ -14,7 +14,6 @@
         <Setter Property="VerticalContentAlignment" Value="Stretch" />
         <Setter Property="IslandCornerRadius" Value="{StaticResource RadiusIsland}" />
         <Setter Property="IslandPadding" Value="{ThemeResource IslandPaddingThickness}" />
-        <Setter Property="LocalScrimOpacity" Value="1" />
         <Setter Property="Background" Value="{ThemeResource GlassIslandBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource IslandEdgeHighlightBrush}" />
 
@@ -59,12 +58,6 @@
                                 IsHitTestVisible="False" />
 
                             <Border
-                                x:Name="IslandLocalScrim"
-                                Background="{TemplateBinding LocalScrimBrush}"
-                                CornerRadius="{TemplateBinding IslandCornerRadius}"
-                                IsHitTestVisible="False" />
-
-                            <Border
                                 Margin="1"
                                 BorderBrush="{ThemeResource IslandInnerRingBrush}"
                                 BorderThickness="1"
@@ -88,44 +81,6 @@
                                 ContentTransitions="{TemplateBinding ContentTransitions}" />
 
                         </Grid>
-                    </Border>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
-    <Style TargetType="controls:StatTile">
-        <Setter Property="IsTabStop" Value="False" />
-        <Setter Property="BorderBrush" Value="{ThemeResource HairlineSoftBrush}" />
-        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-        <Setter Property="VerticalContentAlignment" Value="Stretch" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="controls:StatTile">
-                    <Border
-                        MinWidth="0"
-                        Padding="8,12"
-                        HorizontalAlignment="Stretch"
-                        VerticalAlignment="Stretch"
-                        BorderBrush="{TemplateBinding BorderBrush}"
-                        BorderThickness="{TemplateBinding BorderThickness}">
-                        <StackPanel
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            Spacing="4">
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                Style="{StaticResource StatNumberDisplay}"
-                                Text="{TemplateBinding Value}"
-                                TextAlignment="Center"
-                                TextTrimming="CharacterEllipsis" />
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                Style="{StaticResource CaptionUI}"
-                                Text="{TemplateBinding Label}"
-                                TextAlignment="Center"
-                                TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>

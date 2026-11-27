@@ -505,12 +505,6 @@ internal static class MotionBackgroundTests
     private static Task ReadabilityRuntimeContractsStayBounded()
     {
         var service = ReadProductSource("Features", "Background", "ArtBackdropService.cs");
-        Assert(service.Contains("LocalScrimMinimumFactor = 0.60", StringComparison.Ordinal),
-            "local scrim minimum factor must remain 0.60");
-        Assert(service.Contains("LocalScrimMaximumFactor = 1.40", StringComparison.Ordinal),
-            "local scrim maximum factor must remain 1.40");
-        Assert(service.Contains("required / Math.Max(0.01, reference)", StringComparison.Ordinal),
-            "local scrim must scale the solved opacity by its reference alpha");
         Assert(service.Contains("ResolveDoubleResource(\"MotionScrimFloor\"", StringComparison.Ordinal),
             "motion publication must consume the scrim floor token");
         Assert(service.Contains("ScrimOpacity = Math.Max(", StringComparison.Ordinal),

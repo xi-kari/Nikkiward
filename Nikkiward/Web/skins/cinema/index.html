@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN" data-skin="cinema"><head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'self' file:; font-src 'self' file:; img-src 'self' https://still.nikkiward.invalid data: file:; media-src https://motion.nikkiward.invalid; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>熄灯放映</title>
+<link rel="stylesheet" href="../../fonts/manrope.css">
+<link rel="stylesheet" href="../../fonts/noto-sans-sc.css">
+<link rel="stylesheet" href="jetbrains-mono.css">
+<link rel="stylesheet" href="home.css"><script src="../../shared/home.js" defer></script><script src="home.js" defer></script>
+<link rel="stylesheet" href="../../shared/theme.css"><link rel="stylesheet" href="../../shared/planner.css"><script defer src="../../shared/planner.js"></script>
+<link rel="stylesheet" href="../../shared/overlays.css"><script defer src="../../shared/overlays.js"></script>
+</head><body>
+<svg width="0" height="0" aria-hidden="true"><defs>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="M6 3.5v17l14-8.5z"/></symbol>
+<symbol id="i-gear" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4v4h-4"/></symbol>
+<symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="1.5"/><path d="M3.5 15.5l4.5-4 4 3.5 3-2.500 5.500 4.500"/><circle cx="15.500" cy="9.500" r="1.200"/></symbol>
+<symbol id="i-undo" viewBox="0 0 24 24"><path d="M8 5L4 9l4 4"/><path d="M4 9h10a5.500 5.500 0 0 1 0 11H9"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.500 4.500"/></symbol>
+<symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.500 7.500v10a1.500 1.500 0 0 0 1.500 1.500h14a1.500 1.500 0 0 0 1.500-1.500V9.500A1.500 1.500 0 0 0 19 8h-7l-2-2.500H5A1.500 1.500 0 0 0 3.500 7z"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7.500 2.800v5.700c0 4.500-3 7.800-7.500 9.500-4.500-1.700-7.500-5-7.500-9.500V5.800z"/><path d="M12 8.500v4.500M12 16v.2"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+</defs></svg>
+<div id="desk">
+<div id="win" class="pending" data-theme="dark" data-screen="home" data-state="ready" data-ov="">
+  <div class="art on" aria-hidden="true"><img id="coverImg" alt=""><video id="coverVideo" muted loop playsinline hidden></video></div>
+  <div class="scrim"></div>
+
+  <!-- 顶栏 -->
+  <header class="top">
+    <div class="brand"><img src="game-icon.png" alt=""><span>Nikkiward</span></div>
+    <nav class="nav" aria-label="主导航">
+      <button data-action="nav-launcher" aria-current="page">启动</button><button data-action="nav-gallery">相册</button><button data-action="nav-gallery-favorites">收藏</button><button data-action="nav-library">手账</button><button data-action="nav-resonance">共鸣</button><button data-action="nav-settings">设置</button>
+    </nav>
+    <div class="drag" title="拖拽区域"></div>
+    <button class="cmd" id="cmdBtn" aria-haspopup="dialog" aria-controls="palette" aria-expanded="false" aria-label="打开命令面板"><svg class="i"><use href="#i-search"/></svg><span>搜索或输入命令</span><span class="kbd">Ctrl K</span></button>
+  </header>
+  <!-- 最近拍摄 -->
+  <div class="ledge" id="ledge" aria-label="最近拍摄"><div class="tag"><span>最近拍摄</span><small id="sessionShots"></small></div></div>
+
+  <!-- 展签 -->
+  <section class="band" aria-label="展签">
+    <div class="col title">
+      <div class="lb">启动页 · <span id="artSrc"></span></div>
+      <div class="val"><span id="artName"></span>
+        <button class="ib" id="bgNext" data-action="background" aria-label="换一幅背景" title="换一幅背景"><svg class="i"><use href="#i-image"/></svg></button><button class="ib" id="bgReset" data-action="reset" aria-label="恢复默认背景" title="恢复默认背景"><svg class="i"><use href="#i-undo"/></svg></button>
+      </div>
+      <div class="sub"><span class="sw" id="artSw"></span><span id="artTone"></span></div>
+    </div>
+    <button class="col profile" id="profileBtn" aria-controls="switcher" aria-haspopup="dialog" aria-expanded="false" aria-label="切换档案">
+      <span class="lb">档案</span>
+      <span class="val"><span id="pfName"></span><svg class="i"><use href="#i-down"/></svg></span>
+      <span class="sub" id="pfSub"></span>
+    </button>
+    <button class="col check" id="checkBtn" data-action="status" aria-label="启动检查，打开诊断">
+      <span class="lb">启动检查</span>
+      <span class="val"><i class="dot" id="ckDot"></i><span id="ckVal"></span></span>
+      <span class="sub" id="ckSub"></span>
+    </button>
+    <button class="col time" data-action="nav-library" aria-label="游玩时长，打开奇想手账">
+      <span class="lb">官方手账时长</span>
+      <span class="val"><span id="official"></span></span>
+      <span class="sub" id="durationSub"></span>
+    </button>
+    <button class="col task" data-action="download">
+      <span class="lb">后台任务</span><span class="val"><span id="taskValue"></span></span>
+      <span class="sub"><span class="bar"><b></b></span><span id="taskSub"></span></span>
+    </button>
+    <div class="note" id="note" role="status"></div>
+    <div class="launch">
+      <button class="gear" id="gearBtn" data-action="settings" aria-label="游戏设置" title="游戏设置"><svg class="i"><use href="#i-gear"/></svg></button>
+      <button class="cta" id="cta" data-action="launch"></button>
+      <button class="stopgame" id="stopBtn" data-action="close"><svg class="i"><use href="#i-x"/></svg>关闭游戏</button>
+    </div>
+  </section>
+
+  <!-- 鉴赏模式里留下的展签 -->
+  <aside class="plate" aria-hidden="true">
+    <h3 id="plName"></h3>
+    <p id="plMeta"></p>
+    <p><span class="kbd">Enter</span><span id="plHint">启动 · 动一下鼠标回来</span></p>
+  </aside>
+
+  <!-- 浮层 -->
+  <div class="veil" id="veil"></div>
+  <div class="ov" id="switcher" aria-modal="true" role="dialog" aria-label="切换档案">
+    <header><span>档案</span></header>
+    <div id="pfList" aria-label="档案" role="radiogroup"></div>
+    <footer><span id="discovery"></span><button class="btn" id="pfRefresh" data-action="rediscover"><svg class="i"><use href="#i-refresh"/></svg>刷新（重新发现安装）</button></footer>
+  </div>
+  <div class="ov" id="palette" aria-modal="true" role="dialog" aria-label="命令面板">
+    <div class="pin"><svg class="i"><use href="#i-search"/></svg><input id="pIn" role="combobox" aria-controls="plist" aria-expanded="true" placeholder="去哪里，或做什么" aria-label="命令" autocomplete="off"><span class="kbd">Esc</span></div>
+    <div id="plist" role="listbox"></div>
+    <footer><span><span class="kbd">↑</span> <span class="kbd">↓</span> 选择</span><span><span class="kbd">Enter</span> 执行</span><span class="spacer"></span><span>这里的每一项在界面上都有按钮，命令面板只是近路</span></footer>
+  </div>
+</div>
+</div>
+</body></html>

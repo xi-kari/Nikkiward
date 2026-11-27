@@ -7,6 +7,12 @@ internal static class Program
 {
     private static async Task<int> Main(string[] args)
     {
+        if (args.Contains("--emit-overlay-samples", StringComparer.Ordinal))
+        {
+            AppearanceRuntimeContractTests.WriteOverlayFixture();
+            return 0;
+        }
+
         if (args.Contains("--emit-contract", StringComparer.Ordinal))
         {
             return await ContractRefreshTool.RunAsync().ConfigureAwait(false);
@@ -61,18 +67,16 @@ internal static class Program
             .Concat(WindowLifecycleTests.All)
             .Concat(GameBarGuideTests.All)
             .Concat(AppearanceRuntimeContractTests.All)
-            .Concat(CardBorderGlowProjectionTests.All)
             .Concat(HolographicBackdropProjectionTests.All)
-            .Concat(AuthorProfileDepthProjectionTests.All)
             .Concat(GalleryIntegrationTests.All)
-            .Concat(GalleryFavoriteCardLayoutTests.All)
+            .Concat(GalleryIndexTests.All)
             .Concat(GalleryMetadataTests.All)
             .Concat(ScreenshotRuntimeContractTests.All)
             .Concat(JournalDomainTests.All)
             .Concat(JournalSnapshotTests.All)
             .Concat(WishHistoryDomainTests.All)
             .Concat(UpdateReleaseTests.All)
-            .Concat(AboutSettingsContractTests.All)
+            .Concat(SettingsPageTests.All)
             .ToArray();
 
         var currentMachine = args.Contains("--current-machine", StringComparer.Ordinal);

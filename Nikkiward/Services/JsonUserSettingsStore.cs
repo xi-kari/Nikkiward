@@ -32,6 +32,9 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
     internal static readonly JsonTypeInfo<UserSettings> UserSettingsJsonTypeInfo =
         new NikkiwardJsonContext(SerializerOptions).UserSettings;
 
+    private static readonly JsonObject DefaultMembers =
+        JsonSerializer.SerializeToNode(new UserSettings(), UserSettingsJsonTypeInfo)!.AsObject();
+
     public JsonUserSettingsStore(string? localApplicationDataPath = null)
     {
         var applicationRoot = string.IsNullOrWhiteSpace(localApplicationDataPath)
@@ -46,6 +49,7 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
         Schema7MigrationRollbackFilePath = Path.Combine(
             Path.GetDirectoryName(SettingsFilePath)!,
             "settings.pre-schema7.rollback.json");
+        Schema9MigrationRollbackFilePath = Path.Combine(applicationRoot, "settings.pre-schema9.rollback.json");
         Schema8MigrationRollbackFilePath = Path.Combine(applicationRoot, "settings.pre-schema8.rollback.json");
     }
 
@@ -54,6 +58,8 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
     public string MigrationRollbackFilePath { get; }
 
     public string Schema7MigrationRollbackFilePath { get; }
+
+    public string Schema9MigrationRollbackFilePath { get; }
 
     public string Schema8MigrationRollbackFilePath { get; }
 
@@ -117,6 +123,9 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
         }
 
         var version = ReadSchemaVersion(root);
+        if (version is < UserSettings.LegacySchemaVersion or > UserSettings.CurrentSchemaVersion)
+            throw new UnsupportedSettingsVersionException(version);
+        if (root.Count == 1) throw new JsonException("The settings document contains only a schema version.");
         var migrated = false;
         if (version == UserSettings.LegacySchemaVersion)
         {
@@ -124,6 +133,9 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
             migrated = true;
             version = UserSettings.MotionBackgroundSchemaVersion;
         }
+
+        if (root["channelStore"] is null) root.Remove("channelStore");
+        FillMissingMembers(root, DefaultMembers);
 
         if (version == UserSettings.MotionBackgroundSchemaVersion)
         {
@@ -168,16 +180,25 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
             }
             root = ApplicationSettingsMigration.MigrateSchema7To8(root);
             migrated = true;
-            version = UserSettings.CurrentSchemaVersion;
+            version = UserSettings.WindowPlacementSchemaVersion;
         }
 
-        if (version != UserSettings.CurrentSchemaVersion)
+        if (version == UserSettings.WindowPlacementSchemaVersion)
         {
-            throw new UnsupportedSettingsVersionException(version);
+            if (persistMigration)
+            {
+                await PreserveMigrationRollbackAsync(Schema9MigrationRollbackFilePath, cancellationToken).ConfigureAwait(false);
+            }
+            if (root["appearance"] is JsonObject appearance)
+            {
+                foreach (var key in new[] { "launcherCapsuleStyle", "launcherMastheadLabel", "launcherMastheadTitle", "launcherMastheadSubtitle", "showLauncherUtilityPanels" })
+                    appearance.Remove(key);
+                appearance["homeSkin"] = "WishStar";
+            }
+            (root["general"] as JsonObject)?.Remove("enableProfileQuickSwitcher");
+            root["schemaVersion"] = UserSettings.CurrentSchemaVersion;
+            migrated = true;
         }
-
-        EnsureChannelStoreSection(root);
-        RequireSettingsSections(root);
 
         var settings = root.Deserialize(UserSettingsJsonTypeInfo);
 
@@ -343,46 +364,16 @@ public sealed class JsonUserSettingsStore : IUserSettingsStore
         return version;
     }
 
-    private static void RequireSettingsSections(JsonObject root)
+    private static void FillMissingMembers(JsonObject document, JsonObject defaults)
     {
-        foreach (var section in new[]
+        foreach (var (name, value) in defaults)
         {
-            "appearance",
-            "general",
-            "download",
-            "fileManagement",
-            "screenshot",
-            "profiles",
-            "galleryProfiles",
-            "gamepad",
-        })
-        {
-            if (!root.TryGetPropertyValue(section, out var value) || value is null)
-            {
-                throw new JsonException(
-                    $"The settings document is missing required section '{section}'.");
-            }
+            if (!document.TryGetPropertyValue(name, out var existing))
+                document.Add(name, value?.DeepClone());
+            else if (existing is JsonObject child && value is JsonObject childDefaults)
+                FillMissingMembers(child, childDefaults);
         }
     }
-
-    private static void EnsureChannelStoreSection(JsonObject root)
-    {
-        if (root.TryGetPropertyValue("channelStore", out var channelStore) &&
-            channelStore is not null)
-        {
-            return;
-        }
-
-        root["channelStore"] = new JsonObject
-        {
-            ["storeRootPath"] = null,
-            ["lastReceiptId"] = null,
-            ["lastPlanSha256"] = null,
-            ["lastCompletedAtUtc"] = null,
-            ["profiles"] = new JsonArray(),
-        };
-    }
-
 }
 
 internal static class UserSettingsValidator
