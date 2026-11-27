@@ -16,7 +16,9 @@ internal static class GameUpdateDownloadTests
         ("game update ignored Range replaces partial", () => Download("ignored")),
         ("game update changed ETag restarts request", () => Download("changed")),
         ("game update digest mismatch discards partial", () => Download("digest")),
-        ("game update rejects short HTTP body", () => Download("short"))
+        ("game update rejects short HTTP body", () => Download("short")),
+        ("game update reuses verified cached package", () => Download("cached")),
+        ("game update replaces cached package that fails digest", () => Download("stale"))
     ];
     private const string Url = "https://x6cn-game-package.papegames.com/base.7z";
     private const string Json = """{"version":"3011","md5":"0123456789abcdef0123456789abcdef","url":"https://x6cn-game-package.papegames.com/base.7z","cleanupDirs":["X6Game/Content/Paks"]}""";
@@ -71,6 +73,8 @@ internal static class GameUpdateDownloadTests
             Convert.ToHexString(MD5.HashData(bytes)), []);
         var dir = Directory.CreateTempSubdirectory().FullName;
         var part = Path.Combine(dir, "base.7z.partial");
+        if (mode == "cached") File.WriteAllBytes(Path.Combine(dir, "base.7z"), bytes);
+        if (mode == "stale") File.WriteAllBytes(Path.Combine(dir, "base.7z"), bytes[..1000]);
         var requests = 0;
         long paused = 0;
         var modified = new DateTimeOffset(2026, 11, 20, 10, 44, 19, TimeSpan.Zero);
@@ -106,7 +110,7 @@ internal static class GameUpdateDownloadTests
             {
                 var target = await http.DownloadAsync(package, dir);
                 GameUpdateTests.Check(mode is not ("digest" or "short") && File.ReadAllBytes(target).SequenceEqual(bytes));
-                GameUpdateTests.Check(requests == (mode == "changed" ? 3 : mode == "fresh" ? 1 : 2));
+                GameUpdateTests.Check(requests == mode switch { "cached" => 0, "fresh" or "stale" => 1, "changed" => 3, _ => 2 });
                 GameUpdateTests.Check(Directory.GetFiles(dir).SequenceEqual([target]));
             }
             catch (UpdateException e) when (mode == "digest" && e.Reason == UpdateFailure.Digest)

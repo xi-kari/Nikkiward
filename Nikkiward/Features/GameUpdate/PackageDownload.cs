@@ -61,9 +61,17 @@ internal sealed class PackageDownload(HttpMessageHandler? handler = null) : IDis
             FileAccess.ReadWrite, FileShare.None, 1, FileOptions.DeleteOnClose);
         if (File.Exists(target))
         {
-            using var existing = File.OpenRead(target);
-            Verify(existing, package.Md5);
-            return target;
+            // 缓存里的包校验不过（损坏，或同名的旧包）就删掉重下，否则每次重试都会卡在同一个文件上。
+            try
+            {
+                using (var existing = File.OpenRead(target))
+                    Verify(existing, package.Md5);
+                return target;
+            }
+            catch (UpdateException e) when (e.Reason == UpdateFailure.Digest)
+            {
+                File.Delete(target);
+            }
         }
 
         Resume? resume = null;
