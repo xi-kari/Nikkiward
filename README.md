@@ -38,7 +38,7 @@ Nikkiward 把渠道档案、启动预检、相册、奇想手账与心愿共鸣�
 
 当前预览版本：`0.1.0-preview.6`(Pre-release,发布于 2026-11-26),仍在预览阶段,边角可能有毛刺;遇到问题欢迎用 Issue 告诉作者。
 
-系统要求:Windows 10 1809(内部版本 17763)及以上,仅 x64;奇想手账与心愿共鸣记录另需 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/),缺失时应用会给出官方下载指引。「高定画册」首页使用同一运行时，缺失时自动显示「熄灯放映」。界面目前仅提供简体中文。
+系统要求:Windows 10 1809(内部版本 17763)及以上,仅 x64;另需 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)(Windows 11 已自带)。首页、功能页和照片工坊都靠它显示，缺失时应用进入安全模式首页并提示安装运行时，仍可启动游戏。界面目前仅提供简体中文。
 
 GitHub Releases 提供 Windows x64 安装包和便携 ZIP,全部产物都在 [Releases](https://github.com/xi-kari/Nikkiward/releases) 页面;当前处于预览阶段,请选择最新的预览版:
 
