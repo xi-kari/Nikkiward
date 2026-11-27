@@ -14,7 +14,7 @@
   const key = overlayCase?.homeCase ?? window.panelHomeCase ?? new URLSearchParams(location.search).get('mock');
   if (!Object.hasOwn(cases,key)) return;
   const [cover,visual] = cases[key];
-  const assets = 'file:///D:/Projects/nikkiward-worktrees/_briefs/redesign/concepts/assets/';
+  const assets = '../../../Web.dev/assets/';
   const covers = {
     tide:['bg-tide.jpg','海月','dark','#263f7c'],
     blossom:['bg-blossom.jpg','花信','light','#b3445c'],

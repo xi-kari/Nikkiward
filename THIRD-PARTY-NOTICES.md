@@ -93,55 +93,22 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## React Bits Border Glow
+## Bundled web fonts
 
-- 来源：https://github.com/DavidHDev/react-bits
-- 固定提交：`4e0e030193b563be6be33d928f77d0d01cefe237`
-- 上游文件：`src/ts-default/Components/BorderGlow/BorderGlow.tsx`、
-  `src/ts-default/Components/BorderGlow/BorderGlow.css`
-- 许可证：MIT + Commons Clause License Condition v1.0
-- 复用范围：`Nikkiward/Controls/CardBorderGlow.cs` 与
-  `Nikkiward/Controls/CardBorderGlowProjection.cs` 将上游的边缘接近度、指针角度、
-  悬停显隐和局部边缘光算法移植到 WinUI 3 / Win2D；不包含 React 运行时或网页代码。
+The home skins, feature pages and photo studio load these fonts from the application folder (`Nikkiward/Web/fonts`). The files are the Google Fonts web subsets as distributed. Each copyright line below is the one embedded in the font files.
 
-```
-MIT + Commons Clause License Condition v1.0
+- Bodoni Moda — Copyright 2020 The Bodoni Moda Project Authors (https://github.com/indestructible-type/Bodoni). [Google Fonts source](https://github.com/google/fonts/tree/main/ofl/bodonimoda)
+- Caveat — Copyright 2014 The Caveat Project Authors (https://github.com/googlefonts/caveat). [Google Fonts source](https://github.com/google/fonts/tree/main/ofl/caveat)
+- Cormorant — Copyright 2015 The Cormorant Project Authors (github.com/CatharsisFonts/Cormorant). [Google Fonts source](https://github.com/google/fonts/tree/main/ofl/cormorant)
+- Fraunces — Copyright 2020 The Fraunces Project Authors (github.com/undercasetype/Fraunces). [Google Fonts source](https://github.com/google/fonts/tree/main/ofl/fraunces)
+- JetBrains Mono — Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono). [Google Fonts source](https://github.com/google/fonts/tree/main/ofl/jetbrainsmono)
+- LXGW WenKai TC — Copyright 2024 The LXGW WenKai Project Authors (https://github.com/lxgw/LxgwWenkaiTC). [Google Fonts source](https://github.com/google/fonts/tree/main/ofl/lxgwwenkaitc)
+- Manrope — Copyright 2019 The Manrope Project Authors (https://github.com/googlefonts/manrope). [Google Fonts source](https://github.com/google/fonts/tree/main/ofl/manrope)
+- Noto Sans SC — (c) 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'. [Google Fonts source](https://github.com/google/fonts/tree/main/ofl/notosanssc)
+- Noto Serif SC — (c) 2017-2024 Adobe (http://www.adobe.com/). [Google Fonts source](https://github.com/google/fonts/tree/main/ofl/notoserifsc)
+- ZCOOL XiaoWei — Copyright 2018 The ZCOOL XiaoWei Project Authors (https://www.github.com/googlefonts/xiaowei). [Google Fonts source](https://github.com/google/fonts/tree/main/ofl/zcoolxiaowei)
 
-Copyright (c) 2026 David Haz
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, and distribute the Software as part of
-an application, website, or product, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-Commons Clause Restriction
-
-You may use this Software, including for any commercial purpose, so long as
-you do not sell, sublicense, or redistribute the components themselves,
-whether alone, in a bundle, or as a ported version.
-
-No Warranty
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
-## Bodoni Moda and Noto Serif SC
-
-Bodoni Moda — Copyright 2020 The Bodoni Moda Project Authors. [Google Fonts source](https://github.com/google/fonts/tree/main/ofl/bodonimoda)
-
-Noto Serif SC — Copyright 2017–2024 Adobe. [Google Fonts source](https://github.com/google/fonts/tree/main/ofl/notoserifsc)
-
-The bundled web fonts are licensed under the SIL Open Font License 1.1.
+All of these fonts are licensed under the SIL Open Font License 1.1.
 
 SIL Open Font License 1.1
 =========================

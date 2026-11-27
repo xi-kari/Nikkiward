@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const assets = 'file:///D:/Projects/nikkiward-worktrees/_briefs/redesign/concepts/assets/';
+  const assets = '../../../Web.dev/assets/';
   const cases = {
     'home-tide':['tide','ready'],
     'home-blossom':['blossom','ready'],

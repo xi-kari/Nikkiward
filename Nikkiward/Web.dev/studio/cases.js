@@ -1,7 +1,7 @@
 (() => {
   const key=new URLSearchParams(location.search).get('mock');
   const skin=key.slice(7);
-  const assets='file:///D:/Projects/nikkiward-worktrees/_briefs/redesign/concepts/assets/';
+  const assets='../../Web.dev/assets/';
   const fixtures=[
     ['photo-01.jpg','214702',35,'2.8','晨曦','繁花礼裙',['#141a10','#5a6b2a','#e0b64c','#d98aa0','#b8323a']],
     ['photo-fae.jpg','213318',50,'1.8','花雾','花间精灵',['#2a1f2c','#3f6a5c','#c84a5a','#f2b8c0','#f6e8d8']],

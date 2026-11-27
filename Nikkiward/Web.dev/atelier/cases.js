@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const assets = 'file:///D:/Projects/nikkiward-worktrees/_briefs/redesign/concepts/assets/';
+  const assets = '../../../Web.dev/assets/';
   const covers = {
     tide: ['bg-tide.jpg', '海月', '内置原画', 'dark', '#A9DBFF', '#0A1322'],
     blossom: ['bg-blossom.jpg', '花信', '内置原画', 'light', '#B43B56', '#FFF8F2'],
