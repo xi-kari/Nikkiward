@@ -9,7 +9,6 @@ let presented = !bridge;
 let failedVideo = false;
 let frozenCover;
 
-
 function freezeImage() {
   const bg = currentState.background;
   const freeze = currentState.still && bg.type === 'image' && /\.(gif|webp|png|avif)$/i.test(bg.url);

@@ -403,8 +403,6 @@ internal sealed class WebHomeView : UserControl, IDisposable
         finally { if (_scan == scan) _scan = null; }
     }
 
-
-
     public void Dispose()
     {
         _disposed = true;

@@ -14,7 +14,7 @@ internal sealed class NativeSkin
     private static NativeSkin? _current;
     private static event Action? Changed;
     private readonly string _skin, _tone;
-    private readonly SolidColorBrush _paper, _ink, _accent, _accentInk;
+    private readonly SolidColorBrush _paper, _ink, _ink2, _accent, _accentInk;
     private readonly FontFamily _bodyFont, _titleFont;
     private readonly CornerRadius _corner;
     private readonly ElementTheme _theme;
@@ -28,6 +28,7 @@ internal sealed class NativeSkin
         string Token(string name) => colors.GetValueOrDefault(name) ?? shared[name];
         _paper = Brush(Token("panel-bg"));
         _ink = Brush(Token("panel-ink"));
+        _ink2 = Brush(Token("panel-ink-2"));
         _accent = Brush(Token("panel-accent"));
         _accentInk = Brush(Token("panel-accent-ink"));
         _theme = Brightness(_paper.Color) > Brightness(_ink.Color) ? ElementTheme.Light : ElementTheme.Dark;
@@ -98,7 +99,8 @@ internal sealed class NativeSkin
             control.ClearValue(FrameworkElement.RequestedThemeProperty);
             foreach (var key in new[] { "ContentDialogBackground", "ContentDialogForeground",
                 "AccentButtonBackground", "AccentButtonForeground", "AccentButtonBackgroundPointerOver",
-                "AccentButtonForegroundPointerOver", "AccentButtonBackgroundPressed", "AccentButtonForegroundPressed" })
+                "AccentButtonForegroundPointerOver", "AccentButtonBackgroundPressed", "AccentButtonForegroundPressed",
+                "AccentButtonBackgroundDisabled", "AccentButtonForegroundDisabled", "AccentButtonBorderBrushDisabled" })
                 if (control.Resources.ContainsKey(key)) control.Resources.Remove(key);
             return;
         }
@@ -114,12 +116,18 @@ internal sealed class NativeSkin
             r["AccentButtonBackground" + suffix] = _accent;
             r["AccentButtonForeground" + suffix] = _accentInk;
         }
+        // A disabled launch button still says why the game cannot start, so it keeps full ink and loses only the fill.
+        r["AccentButtonBackgroundDisabled"] = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0));
+        r["AccentButtonBorderBrushDisabled"] = _ink2;
+        r["AccentButtonForegroundDisabled"] = _ink;
         if (control is ContentDialog dialog)
         {
             r["ContentDialogBackground"] = _paper;
             r["ContentDialogForeground"] = _ink;
             dialog.CornerRadius = _corner;
         }
+        // Templates that already resolved their theme brushes only look the keys up again after a theme change.
+        control.RequestedTheme = _theme == ElementTheme.Light ? ElementTheme.Dark : ElementTheme.Light;
         control.RequestedTheme = _theme;
     }
 
