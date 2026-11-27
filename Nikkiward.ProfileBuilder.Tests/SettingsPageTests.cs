@@ -1,7 +1,7 @@
+using Nikkiward.Features.Settings;
 using System.Text.Json;
 using Nikkiward.Features.Pages;
 using Nikkiward.Features.Gallery;
-using Nikkiward.Features.Settings;
 using Nikkiward.Models;
 using Nikkiward.Services;
 using Nikkiward.ViewModels;
@@ -16,6 +16,7 @@ internal static class SettingsPageTests
         (nameof(GallerySectionRoundTrip), GallerySectionRoundTrip),
         (nameof(PluginSectionRoundTrip), PluginSectionRoundTrip),
         (nameof(AppearanceRoundTrip), AppearanceRoundTrip),
+        (nameof(ChannelToolsFollowDeveloperMode), ChannelToolsFollowDeveloperMode),
         (nameof(DeveloperSettingsReflectCurrentInspection), DeveloperSettingsReflectCurrentInspection),
         (nameof(DownloadLimitsRoundTrip), DownloadLimitsRoundTrip),
         (nameof(SettingsNavigationFollowsDeveloperMode), SettingsNavigationFollowsDeveloperMode),
@@ -23,7 +24,7 @@ internal static class SettingsPageTests
         (nameof(CustomAccentReturnsToPreset), CustomAccentReturnsToPreset),
         (nameof(AboutChannelState), AboutChannelState),
         (nameof(SettingsActionAllowlist), SettingsActionAllowlist),
-        (nameof(NativeSectionFallback), NativeSectionFallback),
+        (nameof(WebSettingsSectionRoutes), WebSettingsSectionRoutes),
         (nameof(InvalidSettingsPreserveValues), InvalidSettingsPreserveValues)
     ];
 
@@ -83,6 +84,24 @@ internal static class SettingsPageTests
             var state = JsonSerializer.SerializeToElement(GeneralSection.State(saved.General));
             Require(state.GetProperty("resetTime").GetString() == "23:59" && saved.General.MainWindowHotkey == "Ctrl+F9"
                 && saved.Appearance.HomeSkin == settings.Appearance.HomeSkin);
+        }
+        finally { folder.Delete(true); }
+    }
+
+    private static async Task ChannelToolsFollowDeveloperMode()
+    {
+        var folder = Directory.CreateTempSubdirectory();
+        try
+        {
+            var model = new MainPageViewModel(new JsonUserSettingsStore(folder.FullName),
+                new WindowsInstallationInspector(), new RedactedDiagnosticReportExporter());
+            Require(DeveloperSettingsState.ChannelTools(model) == null);
+            await model.SaveDeveloperModeAsync(true, CancellationToken.None);
+            var tools = JsonSerializer.SerializeToElement(DeveloperSettingsState.ChannelTools(model));
+            Require(tools.GetProperty("candidates").GetArrayLength() == model.Profiles.Count &&
+                tools.GetProperty("build").GetBoolean() == model.CanBuildChannelStore &&
+                tools.GetProperty("activate").GetBoolean() == model.CanActivateSelectedChannel &&
+                tools.GetProperty("rollback").GetBoolean() == model.CanRollbackChannelActivation);
         }
         finally { folder.Delete(true); }
     }
@@ -158,24 +177,18 @@ internal static class SettingsPageTests
         return Task.CompletedTask;
     }
 
-    private static Task NativeSectionFallback()
+    private static Task WebSettingsSectionRoutes()
     {
-        var registered = new Dictionary<string, PageAdapter> {
-            ["appearance"] = new("appearance", AppearanceSection.Actions, () => new {}, (_,_) => Task.CompletedTask)
-        };
-        Require(SettingsSections.All.Select(s => s.Destination).ToHashSet().SetEquals(Enum.GetValues<SettingsDestination>().Except([SettingsDestination.Overview])));
-        foreach (var (id, actions) in new[] {
-            ("Screenshot", ScreenshotSection.Actions), ("Gallery", GallerySection.Actions), ("Plugins", PluginsSection.Actions),
-            ("Hotkeys", HotkeysSection.Actions), ("Gamepad", GamepadSection.Actions)
-        })
-        {
-            registered.Add(id, new(id, actions, () => new {}, (_, _) => Task.CompletedTask));
-            Reject(() => SettingsSections.NativeTarget(SettingsSections.Resolve(id, true), registered));
-        }
-        Reject(() => SettingsSections.NativeTarget(SettingsSections.Resolve("appearance", false), registered));
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory != null && !File.Exists(Path.Combine(directory.FullName, "Nikkiward", "Nikkiward.csproj")))
+            directory = directory.Parent;
+        var sections = Path.Combine(directory!.FullName, "Nikkiward", "Web", "pages", "settings", "sections");
+        Require(SettingsSections.All.Select(s => s.Id).ToHashSet(StringComparer.Ordinal)
+            .SetEquals(Directory.EnumerateFiles(sections, "*.js").Select(path => Path.GetFileNameWithoutExtension(path))));
+
         Reject(() => SettingsSections.Resolve("Overview", false));
         Reject(() => SettingsSections.Resolve("Diagnostics", false));
-        Require(SettingsSections.Resolve("Plugins", true).Destination == SettingsDestination.Plugins);
+        Require(SettingsSections.Resolve("Plugins", true).Id == "Plugins");
         return Task.CompletedTask;
     }
 

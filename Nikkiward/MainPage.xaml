@@ -10,36 +10,13 @@
     xmlns:shell="using:Nikkiward.Features.Shell"
     x:DefaultBindMode="OneWay"
     Background="Transparent"
-    KeyDown="OnPageKeyDown"
     Loaded="OnPageLoaded"
     RequestedTheme="Dark"
     mc:Ignorable="d">
 
     <Grid
         x:Name="RootGrid"
-        Background="Transparent"
-        SizeChanged="OnRootGridSizeChanged">
-        <VisualStateManager.VisualStateGroups>
-            <VisualStateGroup x:Name="ShellWidthStates">
-                <VisualState x:Name="NarrowLaunchSettingsHost">
-                    <VisualState.StateTriggers>
-                        <AdaptiveTrigger MinWindowWidth="0" />
-                    </VisualState.StateTriggers>
-                    <VisualState.Setters>
-                        <Setter Target="LaunchSettingsFrame.Margin" Value="8,48,8,8" />
-                    </VisualState.Setters>
-                </VisualState>
-                <VisualState x:Name="WideLaunchSettingsHost">
-                    <VisualState.StateTriggers>
-                        <AdaptiveTrigger MinWindowWidth="760" />
-                    </VisualState.StateTriggers>
-                    <VisualState.Setters>
-                        <Setter Target="LaunchSettingsFrame.Margin" Value="24,60,24,24" />
-                    </VisualState.Setters>
-                </VisualState>
-            </VisualStateGroup>
-        </VisualStateManager.VisualStateGroups>
-
+        Background="Transparent">
         <background:ArtBackdropView
             x:Name="LauncherBackground"
             HorizontalAlignment="Stretch"
@@ -55,54 +32,6 @@
         <Frame
             x:Name="ContentFrame"
             Margin="0"
-            Background="Transparent"
-            IsNavigationStackEnabled="False"
-            Visibility="Collapsed" />
-        <shell:HomeNavigation x:Name="ShellNavigation" HorizontalAlignment="Left" VerticalAlignment="Top"
-            SizeChanged="OnHomeNavigationSizeChanged" />
-        <Border
-            x:Name="DrawerMask"
-            Margin="0"
-            Background="{ThemeResource DrawerMaskBrush}"
-            IsHitTestVisible="True"
-            Tapped="OnDrawerMaskTapped"
-            Visibility="Collapsed">
-        </Border>
-
-        <Border
-            x:Name="StatusDrawer"
-            Width="560"
-            Margin="0,58,24,24"
-            HorizontalAlignment="Right"
-            VerticalAlignment="Stretch"
-            Background="{ThemeResource HomeSurfaceBrush}"
-            BorderBrush="{ThemeResource HomeStrokeBrush}"
-            BorderThickness="1"
-            CornerRadius="{StaticResource RadiusIsland}"
-            Shadow="{ThemeResource HomeElevation}"
-            Translation="0,0,32"
-            Visibility="Collapsed">
-            <Frame
-                x:Name="StatusFrame" TabFocusNavigation="Cycle"
-                Background="Transparent"
-                IsNavigationStackEnabled="False" />
-        </Border>
-
-        <Border
-            x:Name="LaunchSettingsMask"
-            Margin="0"
-            Background="{ThemeResource LaunchSettingsMaskBrush}"
-            IsHitTestVisible="True"
-            Tapped="OnLaunchSettingsMaskTapped"
-            Visibility="Collapsed" />
-
-        <Frame
-            x:Name="LaunchSettingsFrame" TabFocusNavigation="Cycle"
-            MaxWidth="1120"
-            MaxHeight="690"
-            Margin="24,60,24,24"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
             Background="Transparent"
             IsNavigationStackEnabled="False"
             Visibility="Collapsed" />

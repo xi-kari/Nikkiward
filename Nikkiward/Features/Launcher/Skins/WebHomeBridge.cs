@@ -46,8 +46,7 @@ internal sealed record HomeChecklist(int Completed, int Total, string? Next, Che
     internal static HomeChecklist? From(ChecklistItem[] items) => items.Length == 0 ? null :
         new(items.Count(i => i.Done), items.Length, items.FirstOrDefault(i => !i.Done)?.Text, items);
 }
-internal sealed record HomeRect(double X, double Y, double Width, double Height);
-internal sealed record HomeAction(string Action, string? PhotoId = null, HomeRect? Rect = null, string? ProfileId = null, PlannerCommand? Planner = null, string? Title = null, string? ArtKey = null);
+internal sealed record HomeAction(string Action, string? PhotoId = null, string? ProfileId = null, PlannerCommand? Planner = null, string? Title = null, string? ArtKey = null);
 internal sealed record WebHomeState(LaunchButtonState State, string LaunchLabel, string Detail, bool Enabled, bool Busy,
     bool CloseVisible, bool CloseEnabled, string CloseLabel, string Profile, string Channel, string Check, string CheckTime,
     string? OfficialDuration, string? LocalDuration, string? TaskText, double? Progress, string ArtName, string ArtSource,
@@ -158,8 +157,6 @@ internal sealed record WebHomeState(LaunchButtonState State, string LaunchLabel,
     public string Issue => string.Concat(Date.Year.ToString("D4").Select(c => "〇一二三四五六七八九"[c - '0']))
         + "年" + Months[Date.Month - 1] + "月号";
 
-    public bool ProfileOpen { get; init; }
-
     public string Visual => State switch
     {
         LaunchButtonState.Ready => "ready",
@@ -192,8 +189,6 @@ internal static class WebHomeBridge
             "art-title" when message.Title is { Length: <= 120 } && !string.IsNullOrEmpty(message.ArtKey) => message,
             "open-root" or "import-background" or "official-flow" or "export-diagnostics" => message,
             "planner" when message.Planner?.Valid() == true => message,
-            "profile" when message.Rect is { X: >= 0, Y: >= 0, Width: > 0, Height: > 0 } r &&
-                double.IsFinite(r.X + r.Width) && double.IsFinite(r.Y + r.Height) => message,
             "select-profile" when !string.IsNullOrEmpty(message.ProfileId) => message,
             "locate" or "rediscover" or "recheck" or "tide" or "blossom" => message,
             "photo" when !string.IsNullOrEmpty(message.PhotoId) => message,

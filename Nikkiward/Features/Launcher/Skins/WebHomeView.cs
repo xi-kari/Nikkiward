@@ -19,7 +19,6 @@ namespace Nikkiward.Features.Launcher.Skins;
 internal sealed class WebHomeView : UserControl, IDisposable
 {
     private readonly WebView2 _web = new() { Opacity = 0 };
-    private readonly Border _anchor = new() { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false };
     internal Border Masthead { get; } = new() { Width = 0, Height = 52, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false };
     internal Border MastheadTool { get; } = new() { Width = 0, Height = 46, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false };
     private readonly string _skin, _page;
@@ -34,7 +33,6 @@ internal sealed class WebHomeView : UserControl, IDisposable
     private CancellationTokenSource? _coverWork;
     private HomeBackground? _cover;
     internal bool CoverVisible { get; private set; }
-    private bool _returnFocus;
     private int _mastheadVersion;
     private bool _disposed, _ready, _queued, _photosQueued;
 
@@ -42,7 +40,7 @@ internal sealed class WebHomeView : UserControl, IDisposable
     {
         _skin = skin;
         _page = WebHomeBridge.Page(skin);
-        Content = new Grid { Children = { _web, Masthead, MastheadTool, _anchor } };
+        Content = new Grid { Children = { _web, Masthead, MastheadTool } };
         Loaded += OnLoaded;
         SizeChanged += (_, _) => MeasureMasthead();
     }
@@ -132,7 +130,7 @@ internal sealed class WebHomeView : UserControl, IDisposable
             core.Navigate(_page);
             QueuePhotos();
         }
-        catch (Exception ex) when (_disposed || ex is COMException or IOException or UnauthorizedAccessException or NotImplementedException)
+        catch (Exception ex)
         {
             if (!_disposed) _host.UseCinema(ex.Message);
         }
@@ -164,7 +162,7 @@ internal sealed class WebHomeView : UserControl, IDisposable
             MastheadTool.Width = edges[3] - edges[2];
         }
         Masthead.UpdateLayout();
-        _host.RefreshMasthead();
+        _shell.NotifyTitleBarPassthroughChanged();
     }
 
     private bool Hidden => !_window.IsVisible || _window.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized };
@@ -211,12 +209,6 @@ internal sealed class WebHomeView : UserControl, IDisposable
             _web.Opacity = 1;
             _shell.SyncLauncherChrome();
             sender.PostWebMessageAsString("presented");
-            if (_shell.PlannerRequested)
-            {
-                _shell.PlannerRequested = false;
-                sender.PostWebMessageAsString("open-planner");
-                _web.Focus(FocusState.Programmatic);
-            }
             if (_pendingOverlay is { } name) { _pendingOverlay = null; OpenOverlay(name); }
             MeasureMasthead();
             return;
@@ -227,14 +219,6 @@ internal sealed class WebHomeView : UserControl, IDisposable
         const bool preview = false;
 #endif
         if (Hidden || !_shell.HomeInteractive || WebHomeBridge.Parse(json, preview) is not { } request) return;
-        if (request.Rect is { } r && request.Action == "profile")
-        {
-            if (r.X + r.Width > ActualWidth + 1 || r.Y + r.Height > ActualHeight + 1) return;
-            _anchor.Margin = new Thickness(r.X, r.Y, 0, 0);
-            _anchor.Width = r.Width;
-            _anchor.Height = r.Height;
-            UpdateLayout();
-        }
         if (request is { Action: "planner", Planner: { } command })
         {
             try
@@ -259,8 +243,7 @@ internal sealed class WebHomeView : UserControl, IDisposable
         }
         if (await _shell.InvokeOverlayActionAsync(request)) return;
         if (_shell.InvokeHomeCommand(request.Action, request.ProfileId)) return;
-        _returnFocus = request.Action == "profile";
-        _host.InvokeAction(request.Action, _anchor, request.PhotoId is { } id ? _photoItems.GetValueOrDefault(id) : null);
+        _host.InvokeAction(request.Action, request.PhotoId is { } id ? _photoItems.GetValueOrDefault(id) : null);
     }
 
     private string? _pendingOverlay;
@@ -275,11 +258,6 @@ internal sealed class WebHomeView : UserControl, IDisposable
     private void OnInteraction(object? sender, EventArgs e)
     {
         _web.IsTabStop = _shell.HomeInteractive;
-        if (ReferenceEquals(sender, _shell) && _returnFocus && _shell.HomeInteractive)
-        {
-            _returnFocus = false;
-            DispatcherQueue.TryEnqueue(() => { if (!_disposed && _shell.HomeInteractive) _web.Focus(FocusState.Programmatic); });
-        }
         QueueState();
     }
     private void OnHomeDataChanged(object? sender, EventArgs e) => QueueState();
@@ -340,7 +318,7 @@ internal sealed class WebHomeView : UserControl, IDisposable
             SessionMinutes = model.HomeState == LaunchButtonState.Running && started.HasValue ? (int)(DateTimeOffset.UtcNow - started.Value).TotalMinutes : null,
             SessionStarted = model.HomeState == LaunchButtonState.Running ? started : null,
             JournalSnapshotDate = _shell.SnapshotDay, LastSessionPhotos = PlayTimeLedger.CountPhotos(times, previous), CurrentSessionPhotos = PlayTimeLedger.CountPhotos(times, current),
-            Background = _cover, Palette = [$"#{backdrop.DerivedAccentLight & 0xffffff:X6}", $"#{backdrop.DerivedAccentDark & 0xffffff:X6}"], ProfileOpen = _shell.HomeProfileOpen };
+            Background = _cover, Palette = [$"#{backdrop.DerivedAccentLight & 0xffffff:X6}", $"#{backdrop.DerivedAccentDark & 0xffffff:X6}"] };
         var idleSeconds = model.AppearanceSettings.AppreciationDelaySeconds;
         if ((_skin != "cinema" || idleSeconds == _sentIdleSeconds) && _last is { } last && state.Profiles.SequenceEqual(last.Profiles) && state.Palette.SequenceEqual(last.Palette) && state.Components.SequenceEqual(last.Components) &&
             (state with { Profiles = last.Profiles, Palette = last.Palette, Components = last.Components }) == last) return;

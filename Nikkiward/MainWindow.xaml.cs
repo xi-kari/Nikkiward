@@ -275,7 +275,6 @@ public sealed partial class MainWindow : Window
         }
 
         int inset = CaptionWidth(root.RasterizationScale);
-        _mainPage.SetCaptionInset(inset / root.RasterizationScale);
         var rects = new List<RectInt32>();
         foreach (var region in _mainPage.TitleBarPassthroughRegions)
         {
@@ -294,7 +293,6 @@ public sealed partial class MainWindow : Window
                     0,
                     region.ActualWidth,
                     region.ActualHeight));
-            bounds = _mainPage.ClipNavigationBounds(region, bounds);
             if (bounds.IsEmpty) continue;
             var left = checked((int)Math.Floor(bounds.X * scale));
             var top = checked((int)Math.Floor(bounds.Y * scale));

@@ -280,6 +280,7 @@ internal static class UpdateReleaseTests
 
             foreach (var (relativePath, content) in new[]
             {
+                ("Features\\Wish\\WishPage.xbf", "retired page"),
                 ("Plugins\\plugin.json", "{}"),
                 ("ProtectedFavorites\\object.bin", "object"),
                 ("ArtCache\\blur.jpg", "cache"),

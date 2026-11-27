@@ -18,17 +18,13 @@ internal static class AppearanceRuntimeContractTests
         ("the built-in blurred plate covers every cold-start fallback", BuiltInBlurredPlateCoversColdStart),
         ("the built-in artwork seeds the dark cold-start theme", BuiltInArtworkSeedsDarkColdStart),
         ("the backdrop crossfade can be cancelled and promoted", BackdropCrossFadeCanBeCancelled),
-        ("every density spacing token has a live visual consumer", DensitySpacingTokensHaveConsumers),
         ("static visual tokens have one live runtime authority", StaticVisualTokensHaveOneAuthority),
-        ("overlay composition and XAML transitions stay sequenced", OverlayTransitionsStaySequenced),
         ("CJK page titles retain their full line bounds", CjkPageTitlesRetainFullLineBounds),
         ("custom background exposes the motion wallpaper importer", CustomBackgroundExposesMotionImporter),
         ("Wallpaper package recovery persists canonical paths and authoritative modes", WallpaperPackageRecoveryPersistsCanonicalState),
         ("custom background exposes the artwork title editor", CustomBackgroundExposesArtworkTitleEditor),
         ("high contrast focus uses the system focus color", HighContrastFocusUsesSystemColor),
         ("every custom transition consumes the live motion authority", CustomTransitionsConsumeMotionAuthority),
-        ("interactive scale and connected animation obey motion off", InteractiveMotionObeysMotionOff),
-        ("journal cached images use typed XAML sources", JournalCachedImagesUseTypedSources),
         (nameof(AtelierBackgroundSources), AtelierBackgroundSources),
         (nameof(AtelierBackgroundHandoff), AtelierBackgroundHandoff),
         (nameof(WebHomeCreatesMediaFolders), WebHomeCreatesMediaFolders),
@@ -42,7 +38,9 @@ internal static class AppearanceRuntimeContractTests
         (nameof(ReminderDeliverySurvivesSaveFailure), ReminderDeliverySurvivesSaveFailure),
         (nameof(PlannerCommandsAndPersistence), PlannerCommandsAndPersistence),
         (nameof(SessionPhotosAndHomeFields), SessionPhotosAndHomeFields),
-        (nameof(PageStateFailureRequestsFallback), PageStateFailureRequestsFallback),
+        (nameof(PageStateFailureReportsReason), PageStateFailureReportsReason),
+        (nameof(SafeHomeUsesLaunchState), SafeHomeUsesLaunchState),
+        (nameof(FailedPageCanRetryOrReturnHome), FailedPageCanRetryOrReturnHome),
         (nameof(PageNavigationBeforeState), PageNavigationBeforeState),
         (nameof(WebPageFallbackSurvivesLaterErrors), WebPageFallbackSurvivesLaterErrors),
         (nameof(WebHomeStateMatchesLauncher), WebHomeStateMatchesLauncher),
@@ -56,18 +54,12 @@ internal static class AppearanceRuntimeContractTests
         (nameof(WebHomeNavigationIsLocal), WebHomeNavigationIsLocal),
         (nameof(HomePreviewGuardsAllCommands), HomePreviewGuardsAllCommands),
         ("home skin catalog reserves five extension points", HomeSkinCatalogReservesAllDesigns),
-        ("developer surfaces stay hidden until explicit opt in", DeveloperSurfacesRequireOptIn),
-        ("journal resource gallery stays hidden from the reader", JournalResourceGalleryStaysHidden),
         ("launcher resources use the shared theme authority outside the shell rail", LauncherResourcesUseSharedThemeAuthority),
         ("the primary action resource chain stays live and high contrast aware", PrimaryActionResourceChainStaysIntact),
-        ("focused feedback surfaces stay compact and reachable", FocusedFeedbackSurfacesStayCompact),
-        ("gallery protection management stays scoped to settings", GalleryProtectionManagementStaysScopedToSettings),
-        ("gallery and settings surfaces reflow at narrow widths", GalleryAndSettingsSurfacesReflowAtNarrowWidths),
         ("launcher close action stays separate from the launch action", LauncherCloseActionStaysSeparate),
         ("launcher runtime polling returns to the launch state", LauncherRuntimePollingReturnsToLaunchState),
         ("busy completion republishes the launcher state projection", BusyCompletionRepublishesLauncherStateProjection),
         ("external channels publish a bound runtime lifecycle", ExternalChannelsPublishBoundRuntimeLifecycle),
-        ("profile picker uses one anchored server surface", ProfilePickerUsesSingleAnchoredServerSurface),
         ("profile selection returns to the launcher surface", ProfileSelectionReturnsToLauncher),
     ];
 
@@ -303,31 +295,8 @@ internal static class AppearanceRuntimeContractTests
         return Task.CompletedTask;
     }
 
-    private static Task DensitySpacingTokensHaveConsumers()
-    {
-        foreach (var resourceKey in new[] { "ContentPaddingThickness", "CardPaddingThickness" })
-        {
-            var consumers = FindThemeResourceConsumers(resourceKey);
-            Assert(
-                consumers.Length > 0,
-                $"{resourceKey} must be consumed by a live XAML attribute");
-        }
-
-        return Task.CompletedTask;
-    }
-
     private static Task StaticVisualTokensHaveOneAuthority()
     {
-        var controls = ReadSource("Nikkiward", "Themes", "Controls.xaml");
-        Assert(
-            controls.Contains(
-                "x:Key=\"OnArtGlassButtonStyle\"",
-                StringComparison.Ordinal) &&
-            controls.Contains(
-                "<Setter Property=\"Height\" Value=\"{ThemeResource ControlHeight}\" />",
-                StringComparison.Ordinal),
-            "on-art text buttons must follow the live density control height");
-
         var elevation = ReadSource("Nikkiward", "Themes", "Elevation.xaml");
         var island = ReadSource("Nikkiward", "Controls", "GlassIsland.cs");
         foreach (var resourceKey in new[]
@@ -370,21 +339,6 @@ internal static class AppearanceRuntimeContractTests
             runtime.Contains("resources[\"MotionPanelClose\"]", StringComparison.Ordinal),
             "motion projection must publish panel durations for Full, Reduced, and Off modes");
 
-        var overlay = ReadSource("Nikkiward", "MainPage.Overlays.cs");
-        var shellRuntime = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Shell",
-            "AppearanceRuntimeValues.cs");
-        Assert(
-            overlay.Contains("_statusDrawerAnimationVersion", StringComparison.Ordinal) &&
-            overlay.Contains("_launchSettingsAnimationVersion", StringComparison.Ordinal) &&
-            overlay.Contains("MotionPanelOpen", StringComparison.Ordinal) &&
-            overlay.Contains("MotionPanelClose", StringComparison.Ordinal) &&
-            overlay.Contains("ApplyOpacityTransition", StringComparison.Ordinal) &&
-            shellRuntime.Contains("StartOpacityAnimation", StringComparison.Ordinal) &&
-            shellRuntime.Contains("CreateCubicBezierEasingFunction", StringComparison.Ordinal),
-            "overlay motion must consume the projected durations and cancel stale close completions");
         return Task.CompletedTask;
     }
 
@@ -417,14 +371,11 @@ internal static class AppearanceRuntimeContractTests
         var highContrastMaterials = FindThemeDictionary(materials, "HighContrast");
         foreach (var key in new[]
         {
-            "GlassPillBrush",
             "GlassIslandBrush",
             "GlassOverlayBrush",
             "PaperGlassBrush",
             "PaperGlassStrongBrush",
             "IslandEdgeHighlightBrush",
-            "DrawerMaskBrush",
-            "LaunchSettingsMaskBrush",
         })
         {
             var resource = FindResource(highContrastMaterials, key);
@@ -439,42 +390,8 @@ internal static class AppearanceRuntimeContractTests
         return Task.CompletedTask;
     }
 
-    private static Task OverlayTransitionsStaySequenced()
-    {
-        var overlay = ReadSource("Nikkiward", "MainPage.Overlays.cs");
-        Assert(
-            !overlay.Contains("StartOpacityAnimation", StringComparison.Ordinal) &&
-            !overlay.Contains("ResetOpacityAnimation", StringComparison.Ordinal),
-            "overlay opacity must not use ElementCompositionPreview beside XAML transitions");
-        foreach (var methodName in new[]
-        {
-            "OpenLaunchSettingsSurface",
-            "HideLaunchSettingsSurface",
-            "OpenStatusDrawerSurface",
-            "HideStatusDrawer",
-        })
-        {
-            var method = FindMethod(overlay, methodName);
-            Assert(
-                method.Contains("ApplyOpacityTransition", StringComparison.Ordinal) &&
-                method.Contains("ApplyTranslationTransition", StringComparison.Ordinal),
-                $"{methodName} must keep opacity and translation under the XAML transition authority");
-        }
-        return Task.CompletedTask;
-    }
-
     private static Task CustomBackgroundExposesMotionImporter()
     {
-        var settingsXaml = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Launcher",
-            "LaunchSettingsPage.xaml");
-        var settingsCode = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Launcher",
-            "LaunchSettingsPage.xaml.cs");
         var overlay = ReadSource("Nikkiward", "MainPage.Overlays.cs");
         var appearance = ReadSource("Nikkiward", "MainPage.Appearance.cs");
         var wallpaperSupport = ReadSource(
@@ -489,17 +406,7 @@ internal static class AppearanceRuntimeContractTests
             "WallpaperEngineRuntimeHost.cs");
 
         Assert(
-            settingsXaml.Contains("BackgroundSection", StringComparison.Ordinal) &&
-            settingsXaml.Contains("HolographicImportModeButton", StringComparison.Ordinal) &&
-            settingsXaml.Contains("MotionImportModeButton", StringComparison.Ordinal) &&
-            settingsXaml.Contains("导入壁纸", StringComparison.Ordinal) &&
-            settingsXaml.Contains("OnChooseWallpaperClicked", StringComparison.Ordinal),
-            "custom background must expose explicit holographic-card and motion import modes");
-        Assert(
-            settingsCode.Contains("WallpaperImportRequestedEventArgs", StringComparison.Ordinal) &&
-            settingsCode.Contains("WallpaperImportMode", StringComparison.Ordinal) &&
-            overlay.Contains("OnLaunchSettingsWallpaperImportRequested", StringComparison.Ordinal) &&
-            overlay.Contains("ChooseWallpaperAsync(e.Mode)", StringComparison.Ordinal) &&
+            overlay.Contains("ChooseWallpaperAsync(null)", StringComparison.Ordinal) &&
             appearance.Contains(
                 "WallpaperSourceRules.Resolve(sourcePath, mode)",
                 StringComparison.Ordinal) &&
@@ -528,11 +435,6 @@ internal static class AppearanceRuntimeContractTests
     private static Task WallpaperPackageRecoveryPersistsCanonicalState()
     {
         var appearance = ReadSource("Nikkiward", "MainPage.Appearance.cs");
-        var launchSettings = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Launcher",
-            "LaunchSettingsPage.xaml.cs");
         var activation = FindMethod(
             appearance,
             "TryActivateConfiguredWallpaperEngineAsync");
@@ -559,91 +461,25 @@ internal static class AppearanceRuntimeContractTests
                 "ViewModel.SaveAppearanceSettingsAsync",
                 StringComparison.Ordinal),
             "canonical Wallpaper package recovery must update and save every matching package path");
-        Assert(
-            launchSettings.Contains(
-                "settings.Background.WallpaperEnginePresentation switch",
-                StringComparison.Ordinal) &&
-            launchSettings.Contains(
-                "WallpaperEnginePresentation.MotionBackdrop => true",
-                StringComparison.Ordinal) &&
-            launchSettings.Contains(
-                "WallpaperEnginePresentation.HolographicCard => false",
-                StringComparison.Ordinal) &&
-            launchSettings.Contains(
-                "_ => settings.Background.MotionEnabled",
-                StringComparison.Ordinal),
-            "Wallpaper package presentation must be authoritative while ordinary video retains the motion fallback");
         return Task.CompletedTask;
     }
 
     private static Task CustomBackgroundExposesArtworkTitleEditor()
     {
-        var settingsXaml = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Launcher",
-            "LaunchSettingsPage.xaml");
-        var settingsDocument = XDocument.Parse(settingsXaml);
-        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
-        var settingsCode = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Launcher",
-            "LaunchSettingsPage.xaml.cs");
         var overlay = ReadSource("Nikkiward", "MainPage.Overlays.cs");
-        var runtime = ReadSource("Nikkiward", "MainPage.AppearanceRuntime.cs");
-
-        Assert(
-            settingsXaml.Contains("ArtworkTitleBox", StringComparison.Ordinal) &&
-            settingsXaml.Contains("自定义背景画名", StringComparison.Ordinal) &&
-            settingsXaml.Contains("OnSaveArtworkTitleClicked", StringComparison.Ordinal) &&
-            settingsXaml.Contains("OnResetArtworkTitleClicked", StringComparison.Ordinal),
-            "custom background must expose save and reset controls for the artwork title");
-        var subtitleBox = settingsDocument
-            .Descendants()
-            .SingleOrDefault(element =>
-                element.Name.LocalName == "TextBox" &&
-                element.Attribute(xaml + "Name")?.Value == "ArtworkTitleBox");
-        Assert(
-            subtitleBox?.Attribute("Height")?.Value == "Auto",
-            "the headered artwork title editor must not inherit the fixed 44px TextBox height");
-        Assert(
-            settingsCode.Contains("ArtworkTitleSaveRequested", StringComparison.Ordinal) &&
-            overlay.Contains("OnLaunchSettingsArtworkTitleSaveRequested", StringComparison.Ordinal) &&
-            overlay.Contains("WithArtworkTitle(e.Source, e.Title)", StringComparison.Ordinal) &&
-            runtime.Contains("_hostedLaunchSettingsPage?.ApplyAppearanceSettings(settings)", StringComparison.Ordinal),
-            "the artwork title editor must save through appearance settings and stay synchronized");
+        Assert(overlay.Contains("WithArtworkTitle(request.ArtKey, request.Title!)"), "artwork title persistence");
         return Task.CompletedTask;
     }
 
     private static Task CjkPageTitlesRetainFullLineBounds()
     {
-        var gallery = XDocument.Parse(ReadSource("Nikkiward", "Pages", "GalleryPage.xaml"));
         var journal = XDocument.Parse(ReadSource(
             "Nikkiward",
             "Features",
             "Journal",
             "JournalPage.xaml"));
 
-        AssertFullLineTitle(gallery, "相册");
         AssertFullLineTitle(journal, "奇想手账");
-        AssertFullLineTitle(
-            XDocument.Parse(ReadSource(
-                "Nikkiward",
-                "Features",
-                "Journal",
-                "JournalSummaryPanel.xaml")),
-            "手账概览");
-
-        var galleryRows = gallery
-            .Descendants()
-            .Where(element => element.Name.LocalName == "RowDefinition")
-            .Take(4)
-            .Select(element => element.Attribute("Height")?.Value)
-            .ToArray();
-        Assert(
-            galleryRows.SequenceEqual(["48", "48", "*", "32"]),
-            "gallery commands must use a compact 48px row directly below the title bar");
         return Task.CompletedTask;
     }
 
@@ -680,91 +516,6 @@ internal static class AppearanceRuntimeContractTests
             hardCodedDurations.Length == 0,
             $"custom transition durations must use motion resources: {string.Join(", ", hardCodedDurations)}");
 
-        var stat = ReadSource("Nikkiward", "Controls", "StatTile.cs");
-        Assert(
-            stat.Contains("AppearanceRuntimeValues.ReadDuration", StringComparison.Ordinal) &&
-            stat.Contains("CreateCubicBezierEasingFunction", StringComparison.Ordinal) &&
-            stat.Contains("StopAnimation", StringComparison.Ordinal),
-            "StatTile must consume the live duration and easing, then stop old animations when motion is off");
-        return Task.CompletedTask;
-    }
-
-    private static Task InteractiveMotionObeysMotionOff()
-    {
-        var shellValues = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Shell",
-            "AppearanceRuntimeValues.cs");
-        var journal = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Journal",
-            "JournalSnapshotPanel.xaml.cs");
-        var profile = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Profile",
-            "ProfilePickerView.xaml.cs");
-        var gallery = ReadSource(
-            "Nikkiward",
-            "Pages",
-            "GalleryPage.Interactions.cs");
-        var mainRuntime = ReadSource("Nikkiward", "MainPage.AppearanceRuntime.cs");
-
-        Assert(
-            shellValues.Contains("SuppressNavigationTransitionInfo", StringComparison.Ordinal) &&
-            shellValues.Contains("ReadScale", StringComparison.Ordinal),
-            "navigation and pointer targets must share the live appearance authority");
-        foreach (var source in new[] { journal, gallery })
-        {
-            Assert(
-                source.Contains("AppearanceRuntimeValues.ReadScale", StringComparison.Ordinal),
-                "every custom pointer scale must consume the live scale resources");
-        }
-        Assert(
-            !profile.Contains("PointerEntered", StringComparison.Ordinal) &&
-            !profile.Contains("AppearanceRuntimeValues.ReadScale", StringComparison.Ordinal),
-            "the direct profile selector must not retain the removed game-card hover scale");
-
-        Assert(
-            mainRuntime.Contains("ResetInteractiveScales", StringComparison.Ordinal) &&
-            mainRuntime.Contains("projection.IsZero", StringComparison.Ordinal),
-            "switching motion off must reset already loaded scale transitions");
-        return Task.CompletedTask;
-    }
-
-    private static Task JournalCachedImagesUseTypedSources()
-    {
-        var journalXaml = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Journal",
-            "JournalSnapshotPanel.xaml");
-        var wishXaml = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Wish",
-            "WishPage.xaml");
-        var journalModels = ReadSource(
-            "Nikkiward",
-            "ViewModels",
-            "JournalRichContentViewModels.cs");
-        var resonanceModels = ReadSource(
-            "Nikkiward",
-            "ViewModels",
-            "ResonanceWardrobeViewModels.cs");
-
-        Assert(
-            !journalXaml.Contains("Source=\"{x:Bind PreviewUri}\"", StringComparison.Ordinal) &&
-            !wishXaml.Contains("Source=\"{x:Bind PreviewUri}\"", StringComparison.Ordinal),
-            "cached file URI strings must not rely on implicit ImageSource conversion");
-        Assert(
-            journalXaml.Contains("Source=\"{x:Bind PreviewSource}\"", StringComparison.Ordinal) &&
-            wishXaml.Contains("Source=\"{x:Bind PreviewSource}\"", StringComparison.Ordinal) &&
-            journalModels.Contains("ImageSource? PreviewSource", StringComparison.Ordinal) &&
-            resonanceModels.Contains("ImageSource? PreviewSource", StringComparison.Ordinal),
-            "journal and resonance images must bind explicit typed image sources");
         return Task.CompletedTask;
     }
 
@@ -1036,7 +787,7 @@ internal static class AppearanceRuntimeContractTests
         return Task.CompletedTask;
     }
 
-    private static Task PageStateFailureRequestsFallback()
+    private static Task PageStateFailureReportsReason()
     {
         var vm = new MainPageViewModel(new JsonUserSettingsStore(Path.GetTempPath()),
             new WindowsInstallationInspector(), new RedactedDiagnosticReportExporter());
@@ -1058,6 +809,25 @@ internal static class AppearanceRuntimeContractTests
         Check(() => throw new InvalidOperationException("取状态失败 " + ApplicationDataPaths.Root),
             "InvalidOperationException: 取状态失败");
         Check(() => new { unsupported = typeof(int) }, "NotSupportedException:");
+        return Task.CompletedTask;
+    }
+
+    private static Task SafeHomeUsesLaunchState()
+    {
+        var view = ReadSource("Nikkiward", "Features", "Launcher", "Skins", "Cinema", "CinemaView.xaml");
+        foreach (var binding in new[] { "HomeLaunchLabel", "HomeLaunchEnabled", "HomeLaunchDetail", "ProfileDisplayName", "HomeFallback" })
+            Assert(view.Contains("{Binding " + binding + "}"), binding);
+        Assert(view.Contains("重试新界面") && !view.Contains("nav-"), "safe home actions");
+        return Task.CompletedTask;
+    }
+
+    private static Task FailedPageCanRetryOrReturnHome()
+    {
+        var shell = ReadSource("Nikkiward", "MainPage.WebPages.cs");
+        var host = ReadSource("Nikkiward", "Features", "Pages", "WebPagesView.cs");
+        Assert(shell.Contains("typeof(WebPageErrorView)") && shell.Contains("() => ShowWebPage(page), ShowLauncher"),
+            "failure actions target the failed destination and home");
+        Assert(host.Contains("NavigationCacheMode.Disabled") && host.Contains("Web.Close()"), "failed browser is retired");
         return Task.CompletedTask;
     }
 
@@ -1090,10 +860,10 @@ internal static class AppearanceRuntimeContractTests
     {
         var vm = new MainPageViewModel(new JsonUserSettingsStore(Path.GetTempPath()),
             new WindowsInstallationInspector(), new RedactedDiagnosticReportExporter());
-        vm.WebPageFallback = $"功能页面已回退到原生界面（wish）：{ApplicationDataPaths.Root}";
+        vm.WebPageFallback = $"功能页面加载失败（wish）：{ApplicationDataPaths.Root}";
         vm.ReportUiError("后续错误");
         var drawer = HomeOverlayState.From(vm);
-        Assert(drawer.WebPageFallback == "功能页面已回退到原生界面（wish）：%NIKKIWARD_DATA%" &&
+        Assert(drawer.WebPageFallback == "功能页面加载失败（wish）：%NIKKIWARD_DATA%" &&
             drawer.Technical.LastErrorText.Contains("后续错误"), "retain the redacted fallback alongside a later error");
         return Task.CompletedTask;
     }
@@ -1293,8 +1063,6 @@ internal static class AppearanceRuntimeContractTests
     private static Task WebHomeActionsAreBounded()
     {
         Assert(WebHomeBridge.Parse("""{"action":"photo","photoId":"one"}""")?.PhotoId == "one", "photo");
-        Assert(WebHomeBridge.Parse("""{"action":"profile","rect":{"x":1,"y":2,"width":3,"height":4}}""")?.Rect
-            == new HomeRect(1, 2, 3, 4), "anchor");
         foreach (var action in new[] { "launch", "close", "settings", "background", "reset", "status", "gallery",
             "journal", "download", "time", "nav-settings", "nav-gallery-favorites", "nav-launcher", "nav-resonance", "nav-gallery", "nav-library" })
             Assert(WebHomeBridge.Parse(JsonSerializer.Serialize(new { action }))?.Action == action, action);
@@ -1313,7 +1081,7 @@ internal static class AppearanceRuntimeContractTests
         foreach (Match match in Regex.Matches(html, "data-action=\"([^\"]+)\""))
         {
             var action = match.Groups[1].Value;
-            var json = JsonSerializer.Serialize(new { action, rect = new HomeRect(0, 0, 1, 1) });
+            var json = JsonSerializer.Serialize(new { action });
             Assert(WebHomeBridge.Parse(json)?.Action == action, action);
         }
         return Task.CompletedTask;
@@ -1345,136 +1113,6 @@ internal static class AppearanceRuntimeContractTests
         var registry = ReadSource("Nikkiward", "Features", "Launcher", "Skins", "HomeSkins.cs");
         foreach (var id in new[] { "Cinema", "Stitch", "Atelier", "Journal", "WishStar" })
             Assert(registry.Contains($"Register(\"{id}\""), $"{id} needs a reserved entry");
-        return Task.CompletedTask;
-    }
-
-    private static Task DeveloperSurfacesRequireOptIn()
-    {
-        var settingsXaml = ReadSource("Nikkiward", "Features", "Settings", "SettingsPage.xaml");
-        var settingsCode = ReadSource("Nikkiward", "Features", "Settings", "SettingsPage.xaml.cs");
-        var homeXaml = ReadSource("Nikkiward", "Features", "Settings", "SettingsHomeView.xaml");
-        var launcherCode = ReadSource("Nikkiward", "Features", "Launcher", "LauncherPage.xaml.cs");
-
-        foreach (var itemName in new[]
-        {
-            "JournalItem",
-            "FilesItem",
-            "StatusItem",
-            "ComponentsItem",
-            "DiagnosticsItem",
-            "ContractItem",
-        })
-        {
-            Assert(
-                Regex.IsMatch(
-                    settingsXaml,
-                    $"x:Name=\"{itemName}\"[^>]*Visibility=\"Collapsed\"",
-                    RegexOptions.CultureInvariant),
-                $"{itemName} must default to collapsed");
-        }
-
-        var developerPanel = homeXaml.IndexOf(
-            "x:Name=\"DeveloperToolsPanel\"",
-            StringComparison.Ordinal);
-        Assert(
-            homeXaml.Contains("x:Name=\"DeveloperModeToggle\"", StringComparison.Ordinal) &&
-            developerPanel >= 0 &&
-            homeXaml.IndexOf("Tag=\"journal\"", StringComparison.Ordinal) > developerPanel &&
-            homeXaml.IndexOf("Tag=\"files\"", StringComparison.Ordinal) > developerPanel &&
-            homeXaml.Contains("Tag=\"plugins\"", StringComparison.Ordinal) &&
-            homeXaml.IndexOf("Tag=\"plugins\"", StringComparison.Ordinal) < developerPanel &&
-            !settingsXaml.Contains("外观、插件与输入设置", StringComparison.Ordinal) &&
-            settingsCode.Contains("IsDeveloperDestination(destination) && !_developerModeEnabled", StringComparison.Ordinal) &&
-            settingsCode.Contains("JournalItem.Visibility = visibility", StringComparison.Ordinal) &&
-            settingsCode.Contains("FilesItem.Visibility = visibility", StringComparison.Ordinal) &&
-            Regex.IsMatch(
-                settingsCode,
-                @"IsDeveloperDestination\s*\([^)]*\)\s*=>\s*destination\s+is\s+SettingsDestination\.Journal\s+or\s+SettingsDestination\.Files\s+or\s+SettingsDestination\.Status\s+or",
-                RegexOptions.CultureInvariant) &&
-            settingsCode.Contains("ApplyDeveloperMode(bool enabled)", StringComparison.Ordinal),
-            "developer-only settings need an explicit toggle, collapsed navigation, and a guarded path");
-        Assert(launcherCode.Contains("StatusRequested"), "the skin host must route player-requested diagnostics");
-        return Task.CompletedTask;
-    }
-
-    private static Task JournalResourceGalleryStaysHidden()
-    {
-        var journal = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Journal",
-            "JournalSnapshotPanel.xaml");
-        var journalCode = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Journal",
-            "JournalSnapshotPanel.xaml.cs");
-        var journalPageCode = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Journal",
-            "JournalPage.xaml.cs");
-        var journalCaptureScripts = ReadSource(
-            "Nikkiward",
-            "ViewModels",
-            "JournalWebCaptureScripts.cs");
-        var journalBrowserCode = ReadSource(
-            "Nikkiward",
-            "MainPage.JournalBrowser.cs");
-        var resonanceBrowserCode = ReadSource(
-            "Nikkiward",
-            "MainPage.ResonanceBrowser.cs");
-        var applySnapshot = FindMethod(journalPageCode, "ApplySnapshot");
-        Assert(
-            Regex.IsMatch(
-                journal,
-                "x:Name=\"ResourceSection\"[\\s\\S]*?Visibility=\"Collapsed\"",
-                RegexOptions.CultureInvariant) &&
-            journalCode.Contains("ResourceSection.Visibility = Visibility.Collapsed", StringComparison.Ordinal) &&
-            !journalCode.Contains("PopulateResourceGroups(snapshot, resources)", StringComparison.Ordinal),
-            "cached web artwork may remain available to sync but must never be populated or shown in the reader UI");
-        Assert(
-            journalPageCode.Contains("JournalWebView.Opacity = isInProgress ? 0 : 1", StringComparison.Ordinal) &&
-            journalPageCode.Contains("JournalWebView.IsHitTestVisible = !isInProgress", StringComparison.Ordinal) &&
-            journalPageCode.Contains(
-                "JournalWebView.CoreWebView2.SourceChanged += OnCoreSourceChanged",
-                StringComparison.Ordinal) &&
-            journalPageCode.Contains(
-                "public Uri? CurrentUri => _currentNavigationUri ?? JournalWebView.Source",
-                StringComparison.Ordinal) &&
-            journalPageCode.Contains("if (args.IsNewDocument ||", StringComparison.Ordinal) &&
-            journalPageCode.Contains("new JournalNavigationEventArgs(", StringComparison.Ordinal) &&
-            !journalPageCode.Contains(
-                "JournalWebView.Visibility = isInProgress ? Visibility.Collapsed : Visibility.Visible",
-                StringComparison.Ordinal) &&
-            !applySnapshot.Contains("HideBrowser", StringComparison.Ordinal),
-            "sync must visually hide the WebView while keeping its document active for readiness checks");
-        Assert(
-            journalCaptureScripts.Contains(
-                "documentReady: document.readyState === 'complete'",
-                StringComparison.Ordinal) &&
-            journalCaptureScripts.Contains("stableNodeKeyCount", StringComparison.Ordinal) &&
-            journalCaptureScripts.Contains("pendingImageCount", StringComparison.Ordinal) &&
-            !journalCaptureScripts.Contains("const expectedTitles =", StringComparison.Ordinal) &&
-            journalBrowserCode.Contains(
-                "JournalDocumentReadinessProjector.IsOverviewReady(",
-                StringComparison.Ordinal) &&
-            journalBrowserCode.Contains("IsCurrentOverviewRoute", StringComparison.Ordinal) &&
-            journalBrowserCode.Contains("_journalCaptureGate.WaitAsync(0)", StringComparison.Ordinal) &&
-            journalBrowserCode.Contains("string.Equals(", StringComparison.Ordinal) &&
-            resonanceBrowserCode.Contains("IsCurrentResonanceRoute", StringComparison.Ordinal) &&
-            resonanceBrowserCode.Contains("_journalCaptureGate.WaitAsync(0)", StringComparison.Ordinal) &&
-            journalBrowserCode.Contains("captureValidated", StringComparison.Ordinal) &&
-            journalBrowserCode.Contains(
-                "JournalCaptureFailureKind.LocalProcessingFailure",
-                StringComparison.Ordinal) &&
-            !journalBrowserCode.Contains(
-                "attempt < 80 && stableSamples < 3",
-                StringComparison.Ordinal) &&
-            !resonanceBrowserCode.Contains(
-                "attempt < 80 && stableSamples < 3",
-                StringComparison.Ordinal),
-            "journal readiness must wait for a complete stable document without requiring a fixed official title list");
         return Task.CompletedTask;
     }
 
@@ -1583,486 +1221,18 @@ internal static class AppearanceRuntimeContractTests
                 StringComparison.Ordinal) == true,
             "HighContrast primary action fill must use the system highlight color");
 
-        var tokens = XDocument.Parse(ReadSource("Nikkiward", "Features", "Launcher", "Skins", "Cinema", "Tokens.xaml"));
-        foreach (var mode in new[] { "HighContrast", "Dark", "Light" })
-        {
-            var theme = FindThemeDictionary(tokens, mode);
-            foreach (var key in new[] { "HomeSurfaceBrush", "HomeInkBrush", "HomeStrokeBrush" })
-                Assert(FindResource(theme, key) != null, $"{mode} needs {key}");
-        }
-        return Task.CompletedTask;
-    }
-
-    private static Task FocusedFeedbackSurfacesStayCompact()
-    {
-        var navigation = ReadSource("Nikkiward", "MainPage.ShellNavigation.cs");
-        var chrome = ReadSource("Nikkiward", "MainPage.ContentNavigation.cs");
-        var status = ReadSource("Nikkiward", "Features", "Diagnostics", "StatusPage.xaml");
-        var statusCode = ReadSource("Nikkiward", "Features", "Diagnostics", "StatusPage.xaml.cs");
-        var settings = ReadSource("Nikkiward", "Features", "Settings", "SettingsPage.xaml");
-        var settingsCode = ReadSource("Nikkiward", "Features", "Settings", "SettingsPage.xaml.cs");
-        var settingsNavigation = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Settings",
-            "SettingsNavigationContext.cs");
-        var settingsHome = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Settings",
-            "SettingsHomeView.xaml");
-        var gallerySettings = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Settings",
-            "GallerySettingsView.xaml");
-        var appearanceSettings = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Settings",
-            "GeneralAppearanceSettingsView.xaml");
-        var gallery = ReadSource("Nikkiward", "Pages", "GalleryPage.xaml");
-        var galleryResources = ReadSource("Nikkiward", "Styles", "GalleryResources.xaml");
-
-        var shell = ReadSource("Nikkiward", "Features", "Shell", "HomeNavigation.xaml");
-        Assert(shell.IndexOf("Tag=\"gallery\"") < shell.IndexOf("Tag=\"gallery-favorites\"") &&
-            navigation.Contains("SetShellNavigationSelection"), "gallery and favorites must keep their order and selection");
-        Assert(
-            navigation.Contains("case \"gallery-favorites\":", StringComparison.Ordinal) &&
-            navigation.Contains(
-                "ShowGalleryAsync(viewMode: GalleryViewMode.All)",
-                StringComparison.Ordinal) &&
-            navigation.Contains(
-                "ShowGalleryAsync(viewMode: GalleryViewMode.Favorites)",
-                StringComparison.Ordinal) &&
-            chrome.Contains(
-                "GalleryViewMode viewMode = GalleryViewMode.All",
-                StringComparison.Ordinal) &&
-            chrome.Contains("new GalleryNavigationContext(", StringComparison.Ordinal),
-            "gallery and favorites navigation must reuse GalleryPage with explicit view modes");
-        Assert(
-            status.Contains("x:Name=\"TechnicalDetailsExpander\"", StringComparison.Ordinal) &&
-            status.Contains("IsExpanded=\"False\"", StringComparison.Ordinal) &&
-            statusCode.Contains("public void ResetView()", StringComparison.Ordinal) &&
-            statusCode.Contains("TechnicalDetailsExpander.IsExpanded = false", StringComparison.Ordinal),
-            "status technical evidence must default to collapsed on every entry");
-        Assert(
-            settings.Contains("游戏截图", StringComparison.Ordinal) &&
-            settings.Contains("Tag=\"screenshot\"", StringComparison.Ordinal) &&
-            settings.Contains("x:Name=\"GalleryItem\"", StringComparison.Ordinal) &&
-            settings.Contains("Tag=\"gallery\"", StringComparison.Ordinal) &&
-            settingsCode.Contains(
-                "SettingsDestination.Screenshot => Select(_screenshotView",
-                StringComparison.Ordinal) &&
-            settingsCode.Contains(
-                "SettingsDestination.Gallery => Select(_galleryView",
-                StringComparison.Ordinal) &&
-            settingsNavigation.Contains("Gallery,", StringComparison.Ordinal) &&
-            settingsHome.Contains("Tag=\"gallery\"", StringComparison.Ordinal),
-            "gallery and screenshot management must stay inside settings");
-        Assert(
-            gallerySettings.Contains("x:Name=\"ChooseRootButton\"", StringComparison.Ordinal) &&
-            gallerySettings.Contains("x:Name=\"ResetRootButton\"", StringComparison.Ordinal) &&
-            gallerySettings.Contains("x:Name=\"ClearCacheButton\"", StringComparison.Ordinal) &&
-            gallerySettings.Contains("x:Name=\"RegisterNikkiGalleryButton\"", StringComparison.Ordinal) &&
-            gallerySettings.Contains("x:Name=\"OpenNikkiGalleryButton\"", StringComparison.Ordinal) &&
-            gallerySettings.Contains("x:Name=\"DisconnectNikkiGalleryButton\"", StringComparison.Ordinal) &&
-            shell.Contains("Tag=\"photo-plugin\"") && shell.Contains("Visibility=\"Collapsed\""),
-            "low-frequency gallery management must remain in settings and outside the primary rail");
-        Assert(
-            settings.Contains("OpenPaneLength=\"260\"", StringComparison.Ordinal) &&
-            settings.Contains("<NavigationView.Header>", StringComparison.Ordinal) &&
-            settings.Contains("MaxWidth=\"980\"", StringComparison.Ordinal) &&
-            settings.Contains(
-                "Target=\"SettingsNavigation.PaneDisplayMode\" Value=\"LeftCompact\"",
-                StringComparison.Ordinal) &&
-            settings.Contains("x:Name=\"PaneToggleButton\"", StringComparison.Ordinal) &&
-            settings.Contains("Click=\"OnPaneToggleClicked\"", StringComparison.Ordinal) &&
-            settings.Contains("x:Name=\"HeaderActions\"", StringComparison.Ordinal) &&
-            settingsCode.Contains(
-                "MastheadInteractionRegion => HeaderActions",
-                StringComparison.Ordinal) &&
-            settings.Contains(
-                "Target=\"HeaderLayout.Margin\" Value=\"24,10,174,12\"",
-                StringComparison.Ordinal) &&
-            settings.IndexOf("x:Name=\"CloseButton\"", StringComparison.Ordinal) >
-                settings.IndexOf("<NavigationView.Header>", StringComparison.Ordinal) &&
-            settings.IndexOf("x:Name=\"CloseButton\"", StringComparison.Ordinal) <
-                settings.IndexOf("</NavigationView.Header>", StringComparison.Ordinal),
-            "application settings must keep a responsive master-detail hierarchy and reserve caption space");
-        Assert(
-            appearanceSettings.Contains("Value=\"0,0,0,1\"", StringComparison.Ordinal) &&
-            appearanceSettings.Contains("Value=\"Transparent\"", StringComparison.Ordinal),
-            "appearance sections must use flat separators instead of nested cards");
-        Assert(
-            gallery.Contains("<RowDefinition Height=\"48\" />", StringComparison.Ordinal) &&
-            !gallery.Contains("x:Name=\"GalleryCommandIsland\"", StringComparison.Ordinal) &&
-            gallery.Contains("TextTrimming=\"None\"", StringComparison.Ordinal) &&
-            galleryResources.Contains(">48</x:Double>", StringComparison.Ordinal),
-            "gallery title and commands must share an unclipped flat command row");
-        return Task.CompletedTask;
-    }
-
-    private static Task GalleryProtectionManagementStaysScopedToSettings()
-    {
-        var gallerySettingsPath = Path.Combine(
-            "Features",
-            "Settings",
-            "GallerySettingsView.xaml");
-        var gallerySettings = ReadSource("Nikkiward", gallerySettingsPath);
-        var gallerySettingsDocument = XDocument.Parse(gallerySettings);
-        var galleryPage = ReadSource("Nikkiward", "Pages", "GalleryPage.xaml");
-        var galleryPageCode = string.Join(
-            Environment.NewLine,
-            ReadSource("Nikkiward", "Pages", "GalleryPage.xaml.cs"),
-            ReadSource("Nikkiward", "Pages", "GalleryPage.Lifecycle.cs"),
-            ReadSource("Nikkiward", "Pages", "GalleryPage.Interactions.cs"));
-        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
-        var automation = XNamespace.Get("using:Microsoft.UI.Xaml.Automation");
-
-        XElement FindNamed(XDocument document, string name) => document
-            .Descendants()
-            .SingleOrDefault(element =>
-                string.Equals(
-                    (string?)element.Attribute(xaml + "Name"),
-                    name,
-                    StringComparison.Ordinal))
-            ?? throw new InvalidOperationException($"XAML element '{name}' was not found.");
-
-        Assert(
-            gallerySettingsDocument
-                .Descendants()
-                .Any(element =>
-                    string.Equals(
-                        (string?)element.Attribute("Text"),
-                        "收藏保护",
-                        StringComparison.Ordinal)),
-            "gallery settings must expose the favorite protection section");
-        foreach (var controlName in new[]
-        {
-            "ProtectionEnabledToggle",
-            "ProtectionPathTextBox",
-            "ChooseProtectionRootButton",
-            "OpenProtectionRootButton",
-            "VerifyProtectionButton",
-            "CleanProtectionButton",
-        })
-        {
-            var control = FindNamed(gallerySettingsDocument, controlName);
-            Assert(
-                !string.IsNullOrWhiteSpace(
-                    (string?)control.Attribute(automation + "AutomationProperties.Name")),
-                $"{controlName} must retain its stable x:Name automation id and accessible name");
-        }
-
-        var sourceRoot = Path.Combine(FindRoot(), "Nikkiward");
-        var cleanEntryFiles = Directory
-            .EnumerateFiles(sourceRoot, "*.xaml", SearchOption.AllDirectories)
-            .Where(path =>
-                !path.Contains(
-                    $"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}",
-                    StringComparison.OrdinalIgnoreCase) &&
-                !path.Contains(
-                    $"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}",
-                    StringComparison.OrdinalIgnoreCase))
-            .Where(path => File.ReadAllText(path).Contains(
-                "x:Name=\"CleanProtectionButton\"",
-                StringComparison.Ordinal))
-            .Select(path => Path.GetRelativePath(sourceRoot, path))
-            .ToArray();
-        Assert(
-            cleanEntryFiles.Length == 1 &&
-            string.Equals(
-                cleanEntryFiles[0],
-                gallerySettingsPath,
-                StringComparison.OrdinalIgnoreCase),
-            "favorite protection cleanup must have one explicit entry in gallery settings only");
-
-        var shell = XDocument.Parse(ReadSource("Nikkiward", "Features", "Shell", "HomeNavigation.xaml"));
-        Assert((string?)FindNamed(shell, "PhotoPluginNavigationItem").Attribute("Visibility") == "Collapsed",
-            "the plugin entry must stay hidden");
-
-        var retiredScreenshotEntries = Directory
-            .EnumerateFiles(sourceRoot, "*.xaml", SearchOption.AllDirectories)
-            .Where(path =>
-                !path.Contains(
-                    $"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}",
-                    StringComparison.OrdinalIgnoreCase) &&
-                !path.Contains(
-                    $"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}",
-                    StringComparison.OrdinalIgnoreCase))
-            .Where(path => File.ReadAllText(path).Contains(
-                "Tag=\"screenshot\"",
-                StringComparison.Ordinal))
-            .ToArray();
-        Assert(
-            retiredScreenshotEntries.Length == 2 &&
-            retiredScreenshotEntries.Any(path => string.Equals(
-                Path.GetFileName(path),
-                "SettingsPage.xaml",
-                StringComparison.OrdinalIgnoreCase)) &&
-            retiredScreenshotEntries.Any(path => string.Equals(
-                Path.GetFileName(path),
-                "SettingsHomeView.xaml",
-                StringComparison.OrdinalIgnoreCase)),
-            "screenshot settings must have navigation and overview entries");
-        Assert(
-            !galleryPage.Contains("GalleryAdvancedToolsButton", StringComparison.Ordinal) &&
-            !galleryPage.Contains("Label=\"高级工具\"", StringComparison.Ordinal) &&
-            !galleryPageCode.Contains("OnGalleryAdvancedToolsClicked", StringComparison.Ordinal),
-            "the retired advanced-tools command must not return to the gallery surface");
-        Assert(
-            galleryPageCode.Contains("_favoriteOperationGates.GetOrAdd", StringComparison.Ordinal) &&
-            galleryPageCode.Contains("previous.Cancel()", StringComparison.Ordinal) &&
-            galleryPageCode.Contains("EnsureCurrentFavoriteOperation", StringComparison.Ordinal) &&
-            Regex.IsMatch(
-                galleryPageCode,
-                @"_favoriteProtectionService\.ProtectAsync\(\s*scopeId,\s*photo\.RelativePath,\s*photo\.FilePath,\s*operationCancellation\.Token\)",
-                RegexOptions.CultureInvariant),
-            "favorite protection must cancel stale work and commit only to its captured profile scope");
-        return Task.CompletedTask;
-    }
-
-    private static Task GalleryAndSettingsSurfacesReflowAtNarrowWidths()
-    {
-        var gallery = XDocument.Parse(ReadSource("Nikkiward", "Pages", "GalleryPage.xaml"));
-        var preview = XDocument.Parse(ReadSource("Nikkiward", "Pages", "GalleryPreviewView.xaml"));
-        var main = XDocument.Parse(ReadSource("Nikkiward", "MainPage.xaml"));
-        var mainCode = ReadSource("Nikkiward", "MainPage.xaml.cs");
-        var launchSettings = XDocument.Parse(ReadSource(
-            "Nikkiward",
-            "Features",
-            "Launcher",
-            "LaunchSettingsPage.xaml"));
-        var gallerySettings = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Settings",
-            "GallerySettingsView.xaml");
-        var settingsHome = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Settings",
-            "SettingsHomeView.xaml");
-        var settingsPage = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Settings",
-            "SettingsPage.xaml");
-        var pluginSettings = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Settings",
-            "PluginSettingsView.xaml");
-        var pluginSettingsCode = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Settings",
-            "PluginSettingsView.xaml.cs");
-        var about = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Settings",
-            "AboutSettingsView.xaml");
-        var aboutCode = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Settings",
-            "AboutSettingsView.xaml.cs");
-        var previewCode = ReadSource(
-            "Nikkiward",
-            "Pages",
-            "GalleryPreviewView.xaml.cs");
-        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
-
-        XElement FindNamed(XDocument document, string name) => document
-            .Descendants()
-            .SingleOrDefault(element => string.Equals(
-                (string?)element.Attribute(xaml + "Name"),
-                name,
-                StringComparison.Ordinal))
-            ?? throw new InvalidOperationException($"XAML element '{name}' was not found.");
-
-        var thumbnail = FindNamed(gallery, "GalleryThumbnail");
-        Assert(
-            string.Equals((string?)thumbnail.Attribute("Stretch"), "Uniform", StringComparison.Ordinal),
-            "gallery thumbnails must show the complete photo instead of cropping its edges");
-        var emptyState = FindNamed(gallery, "GalleryEmptyState");
-        Assert(
-            emptyState.Attribute("Width") is null &&
-            string.Equals((string?)emptyState.Attribute("MaxWidth"), "420", StringComparison.Ordinal),
-            "the gallery empty state must shrink below its preferred width");
-        Assert(
-            gallery.Descendants().Any(element =>
-                string.Equals((string?)element.Attribute(xaml + "Name"), "NarrowGallery", StringComparison.Ordinal)) &&
-            gallery.ToString().Contains(
-                "Target=\"GalleryGridView.Padding\" Value=\"12,0,12,12\"",
-                StringComparison.Ordinal),
-            "the gallery must reduce fixed desktop padding at its narrow breakpoint");
-
-        var infoPanel = FindNamed(preview, "GalleryInfoPanel");
-        Assert(
-            infoPanel.Attribute("Width") is null &&
-            infoPanel.Attribute("MaxWidth") is not null,
-            "the preview information pane must be allowed to shrink with the viewport");
-        Assert(
-            preview.Descendants().Any(element =>
-                string.Equals((string?)element.Attribute(xaml + "Name"), "NarrowPreview", StringComparison.Ordinal)) &&
-            preview.ToString().Contains(
-                "Target=\"GalleryPreviewFileNameText.Visibility\" Value=\"Collapsed\"",
-                StringComparison.Ordinal) &&
-            preview.ToString().Contains(
-                "SizeChanged=\"OnGalleryPreviewViewportSizeChanged\"",
-                StringComparison.Ordinal) &&
-            previewCode.Contains("OnGalleryPreviewViewportSizeChanged", StringComparison.Ordinal) &&
-            previewCode.Contains("ZoomFactor <= 1.001f", StringComparison.Ordinal),
-            "the preview must simplify its toolbar and keep fit-to-window images centered after resize");
-
-        Assert(
-            gallerySettings.Contains("x:Name=\"NarrowGallerySettings\"", StringComparison.Ordinal) &&
-            gallerySettings.Contains("x:Name=\"GalleryRootActions\"", StringComparison.Ordinal) &&
-            gallerySettings.Contains("x:Name=\"ProtectionPrimaryActions\"", StringComparison.Ordinal) &&
-            gallerySettings.Contains("x:Name=\"NikkiGalleryActions\"", StringComparison.Ordinal) &&
-            gallerySettings.Contains(
-                "Target=\"GalleryRootActions.Orientation\" Value=\"Vertical\"",
-                StringComparison.Ordinal),
-            "gallery settings commands must stack instead of clipping at narrow widths");
-        Assert(
-            settingsHome.Contains("x:Name=\"NarrowSettingsHome\"", StringComparison.Ordinal) &&
-            settingsHome.Contains("x:Name=\"PrimarySettingsGrid\"", StringComparison.Ordinal) &&
-            settingsHome.Contains("x:Name=\"PrimarySettingsSecondColumn\"", StringComparison.Ordinal) &&
-            settingsHome.Contains(
-                "Target=\"PrimarySettingsSecondColumn.Width\" Value=\"0\"",
-                StringComparison.Ordinal),
-            "the settings overview must collapse its two-column cards to one column");
-        Assert(
-            settingsPage.Contains("HorizontalContentAlignment=\"Stretch\"", StringComparison.Ordinal) &&
-            settingsPage.Contains("x:Name=\"SettingsContentViewport\"", StringComparison.Ordinal) &&
-            settingsPage.Contains("x:Name=\"SettingsContentWidthColumn\"", StringComparison.Ordinal) &&
-            settingsPage.Contains("x:Name=\"SettingsContentColumn\"", StringComparison.Ordinal) &&
-            settingsPage.Contains("MaxWidth=\"980\"", StringComparison.Ordinal) &&
-            settingsPage.Contains("x:Name=\"ContentHost\"", StringComparison.Ordinal) &&
-            settingsPage.Contains("HorizontalAlignment=\"Stretch\"", StringComparison.Ordinal),
-            "the settings viewport must constrain narrow content while its bounded desktop column stays aligned with the header");
-        Assert(
-            settingsHome.Contains("x:Key=\"SettingsHomeCardButtonStyle\"", StringComparison.Ordinal) &&
-            settingsHome.Contains("<Setter Property=\"Height\" Value=\"Auto\" />", StringComparison.Ordinal) &&
-            settingsHome.Contains("<Setter Property=\"MinHeight\" Value=\"72\" />", StringComparison.Ordinal) &&
-            settingsHome.Contains("<Setter Property=\"HorizontalAlignment\" Value=\"Stretch\" />", StringComparison.Ordinal) &&
-            Count(settingsHome, "Style=\"{StaticResource SettingsHomeCardButtonStyle}\"") == 14 &&
-            !settingsHome.Contains("MinHeight=\"52\"", StringComparison.Ordinal),
-            "settings overview cards must fill their columns and allow both title and supporting text to use their full line height");
-        Assert(
-            pluginSettings.Contains("x:Name=\"PluginActions\"", StringComparison.Ordinal) &&
-            pluginSettingsCode.Contains("CompactLayoutThreshold", StringComparison.Ordinal) &&
-            pluginSettingsCode.Contains("SizeChanged += OnSizeChanged", StringComparison.Ordinal) &&
-            pluginSettingsCode.Contains("ApplyLayout(e.NewSize.Width)", StringComparison.Ordinal) &&
-            pluginSettingsCode.Contains("Grid.SetRow(PluginActions, useCompactLayout ? 1 : 0)", StringComparison.Ordinal) &&
-            pluginSettingsCode.Contains("Grid.SetColumnSpan(PluginActions, useCompactLayout ? 3 : 1)", StringComparison.Ordinal) &&
-            pluginSettingsCode.Contains("PluginActions.Orientation = useCompactLayout", StringComparison.Ordinal) &&
-            pluginSettingsCode.Contains("PhotoPluginImportButton.HorizontalAlignment = buttonAlignment", StringComparison.Ordinal) &&
-            pluginSettingsCode.Contains("PhotoPluginOpenButton.HorizontalAlignment = buttonAlignment", StringComparison.Ordinal) &&
-            pluginSettingsCode.Contains("PhotoPluginUninstallButton.HorizontalAlignment = buttonAlignment", StringComparison.Ordinal),
-            "plugin commands must move below the card details and stretch vertically when the settings viewport is narrow");
-
-        Assert(
-            !about.Contains("SelectionChanged=\"OnUpdateChannelChanged\"", StringComparison.Ordinal) &&
-            Regex.IsMatch(
-                aboutCode,
-                @"InitializeComponent\(\);\s*UpdateChannelSelector\.SelectionChanged\s*\+=\s*OnUpdateChannelChanged;",
-                RegexOptions.CultureInvariant),
-            "the update selector must subscribe only after all named About controls exist");
-        Assert(
-            about.Contains("x:Name=\"NarrowAboutSettings\"", StringComparison.Ordinal) &&
-            about.Contains("x:Name=\"UpdateActions\"", StringComparison.Ordinal) &&
-            about.Contains(
-                "Target=\"UpdateActions.Orientation\" Value=\"Vertical\"",
-                StringComparison.Ordinal),
-            "About update actions must reflow at narrow widths");
-
-        var launchSettingsFrame = FindNamed(main, "LaunchSettingsFrame");
-        Assert(
-            launchSettingsFrame.Attribute("Width") is null &&
-            launchSettingsFrame.Attribute("Height") is null &&
-            string.Equals(
-                (string?)launchSettingsFrame.Attribute("MaxWidth"),
-                "1120",
-                StringComparison.Ordinal) &&
-            string.Equals(
-                (string?)launchSettingsFrame.Attribute("MaxHeight"),
-                "690",
-                StringComparison.Ordinal) &&
-            main.ToString().Contains("x:Name=\"NarrowLaunchSettingsHost\"", StringComparison.Ordinal) &&
-            main.ToString().Contains(
-                "Target=\"LaunchSettingsFrame.Margin\" Value=\"8,48,8,8\"",
-                StringComparison.Ordinal) &&
-            mainCode.Contains("ApplyLaunchSettingsHostLayout(e.NewSize.Width)", StringComparison.Ordinal) &&
-            mainCode.Contains("new Thickness(8, 48, 8, 8)", StringComparison.Ordinal),
-            "the launch-settings host must shrink with the shell instead of retaining a fixed desktop size");
-        Assert(
-            launchSettings.ToString().Contains(
-                "x:Name=\"NarrowLaunchSettings\"",
-                StringComparison.Ordinal) &&
-            launchSettings.ToString().Contains(
-                "Target=\"LaunchSettingsNavigationView.PaneDisplayMode\" Value=\"LeftCompact\"",
-                StringComparison.Ordinal) &&
-            launchSettings.ToString().Contains(
-                "Target=\"BasicDetailsSecondColumn.Width\" Value=\"0\"",
-                StringComparison.Ordinal) &&
-            launchSettings.ToString().Contains(
-                "Target=\"BackgroundActions.Orientation\" Value=\"Vertical\"",
-                StringComparison.Ordinal) &&
-            launchSettings.ToString().Contains(
-                "HorizontalContentAlignment=\"Stretch\"",
-                StringComparison.Ordinal),
-            "the independent launch-settings surface must switch to compact navigation and single-column content");
-        var launchSettingsCode = ReadSource(
-            "Nikkiward",
-            "Features",
-            "Launcher",
-            "LaunchSettingsPage.xaml.cs");
-        Assert(
-            launchSettingsCode.Contains("useCompactLayout = width < CompactLayoutWidth", StringComparison.Ordinal) &&
-            launchSettingsCode.Contains("NavigationViewPaneDisplayMode.LeftCompact", StringComparison.Ordinal) &&
-            launchSettingsCode.Contains("Grid.SetRow(LocateGameButton, useCompactLayout ? 1 : 0)", StringComparison.Ordinal) &&
-            launchSettingsCode.Contains("BackgroundActions.Orientation = useCompactLayout", StringComparison.Ordinal),
-            "the launch-settings runtime must project its own width when page-level visual states are unavailable");
-        foreach (var itemName in new[]
-                 {
-                     "BasicNavigationItem",
-                     "ArgumentsNavigationItem",
-                     "BackgroundNavigationItem",
-                     "PackageNavigationItem",
-                 })
-        {
-            var navigationItem = FindNamed(launchSettings, itemName);
-            Assert(
-                navigationItem.Elements().Any(element =>
-                    string.Equals(
-                        element.Name.LocalName,
-                        "NavigationViewItem.Icon",
-                        StringComparison.Ordinal)),
-                $"{itemName} must remain identifiable when the navigation pane is compact");
-        }
-        foreach (var imageName in new[] { "DefaultBackgroundPreviewImage", "BackgroundPreviewImage" })
-        {
-            var image = FindNamed(launchSettings, imageName);
-            Assert(
-                string.Equals((string?)image.Attribute("Stretch"), "Uniform", StringComparison.Ordinal),
-                $"{imageName} must show the complete background at narrow widths");
-        }
         return Task.CompletedTask;
     }
 
     private static Task LauncherCloseActionStaysSeparate()
     {
-        var launcher = ReadSource("Nikkiward", "Features", "Launcher", "Skins", "Cinema", "CinemaView.xaml");
+        var launcher = ReadSource("Nikkiward", "Web", "skins", "cinema", "index.html");
         var launcherCode = ReadSource("Nikkiward", "Features", "Launcher", "LauncherPage.xaml.cs");
         var commands = ReadSource("Nikkiward", "MainPage.LaunchCommands.cs");
         var hosting = ReadSource("Nikkiward", "MainPage.Hosting.cs");
 
         Assert(
-            launcher.Contains("Tag=\"close\"") && launcher.Contains("HomeCloseVisibility") && launcher.Contains("HomeCloseEnabled"),
+            launcher.Contains("data-action=\"close\""),
             "the launcher needs an independent close-game button bound to runtime state");
         Assert(
             launcherCode.Contains("CloseGameRequested", StringComparison.Ordinal) &&
@@ -2127,24 +1297,6 @@ internal static class AppearanceRuntimeContractTests
             channelStore.Contains("WaitForExternalChannelGameAsync", StringComparison.Ordinal) &&
             channelStore.Contains("_isOfficialAssistedRunning = true", StringComparison.Ordinal),
             "direct channel launches must bind and observe the current profile game before publishing running state");
-        return Task.CompletedTask;
-    }
-
-    private static Task ProfilePickerUsesSingleAnchoredServerSurface()
-    {
-        var profile = ReadSource("Nikkiward", "MainPage.Profile.cs");
-        var shell = ReadSource("Nikkiward", "MainPage.xaml");
-        Assert(profile.Contains("new ProfilePickerView(ViewModel)") && profile.Contains("_profileFlyout.ShowAt(anchor)") &&
-            profile.Contains("picker.ProfileSelected += OnProfileSelected") && !shell.Contains("ProfileQuickSwitchRail"),
-            "all home skins must open the shared profile selector at the invoking button");
-        var pickerCode = ReadSource("Nikkiward", "Features", "Profile", "ProfilePickerView.xaml.cs");
-        Assert(
-            pickerCode.Contains("\"中国服\"", StringComparison.Ordinal) &&
-            pickerCode.Contains("\"国际服\"", StringComparison.Ordinal) &&
-            pickerCode.Contains("\"哔哩哔哩\"", StringComparison.Ordinal) &&
-            pickerCode.Contains("ViewModel.DeveloperModeEnabled", StringComparison.Ordinal) &&
-            pickerCode.Contains("ServerCountText.Text = $\"{ServerOptions.Count} 个服务器\"", StringComparison.Ordinal),
-            "the picker must project the three user-facing channels and keep details developer-gated");
         return Task.CompletedTask;
     }
 
@@ -2241,24 +1393,6 @@ internal static class AppearanceRuntimeContractTests
         return value <= 0.04045
             ? value / 12.92
             : Math.Pow((value + 0.055) / 1.055, 2.4);
-    }
-
-    private static string[] FindThemeResourceConsumers(string resourceKey)
-    {
-        var root = Path.Combine(FindRoot(), "Nikkiward");
-        var binding = $"{{ThemeResource {resourceKey}}}";
-        return Directory
-            .EnumerateFiles(root, "*.xaml", SearchOption.AllDirectories)
-            .Where(path =>
-                !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) &&
-                !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
-            .Where(path => XDocument
-                .Load(path)
-                .Descendants()
-                .Attributes()
-                .Any(attribute => attribute.Value.Contains(binding, StringComparison.Ordinal)))
-            .Select(path => Path.GetRelativePath(root, path))
-            .ToArray();
     }
 
     private static string FindContainingMethod(string source, int memberIndex)

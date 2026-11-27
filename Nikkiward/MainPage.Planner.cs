@@ -10,15 +10,8 @@ public sealed partial class MainPage
     private DispatcherTimer? _plannerTimer;
     private PlannerSession? _plannerSession;
     internal PlannerData Planner => _plannerSession?.Current ?? PlannerData.Empty;
-    internal bool PlannerRequested { get; set; }
     internal event EventHandler? HomeDataChanged;
     internal DateOnly? SnapshotDay => _journalSnapshot == null ? null : DateOnly.FromDateTime(_journalSnapshot.CapturedAtUtc.LocalDateTime);
-
-    private void OnPlannerRequested(object? sender, EventArgs args)
-    {
-        PlannerRequested = true;
-        ShowLauncher();
-    }
 
     private void StartPlanner()
     {

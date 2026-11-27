@@ -13,7 +13,7 @@ internal sealed partial class GalleryIndex
         var exportRoot = studio.ExportRoot;
         var metadata = new Nuan5GalleryMetadataService();
         return new GalleryIndex(root, exportRoot, Path.Combine(ApplicationDataPaths.Root, "GalleryIndex"),
-            ReadAsync, GalleryViewModel.ResolveCategory);
+            ReadAsync, GalleryFiles.ResolveCategory);
 
         async Task<GalleryIndexFacts> ReadAsync(string path, string logicalPath, CancellationToken token)
         {

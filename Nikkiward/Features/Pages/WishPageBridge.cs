@@ -50,7 +50,7 @@ public sealed partial class MainPage
 
     private async Task HandleWishActionAsync(string action)
     {
-        if (action == "sync") { await OpenResonanceJournalAsync(); return; }
+        if (action == "sync") { await OpenJournalAsync(resonance: true); return; }
         if (_wishPickerOpen) return;
         _wishPickerOpen = true;
         try
@@ -71,7 +71,7 @@ public sealed partial class MainPage
             var snapshot = await _wishHistoryStore.ImportAsync(input);
             _wishHistoryCapturedAtUtc = snapshot.CapturedAtUtc;
             _wishHistoryProjection = WishHistoryProjector.Project(snapshot.Entries, snapshot.Summary, TimeZoneInfo.Local);
-            ApplyWishHistoryProjection(_wishHistoryProjection, snapshot.CapturedAtUtc);
+            CurrentWebPage?.Refresh();
         }
         finally { _wishPickerOpen = false; }
     }

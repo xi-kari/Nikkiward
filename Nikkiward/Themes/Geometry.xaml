@@ -15,7 +15,6 @@
     <x:Double x:Key="CaptionReserve">48</x:Double>
     <Thickness x:Key="SafeAreaThickness">24</Thickness>
 
-    <x:Double x:Key="SpaceHair">4</x:Double>
     <x:Double x:Key="SpaceHero">40</x:Double>
 
     <Thickness x:Key="PrimaryActionContentPaddingThickness">24,0,16,0</Thickness>

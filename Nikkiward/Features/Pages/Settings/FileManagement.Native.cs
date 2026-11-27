@@ -113,7 +113,6 @@ public sealed partial class MainPage
 
     private void RefreshMaintenanceViews()
     {
-        _hostedSettingsPage?.ApplyFileManagementState(CreateFileManagementSettingsViewState());
         CurrentWebPage?.Refresh();
     }
 

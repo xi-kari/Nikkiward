@@ -53,6 +53,13 @@ foreach ($file in $files) {
     }
 }
 
+$retiredXaml = @($records.Keys | Where-Object {
+    $_ -match '^(?:Pages\\Gallery|Styles\\Gallery|Features\\(?:Wish\\WishPage|Settings\\|Profile\\|Diagnostics\\StatusPage|Shell\\HomeNavigation|Launcher\\LaunchSettingsPage|Gallery\\PhotoPluginPage|Journal\\Journal(?:Summary|Snapshot)Panel)).*\.xbf$'
+})
+if ($retiredXaml.Count) {
+    throw "Release payload contains retired native UI: $($retiredXaml -join ', ')"
+}
+
 $webHashes = @{}
 foreach ($line in Get-Content -LiteralPath (Join-Path $PSScriptRoot 'WebFonts.sha256'), (Join-Path $PSScriptRoot 'WebSkins.sha256')) {
     $hash, $path = $line -split '  ', 2

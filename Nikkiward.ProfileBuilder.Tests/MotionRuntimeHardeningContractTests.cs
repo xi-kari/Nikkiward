@@ -146,10 +146,7 @@ internal static class MotionRuntimeHardeningContractTests
         var rules = ReadProductSource("Features", "Background", "MotionSourceRules.cs");
         var samplers = ReadProductSource("Features", "Background", "BackgroundSamplers.cs");
         var copier = ReadProductSource("Features", "Background", "MotionImportFileCopier.cs");
-        var settingsXaml = ReadProductSource(
-            "Features",
-            "Settings",
-            "GeneralAppearanceSettingsView.xaml");
+        var settingsXaml = ReadProductSource("Web", "pages", "settings", "sections", "appearance.js");
         var appearance = ReadProductSource("MainPage.Appearance.cs");
         Assert(
             !rules.Contains("MaximumFramesPerSecond", StringComparison.Ordinal) &&

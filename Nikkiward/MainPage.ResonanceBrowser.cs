@@ -125,8 +125,7 @@ public sealed partial class MainPage
                 JournalSyncScheduleProjector.MinimumAutomaticInterval,
                 consecutiveFailures: 0).NextAttemptAtUtc;
             journalPage.HideBrowser();
-            SetShellNavigationSelection("resonance");
-            ShowResonance();
+            ShowWebPage("wish");
             journalPage.SetBrowserStatus(
                 $"已同步 {snapshot.Banners.Count} 个共鸣活动和 {snapshot.Banners.Sum(banner => banner.Items.Count)} 条服装槽位记录。");
             return true;

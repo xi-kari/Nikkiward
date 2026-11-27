@@ -48,7 +48,15 @@ async function receivePage(message) {
   document.documentElement.dataset.skin = skin;
   document.documentElement.dataset.tone = tone;
   if (message.type === 'appearance') return;
-  if (active?.page === page) { error.hidden = true; active.update(state); return; }
+  if (active?.page === page) {
+    error.hidden = true;
+    try { active.update(state); }
+    catch (failure) {
+      if (!bridge) throw failure;
+      bridge.postMessage({page,action:'module-error',reason:failure.message});
+    }
+    return;
+  }
   if (pending?.page === page) { pending.state = state; return; }
   leave();
   pending = {page,state};
@@ -68,7 +76,7 @@ async function receivePage(message) {
     });
   } catch (failure) {
     if (ticket !== generation) return;
-    bridge?.postMessage({page,action:'module-error'});
+    bridge?.postMessage({page,action:'module-error',reason:failure.message});
     if (!bridge) throw failure;
   }
 }

@@ -133,7 +133,7 @@ internal sealed class PhotoStudioView : Grid
             if (!_session.Photos.TryGetValue(id, out var photo)) return;
             if (action is "open" or "inspect" or "thumb" && VariantPathPolicy.ContainsReparsePoint(photo.FilePath))
                 throw new IOException("照片不可访问");
-            if (action == "back") { _shell.CloseStudio(this, photo); return; }
+            if (action == "back") { _shell.CloseStudio(this); return; }
             var key = photo.AnnotationScopeId + "\0" + photo.StarKey;
             switch (action)
             {

@@ -12,12 +12,10 @@
         <ResourceDictionary x:Key="Light">
             <Color x:Key="PaperBaseColor">#FFF6F1EA</Color>
             <SolidColorBrush x:Key="PaperBaseBrush" Color="#FFF6F1EA" />
-            <SolidColorBrush x:Key="PaperRaisedBrush" Color="#FFFDFAF5" />
             <SolidColorBrush x:Key="PaperSunkenBrush" Color="#FFEDE5DA" />
 
             <SolidColorBrush x:Key="InkPrimaryBrush" Color="#FF2A2320" />
             <SolidColorBrush x:Key="InkSecondaryBrush" Color="#FF6B5F57" />
-            <SolidColorBrush x:Key="InkTertiaryBrush" Color="#FF9A8C82" />
 
             <SolidColorBrush x:Key="HairlineSoftBrush" Color="#1A2A2320" />
 
@@ -31,12 +29,10 @@
         <ResourceDictionary x:Key="Dark">
             <Color x:Key="PaperBaseColor">#FF241E1B</Color>
             <SolidColorBrush x:Key="PaperBaseBrush" Color="#FF241E1B" />
-            <SolidColorBrush x:Key="PaperRaisedBrush" Color="#FF2F2825" />
             <SolidColorBrush x:Key="PaperSunkenBrush" Color="#FF1A1512" />
 
             <SolidColorBrush x:Key="InkPrimaryBrush" Color="#FFF5EFE8" />
             <SolidColorBrush x:Key="InkSecondaryBrush" Color="#FFBFB2A8" />
-            <SolidColorBrush x:Key="InkTertiaryBrush" Color="#FF8A7D74" />
 
             <SolidColorBrush x:Key="HairlineSoftBrush" Color="#1FF5EFE8" />
 
@@ -52,12 +48,10 @@
         <ResourceDictionary x:Key="HighContrast">
             <StaticResource x:Key="PaperBaseColor" ResourceKey="SystemColorWindowColor" />
             <SolidColorBrush x:Key="PaperBaseBrush" Color="{ThemeResource SystemColorWindowColor}" />
-            <SolidColorBrush x:Key="PaperRaisedBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="PaperSunkenBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
 
             <SolidColorBrush x:Key="InkPrimaryBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="InkSecondaryBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
-            <SolidColorBrush x:Key="InkTertiaryBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
 
             <SolidColorBrush x:Key="HairlineSoftBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
 
@@ -74,8 +68,6 @@
     <SolidColorBrush x:Key="AccentGoldBrush" Color="#FFD9A657" />
     <SolidColorBrush x:Key="AccentMintBrush" Color="#FF8FC9B8" />
     <SolidColorBrush x:Key="AccentLilacBrush" Color="#FFB9A6DA" />
-    <SolidColorBrush x:Key="AccentClayBrush" Color="#FFC77B62" />
-    <SolidColorBrush x:Key="JournalPaperBrush" Color="#F7F0E4D3" />
 
     <!-- Runtime overridable by ArtBackdropService, which mutates this brush
          instance's Color rather than replacing the dictionary entry. Replacing

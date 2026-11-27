@@ -11,12 +11,10 @@
     <FontFamily x:Key="DisplayFontFamilySerif">Source Han Serif SC, Noto Serif SC, Songti SC, SimSun, serif</FontFamily>
     <FontFamily x:Key="DisplayFontFamily">Source Han Serif SC, Noto Serif SC, Songti SC, SimSun, serif</FontFamily>
     <FontFamily x:Key="UIFontFamily">Segoe UI Variable Text, Microsoft YaHei UI, Segoe UI, sans-serif</FontFamily>
-    <FontFamily x:Key="MonoFontFamily">Consolas, Cascadia Mono, monospace</FontFamily>
 
     <!-- Display tier. TrimToCapHeight plus TrimSideBearings removes the CJK
          ideographic ascent/descent padding that otherwise leaves the masthead
          floating inside its own line box. -->
-
 
     <Style x:Key="PageTitleDisplay" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{ThemeResource DisplayFontFamily}" />
@@ -44,17 +42,6 @@
 
     <!-- Tabular numerals keep stat rows from shifting horizontally as values
          change. The serif stack carries the figures for the fashion-book feel. -->
-    <Style x:Key="StatNumberDisplay" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{ThemeResource DisplayFontFamily}" />
-        <Setter Property="FontSize" Value="32" />
-        <Setter Property="FontWeight" Value="Bold" />
-        <Setter Property="LineHeight" Value="46" />
-        <Setter Property="Foreground" Value="{ThemeResource InkPrimaryBrush}" />
-        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
-        <Setter Property="TextLineBounds" Value="TrimToCapHeight" />
-        <Setter Property="OpticalMarginAlignment" Value="TrimSideBearings" />
-        <Setter Property="TextWrapping" Value="NoWrap" />
-    </Style>
 
     <!-- UI tier. Sans stack, full line bounds so mixed CJK and Latin runs in
          body copy keep their diacritics and ideographic descenders intact. -->
@@ -63,15 +50,6 @@
         <Setter Property="FontFamily" Value="{StaticResource UIFontFamily}" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="FontWeight" Value="Regular" />
-        <Setter Property="LineHeight" Value="20" />
-        <Setter Property="Foreground" Value="{ThemeResource InkPrimaryBrush}" />
-        <Setter Property="TextWrapping" Value="Wrap" />
-    </Style>
-
-    <Style x:Key="BodyStrongUI" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{StaticResource UIFontFamily}" />
-        <Setter Property="FontSize" Value="14" />
-        <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="LineHeight" Value="20" />
         <Setter Property="Foreground" Value="{ThemeResource InkPrimaryBrush}" />
         <Setter Property="TextWrapping" Value="Wrap" />
@@ -88,35 +66,5 @@
 
     <!-- Wide tracking reads as a small-caps field label without needing a
          separate font. NoWrap because labels sit above single controls. -->
-    <Style x:Key="FieldLabelUI" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{StaticResource UIFontFamily}" />
-        <Setter Property="FontSize" Value="11" />
-        <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="LineHeight" Value="16" />
-        <Setter Property="CharacterSpacing" Value="80" />
-        <Setter Property="Foreground" Value="{ThemeResource InkSecondaryBrush}" />
-        <Setter Property="TextWrapping" Value="NoWrap" />
-        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-    </Style>
-
-    <Style x:Key="OnArtFieldLabelTextStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="11" />
-        <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="CharacterSpacing" Value="80" />
-        <Setter Property="Foreground" Value="{ThemeResource OnArtTertiaryTextBrush}" />
-        <Setter Property="TextWrapping" Value="Wrap" />
-    </Style>
-
-    <Style x:Key="OnArtSectionTitleTextStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="18" />
-        <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Foreground" Value="{ThemeResource OnArtPrimaryTextBrush}" />
-        <Setter Property="TextWrapping" Value="Wrap" />
-    </Style>
-
-    <Style x:Key="OnArtBodyTextStyle" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="{ThemeResource OnArtSecondaryTextBrush}" />
-        <Setter Property="TextWrapping" Value="Wrap" />
-    </Style>
 
 </ResourceDictionary>

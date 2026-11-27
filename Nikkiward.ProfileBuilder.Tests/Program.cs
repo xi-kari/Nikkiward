@@ -67,12 +67,9 @@ internal static class Program
             .Concat(WindowLifecycleTests.All)
             .Concat(GameBarGuideTests.All)
             .Concat(AppearanceRuntimeContractTests.All)
-            .Concat(CardBorderGlowProjectionTests.All)
             .Concat(HolographicBackdropProjectionTests.All)
-            .Concat(AuthorProfileDepthProjectionTests.All)
             .Concat(GalleryIntegrationTests.All)
             .Concat(GalleryIndexTests.All)
-            .Concat(GalleryFavoriteCardLayoutTests.All)
             .Concat(GalleryMetadataTests.All)
             .Concat(ScreenshotRuntimeContractTests.All)
             .Concat(JournalDomainTests.All)
@@ -80,7 +77,6 @@ internal static class Program
             .Concat(WishHistoryDomainTests.All)
             .Concat(UpdateReleaseTests.All)
             .Concat(SettingsPageTests.All)
-            .Concat(AboutSettingsContractTests.All)
             .ToArray();
 
         var currentMachine = args.Contains("--current-machine", StringComparer.Ordinal);

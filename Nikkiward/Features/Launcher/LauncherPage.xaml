@@ -1,14 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shell:PageBase
+<Page
     x:Class="Nikkiward.Features.Launcher.LauncherPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:automation="using:Microsoft.UI.Xaml.Automation"
     xmlns:controls="using:Nikkiward.Controls"
     xmlns:launcher="using:Nikkiward.Features.Launcher"
-    xmlns:shell="using:Nikkiward.Features.Shell"
     x:DefaultBindMode="OneWay"
     Background="Transparent"
     NavigationCacheMode="Required">
     <ContentControl x:Name="SkinHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
-</shell:PageBase>
+</Page>
