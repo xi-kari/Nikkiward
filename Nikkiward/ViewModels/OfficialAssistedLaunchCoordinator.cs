@@ -102,6 +102,50 @@ public sealed record OfficialAssistedProcessStopResult
     public string Detail { get; init; } = string.Empty;
 }
 
+/// <summary>
+/// What the clean-baseline check reads from one running process. Reading
+/// <see cref="MainModuleFileName"/> throws <see cref="Win32Exception"/> for a
+/// process this one may not open, such as an elevated xstarter seen from a
+/// normal-rights process.
+/// </summary>
+public interface IBaselineProcess : IDisposable
+{
+    int Id { get; }
+
+    bool HasExited { get; }
+
+    string? MainModuleFileName { get; }
+}
+
+/// <summary>
+/// Injection seam for the process list the clean-baseline check reads, so the
+/// check itself is testable without the processes running on this machine;
+/// production always uses <see cref="WindowsBaselineProcessObserver"/>.
+/// </summary>
+public interface IBaselineProcessObserver
+{
+    IEnumerable<IBaselineProcess> GetProcessesByName(string processName);
+}
+
+internal sealed class WindowsBaselineProcessObserver : IBaselineProcessObserver
+{
+    public static WindowsBaselineProcessObserver Instance { get; } = new();
+
+    public IEnumerable<IBaselineProcess> GetProcessesByName(string processName) =>
+        Process.GetProcessesByName(processName).Select(process => new SystemProcess(process));
+
+    private sealed class SystemProcess(Process process) : IBaselineProcess
+    {
+        public int Id => process.Id;
+
+        public bool HasExited => process.HasExited;
+
+        public string? MainModuleFileName => process.MainModule?.FileName;
+
+        public void Dispose() => process.Dispose();
+    }
+}
+
 public sealed class OfficialAssistedLaunchCoordinator
 {
     private static readonly string[] RequiredObservedComponentIds =
@@ -114,13 +158,17 @@ public sealed class OfficialAssistedLaunchCoordinator
     ];
 
     private readonly ILaunchPreflightVerifier _preflightVerifier;
+    private readonly IBaselineProcessObserver _baselineObserver;
     private readonly ConcurrentDictionary<
         Guid,
         ConcurrentDictionary<int, OfficialAssistedProcessIdentity>> _knownProcessesByAttempt = new();
 
-    public OfficialAssistedLaunchCoordinator(ILaunchPreflightVerifier preflightVerifier)
+    public OfficialAssistedLaunchCoordinator(
+        ILaunchPreflightVerifier preflightVerifier,
+        IBaselineProcessObserver? baselineObserver = null)
     {
         _preflightVerifier = preflightVerifier;
+        _baselineObserver = baselineObserver ?? WindowsBaselineProcessObserver.Instance;
     }
 
     public async Task<OfficialAssistedLaunchPreparation> PrepareAsync(
@@ -392,7 +440,7 @@ public sealed class OfficialAssistedLaunchCoordinator
         return null;
     }
 
-    private static OfficialAssistedLaunchReceipt StartVerifiedBackend(
+    private OfficialAssistedLaunchReceipt StartVerifiedBackend(
         OfficialAssistedLaunchPreparation preparation,
         Guid attemptId,
         DateTimeOffset requestedAtUtc)
@@ -737,13 +785,13 @@ public sealed class OfficialAssistedLaunchCoordinator
             Preflight = preflight,
         };
 
-    private static (string Code, string Detail)? CheckCleanBaseline(
+    private (string Code, string Detail)? CheckCleanBaseline(
         IReadOnlyList<string> expectedProcessPaths)
     {
         foreach (var expectedPath in expectedProcessPaths.Distinct(StringComparer.OrdinalIgnoreCase))
         {
             var processName = Path.GetFileNameWithoutExtension(expectedPath);
-            foreach (var process in Process.GetProcessesByName(processName))
+            foreach (var process in _baselineObserver.GetProcessesByName(processName))
             {
                 using (process)
                 {
@@ -754,7 +802,7 @@ public sealed class OfficialAssistedLaunchCoordinator
                             continue;
                         }
 
-                        var actualPath = process.MainModule?.FileName;
+                        var actualPath = process.MainModuleFileName;
                         if (string.IsNullOrWhiteSpace(actualPath))
                         {
                             return (

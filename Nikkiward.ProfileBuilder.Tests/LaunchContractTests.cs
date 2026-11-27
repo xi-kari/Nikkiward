@@ -17,6 +17,7 @@ internal static class LaunchContractTests
         ("discovery distinguishes pending, empty and selection states", DiscoveryStates),
         ("found installations retain their discovery failure", FoundInstallFailure),
         ("runtime refusal locks launch and survives diagnostic export", RuntimeRefusal),
+        ("an unreadable running xstarter fails closed as ObserverUnavailable", UnreadableXStarterFailsClosed),
         ("a clean observation releases a refused baseline", RefusedBaselineClears),
         ("channel probes for one root retain the matching installation failure", MixedChannelDiscovery),
         ("an empty Steam library is distinct from a partial installation", EmptySteamLibrary),
@@ -121,9 +122,13 @@ internal static class LaunchContractTests
         var candidate = layout.BuildCandidate() with { Profile = new() { ProfileId = "fake-cn-official" } };
         var components = layout.ComponentReceipts();
         components[3] = components[3] with { FilePath = Environment.ProcessPath! };
+        // The game client is this test host: the fake list shows it to Prepare,
+        // and the page's own runtime refresh still finds it running for real.
+        var host = new FakeProcess(Path.GetFileNameWithoutExtension(Environment.ProcessPath!), Environment.ProcessId,
+            Environment.ProcessPath);
         var page = new MainPageViewModel(new JsonUserSettingsStore(layout.BaseDirectory), new WindowsInstallationInspector(),
             new RedactedDiagnosticReportExporter(), new FixedDiscovery(candidate),
-            new StubVerifier(ClosedGatePreflight(layout) with { Components = components }));
+            new StubVerifier(ClosedGatePreflight(layout) with { Components = components }), new FakeProcesses(host));
         await page.InitializeAsync();
         AssertEqual("启动游戏", page.LaunchButtonLabel, "ready before refusal");
         var result = await page.PrepareOfficialAssistedLaunchAsync();
@@ -135,6 +140,19 @@ internal static class LaunchContractTests
         var report = await page.ExportDiagnosticsAsync(layout.BaseDirectory);
         var content = await File.ReadAllTextAsync(report.TextFilePath!);
         AssertTrue(content.Contains(result.FailureCode) && content.Contains(result.Detail), "export records code and reason");
+    }
+
+    private static async Task UnreadableXStarterFailsClosed()
+    {
+        // The official launcher runs xstarter elevated, e.g. while it updates the
+        // game. A normal-rights process cannot read that path, so it cannot tell
+        // whose xstarter is running: Prepare must refuse instead of assuming a
+        // clean baseline.
+        using var layout = FakeInstall.Create();
+        var elevated = new FakeProcess("xstarter", 4242, ExecutablePath: null);
+        var result = await RunPrepareAsync(ClosedGatePreflight(layout), layout, new FakeProcesses(elevated));
+        AssertFailure(result, "Preflight.ObserverUnavailable");
+        AssertEqual("无法读取活动 xstarter 进程的精确路径；未创建新的 provider。", result.Detail, "refusal detail");
     }
 
     private static async Task RefusedBaselineClears()
@@ -786,8 +804,9 @@ internal static class LaunchContractTests
     // path on disk, so receipts must outlive the call.
     private static Task<OfficialAssistedLaunchPreparation> RunPrepareAsync(
         LaunchPreflightResult preflight,
-        FakeInstall layout) =>
-        new OfficialAssistedLaunchCoordinator(new StubVerifier(preflight))
+        FakeInstall layout,
+        FakeProcesses? running = null) =>
+        new OfficialAssistedLaunchCoordinator(new StubVerifier(preflight), running ?? new FakeProcesses())
             .PrepareAsync(layout.BuildCandidate());
 
     private static LaunchPreflightResult ClosedGatePreflight(FakeInstall layout) => new()
@@ -902,6 +921,31 @@ internal static class LaunchContractTests
             var target = Path.Combine(destination, Path.GetRelativePath(source, file));
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             File.Copy(file, target, overwrite: true);
+        }
+    }
+
+    /// <summary>
+    /// Stands in for this machine's process list in the clean-baseline check, so
+    /// an official launcher running on the test machine never decides a test.
+    /// </summary>
+    private sealed class FakeProcesses(params FakeProcess[] running) : IBaselineProcessObserver
+    {
+        public IEnumerable<IBaselineProcess> GetProcessesByName(string processName) =>
+            running.Where(process => string.Equals(process.Name, processName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// A running process. A null path is one this host may not open: reading it
+    /// fails with access denied, as for an elevated xstarter.
+    /// </summary>
+    private sealed record FakeProcess(string Name, int Id, string? ExecutablePath) : IBaselineProcess
+    {
+        public bool HasExited => false;
+
+        public string? MainModuleFileName => ExecutablePath ?? throw new System.ComponentModel.Win32Exception(5);
+
+        public void Dispose()
+        {
         }
     }
 

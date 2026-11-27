@@ -56,14 +56,15 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         IInstallationInspector installationInspector,
         IDiagnosticReportExporter diagnosticExporter,
         IInstallationDiscoveryService? installationDiscovery = null,
-        ILaunchPreflightVerifier? preflightVerifier = null)
+        ILaunchPreflightVerifier? preflightVerifier = null,
+        IBaselineProcessObserver? baselineObserver = null)
     {
         _settingsStore = settingsStore as WindowSettingsSession ?? new WindowSettingsSession(settingsStore);
         _installationInspector = installationInspector;
         _diagnosticExporter = diagnosticExporter;
         _installationDiscovery = installationDiscovery ?? new WindowsInstallationProfileBuilder();
         _preflightVerifier = preflightVerifier ?? new WindowsLaunchPreflightVerifier();
-        _launchCoordinator = new OfficialAssistedLaunchCoordinator(_preflightVerifier);
+        _launchCoordinator = new OfficialAssistedLaunchCoordinator(_preflightVerifier, baselineObserver);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
