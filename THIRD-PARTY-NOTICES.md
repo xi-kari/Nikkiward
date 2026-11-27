@@ -3,6 +3,10 @@
 本项目复用了下列开源项目的源码。各项目的原始许可证全文如下，按 MIT
 许可证要求随分发一同保留。
 
+## SharpCompress
+
+[SharpCompress](https://github.com/adamhathcock/sharpcompress) 0.50.12 用于读取和顺序解压游戏基础包。MIT License，Copyright (c) 2025 Adam Hathcock。下列 MIT 许可条款同样适用。
+
 ## Starward
 
 - 来源：https://github.com/Scighost/Starward（tag 0.18.1）

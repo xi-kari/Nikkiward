@@ -7,6 +7,12 @@ internal static class Program
 {
     private static async Task<int> Main(string[] args)
     {
+        if (args.FirstOrDefault() == "--game-update-replay")
+            return GameUpdateTests.Replay(args);
+
+        if (args.FirstOrDefault() == "--game-update-recover")
+            return GameUpdateTests.Recover(args);
+
         if (args.Contains("--emit-overlay-samples", StringComparer.Ordinal))
         {
             AppearanceRuntimeContractTests.WriteOverlayFixture();
@@ -53,6 +59,8 @@ internal static class Program
 
         tests = tests
             .Concat(LaunchContractTests.All)
+            .Concat(GameUpdateTests.All)
+            .Concat(GameUpdateDownloadTests.All)
             .Concat(VariantMaterializerTests.All)
             .Concat(ChannelSwitchTests.All)
             .Concat(ChannelStoreBuilderTests.All)
