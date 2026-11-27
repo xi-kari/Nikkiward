@@ -127,6 +127,7 @@
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.3.1" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools.WinApp" Version="0.5.0" />
     <PackageReference Include="NuGet.Versioning" Version="7.6.0" />
+    <PackageReference Include="SharpCompress" Version="0.50.12" />
     <PackageReference Include="Starward.Codec" Version="0.5.2" />
     <!--
       Gamepad enhancement. Starward.GameInput is Scighost's repackage of

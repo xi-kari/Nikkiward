@@ -9,10 +9,14 @@
 
   <ItemGroup>
     <PackageReference Include="NuGet.Versioning" Version="7.6.0" />
+    <PackageReference Include="SharpCompress" Version="0.50.12" />
   </ItemGroup>
 
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="GameUpdate*Tests.cs" />
+    <Compile Include="..\Nikkiward\Features\GameUpdate\*.cs" Link="Features\GameUpdate\%(Filename)%(Extension)" />
+    <None Update="Fixtures\GameUpdate\*.7z" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\Nikkiward\Models\LaunchCapability.cs" Link="Models\LaunchCapability.cs" />
     <Compile Include="..\Nikkiward\Models\LaunchProfile.cs" Link="Models\LaunchProfile.cs" />
     <Compile Include="..\Nikkiward\Models\ComponentVerification.cs" Link="Models\ComponentVerification.cs" />
