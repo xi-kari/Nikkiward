@@ -89,9 +89,9 @@ function sizeSeam() {
 new ResizeObserver(sizeSeam).observe($('.hole'));
 new ResizeObserver(sizeSeam).observe($('.brand'));
 window.mastheadBounds = () => {
-  const {left,right} = $('.nav').getBoundingClientRect();
+  const nav = $('.nav').getBoundingClientRect();
   const tool = $('#btnTools').getBoundingClientRect();
-  return [left,right,tool.left,tool.right];
+  return nav.top >= tool.bottom ? [0,0,tool.left,tool.right] : [nav.left,nav.right,tool.left,tool.right];
 };
 
 let photoKey;
