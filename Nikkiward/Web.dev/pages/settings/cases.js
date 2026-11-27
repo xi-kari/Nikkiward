@@ -8,7 +8,7 @@
       preset:real ? null : 'background2',source:real ? 'D:\\我的壁纸与背景收藏\\'+ '秋日相册与旅行记录\\'.repeat(12)+'花信与白鸽的午后.png' : null,
       interval:15,carousel:false,parallax:false,hologram:true,video:false,videoAvailable:false,blur:false,glass:1,pan:false,zoom:1,fixedAccent:'Blush',customAccent:'#e8a0b4'},
     general:{language:'zh-CN',close:'Exit',afterLaunch:'HideToTray',resetTime:'04:00',playTime:false},
-    about:{version:real ? '0.1.0-preview.5' : '0.9.0',runtime:'win-x64',distribution:'便携版',commit:'90c5481d',channel:'Stable',available:true}
+    about:{version:real ? '0.1.0-preview.6' : '0.9.0',runtime:'win-x64',distribution:'便携版',commit:'90c5481d',channel:'Stable',available:true}
   };
   const routes = {general:'general',about:'about',download:'Download','file-management':'FileManagement',advanced:'Advanced',
     developer:'Advanced','journal-cache':'Journal',files:'Files',status:'Status',components:'Components',diagnostics:'Diagnostics',contract:'Contract',
