@@ -1,4 +1,6 @@
+using System.Globalization;
 using Nikkiward.Models;
+using Nikkiward.Services;
 
 namespace Nikkiward.ViewModels;
 
@@ -20,6 +22,12 @@ internal static class HomePreview
 }
 #endif
 
+internal static class HomeLaunchStates
+{
+    // Appreciation mode only starts while the game can be launched.
+    internal static bool AllowsHomeIdle(this LaunchButtonState state) => state == LaunchButtonState.Ready;
+}
+
 public sealed partial class MainPageViewModel
 {
     private string _artSource = AppearanceBackgroundPresets.Preset1Source;
@@ -37,11 +45,37 @@ public sealed partial class MainPageViewModel
     }
     public Microsoft.UI.Xaml.Visibility HomeLocalTimeVisibility => LocalPlayDuration == null
         ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
-    private DateTimeOffset? _observedStart;
-    internal DateTimeOffset? HomeObservedStart => _isOfficialAssistedRunning && _activeProcessBinding?.ProfileId == SelectedProfileId ? _observedStart : null;
-    internal static DateTimeOffset? RunningStart(OfficialAssistedProcessObservation observation, string gamePath) =>
-        observation.GameProcesses.Where(p => string.Equals(p.ExecutablePath, gamePath, StringComparison.OrdinalIgnoreCase))
-            .Min(p => (DateTimeOffset?)p.StartTimeUtc);
+    // Read-only views of the launch state for the home pages and their overlays. The launch path itself is
+    // the one from before the redesign; nothing here changes what it decides.
+    internal InstallationProfileCandidate? HomeCandidate => _selectedCandidate;
+    internal InstallationProfileCandidate? HomeDiscoveryFailure => _selectedCandidate == null ? _discoveryFailure : null;
+    internal LaunchPreflightResult? HomePreflight => _preflightResult;
+    internal ChannelLaunchPlan? HomeChannelPlan => IsExternalChannelSelected ? _channelEntryLauncher.CreatePlan(_selectedCandidate!) : null;
+    internal IReadOnlyList<ComponentItemViewModel> CurrentComponentRows =>
+        _snapshot is { } snapshot && snapshot.ProfileId == SelectedProfileId ? Components : [];
+    internal string? HomeLauncherVersionName => SelectedLauncherVersionName;
+    internal string? HomeRuntimeBlockCode => RuntimeBlockCode;
+
+    // The check writes LastUpdatedText as local "yyyy-MM-dd HH:mm:ss zzz"; the home shows it as "今天 HH:mm".
+    private DateTime _homeCheckDay = DateTime.Today;
+    public string HomeCheckTime => FormatHomeCheckTime(ParseCheckTime(LastUpdatedText), DateTime.Today);
+
+    internal void RefreshHomeCheckDay()
+    {
+        var today = DateTime.Today;
+        if (_homeCheckDay == today) return;
+        _homeCheckDay = today;
+        OnPropertyChanged(nameof(HomeCheckTime));
+    }
+
+    internal static string FormatHomeCheckTime(DateTimeOffset? local, DateTime today) =>
+        local?.ToString(local.Value.Date == today ? "'今天' HH:mm" : "MM-dd HH:mm", CultureInfo.InvariantCulture) ?? "尚未刷新";
+
+    private static DateTimeOffset? ParseCheckTime(string text) =>
+        DateTimeOffset.TryParseExact(text, "yyyy-MM-dd HH:mm:ss zzz", CultureInfo.CurrentCulture, DateTimeStyles.None, out var local) ||
+        DateTimeOffset.TryParseExact(text, "yyyy-MM-dd HH:mm:ss zzz", CultureInfo.InvariantCulture, DateTimeStyles.None, out local)
+            ? local : null;
+
     internal string? PlayChannel => _selectedCandidate is { } c ? FormatDistribution(c.Identity.DistributionChannel) : null;
     internal int? HomeCheckCount => _preflightResult?.Components.Count is > 0 and var count ? count : null;
     public string HomeCheckText => HomeState == LaunchButtonState.Ready ? "检查通过" : HomeState.Label();
@@ -55,7 +89,11 @@ public sealed partial class MainPageViewModel
 #endif
         LaunchButtonState;
     public string HomeLaunchLabel => HomeState.Label();
-    public string HomeLaunchDetail => DescribeLaunchState(HomeState);
+    public string HomeLaunchDetail =>
+#if DEBUG
+        HomePreview.State.HasValue ? HomeState.Label() :
+#endif
+        LaunchButtonDetail;
     public string HomeLaunchConclusion => Features.Launcher.Skins.HomeOverlayState.From(this).Conclusion;
     public bool HomeLaunchEnabled =>
 #if DEBUG

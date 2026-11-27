@@ -93,7 +93,7 @@ internal sealed record HomeOverlayState(string GameRootPath, string ChannelText,
             ? "Nikkiward 通过官方启动器的启动程序启动游戏，参数是固定的，不能在这里改。"
             : args == null ? "当前档案还没有可用的启动参数。" : "Nikkiward 使用这个渠道的启动程序，参数是固定的，不能在这里改。";
         var launcher = vm.CurrentComponentRows.FirstOrDefault(c => c.ComponentId == "official-launcher");
-        var version = vm.SelectedLauncherVersionName ?? launcher?.FileVersionText ?? "未知版本";
+        var version = vm.HomeLauncherVersionName ?? launcher?.FileVersionText ?? "未知版本";
         var repair = channel == DistributionChannel.Steam ? "在 Steam 中校验游戏文件，或重装后再试。" :
             channel == DistributionChannel.Bilibili ? "用哔哩哔哩启动器校验或重装后再试。" : "用官方启动器校验或重装后再试。";
         var launcherCheck = result?.Components.FirstOrDefault(c => c.ComponentId == "official-launcher");
@@ -103,7 +103,7 @@ internal sealed record HomeOverlayState(string GameRootPath, string ChannelText,
         var ready = state == LaunchButtonState.Ready;
         var processes = state switch
         {
-            LaunchButtonState.Ready when vm.HomeProcessesClear => new HomeCheck("没有上次留下的游戏进程", true),
+            LaunchButtonState.Ready => new HomeCheck("点「启动游戏」时会先确认没有残留的游戏进程。"),
             LaunchButtonState.CleanupRequired => new(reason, false),
             LaunchButtonState.Running or LaunchButtonState.Launching => new(reason),
             _ => new("尚未确认是否有残留进程。")
@@ -128,7 +128,7 @@ internal sealed record HomeOverlayState(string GameRootPath, string ChannelText,
             vm.LatestControlledReceiptText, vm.ApplicationExecutionText, vm.InstallationCandidateText, vm.LifecycleText,
             vm.ProviderPreflightText, vm.ProviderObservationPolicyText, vm.LastUpdatedText, vm.ActivityText, vm.LastErrorText,
             vm.HomeFallback, launcher?.SignatureText ?? "未检查", vm.HomeLaunchDetail, vm.ExecutionGateText,
-            vm.RuntimeBlockCode ?? result?.FailureCode.ToString() ?? vm.HomeDiscoveryFailure?.FailureCode.ToString(),
+            vm.HomeRuntimeBlockCode ?? result?.FailureCode.ToString() ?? vm.HomeDiscoveryFailure?.FailureCode.ToString(),
             result?.FailureDetail ?? failed?.FailureDetail ?? vm.HomeDiscoveryFailure?.Detail);
 
         return new(vm.GameRootPath, $"{channelName} / {vm.PlatformText}", route, version, signature.Text, reason, intro,
@@ -185,25 +185,24 @@ internal sealed record HomeOverlayState(string GameRootPath, string ChannelText,
                 HomeComponent.Name(failed.ComponentId) + "：" +
                 SignatureCheck(failed, null, repair).Text,
             LaunchButtonState.SignatureUntrusted => "游戏组件的签名无法确认为官方发布，已拒绝启动。" + repair,
-            LaunchButtonState.CleanupRequired when vm.RuntimeBlockCode == "Preflight.BaselineDirty" => vm.LaunchButtonDetail,
             LaunchButtonState.CleanupRequired => "上次的启动程序还没有退出。请先点「关闭游戏」，再重新检查。",
             LaunchButtonState.Running => "游戏正在运行。",
             LaunchButtonState.Launching => "正在启动游戏，请留意 Windows 的管理员确认窗口，等待游戏打开。",
-            LaunchButtonState.Blocked when vm.RuntimeBlockCode == "Preflight.ObserverUnavailable" =>
+            LaunchButtonState.Blocked when vm.HomeRuntimeBlockCode == "Preflight.ObserverUnavailable" =>
                 "无法确认正在运行的程序是否属于这份安装。请先关闭游戏和启动器，再重新检查。",
-            LaunchButtonState.Blocked when vm.RuntimeBlockCode is "Runtime.ProcessStartFailed" or "Runtime.ProcessNotCreated" =>
+            LaunchButtonState.Blocked when vm.HomeRuntimeBlockCode is "Runtime.ProcessStartFailed" or "Runtime.ProcessNotCreated" =>
                 "Windows 没能打开启动程序。请关闭启动器后重试，仍有问题时请使用官方启动器。",
-            LaunchButtonState.Blocked when vm.RuntimeBlockCode is "Preflight.PathMismatch" or "Preflight.PathUnavailable" =>
+            LaunchButtonState.Blocked when vm.HomeRuntimeBlockCode is "Preflight.PathMismatch" or "Preflight.PathUnavailable" =>
                 "启动程序或工作目录的位置有误。请重新定位游戏，再检查文件。",
-            LaunchButtonState.Blocked when vm.RuntimeBlockCode is "Preflight.ProfileMismatch" or "Preflight.ProfileUnavailable" =>
+            LaunchButtonState.Blocked when vm.HomeRuntimeBlockCode is "Preflight.ProfileMismatch" or "Preflight.ProfileUnavailable" =>
                 "当前安装与所选档案不符。请重新选择档案并定位游戏。",
-            LaunchButtonState.Blocked when vm.RuntimeBlockCode is "Runtime.BackendIdentityDrift" =>
+            LaunchButtonState.Blocked when vm.HomeRuntimeBlockCode is "Runtime.BackendIdentityDrift" =>
                 "启动程序在检查后发生了变化。请等更新结束后重新检查。",
-            LaunchButtonState.Blocked when vm.RuntimeBlockCode is "Runtime.OperationInProgress" or "Preflight.OperationInProgress" =>
+            LaunchButtonState.Blocked when vm.HomeRuntimeBlockCode is "Runtime.OperationInProgress" or "Preflight.OperationInProgress" =>
                 "上一次启动尚未完成。请等它结束后再试。",
-            LaunchButtonState.Blocked when vm.RuntimeBlockCode is "Preflight.ContractDrift" or "Preflight.PlanMismatch" or "Preflight.ExecutionStateMismatch" =>
+            LaunchButtonState.Blocked when vm.HomeRuntimeBlockCode is "Preflight.ContractDrift" or "Preflight.PlanMismatch" or "Preflight.ExecutionStateMismatch" =>
                 "这份安装的启动方式与已核对的配置不一致。请重新检查，或使用官方启动器。",
-            LaunchButtonState.Blocked when vm.RuntimeBlockCode == "Preflight.ComponentReceiptIncomplete" =>
+            LaunchButtonState.Blocked when vm.HomeRuntimeBlockCode == "Preflight.ComponentReceiptIncomplete" =>
                 "部分必要组件没有完整的检查结果。请重新检查游戏文件。",
             LaunchButtonState.Blocked when failure == LaunchPreflightFailureCode.BinaryIdentityDrift =>
                 "游戏文件正在变动或被占用。请等更新结束后重新检查。",

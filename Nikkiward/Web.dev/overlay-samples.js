@@ -36,8 +36,8 @@ window.homeOverlaySamples = {
           "passed": true
         },
         "processes": {
-          "text": "没有上次留下的游戏进程",
-          "passed": true
+          "text": "点「启动游戏」时会先确认没有残留的游戏进程。",
+          "passed": null
         },
         "gate": {
           "text": "只有你点「启动游戏」时才会启动；每次启动 Windows 都会请你确认管理员权限",

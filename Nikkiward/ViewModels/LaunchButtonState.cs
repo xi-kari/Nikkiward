@@ -94,8 +94,6 @@ public enum LaunchButtonState
 
 internal static class LaunchDiscoveryDisplay
 {
-    internal static bool AllowsHomeIdle(this LaunchButtonState state) => state == LaunchButtonState.Ready;
-
     internal static string Label(this LaunchButtonState state) => state switch
     {
         LaunchButtonState.Checking => "检查安装中",

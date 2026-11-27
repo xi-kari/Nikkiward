@@ -58,7 +58,11 @@ public sealed partial class MainPage
                 }
                 break;
             case "official-flow":
-                if (ViewModel.HomeState == LaunchButtonState.Ready && ViewModel.CanAttemptOfficialAssistedLaunch)
+#if DEBUG
+                if (HomePreview.Active) break;
+#endif
+                // Same condition the launch check drawer's button used before the redesign.
+                if (ViewModel.CanAttemptOfficialAssistedLaunch)
                     OnOfficialFlowClicked(this, new RoutedEventArgs());
                 break;
             case "export-diagnostics":

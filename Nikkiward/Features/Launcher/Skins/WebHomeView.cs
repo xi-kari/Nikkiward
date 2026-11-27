@@ -306,7 +306,6 @@ internal sealed class WebHomeView : UserControl, IDisposable
         var theme = backdrop.IsReady ? backdrop.PreferredTheme : ArtPreferredTheme.Dark;
         var accent = ArtThemeAccentSelector.Select(backdrop.DerivedAccentLight, backdrop.DerivedAccentDark, theme);
         var (current, previous, started) = _shell.HomeSessions;
-        started = model.HomeObservedStart ?? started;
         var times = _host.AlbumTimes;
 
         for (int i = 0; i < _photos.Length; i++)

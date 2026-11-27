@@ -26,9 +26,6 @@ public sealed partial class MainPage
 {
     private async void OnOfficialFlowClicked(object sender, RoutedEventArgs e)
     {
-#if DEBUG
-        if (HomePreview.Active) return;
-#endif
         if (!await _manualLaunchGate.WaitAsync(0))
         {
             return;
@@ -80,9 +77,6 @@ public sealed partial class MainPage
 
     private async void OnCloseGameClicked(object sender, RoutedEventArgs e)
     {
-#if DEBUG
-        if (HomePreview.Active) return;
-#endif
         if (!await _manualLaunchGate.WaitAsync(0))
         {
             return;
@@ -116,7 +110,6 @@ public sealed partial class MainPage
 
         try
         {
-            ViewModel.RefreshHomeCheckDay();
             await ViewModel.RefreshOfficialAssistedRuntimeAsync(
                 _lifetimeCancellation?.Token ?? CancellationToken.None);
         }

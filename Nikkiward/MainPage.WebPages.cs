@@ -29,6 +29,9 @@ public sealed partial class MainPage
         }
     }
 
+    // The gallery page reuses the original locate-game handler as is.
+    internal void ChooseGameRootFromPage() => OnChooseGameRootClicked(this, new RoutedEventArgs());
+
     internal Task NavigateWebPageAsync(string route) => ExecuteShellNavigationAsync(PageRoutes.NavigationTag(route)!);
 
     internal void WebPageFailed(WebPagesView view, string page, string reason)

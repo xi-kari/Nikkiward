@@ -39,7 +39,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     private DateTimeOffset? _lastObservedGameAtUtc;
     private string _activityText = "等待初始化";
     private string _staticReadinessText = "尚未检查";
-    private DateTimeOffset? _lastUpdated;
+    private string _lastUpdatedText = "尚未刷新";
     private string _lastErrorText = "尚未刷新";
     private string _settingsStatusText = "尚未读取设置";
     private string _manualDiscoveryStatusText = "自动发现在启动时运行；也可在此手动定位游戏目录。";
@@ -101,6 +101,9 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         : string.IsNullOrWhiteSpace(_profile?.Channel) ? "未配置" : _profile.Channel;
 
     public string PlatformText => "Windows";
+
+    public string CurrentProfileSummary =>
+        $"{ProfileDisplayName} · {ChannelText} / {PlatformText}";
 
     public string GameRootPath => !string.IsNullOrWhiteSpace(_selectedCandidate?.GameRootPath)
         ? _selectedCandidate.GameRootPath!
@@ -210,6 +213,9 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         !_isCloseGameInProgress &&
         _activeProcessBinding is not null;
 
+    public Visibility CloseGameButtonVisibility =>
+        CanCloseGame ? Visibility.Visible : Visibility.Collapsed;
+
     public string CloseGameButtonLabel => _isCloseGameInProgress ? "正在关闭" : "关闭游戏";
 
     public string PrimaryActionHintText => _launchAttemptStatusText;
@@ -219,8 +225,8 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
 
     public string LifecycleText => SelectedRuntimeRefusal?.Block switch
     {
-        (_, var detail, true) => $"Running · {detail}",
-        ({ } code, var detail, _) => $"Blocked · {code} · {detail}",
+        ("Preflight.BaselineDirty", var detail) => $"Running · {detail}",
+        ({ } code, var detail) => $"Blocked · {code} · {detail}",
         _ => _launchLifecycleText,
     };
 
@@ -357,29 +363,10 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         private set => SetField(ref _staticReadinessText, value);
     }
 
-    public string LastUpdatedText => _lastUpdated?.ToString("yyyy-MM-dd HH:mm:ss zzz") ?? "尚未刷新";
-
-    private DateTime _homeCheckDay;
-    public string HomeCheckTime => FormatHomeCheckTime(_lastUpdated, DateTime.Today);
-
-    internal void RefreshHomeCheckDay()
+    public string LastUpdatedText
     {
-        var today = DateTime.Today;
-        if (_homeCheckDay == today) return;
-        _homeCheckDay = today;
-        OnPropertyChanged(nameof(HomeCheckTime));
-    }
-
-    internal static string FormatHomeCheckTime(DateTimeOffset? local, DateTime today) =>
-        local?.ToString(local.Value.Date == today ? "'今天' HH:mm" : "MM-dd HH:mm",
-            System.Globalization.CultureInfo.InvariantCulture) ?? "尚未刷新";
-
-    private void UpdateCheckTime(DateTimeOffset captured)
-    {
-        _lastUpdated = captured.ToLocalTime();
-        _homeCheckDay = DateTime.Today;
-        OnPropertyChanged(nameof(LastUpdatedText));
-        OnPropertyChanged(nameof(HomeCheckTime));
+        get => _lastUpdatedText;
+        private set => SetField(ref _lastUpdatedText, value);
     }
 
     public string LastErrorText
@@ -467,7 +454,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         var binding = _activeProcessBinding;
         if (binding is null)
         {
-            await RefreshRefusedBaselineAsync(ObserveBaseline, cancellationToken);
+            await RefreshRefusedBaselineAsync(cancellationToken);
             return;
         }
 
@@ -488,7 +475,6 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
 
         if (observation.RunningProcessAlive)
         {
-            SetField(ref _observedStart, RunningStart(observation, binding.RunningProcessPath), nameof(HomeObservedStart));
             _lastObservedGameAtUtc = DateTimeOffset.UtcNow;
             _isLaunchCleanupRequired = false;
             if (!_isOfficialAssistedRunning)
@@ -1308,7 +1294,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 { FailureCode: var code } => $"静态身份未通过 · {FormatPreflightFailure(code)}",
                 _ => $"候选已发现 · {FormatCandidateState(_selectedCandidate.State)}",
             };
-        UpdateCheckTime(DateTimeOffset.UtcNow);
+        LastUpdatedText = DateTimeOffset.UtcNow.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss zzz");
         ActivityText = "空闲";
         OnPropertyChanged(nameof(CanRefresh));
     }
@@ -1441,17 +1427,6 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 _preflightResult = await _channelEntryLauncher.VerifyIdentityAsync(_selectedCandidate!, cancellationToken);
             }
 
-            if (_activeProcessBinding is null && _preflightResult is { StaticIdentityPassed: true, Components.Count: > 0 } verified)
-            {
-                var components = verified.Components.Where(c => c.Passed && Path.GetExtension(c.FilePath).Equals(".exe", StringComparison.OrdinalIgnoreCase)).ToArray();
-                if (components.Length > 0)
-                {
-                    var observation = await Task.Run(() => ObserveBaseline(components), cancellationToken);
-                    _observedInstall = observation.Code is null ? verified : null;
-                    if (observation.Code is { } code)
-                        RecordRuntimeRefusal(code, observation.Detail!, components, observation.ClientRunning);
-                }
-            }
             Components.Clear();
             foreach (var component in results)
             {
@@ -1494,7 +1469,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                     _ => "静态身份未通过 · 检查结果不完整",
                 },
             };
-            UpdateCheckTime(capturedAtUtc);
+            LastUpdatedText = capturedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss zzz");
             LastErrorText = CombineErrors(_settingsErrorText,
                 _preflightResult is { StaticIdentityPassed: false } ? failureReason : componentFailure)
                 ?? "无（本次只读检查）";
@@ -1647,9 +1622,8 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
                 }
                 else if (_selectedCandidate is not null)
                 {
-                    RecordRuntimeRefusal(preparation.FailureCode, preparation.Detail, preparation.Preflight?.Components ?? []);
-                    if (preparation.FailureCode == "Preflight.BaselineDirty")
-                        await RefreshRefusedBaselineAsync(ObserveBaseline, cancellationToken);
+                    var paths = preparation.Preflight?.Components.Select(component => component.FilePath).ToArray() ?? [];
+                    RecordRuntimeRefusal(preparation.FailureCode, preparation.Detail, paths);
                 }
 
                 _launchAttemptStatusText =
@@ -1739,9 +1713,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
             }
             else
             {
-                RecordRuntimeRefusal(receipt.FailureCode, receipt.Detail, preparation.Preflight?.Components ?? []);
-                if (receipt.FailureCode == "Preflight.BaselineDirty")
-                    await RefreshRefusedBaselineAsync(ObserveBaseline, CancellationToken.None);
+                RecordRuntimeRefusal(receipt.FailureCode, receipt.Detail, preparation.ObservedProcessPaths);
                 _launchAttemptStatusText =
                     $"{receipt.FailureCode} · RootPid=null · 未创建 provider";
                 _launchLifecycleText =
@@ -1769,6 +1741,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(PrimaryActionHelpText));
         OnPropertyChanged(nameof(PrimaryActionHintText));
         OnPropertyChanged(nameof(CanCloseGame));
+        OnPropertyChanged(nameof(CloseGameButtonVisibility));
         OnPropertyChanged(nameof(CloseGameButtonLabel));
         OnPropertyChanged(nameof(LifecycleText));
         OnPropertyChanged(nameof(ExecutionSummaryTitle));
@@ -1946,6 +1919,7 @@ public sealed partial class MainPageViewModel : INotifyPropertyChanged
     {
         OnPropertyChanged(nameof(ProfileDisplayName));
         OnPropertyChanged(nameof(ChannelText));
+        OnPropertyChanged(nameof(CurrentProfileSummary));
         OnPropertyChanged(nameof(PlatformText));
         OnPropertyChanged(nameof(GameRootPath));
         OnPropertyChanged(nameof(SelectedProfileId));

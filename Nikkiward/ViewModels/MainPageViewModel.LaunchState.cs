@@ -16,9 +16,9 @@ public sealed partial class MainPageViewModel
     internal event Action<AfterLaunchBehavior>? AfterLaunchWindowRequested;
 
     private sealed record RuntimeRefusal(string Code, string Detail, DateTimeOffset Time, InstallationProfileCandidate Candidate,
-        IReadOnlyList<PreflightComponentResult> Components, bool ClientRunning)
+        IReadOnlyList<string> ProcessPaths)
     {
-        public (string? Code, string? Detail, bool ClientRunning) Block { get; set; } = (Code, Detail, ClientRunning);
+        public (string? Code, string? Detail) Block { get; set; } = (Code, Detail);
     }
 
     private LaunchButtonState _unselectedState = LaunchButtonState.Blocked;
@@ -30,11 +30,9 @@ public sealed partial class MainPageViewModel
             string.Equals(failure.Candidate.GameRootPath, candidate.GameRootPath, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(failure.Candidate.LauncherRootPath, candidate.LauncherRootPath, StringComparison.OrdinalIgnoreCase));
 
-    internal string? RuntimeBlockCode => SelectedRuntimeRefusal?.Block.Code;
-    private LaunchPreflightResult? _observedInstall;
-    internal bool HomeProcessesClear => _observedInstall is not null && ReferenceEquals(_observedInstall, _preflightResult);
+    private string? RuntimeBlockCode => SelectedRuntimeRefusal?.Block.Code;
 
-    internal void RecordRuntimeRefusal(string code, string detail, IReadOnlyList<PreflightComponentResult> components, bool clientRunning = false)
+    internal void RecordRuntimeRefusal(string code, string detail, IReadOnlyList<string> processPaths)
     {
         if (_selectedCandidate is null)
         {
@@ -46,18 +44,17 @@ public sealed partial class MainPageViewModel
             _runtimeRefusals.Remove(previous);
         }
 
-        _runtimeRefusals.Add(new(code, RedactUiText(detail), DateTimeOffset.UtcNow, _selectedCandidate, components, clientRunning));
+        _runtimeRefusals.Add(new(code, RedactUiText(detail), DateTimeOffset.UtcNow, _selectedCandidate, processPaths));
     }
 
-    internal async Task RefreshRefusedBaselineAsync(Func<IReadOnlyList<PreflightComponentResult>, (string? Code, string? Detail, bool ClientRunning)> observe,
-        CancellationToken cancellationToken)
+    private async Task RefreshRefusedBaselineAsync(CancellationToken cancellationToken)
     {
         if (SelectedRuntimeRefusal is not { Block.Code: "Preflight.BaselineDirty" or "Preflight.ObserverUnavailable" } refusal)
         {
             return;
         }
 
-        var observation = await Task.Run(() => observe(refusal.Components), cancellationToken);
+        var observation = await Task.Run(() => ObserveBaseline(refusal.ProcessPaths), cancellationToken);
         if (!ReferenceEquals(SelectedRuntimeRefusal, refusal) || observation == refusal.Block)
         {
             return;
@@ -65,7 +62,6 @@ public sealed partial class MainPageViewModel
 
         if (observation.Code is null)
         {
-            _observedInstall = _preflightResult;
             _launchLifecycleText = "NotRunning · 已确认目标组件均未运行";
         }
 
@@ -73,36 +69,37 @@ public sealed partial class MainPageViewModel
         NotifyLaunchAttemptChanged();
     }
 
-    private static (string? Code, string? Detail, bool ClientRunning) ObserveBaseline(IReadOnlyList<PreflightComponentResult> components)
+    private static (string? Code, string? Detail) ObserveBaseline(IReadOnlyList<string> paths)
     {
-        foreach (var component in components.OrderByDescending(c => c.ComponentId == "game-client"))
+        foreach (var path in paths)
         {
-            var path = component.FilePath;
             var name = Path.GetFileNameWithoutExtension(path);
             var processes = Process.GetProcessesByName(name);
-            bool unavailable = false;
             try
             {
                 foreach (var process in processes)
                 {
-                    try
+                    if (process.HasExited)
                     {
-                        if (process.HasExited) continue;
-
-                        if (!OfficialAssistedLaunchCoordinator.TryQueryProcessPath(process.Id, out var actualPath))
-                        {
-                            unavailable = true;
-                        }
-                        else if (string.Equals(actualPath, path, StringComparison.OrdinalIgnoreCase))
-                        {
-                            return ("Preflight.BaselineDirty", $"目标组件 {Path.GetFileName(path)} 正在运行。", component.ComponentId == "game-client");
-                        }
+                        continue;
                     }
-                    catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+
+                    // The game normally runs elevated; MainModule cannot read an elevated
+                    // process from here, the limited-information query can.
+                    if (!OfficialAssistedLaunchCoordinator.TryQueryProcessPath(process.Id, out var actualPath))
                     {
-                        unavailable = true;
+                        return ("Preflight.ObserverUnavailable", $"无法确认活动 {name} 进程的精确路径。");
+                    }
+
+                    if (string.Equals(actualPath, path, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return ("Preflight.BaselineDirty", $"目标组件 {Path.GetFileName(path)} 正在运行。");
                     }
                 }
+            }
+            catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+            {
+                return ("Preflight.ObserverUnavailable", $"无法读取活动 {name} 进程的精确路径。");
             }
             finally
             {
@@ -111,8 +108,6 @@ public sealed partial class MainPageViewModel
                     process.Dispose();
                 }
             }
-            if (unavailable)
-                return ("Preflight.ObserverUnavailable", $"无法确认活动 {name} 进程的精确路径。", false);
         }
 
         return default;
@@ -142,10 +137,9 @@ public sealed partial class MainPageViewModel
                 return LaunchButtonState.Launching;
             }
 
-            if (SelectedRuntimeRefusal?.Block is { Code: not null } block)
+            if (RuntimeBlockCode is { } code)
             {
-                if (block.ClientRunning) return LaunchButtonState.Running;
-                return block.Code == "Preflight.BaselineDirty" ? LaunchButtonState.CleanupRequired : LaunchButtonState.Blocked;
+                return code == "Preflight.BaselineDirty" ? LaunchButtonState.Running : LaunchButtonState.Blocked;
             }
 
             if (CanAttemptSelectedChannelLaunch)
@@ -199,9 +193,7 @@ public sealed partial class MainPageViewModel
     /// One line under the button. Explains what to do, not what went wrong
     /// internally; the raw failure code stays in diagnostics.
     /// </summary>
-    public string LaunchButtonDetail => DescribeLaunchState(LaunchButtonState);
-
-    private string DescribeLaunchState(LaunchButtonState state) => state switch
+    public string LaunchButtonDetail => LaunchButtonState switch
     {
         LaunchButtonState.Checking =>
             "正在核对本机安装与组件签名。",
@@ -212,7 +204,7 @@ public sealed partial class MainPageViewModel
             "请在游戏设置的「基本信息」中点「定位游戏」。",
         LaunchButtonState.SelectionRequired =>
             "请在游戏设置的「基本信息」中点「定位游戏」，选择要使用的安装目录。",
-        LaunchButtonState.Blocked when SelectedRuntimeRefusal?.Block.Detail is { } detail =>
+        LaunchButtonState.Running or LaunchButtonState.Blocked when SelectedRuntimeRefusal?.Block.Detail is { } detail =>
             detail,
         LaunchButtonState.Blocked when _selectedCandidate is null =>
             _discoveryFailure?.Detail ??
@@ -236,8 +228,6 @@ public sealed partial class MainPageViewModel
             "游戏组件的数字签名无效或签名者不受信任，为安全起见已拒绝启动。请用官方启动器校验游戏文件或重新安装后重试。",
         LaunchButtonState.Blocked =>
             "静态校验未通过，可在设置的诊断页查看原因；若游戏正在更新，请等更新完成后重试。",
-        LaunchButtonState.CleanupRequired when RuntimeBlockCode == "Preflight.BaselineDirty" =>
-            "这份安装仍有相关程序在运行。请自行退出该程序，再启动游戏。",
         LaunchButtonState.CleanupRequired =>
             "启动入口或 bootstrap 仍在运行，请先使用右侧关闭按钮清理。",
         LaunchButtonState.Ready =>
@@ -250,7 +240,6 @@ public sealed partial class MainPageViewModel
             "正在核对组件签名并等待 Windows 管理员确认。",
         LaunchButtonState.Launching =>
             "已提交 xstarter，等待游戏进程建立。",
-        LaunchButtonState.Running when RuntimeBlockCode == "Preflight.BaselineDirty" => "游戏正在运行。",
         LaunchButtonState.Running =>
             _selectedCandidate?.Identity.DistributionChannel is DistributionChannel.Bilibili
                 ? "B服游戏已启动；首次使用时会停在游戏内 B站登录页等待认证。"
@@ -275,17 +264,16 @@ public sealed partial class MainPageViewModel
         }
     }
 
-    internal InstallationProfileCandidate? HomeCandidate => _selectedCandidate;
-    internal InstallationProfileCandidate? HomeDiscoveryFailure => _selectedCandidate == null ? _discoveryFailure : null;
-    internal LaunchPreflightResult? HomePreflight => _preflightResult;
-    internal ChannelLaunchPlan? HomeChannelPlan => IsExternalChannelSelected ? _channelEntryLauncher.CreatePlan(_selectedCandidate!) : null;
-
-    internal IReadOnlyList<ComponentItemViewModel> CurrentComponentRows =>
-        _snapshot is { } snapshot && snapshot.ProfileId == SelectedProfileId ? Components : [];
-
-    internal string? SelectedLauncherVersionName =>
+    private string? SelectedLauncherVersionName =>
         Services.WindowsLaunchPreflightVerifier.TryGetVersionDirectoryName(
             _selectedCandidate?.Provider?.BackendExecutablePath ?? _profile?.XStarterPath);
+
+    /// <summary>
+    /// Whether the launch attempt is blocked in a way the user cannot act on
+    /// from this screen. Drives the skeleton/disabled styling.
+    /// </summary>
+    public bool IsLaunchButtonBusy =>
+        LaunchButtonState is LaunchButtonState.Checking or LaunchButtonState.Launching;
 
     private void NotifyLaunchStateChanged()
     {
@@ -296,20 +284,10 @@ public sealed partial class MainPageViewModel
             AfterLaunchWindowRequested?.Invoke(action);
         }
 
-        OnPropertyChanged(nameof(HomeCheckText));
-        OnPropertyChanged(nameof(HasHomeTask));
-        OnPropertyChanged(nameof(HomeTaskText));
-        OnPropertyChanged(nameof(HomeState));
-        OnPropertyChanged(nameof(HomeLaunchLabel));
-        OnPropertyChanged(nameof(HomeLaunchDetail));
-        OnPropertyChanged(nameof(HomeLaunchConclusion));
-        OnPropertyChanged(nameof(HomeLaunchEnabled));
-        OnPropertyChanged(nameof(HomeBusy));
-        OnPropertyChanged(nameof(HomeCloseEnabled));
-        OnPropertyChanged(nameof(HomeCloseVisibility));
         OnPropertyChanged(nameof(ProfileVersionText));
         OnPropertyChanged(nameof(LaunchButtonState));
         OnPropertyChanged(nameof(LaunchButtonLabel));
         OnPropertyChanged(nameof(LaunchButtonDetail));
+        OnPropertyChanged(nameof(IsLaunchButtonBusy));
     }
 }

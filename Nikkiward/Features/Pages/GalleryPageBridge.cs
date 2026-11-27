@@ -292,7 +292,7 @@ public sealed partial class MainPage
                     return;
                 case "refresh": ScheduleRefresh(); Publish(); return;
                 case "locate-game":
-                    if (_shell.ViewModel.CanDiscover) await _shell.ChooseGameRootAsync();
+                    if (_shell.ViewModel.CanDiscover) _shell.ChooseGameRootFromPage();
                     return;
                 case "plugin":
                     if (_shell._photoPluginOperationInProgress) return;

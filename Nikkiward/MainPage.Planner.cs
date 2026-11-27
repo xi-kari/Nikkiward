@@ -24,7 +24,7 @@ public sealed partial class MainPage
         if (_plannerTimer == null)
         {
             _plannerTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
-            _plannerTimer.Tick += (_, _) => RefreshPlanner();
+            _plannerTimer.Tick += (_, _) => { ViewModel.RefreshHomeCheckDay(); RefreshPlanner(); };
         }
         _plannerTimer.Start();
         RefreshPlanner(startup: true);

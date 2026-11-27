@@ -14,37 +14,24 @@ public sealed partial class MainPage
             _lifetimeCancellation?.Token ?? CancellationToken.None);
     });
 
+    // Each tool calls the handler the profile details page used before the redesign, unchanged.
     private async Task RunChannelToolAsync(System.Text.Json.JsonElement message)
     {
-        var token = _lifetimeCancellation?.Token ?? CancellationToken.None;
         switch (SettingsValues.Field(message, "tool"))
         {
             case "discover" when ViewModel.CanDiscover: await DiscoverProfilesAsync(); break;
-            case "game" when ViewModel.CanDiscover: await ChooseGameRootAsync(); break;
-            case "launcher" when ViewModel.CanDiscover: await ChooseLauncherRootAsync(); break;
+            case "game" when ViewModel.CanDiscover: OnChooseGameRootClicked(this, new Microsoft.UI.Xaml.RoutedEventArgs()); break;
+            case "launcher" when ViewModel.CanDiscover: OnChooseLauncherRootClicked(this, new Microsoft.UI.Xaml.RoutedEventArgs()); break;
             case "select":
                 var id = SettingsValues.Field(message, "id");
                 if (!ViewModel.Profiles.Any(p => p.ProfileId == id)) throw SettingsValues.Invalid();
                 await SelectProfileAsync(id);
                 break;
-            case "root" when ViewModel.CanPlanChannelStore: await ChooseChannelStoreRootAsync(); break;
-            case "plan" when ViewModel.CanPlanChannelStore:
-                var root = _manualChannelStoreRootPath ?? ViewModel.ChannelStoreRootPath;
-                if (!Path.IsPathFullyQualified(root)) root = await ChooseChannelStoreRootAsync();
-                if (root != null) await ViewModel.PlanChannelStoreAsync(root, token);
-                break;
-            case "build" when ViewModel.CanBuildChannelStore:
-                if (await ConfirmWebSettingsAsync("创建单本体？", "将按当前预演计划在所选位置创建渠道存储。", "创建单本体"))
-                    await ViewModel.BuildChannelStoreAsync(token);
-                break;
-            case "activate" when ViewModel.CanActivateSelectedChannel:
-                if (await ConfirmWebSettingsAsync("激活渠道？", "将更新官方启动器的游戏目录，指向所选渠道。", "激活渠道"))
-                    await ViewModel.ActivateSelectedChannelAsync(token);
-                break;
-            case "rollback" when ViewModel.CanRollbackChannelActivation:
-                if (await ConfirmWebSettingsAsync("撤销渠道激活？", "将按最近一次激活的回执恢复启动器之前的游戏目录。", "撤销渠道激活"))
-                    await ViewModel.RollbackLastChannelActivationAsync(token);
-                break;
+            case "root" when ViewModel.CanPlanChannelStore: OnProfileChooseChannelStoreRootRequested(this, EventArgs.Empty); break;
+            case "plan" when ViewModel.CanPlanChannelStore: OnProfilePlanChannelStoreRequested(this, EventArgs.Empty); break;
+            case "build" when ViewModel.CanBuildChannelStore: OnProfileBuildChannelStoreRequested(this, EventArgs.Empty); break;
+            case "activate" when ViewModel.CanActivateSelectedChannel: OnProfileActivateChannelRequested(this, EventArgs.Empty); break;
+            case "rollback" when ViewModel.CanRollbackChannelActivation: OnProfileRollbackActivationRequested(this, EventArgs.Empty); break;
             default: throw SettingsValues.Invalid();
         }
     }

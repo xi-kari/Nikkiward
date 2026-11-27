@@ -755,10 +755,6 @@ internal static class AppearanceRuntimeContractTests
     private static Task SessionPhotosAndHomeFields()
     {
         var now = DateTimeOffset.UtcNow;
-        var observed = new OfficialAssistedProcessObservation { GameProcesses = [
-            new() { ExecutablePath="game", StartTimeUtc=now }, new() { ExecutablePath="helper", StartTimeUtc=now.AddHours(-1) }] };
-        Assert(MainPageViewModel.RunningStart(observed,"GAME") == now && MainPageViewModel.RunningStart(observed,"other") == null,
-            "confirmed game creation time without a play ledger");
         var prev = new PlaySession("官方",now.AddHours(-2),now.AddHours(-1),TimeSpan.FromHours(1));
         var ledger = new PlayTimeLedger([prev]);
         ledger.Observe(now,[new("game",1,now.AddSeconds(-10))],new Dictionary<string,string> { ["game"] = "官方" });
@@ -971,7 +967,6 @@ internal static class AppearanceRuntimeContractTests
         }
         Set("_preflightResult",new LaunchPreflightResult { StaticIdentityPassed = !blocked, Contract = contract, Components = receipts,
             FailureCode = blocked ? LaunchPreflightFailureCode.SignerMismatch : LaunchPreflightFailureCode.ExecutionGateClosed });
-        if (!blocked) Set("_observedInstall", vm.HomePreflight!);
         return vm;
     }
 
@@ -1023,7 +1018,7 @@ internal static class AppearanceRuntimeContractTests
         AssertPlayerCopy(ready);
         AssertPlayerCopy(blocked);
         Assert(ready.OfficialFlow && ready.Overlay.ChannelText == "国服 · 官方 / Windows" &&
-            ready.Overlay.Arguments == "-skiplauncher" && ready.Overlay.Checks.Processes.Passed == true &&
+            ready.Overlay.Arguments == "-skiplauncher" && ready.Overlay.Checks.Processes.Passed == null &&
             ready.Overlay.Checks.Integrity.Text == "5 个必要组件都已核对" && ready.Components.All(c => c.StatusText == "已核对"), "verified install");
         Assert(!blocked.OfficialFlow && blocked.Overlay.Checks.Signature.Passed == false &&
             blocked.Overlay.Conclusion.Contains("签名与官方发布的不一致") && blocked.Components[0].StatusText == "未通过" &&
@@ -1096,11 +1091,16 @@ internal static class AppearanceRuntimeContractTests
 
     private static Task HomePreviewGuardsAllCommands()
     {
+        // The launch path itself stays as it was before the redesign, so the preview guard sits on the home's own entries.
         var host = ReadSource("Nikkiward", "Features", "Launcher", "LauncherPage.xaml.cs");
+        var overlays = ReadSource("Nikkiward", "MainPage.Overlays.cs");
+        Assert(FindMethod(host, "InvokeAction").ReplaceLineEndings("\n").Contains("#if DEBUG\n        if (HomePreview.Active) return;"),
+            "preview must guard the home actions");
+        Assert(FindMethod(overlays, "InvokeOverlayActionAsync").ReplaceLineEndings("\n").Contains("#if DEBUG\n                if (HomePreview.Active) break;"),
+            "preview must guard the overlay launch action");
         var commands = ReadSource("Nikkiward", "MainPage.LaunchCommands.cs");
-        foreach (var method in new[] { FindMethod(host, "InvokeAction"), FindMethod(commands, "OnOfficialFlowClicked"),
-            FindMethod(commands, "OnCloseGameClicked") })
-            Assert(method.ReplaceLineEndings("\n").Contains("#if DEBUG\n        if (HomePreview.Active) return;"), "preview must guard the action entry");
+        foreach (var method in new[] { FindMethod(commands, "OnOfficialFlowClicked"), FindMethod(commands, "OnCloseGameClicked") })
+            Assert(!method.Contains("HomePreview"), "the launch handlers stay as they were");
         return Task.CompletedTask;
     }
 

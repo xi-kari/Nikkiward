@@ -31,7 +31,7 @@ public sealed partial class MainPage
         {
             case "select-profile": _ = SelectProfileAsync(id!); break;
             case "rediscover": _ = DiscoverProfilesAsync(); break;
-            case "locate": if (ViewModel.CanDiscover) _ = ChooseGameRootAsync(); break;
+            case "locate": if (ViewModel.CanDiscover) OnChooseGameRootClicked(this, new RoutedEventArgs()); break;
             case "recheck": if (ViewModel.CanRefresh) OnRefreshClicked(this, new RoutedEventArgs()); break;
             case "tide": case "blossom":
                 var background = new BackgroundArtSettings { SelectedSource = action == "tide" ? AppearanceBackgroundPresets.Preset1Source : AppearanceBackgroundPresets.Preset2Source };
@@ -58,7 +58,7 @@ public sealed partial class MainPage
         }
     }
 
-    private async Task ChooseGameRootAsync()
+    private async void OnChooseGameRootClicked(object sender, RoutedEventArgs e)
     {
         try
         {
@@ -90,7 +90,7 @@ public sealed partial class MainPage
         }
     }
 
-    private async Task ChooseLauncherRootAsync()
+    private async void OnChooseLauncherRootClicked(object sender, RoutedEventArgs e)
     {
         try
         {
@@ -158,6 +158,54 @@ public sealed partial class MainPage
         }
     }
 
+    private async void OnProfileChooseChannelStoreRootRequested(object? sender, EventArgs e)
+    {
+        try
+        {
+            await ChooseChannelStoreRootAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            ViewModel.ReportUiError($"单本体路径选择失败：{ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    private async void OnProfilePlanChannelStoreRequested(object? sender, EventArgs e)
+    {
+        try
+        {
+            var root = _manualChannelStoreRootPath;
+            if (string.IsNullOrWhiteSpace(root) &&
+                !string.Equals(ViewModel.ChannelStoreRootPath, "尚未选择", StringComparison.Ordinal))
+            {
+                root = ViewModel.ChannelStoreRootPath;
+            }
+
+            if (string.IsNullOrWhiteSpace(root))
+            {
+                root = await ChooseChannelStoreRootAsync();
+                if (string.IsNullOrWhiteSpace(root))
+                {
+                    return;
+                }
+            }
+
+            await ViewModel.PlanChannelStoreAsync(
+                root,
+                _lifetimeCancellation?.Token ?? CancellationToken.None);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            ViewModel.ReportUiError($"单本体 dry-run 失败：{ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
     private async Task<string?> ChooseChannelStoreRootAsync()
     {
         var selected = await PickFolderAsync(
@@ -176,5 +224,53 @@ public sealed partial class MainPage
             : Path.Combine(selected, "NikkiwardStore");
         ViewModel.SelectChannelStoreRoot(_manualChannelStoreRootPath);
         return _manualChannelStoreRootPath;
+    }
+
+    private async void OnProfileBuildChannelStoreRequested(object? sender, EventArgs e)
+    {
+        try
+        {
+            await ViewModel.BuildChannelStoreAsync(
+                _lifetimeCancellation?.Token ?? CancellationToken.None);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            ViewModel.ReportUiError($"单本体创建失败：{ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    private async void OnProfileActivateChannelRequested(object? sender, EventArgs e)
+    {
+        try
+        {
+            await ViewModel.ActivateSelectedChannelAsync(
+                _lifetimeCancellation?.Token ?? CancellationToken.None);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            ViewModel.ReportUiError($"渠道激活失败：{ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    private async void OnProfileRollbackActivationRequested(object? sender, EventArgs e)
+    {
+        try
+        {
+            await ViewModel.RollbackLastChannelActivationAsync(
+                _lifetimeCancellation?.Token ?? CancellationToken.None);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            ViewModel.ReportUiError($"渠道激活回滚失败：{ex.GetType().Name}: {ex.Message}");
+        }
     }
 }

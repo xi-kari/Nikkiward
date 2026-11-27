@@ -33,10 +33,7 @@ public sealed partial class MainPageViewModel
         get => _settingsStore.ProtectionMessage is { } protection
             ? $"{_channelStoreStatusText} · 无法创建单本体：{protection}"
             : _channelStoreStatusText;
-        private set
-        {
-            if (SetField(ref _channelStoreStatusText, value)) OnPropertyChanged(nameof(HomeTaskText));
-        }
+        private set => SetField(ref _channelStoreStatusText, value);
     }
 
     public string ChannelStoreCapacityText => _channelStorePlan?.GetCapacityText()
@@ -58,8 +55,6 @@ public sealed partial class MainPageViewModel
         {
             if (SetField(ref _isChannelStoreBusy, value))
             {
-                OnPropertyChanged(nameof(HasHomeTask));
-                OnPropertyChanged(nameof(HomeTaskText));
                 OnPropertyChanged(nameof(ChannelStoreProgressVisibility));
                 OnPropertyChanged(nameof(CanPlanChannelStore));
                 OnPropertyChanged(nameof(CanBuildChannelStore));
@@ -96,7 +91,6 @@ public sealed partial class MainPageViewModel
         _lastChannelActivationReceipt is { Succeeded: true, ConfigChanged: true };
 
     public bool CanAttemptExternalChannelLaunch =>
-        RuntimeBlockCode is null &&
         !IsBusy &&
         _preflightResult is { StaticIdentityPassed: true } &&
         !_isLaunchAttemptInProgress &&
@@ -457,7 +451,6 @@ public sealed partial class MainPageViewModel
                 return receipt;
             }
 
-            _observedStart = RunningStart(observation, binding.RunningProcessPath);
             _isOfficialAssistedRunning = true;
             _afterLaunchWindow.Begin(binding.AttemptId);
             _isLaunchCleanupRequired = false;

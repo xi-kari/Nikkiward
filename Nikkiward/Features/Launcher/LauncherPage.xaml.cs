@@ -79,7 +79,7 @@ public sealed partial class LauncherPage : Page
     {
         if (e.PropertyName is nameof(ViewModel.GalleryRootPath) or nameof(ViewModel.SelectedProfileId) or nameof(ViewModel.GameRootPath))
             RefreshRecentPhotos();
-        else if (e.PropertyName == nameof(ViewModel.HomeCheckTime) && _photosDay != DateTime.Today)
+        else if (e.PropertyName is nameof(ViewModel.HomeCheckTime) or nameof(ViewModel.LastUpdatedText) && _photosDay != DateTime.Today)
         {
             _photosDay = DateTime.Today;
             RefreshRecentPhotos(force: true);

@@ -17,7 +17,6 @@ internal static class LaunchContractTests
         ("discovery distinguishes pending, empty and selection states", DiscoveryStates),
         ("found installations retain their discovery failure", FoundInstallFailure),
         ("runtime refusal locks launch and survives diagnostic export", RuntimeRefusal),
-        (nameof(ExternalProcessBlocksHomeUntilExit), ExternalProcessBlocksHomeUntilExit),
         ("a clean observation releases a refused baseline", RefusedBaselineClears),
         ("channel probes for one root retain the matching installation failure", MixedChannelDiscovery),
         ("an empty Steam library is distinct from a partial installation", EmptySteamLibrary),
@@ -126,7 +125,7 @@ internal static class LaunchContractTests
             new RedactedDiagnosticReportExporter(), new FixedDiscovery(candidate),
             new StubVerifier(ClosedGatePreflight(layout) with { Components = components }));
         await page.InitializeAsync();
-        AssertEqual("游戏运行中", page.LaunchButtonLabel, "refresh already detected an external process");
+        AssertEqual("启动游戏", page.LaunchButtonLabel, "ready before refusal");
         var result = await page.PrepareOfficialAssistedLaunchAsync();
         AssertEqual("Preflight.BaselineDirty", result.FailureCode, "test host is the observed component");
         AssertEqual("游戏运行中", page.LaunchButtonLabel, "blocked after refusal");
@@ -136,50 +135,6 @@ internal static class LaunchContractTests
         var report = await page.ExportDiagnosticsAsync(layout.BaseDirectory);
         var content = await File.ReadAllTextAsync(report.TextFilePath!);
         AssertTrue(content.Contains(result.FailureCode) && content.Contains(result.Detail), "export records code and reason");
-    }
-
-    private static async Task ExternalProcessBlocksHomeUntilExit()
-    {
-        using var layout = FakeInstall.Create();
-        var candidate = layout.BuildCandidate() with { Profile = new() { ProfileId = "fake-cn-official" } };
-        var receipts = layout.ComponentReceipts();
-        var client = receipts[3];
-        receipts[1] = receipts[1] with { FilePath = Environment.ProcessPath! };
-        receipts[3] = receipts[3] with { FilePath = Environment.ProcessPath! };
-        var page = new MainPageViewModel(new JsonUserSettingsStore(layout.BaseDirectory), new WindowsInstallationInspector(),
-            new RedactedDiagnosticReportExporter(), new FixedDiscovery(candidate), new StubVerifier(ClosedGatePreflight(layout) with { Components = receipts }));
-        await page.InitializeAsync();
-        await page.RefreshAsync();
-        AssertTrue(page.HomeState == LaunchButtonState.Running && page.HomeLaunchLabel == "游戏运行中" && !page.HomeLaunchEnabled &&
-            !page.CanAttemptSelectedChannelLaunch && !page.HomeCloseEnabled && page.HomeCloseVisibility == Microsoft.UI.Xaml.Visibility.Collapsed &&
-            Nikkiward.Features.Launcher.Skins.HomeOverlayState.From(page).Conclusion == "游戏正在运行。", "external game takes priority over its launcher");
-        await page.RefreshRefusedBaselineAsync(components =>
-        {
-            AssertTrue(components.Any(c => c.ComponentId == "game-client" && c.FilePath == Environment.ProcessPath!), "observe the same installation on the next timer tick");
-            return ("Preflight.BaselineDirty", "启动程序仍在运行。", false);
-        }, default);
-        AssertTrue(page.HomeState == LaunchButtonState.CleanupRequired && !page.HomeLaunchEnabled && !page.CanCloseGame,
-            "client exit with a remaining launcher switches status without unlocking");
-        await page.RefreshRefusedBaselineAsync(_ => default, default);
-        AssertTrue(page.HomeState == LaunchButtonState.Ready && page.HomeLaunchEnabled && !page.CanCloseGame, "clean observation restores launch");
-
-        receipts[3] = client;
-        await page.RefreshAsync();
-        AssertTrue(page.HomeState == LaunchButtonState.CleanupRequired && page.HomeLaunchLabel == "需要关闭残留进程" &&
-            !page.HomeLaunchEnabled && !page.CanCloseGame && page.HomeLaunchDetail.Contains("退出该程序"), "only the external launcher remains");
-        await page.RefreshOfficialAssistedRuntimeAsync();
-        AssertEqual(LaunchButtonState.CleanupRequired, page.HomeState, "timer retains launcher-only status");
-        await page.RefreshRefusedBaselineAsync(_ => default, default);
-
-        const System.Reflection.BindingFlags fields = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
-        typeof(MainPageViewModel).GetField("_activeProcessBinding", fields)!.SetValue(page, new OfficialAssistedProcessBinding
-        {
-            AttemptId = Guid.NewGuid(), ProfileId = candidate.ProfileId, RunningProcessPath = Environment.ProcessPath!
-        });
-        typeof(MainPageViewModel).GetField("_isOfficialAssistedRunning", fields)!.SetValue(page, true);
-        await page.RefreshAsync();
-        AssertTrue(page.HomeState == LaunchButtonState.Running && !page.HomeLaunchEnabled && page.CanCloseGame &&
-            page.RuntimeBlockCode == null, "refresh retains the confirmed owned game and its close action");
     }
 
     private static async Task RefusedBaselineClears()
@@ -193,9 +148,9 @@ internal static class LaunchContractTests
         {
             const string detail = "测试目标组件的运行检查被拒绝。";
             var before = DateTimeOffset.UtcNow;
-            page.RecordRuntimeRefusal(code, detail, [new() { ComponentId = "official-backend", FilePath = Path.Combine(layout.GameRoot, "exited-" + Guid.NewGuid() + ".exe") }]);
-            AssertEqual(code == "Preflight.BaselineDirty" ? "需要关闭残留进程" : "启动条件不满足", page.LaunchButtonLabel, "refused");
-            AssertTrue(code == "Preflight.BaselineDirty" ? page.LaunchButtonDetail.Contains("自行退出") : page.LaunchButtonDetail == detail, "refusal detail");
+            page.RecordRuntimeRefusal(code, detail, [Path.Combine(layout.GameRoot, "exited-" + Guid.NewGuid() + ".exe")]);
+            AssertEqual(code == "Preflight.BaselineDirty" ? "游戏运行中" : "启动条件不满足", page.LaunchButtonLabel, "refused");
+            AssertEqual(detail, page.LaunchButtonDetail, "refusal detail");
             await page.RefreshAsync();
             AssertTrue(!page.CanAttemptSelectedChannelLaunch, "static refresh cannot unlock runtime refusal");
             await page.RefreshOfficialAssistedRuntimeAsync();
