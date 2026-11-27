@@ -3,7 +3,7 @@ using System.Text.Json;
 using System.Runtime.InteropServices;
 using Nikkiward.Features.Gallery;
 using Nikkiward.Features.Pages;
-using Nikkiward.Pages;
+using Windows.ApplicationModel.DataTransfer;
 using Nikkiward.Services;
 using Nikkiward.ViewModels;
 using Windows.Storage;
@@ -64,7 +64,6 @@ public sealed partial class MainPage
         private IDisposable? _watch;
         private bool _running, _pending, _overlap, _protect;
         private string? _error;
-
 
         internal WebGallery(MainPage shell, GalleryLibrary library, bool favorites)
         {
@@ -223,10 +222,10 @@ public sealed partial class MainPage
             var root = p.Exported ? _exports : _root;
             var scope = _defaultPaths.ContainsKey(p.Id) ? GalleryDefaultFavoriteSeedService.ScopeId :
                 GalleryAnnotationStore.CreateScopeId(_profile, root);
-            var item = new GalleryPhotoItemViewModel(path, p.RelativePath, p.FileName, p.CategoryId, p.CategoryName, p.Size,
+            var item = new GalleryPhotoItemViewModel(path, p.RelativePath, p.FileName, p.Size,
                 p.LocalTime.ToUniversalTime(), scope, root) { MemoryOnlyThumbnails = memoryOnly };
             item.SetStarred(p.Favorite);
-            if (p.ProtectedCopy) item.SetProtectedCopy(path, true);
+            item.IsUsingProtectedCopy = p.ProtectedCopy;
             return item;
         }
 
@@ -262,6 +261,25 @@ public sealed partial class MainPage
             }
         }
 
+        private static async Task CopyGalleryPhotoToClipboardAsync(
+            GalleryPhotoItemViewModel photo)
+        {
+            var file = await StorageFile.GetFileFromPathAsync(photo.FilePath);
+            var package = new DataPackage
+            {
+                RequestedOperation = DataPackageOperation.Copy,
+            };
+            using var decoded = photo.UsesScreenshotCodec
+                ? new MemoryStream(await StarwardScreenshotDecoder.RenderPngAsync(photo.FilePath, photo.Extension, CancellationToken.None))
+                : null;
+            using var pixels = decoded?.AsRandomAccessStream();
+            package.SetBitmap(pixels == null ? Windows.Storage.Streams.RandomAccessStreamReference.CreateFromFile(file)
+                : Windows.Storage.Streams.RandomAccessStreamReference.CreateFromStream(pixels));
+            package.SetStorageItems([file]);
+            Clipboard.SetContent(package);
+            Clipboard.Flush();
+        }
+
         private async Task ExecuteCore(string action, JsonElement m)
         {
             string Field(string name) => m.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString()! : "";
@@ -274,10 +292,18 @@ public sealed partial class MainPage
                     return;
                 case "refresh": ScheduleRefresh(); Publish(); return;
                 case "locate-game":
-                    if (_shell.ViewModel.CanDiscover) _shell.OnChooseGameRootClicked(_shell, new Microsoft.UI.Xaml.RoutedEventArgs());
+                    if (_shell.ViewModel.CanDiscover) await _shell.ChooseGameRootAsync();
                     return;
                 case "plugin":
-                    if (_shell._photoPluginInstallation?.IsInstalled == true) _shell.ShowPhotoPlugin();
+                    if (_shell._photoPluginOperationInProgress) return;
+                    _shell._photoPluginOperationInProgress = true;
+                    try { await _shell.OpenPhotoPluginAsync(_life.Token); }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        _error = MainPageViewModel.RedactUiText($"相册插件打开失败：{ex.Message}");
+                        Publish();
+                    }
+                    finally { _shell._photoPluginOperationInProgress = false; }
                     return;
                 case "next":
                     if (m.TryGetProperty("offset", out var offset) && offset.ValueKind == JsonValueKind.Number && offset.TryGetInt32(out var n) && _session.Next(Field("version"), n)) Publish();
@@ -304,7 +330,7 @@ public sealed partial class MainPage
                     }
                     finally { _starGate.Release(); ScheduleRefresh(); }
                     break;
-                case "copy": await GalleryPage.CopyGalleryPhotoToClipboardAsync(item); break;
+                case "copy": await CopyGalleryPhotoToClipboardAsync(item); break;
                 case "locate":
                     var file = await StorageFile.GetFileFromPathAsync(item.FilePath);
                     var options = new FolderLauncherOptions();

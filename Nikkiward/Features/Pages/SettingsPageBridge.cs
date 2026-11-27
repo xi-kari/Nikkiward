@@ -14,9 +14,10 @@ public sealed partial class MainPage
             LocalFilesPageSection(), RuntimeStatusPageSection(), ComponentsPageSection(), DiagnosticsPageSection(), ContractPageSection(),
             ScreenshotPageSection(), GalleryPageSection(), PluginsPageSection(), HotkeysPageSection(), GamepadPageSection()];
         var sections = adapters.ToDictionary(adapter => adapter.Module, StringComparer.Ordinal);
-        return new("settings", ["section", "native"], () => new {
+        return new("settings", ["section"], () => new {
+            initial = _settingsInitial,
             gamepadConnectionChanged = _publishingGamepadConnection,
-            sections = SettingsSections.All.Where(s => (!s.Developer || ViewModel.DeveloperModeEnabled) && sections.ContainsKey(s.Id))
+            sections = SettingsSections.All.Where(s => !s.Developer || ViewModel.DeveloperModeEnabled)
                 .ToDictionary(s => s.Id, s => sections[s.Id].State()),
             navigation = SettingsSections.All.Where(s => !s.Developer || ViewModel.DeveloperModeEnabled).Select(s => new { id = s.Id, label = s.Label }),
             skins = HomeSkins.Available.Select(s => new { id = s.Id, label = s.Name }),
@@ -24,13 +25,7 @@ public sealed partial class MainPage
             mainKey = ViewModel.GeneralSettings.MainWindowHotkey, screenshotKey = ViewModel.ScreenshotSettings.Hotkey
         }, async (action, message) => {
             var id = SettingsValues.Field(message, "section");
-            var entry = SettingsSections.Resolve(id, ViewModel.DeveloperModeEnabled);
-            if (action == "native")
-            {
-                var target = SettingsSections.NativeTarget(entry, sections);
-                ShowSettingsPage(destination: target);
-                return;
-            }
+            SettingsSections.Resolve(id, ViewModel.DeveloperModeEnabled);
             var op = SettingsValues.Field(message, "op");
             if (!sections.TryGetValue(id, out var section) || !section.Actions.Contains(op)) throw SettingsValues.Invalid();
             try { await section.Execute(op, message); }

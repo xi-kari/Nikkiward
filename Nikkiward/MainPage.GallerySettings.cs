@@ -17,9 +17,6 @@ public sealed partial class MainPage
     private GalleryFavoriteProtectionOverview? _galleryProtectionOverview;
     private NikkiGalleryToolState? _nikkiGalleryToolState;
     private bool _gallerySettingsOperationInProgress;
-    private int _gallerySettingsRefreshInProgress;
-
-    private void ApplyGallerySettingsPageState(SettingsPage page) => page.ApplyGalleryState(CreateGallerySettingsState());
 
     private GallerySettingsViewState CreateGallerySettingsState()
     {
@@ -77,35 +74,6 @@ public sealed partial class MainPage
             IsBusy: busy);
     }
 
-    private async Task RefreshGallerySettingsStateAsync(CancellationToken cancellationToken)
-    {
-        if (Interlocked.Exchange(ref _gallerySettingsRefreshInProgress, 1) != 0)
-        {
-            return;
-        }
-
-        try
-        {
-            await LoadGallerySettingsStateAsync(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception ex)
-        {
-            ViewModel.ReportUiError(
-                $"相册设置读取失败：{ex.GetType().Name}: {ex.Message}");
-        }
-        finally
-        {
-            Interlocked.Exchange(ref _gallerySettingsRefreshInProgress, 0);
-            if (_hostedSettingsPage is { } page)
-            {
-                ApplyGallerySettingsPageState(page);
-            }
-        }
-    }
-
     private async Task LoadGallerySettingsStateAsync(CancellationToken cancellationToken)
     {
         await ViewModel.InitializeAsync(cancellationToken);
@@ -130,10 +98,6 @@ public sealed partial class MainPage
         }
 
         _gallerySettingsOperationInProgress = true;
-        if (_hostedSettingsPage is { } page)
-        {
-            ApplyGallerySettingsPageState(page);
-        }
 
         var cancellationToken = _lifetimeCancellation?.Token ?? CancellationToken.None;
         try
@@ -154,14 +118,8 @@ public sealed partial class MainPage
         finally
         {
             _gallerySettingsOperationInProgress = false;
-            if (_hostedSettingsPage is { } currentPage)
-            {
-                ApplyGallerySettingsPageState(currentPage);
-            }
         }
     }
-
-    private async void OnSettingsGalleryRootChooseRequested(object? sender, EventArgs e) => await GalleryRootChooseAsync();
 
     private async Task GalleryRootChooseAsync()
     {
@@ -191,8 +149,6 @@ public sealed partial class MainPage
             "图库目录保存失败");
     }
 
-    private async void OnSettingsGalleryRootResetRequested(object? sender, EventArgs e) => await GalleryRootResetAsync();
-
     private async Task GalleryRootResetAsync()
     {
         var profileId = ViewModel.SelectedProfileId;
@@ -207,17 +163,11 @@ public sealed partial class MainPage
             "图库目录恢复失败");
     }
 
-    private async void OnSettingsGalleryOpenRequested(object? sender, EventArgs e) => await GalleryOpenAsync();
-
-    private async Task GalleryOpenAsync()
+    private Task GalleryOpenAsync()
     {
-        SetShellNavigationSelection("gallery");
-        await ShowGalleryAsync(returnToSettings: true);
+        ShowWebPage("gallery");
+        return Task.CompletedTask;
     }
-
-    private async void OnSettingsGalleryProtectionEnabledChanged(
-        object? sender,
-        GalleryProtectionEnabledChangedEventArgs e) => await SetGalleryProtectionAsync(e.Enabled);
 
     private async Task SetGalleryProtectionAsync(bool enabled)
     {
@@ -227,10 +177,6 @@ public sealed partial class MainPage
                 cancellationToken),
             "收藏保护设置保存失败");
     }
-
-    private async void OnSettingsGalleryProtectionRootChooseRequested(
-        object? sender,
-        EventArgs e) => await GalleryProtectionRootChooseAsync();
 
     private async Task GalleryProtectionRootChooseAsync()
     {
@@ -263,10 +209,6 @@ public sealed partial class MainPage
             "收藏保护目录保存失败");
     }
 
-    private async void OnSettingsGalleryProtectionRootOpenRequested(
-        object? sender,
-        EventArgs e) => await GalleryProtectionRootOpenAsync();
-
     private async Task GalleryProtectionRootOpenAsync()
     {
         await RunGallerySettingsOperationAsync(
@@ -282,10 +224,6 @@ public sealed partial class MainPage
             "收藏保护目录打开失败");
     }
 
-    private async void OnSettingsGalleryProtectionVerifyRequested(
-        object? sender,
-        EventArgs e) => await GalleryProtectionVerifyAsync();
-
     private async Task GalleryProtectionVerifyAsync()
     {
         await RunGallerySettingsOperationAsync(
@@ -296,10 +234,6 @@ public sealed partial class MainPage
             },
             "收藏保护校验失败");
     }
-
-    private async void OnSettingsGalleryProtectionCleanRequested(
-        object? sender,
-        EventArgs e) => await GalleryProtectionCleanAsync();
 
     private async Task GalleryProtectionCleanAsync()
     {
@@ -319,16 +253,6 @@ public sealed partial class MainPage
             "未收藏保护副本清理失败");
     }
 
-    private async void OnSettingsGalleryCacheRefreshRequested(object? sender, EventArgs e)
-    {
-        await RunGallerySettingsOperationAsync(
-            async cancellationToken =>
-            {
-                _galleryCacheStatistics = await GalleryThumbnailCache.GetStatisticsAsync(cancellationToken);
-            },
-            "缓存统计刷新失败");
-    }
-
     private async Task<IReadOnlyList<string>> ThumbnailProtectedRootsAsync(CancellationToken token)
     {
         var preferences = await GalleryProtection.GetPreferencesAsync(token);
@@ -343,13 +267,6 @@ public sealed partial class MainPage
         if (!result.IsAvailable) throw new IOException("无法读取缩略图缓存目录。");
         if (result.FailedFileCount > 0) throw new IOException($"有 {result.FailedFileCount} 个缓存文件未能清除。");
     }, token);
-
-    private async void OnSettingsGalleryCacheClearRequested(object? sender, EventArgs e)
-    {
-        await RunGallerySettingsOperationAsync(ClearGalleryThumbnailsAsync, "缩略图缓存清理失败");
-    }
-
-    private async void OnSettingsNikkiGalleryRegisterRequested(object? sender, EventArgs e) => await NikkiGalleryRegisterAsync();
 
     private async Task NikkiGalleryRegisterAsync()
     {
@@ -377,8 +294,6 @@ public sealed partial class MainPage
             "NikkiGallery 关联失败");
     }
 
-    private async void OnSettingsNikkiGalleryOpenRequested(object? sender, EventArgs e) => await NikkiGalleryOpenAsync();
-
     private async Task NikkiGalleryOpenAsync()
     {
         await RunGallerySettingsOperationAsync(
@@ -391,8 +306,6 @@ public sealed partial class MainPage
             },
             "NikkiGallery 打开失败");
     }
-
-    private async void OnSettingsNikkiGalleryDisconnectRequested(object? sender, EventArgs e) => await NikkiGalleryDisconnectAsync();
 
     private async Task NikkiGalleryDisconnectAsync()
     {

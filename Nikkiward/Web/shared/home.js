@@ -179,10 +179,6 @@ document.addEventListener('click', e => {
   if (!button || button.disabled) return;
   const message = {action:button.dataset.action};
   if (message.action === 'photo') message.photoId = button.dataset.photoId;
-  if (message.action === 'profile') {
-    const {x,y,width,height} = button.getBoundingClientRect();
-    message.rect = {x,y,width,height};
-  }
   sendHomeAction(message);
 });
 

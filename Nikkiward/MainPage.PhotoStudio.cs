@@ -3,7 +3,6 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Nikkiward.Features.Background;
 using Nikkiward.Features.Gallery;
-using Nikkiward.Pages;
 using Nikkiward.ViewModels;
 using Windows.Storage.Pickers;
 
@@ -12,7 +11,7 @@ namespace Nikkiward;
 public sealed partial class MainPage
 {
     private PhotoStudioView? _studio;
-    internal string StudioOrigin => ContentFrame.Content is GalleryPage || _webGallery != null ? "相册" : "首页";
+    internal string StudioOrigin => _webGallery != null ? "相册" : "首页";
     internal string StudioSkin => Features.Launcher.Skins.HomeSkins.Resolve(ViewModel.AppearanceSettings.HomeSkin).Id.ToLowerInvariant();
     internal string StudioTone => ViewModel.HomeArtKey switch
     {
@@ -21,7 +20,7 @@ public sealed partial class MainPage
         _ => HomeBackdrop.IsReady && HomeBackdrop.PreferredTheme == ArtPreferredTheme.Light ? "light" : "dark"
     };
 
-    internal static MainPage StudioShell(DependencyObject element)
+    internal static MainPage FromElement(DependencyObject element)
     {
         while (element is not MainPage) element = VisualTreeHelper.GetParent(element);
         return (MainPage)element;
@@ -32,17 +31,15 @@ public sealed partial class MainPage
         if (_studio != null) return;
         var view = _studio = new PhotoStudioView(this, list, photo, compare);
         ContentFrame.Visibility = Visibility.Collapsed;
-        ShellNavigation.Visibility = Visibility.Collapsed;
         RootGrid.Children.Add(view);
         SyncLauncherChrome();
     }
 
-    internal void CloseStudio(PhotoStudioView studio, GalleryPhotoItemViewModel? photo = null)
+    internal void CloseStudio(PhotoStudioView studio)
     {
         _studio = null;
         RootGrid.Children.Remove(studio);
         ContentFrame.Visibility = Visibility.Visible;
-        if (photo != null && ContentFrame.Content is GalleryPage gallery) gallery.ResumeStudioPreview(photo);
         SyncLauncherChrome();
     }
 
@@ -77,11 +74,6 @@ public sealed partial class MainPage
 
     internal async Task StarStudioPhotoAsync(GalleryPhotoItemViewModel photo, bool value, CancellationToken token)
     {
-        if (ContentFrame.Content is GalleryPage gallery)
-        {
-            if (photo.IsStarred != value) await gallery.ToggleGalleryStarAsync(photo);
-            return;
-        }
         _webGallery?.CheckStarStorage();
         if (await GalleryFavoriteChange.SetAsync(new(), GalleryProtection, photo.AnnotationScopeId, photo.RelativePath,
             photo.FilePath, value, async (message, button) =>

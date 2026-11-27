@@ -2,7 +2,7 @@
 
 ## 文件和登记
 
-工作副本内新增 `Nikkiward/Web/skins/<id>/index.html`、自己的样式和脚本，以及 `Nikkiward/Web.dev/<id>/cases.js`。文件夹名固定为 `cinema`（熄灯放映）、`stitch`（穿针引线）、`journal`（搭配师的手账）、`wishstar`（心愿星）。已有的 `atelier` 是可运行示例。登记只认五个既有 ID，重建应用后有入口页的皮肤会出现在设置中。
+工作副本内新增 `Nikkiward/Web/skins/<id>/index.html`、自己的样式和脚本，以及 `Nikkiward/Web.dev/<id>/cases.js`。文件夹名固定为 `cinema`（熄灯放映）、`stitch`（穿针引线）、`journal`（搭配师的手账）、`wishstar`（心愿星）。已有的 `atelier` 是可运行示例。设置列出五个固定的皮肤 ID，发布检查验证每套皮肤的入口页。
 
 沿用 Atelier 的 CSP、顶部拖拽区和右上角原生窗口按钮留白。引用字体时选择 `../../fonts/<族名>.css`，使用该文件的 font-family。可用文件名为 bodoni-moda、noto-serif-sc、zcool-xiaowei、cormorant、manrope、lxgw-wenkai-tc、caveat、jetbrains-mono、noto-sans-sc、fraunces。
 
@@ -32,7 +32,6 @@
 | check、checkTime、checkCount、nextActions | 启动检查短句、检查时间、可空检查项数，以及该状态下的辅助动作名。 |
 | profile、channel、platform | 当前档案友好名称、区服、带 Windows 的平台显示名。 |
 | profiles、discoveryTime | 档案数组和最近发现时间。每项含 id、name、region（区服）、channel（发行渠道）、available（可选择）、reason（发现结果）、current。可选择不代表通过启动门。 |
-| profileOpen | 原生档案浮层是否打开。网页切换器由皮肤管理自己的开关、焦点、Escape 和遮罩。 |
 | running、sessionMinutes、still | 游戏运行标志、可确定的本次运行分钟数、是否收敛动效。 |
 | officialDuration、journalSnapshotDate、localDuration | 官方手账时长、快照日期、本机时长。 |
 | taskText、progress | 后台任务短句和可空的 0–100 进度。 |
@@ -52,7 +51,7 @@
 
 - launch、close 请求启动或关闭游戏。所有决定留在原生入口。
 - settings、background、status 在当前网页打开游戏设置、背景分区、启动检查。reset 请求原生恢复默认背景。tide、blossom 选择海月和花信。
-- select-profile 发送 `{action:'select-profile',profileId:p.id}`，使用当前列表给出的 ID。rediscover 重新发现安装，locate 选择游戏目录，recheck 重新执行检查。profile 是原生浮层兼容动作，附 rect {x,y,width,height}；网页档案按钮直接打开自己的切换器。
+- select-profile 发送 `{action:'select-profile',profileId:p.id}`，使用当前列表给出的 ID。rediscover 重新发现安装，locate 选择游戏目录，recheck 重新执行检查。网页档案按钮直接打开自己的切换器。
 - gallery、journal、download、time 打开相册、手账、下载状态、时长。photo 需附 photoId；按钮可使用 `data-action="photo" data-photo-id="…"`。
 - nav-launcher、nav-library、nav-gallery、nav-gallery-favorites、nav-resonance、nav-settings 对应首页、手账、相册、收藏、共鸣、设置。
 - 设计稿的命令面板组合这些动作。熄灯鉴赏、打开或收起命令面板等页面内交互由皮肤自行完成。
@@ -76,3 +75,5 @@
 修改完页面后，从仓库根目录运行 `pwsh -File build/Update-WebManifests.ps1`，将生成的 `build/WebSkins.sha256` 与页面一起交付。清单包含 shared 和所有皮肤，合并并行分支时在合并后的文件树上再生成一次。Web.dev 只用于对照，不进入发布载荷。
 
 各皮肤任务只新增自己的两个目录并重新生成清单。共用宿主、白名单、XAML 登记、Web/shared、字体、项目文件和发布校验脚本由底座维护。
+
+首页 WebView2 或页面加载失败时显示安全模式首页，保留启动状态、档案切换、定位游戏、重新检查和重试新界面。

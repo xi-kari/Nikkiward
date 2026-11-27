@@ -11,7 +11,7 @@ using Nikkiward.ViewModels;
 
 namespace Nikkiward.Features.Launcher;
 
-public sealed partial class LauncherPage : PageBase
+public sealed partial class LauncherPage : Page
 {
     private HomeSkin? _skin;
     private GalleryFolderWatcher? _watcher;
@@ -22,8 +22,6 @@ public sealed partial class LauncherPage : PageBase
     public event EventHandler<GalleryPhotoItemViewModel>? PhotoRequested;
     public MainPageViewModel ViewModel { get; private set; } = null!;
     public FrameworkElement OnArtHost => SkinHost;
-    public event EventHandler? StatusRequested;
-    public event EventHandler? BackgroundRequested;
 
     public LauncherPage()
     {
@@ -40,17 +38,13 @@ public sealed partial class LauncherPage : PageBase
 
     public event EventHandler? CloseGameRequested;
 
-    public event EventHandler? LaunchSettingsRequested;
-
     public event EventHandler? JournalRequested;
 
     public event EventHandler? GalleryRequested;
 
     public event EventHandler? BackgroundResetRequested;
 
-    public event EventHandler? ProfileRequested;
-
-    protected override void OnEntering(NavigationEventArgs e)
+    protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         ViewModel = ((LauncherNavigationContext)e.Parameter).ViewModel;
         Activate();
@@ -65,7 +59,7 @@ public sealed partial class LauncherPage : PageBase
         RefreshRecentPhotos();
     }
 
-    protected override void OnExiting(NavigationEventArgs e) => Deactivate();
+    protected override void OnNavigatedFrom(NavigationEventArgs e) => Deactivate();
 
     private void Deactivate()
     {
@@ -116,7 +110,7 @@ public sealed partial class LauncherPage : PageBase
                 var scope = GalleryAnnotationStore.CreateScopeId(profile, root);
                 var files = GalleryFiles.NewestFirst(root, scan.Token).ToArray();
                 return (Times: files.Select(f => GalleryTimestamp.Resolve(f.Name, f.LastWriteTimeUtc)).Order().ToArray(),
-                    Recent: files.Take(4).Select(file => GalleryViewModel.CreatePhoto(file, root, scope)).ToArray());
+                    Recent: files.Take(4).Select(file => GalleryPhotoItemViewModel.CreatePhoto(file, root, scope)).ToArray());
             }, scan.Token);
             if (scan.IsCancellationRequested) return;
             RecentPhotos.Clear();
@@ -147,33 +141,41 @@ public sealed partial class LauncherPage : PageBase
         if (skin == _skin) return;
         ReleaseSkin();
         ViewModel.HomeFallback = "";
-        var view = skin.Create();
+        UserControl view;
+        try { view = skin.Create(); }
+        catch (Exception ex)
+        {
+            UseCinema($"{ex.GetType().Name}: {ex.Message}");
+            return;
+        }
         view.DataContext = ViewModel;
         SkinHost.Content = view;
         _skin = skin;
         SkinChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    internal void RefreshMasthead() => NotifyMastheadInteractionRegionChanged();
     internal WebHomeView? WebHome => SkinHost.Content as WebHomeView;
     internal event EventHandler? SkinChanged;
     internal event EventHandler<string>? NavigationRequested;
 
     internal void UseCinema(string reason)
     {
-        ViewModel.HomeFallback = $"首页样式已退回熄灯放映：{reason}";
+        ViewModel.HomeFallback = $"首页加载失败：{MainPageViewModel.RedactUiText(reason)}";
         System.Diagnostics.Debug.WriteLine(ViewModel.HomeFallback);
         ReleaseSkin();
-        var cinema = new CinemaView { DataContext = ViewModel };
+        var cinema = new CinemaView(this) { DataContext = ViewModel };
         SkinHost.Content = cinema;
         _skin = HomeSkins.Resolve(ViewModel.AppearanceSettings.HomeSkin);
         SkinChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    internal void InvokeAction(Button button) =>
-        InvokeAction((string)button.Tag, button, button.DataContext as GalleryPhotoItemViewModel);
+    internal void RetryWebHome()
+    {
+        _skin = null;
+        ApplyAppearanceSettings(ViewModel.AppearanceSettings);
+    }
 
-    internal void InvokeAction(string name, FrameworkElement anchor, GalleryPhotoItemViewModel? photo = null)
+    internal void InvokeAction(string name, GalleryPhotoItemViewModel? photo = null)
     {
 #if DEBUG
         if (HomePreview.Active) return;
@@ -192,17 +194,13 @@ public sealed partial class LauncherPage : PageBase
         {
             "launch" when ViewModel.HomeLaunchEnabled => OfficialFlowRequested,
             "close" when ViewModel.HomeCloseEnabled => CloseGameRequested,
-            "settings" => LaunchSettingsRequested,
-            "profile" => ProfileRequested,
             "gallery" => GalleryRequested,
             "journal" => JournalRequested,
-            "background" => BackgroundRequested,
             "reset" => BackgroundResetRequested,
-            "status" => StatusRequested,
             "download" => DownloadStatusRequested,
             "time" => PlayTimeRequested,
             _ => null
         };
-        action?.Invoke(anchor, EventArgs.Empty);
+        action?.Invoke(this, EventArgs.Empty);
     }
 }

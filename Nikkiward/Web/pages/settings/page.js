@@ -40,8 +40,8 @@
       return btn;
     }
     function go(id) {
-      if (!(id in state.sections)) { send('native',{section:id}); return; }
       if (id === active) return;
+      if (id !== 'Advanced') showChannelTools = false;
       content.replaceChildren();
       active = id;
       draw();
@@ -92,7 +92,7 @@
         }
         function save(field,value,section = active) { action(section,'change',{field,value:String(value)}); }
         const ui = {
-          element, row, button, action, check, save, go, entering: renderedSection !== active,
+          element, row, button, action, check, save, go, showChannelTools, entering: renderedSection !== active,
           command(label,caption,op,description,disabled = false) {
             const control = button(caption,() => action(active,op));
             control.disabled = disabled;
@@ -155,6 +155,12 @@
     commands.push(['设置','检查更新',() => {
       if (state.sections.about.available && !state.sections.about.checking) action('about','check');
     }]);
+    let showChannelTools = false;
+    const channelTools = ['设置','档案与渠道工具',() => {
+      showChannelTools = true;
+      if (active === 'Advanced') draw();
+      else go('Advanced');
+    }];
     function visibleState(snapshot) {
       const {sections,...shell} = snapshot;
       return JSON.stringify([shell,sections.appearance,sections.general,sections.about,sections[active]]);
@@ -162,6 +168,9 @@
     return next => {
       const previous = state;
       state = next;
+      const toolIndex = commands.indexOf(channelTools);
+      if (next.sections.Advanced?.developer && toolIndex < 0) commands.push(channelTools);
+      if (!next.sections.Advanced?.developer && toolIndex >= 0) commands.splice(toolIndex, 1);
       if (active && next.gamepadConnectionChanged) {
         const status = content.querySelector('[data-gamepad-status]');
         if (status) status.textContent = next.sections.Gamepad.status;

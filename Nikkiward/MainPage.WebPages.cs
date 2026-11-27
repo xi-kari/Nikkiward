@@ -6,36 +6,46 @@ namespace Nikkiward;
 public sealed partial class MainPage
 {
     private Dictionary<string, PageAdapter>? _pageAdapters;
-    private bool _webPagesFailed;
+
     private WebPagesView? CurrentWebPage => ContentFrame.Content as WebPagesView;
 
-    private bool TryShowWebPage(string page)
+    private void ShowWebPage(string page)
     {
-        _pageAdapters ??= PageRoutes.Register(("wish", WishPageAdapter()), ("journal", JournalPageAdapter()),
-            ("settings", SettingsPageAdapter()), ("gallery", GalleryPageAdapter(false)), ("favorites", GalleryPageAdapter(true)));
-        if (_webPagesFailed || !_pageAdapters.TryGetValue(page, out var adapter)) return false;
         ContentFrame.Visibility = Visibility.Visible;
-        if (CurrentWebPage is not { } view)
+        try
         {
-            ContentFrame.Navigate(typeof(WebPagesView));
-            view = CurrentWebPage!;
+            _pageAdapters ??= PageRoutes.Register(("wish", WishPageAdapter()), ("journal", JournalPageAdapter()),
+                ("settings", SettingsPageAdapter()), ("gallery", GalleryPageAdapter(false)), ("favorites", GalleryPageAdapter(true)));
+            var adapter = _pageAdapters[page];
+            if (CurrentWebPage == null && !ContentFrame.Navigate(typeof(WebPagesView)))
+                throw new InvalidOperationException("无法打开功能页面宿主。");
+            CurrentWebPage!.Show(this, page, adapter);
+            SyncLauncherChrome();
         }
-        view.Show(this, page, adapter);
-        SyncLauncherChrome();
-        return true;
+        catch (Exception ex)
+        {
+            ViewModel.ReportWebPageFallback(page, $"{ex.GetType().Name}: {ex.Message}");
+            ShowWebPageError(page, ViewModel.WebPageFallback);
+        }
     }
 
     internal Task NavigateWebPageAsync(string route) => ExecuteShellNavigationAsync(PageRoutes.NavigationTag(route)!);
 
     internal void WebPageFailed(WebPagesView view, string page, string reason)
     {
-        if (view != CurrentWebPage || _webPagesFailed) return;
-        _webPagesFailed = true;
+        if (view != CurrentWebPage) return;
         ViewModel.ReportWebPageFallback(page, reason);
-        DispatcherQueue.TryEnqueue(async () =>
+        var diagnostic = ViewModel.WebPageFallback;
+        DispatcherQueue.TryEnqueue(() =>
         {
-            if (view == CurrentWebPage) await NavigateWebPageAsync(page);
+            if (view == CurrentWebPage && view.CurrentPage == page)
+                ShowWebPageError(page, diagnostic);
         });
     }
-}
 
+    private void ShowWebPageError(string page, string diagnostic)
+    {
+        ContentFrame.Navigate(typeof(WebPageErrorView), new WebPageErrorView.Failure(
+            diagnostic, () => ShowWebPage(page), ShowLauncher));
+    }
+}

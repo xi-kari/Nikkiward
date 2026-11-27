@@ -29,7 +29,6 @@
     <Compile Include="..\Nikkiward\Models\UserSettings.cs" Link="Models\UserSettings.cs" />
     <Compile Include="..\Nikkiward\Models\AppearanceSettings.cs" Link="Models\AppearanceSettings.cs" />
     <Compile Include="..\Nikkiward\Models\ApplicationSettings.cs" Link="Models\ApplicationSettings.cs" />
-    <Compile Include="..\Nikkiward\Controls\CardBorderGlowProjection.cs" Link="Controls\CardBorderGlowProjection.cs" />
     <Compile Include="..\Nikkiward\Serialization\NikkiwardJsonContext.cs" Link="Serialization\NikkiwardJsonContext.cs" />
     <Compile Include="..\Nikkiward\Services\IUserSettingsStore.cs" Link="Services\IUserSettingsStore.cs" />
     <Compile Include="..\Nikkiward\Services\IDiagnosticReportExporter.cs" Link="Services\IDiagnosticReportExporter.cs" />
@@ -71,7 +70,6 @@
     <Compile Include="..\Nikkiward\Features\Background\MotionImportFileCopier.cs" Link="Features\Background\MotionImportFileCopier.cs" />
     <Compile Include="..\Nikkiward\Features\Background\WallpaperImportSupport.cs" Link="Features\Background\WallpaperImportSupport.cs" />
     <Compile Include="..\Nikkiward\Features\Background\HolographicBackdropProjection.cs" Link="Features\Background\HolographicBackdropProjection.cs" />
-    <Compile Include="..\Nikkiward\Features\Settings\AuthorProfileDepthProjection.cs" Link="Features\Settings\AuthorProfileDepthProjection.cs" />
     <Compile Include="..\Nikkiward\Features\Shell\GlassTierResolver.cs" Link="Features\Shell\GlassTierResolver.cs" />
     <Compile Include="..\Nikkiward\Features\Updates\UpdateModels.cs" Link="Features\Updates\UpdateModels.cs" />
     <Compile Include="..\Nikkiward\Features\Updates\AppVersionProvider.cs" Link="Features\Updates\AppVersionProvider.cs" />
@@ -80,7 +78,6 @@
     <Compile Include="..\Nikkiward\Features\Updates\UpdateJsonContext.cs" Link="Features\Updates\UpdateJsonContext.cs" />
     <Compile Include="..\Nikkiward\Features\Updates\GitHubReleaseUpdateService.cs" Link="Features\Updates\GitHubReleaseUpdateService.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryPhotoMetadata.cs" Link="Features\Gallery\GalleryPhotoMetadata.cs" />
-    <Compile Include="..\Nikkiward\Features\Gallery\GalleryFavoriteCardLayoutProjection.cs" Link="Features\Gallery\GalleryFavoriteCardLayoutProjection.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\PhotoStudioStore.cs" Link="Features\Gallery\PhotoStudioStore.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryAnnotationStore.cs" Link="Features\Gallery\GalleryAnnotationStore.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryFavoriteProtectionStore.cs" Link="Features\Gallery\GalleryFavoriteProtectionStore.cs" />
@@ -120,9 +117,7 @@
     <Compile Include="..\Nikkiward\Features\Launcher\Skins\WebHomeBridge.cs" Link="Launcher\WebHomeBridge.cs" />
     <Compile Include="..\Nikkiward\Features\Launcher\Skins\HomeOverlayState.cs" Link="Launcher\HomeOverlayState.cs" />
     <Compile Include="AppearanceRuntimeContractTests.cs" />
-    <Compile Include="CardBorderGlowProjectionTests.cs" />
     <Compile Include="HolographicBackdropProjectionTests.cs" />
-    <Compile Include="AuthorProfileDepthProjectionTests.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryFileTypes.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryFiles.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryTimestamp.cs" />
@@ -137,7 +132,6 @@
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryIndex.Palette.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryIndex.Metadata.cs" />
     <Compile Include="..\Nikkiward\Features\Gallery\GalleryQuery.cs" />
-    <Compile Include="GalleryFavoriteCardLayoutTests.cs" />
     <Compile Include="GalleryMetadataTests.cs" />
     <Compile Include="..\Nikkiward\Services\ScreenshotFrameHandoff.cs" />
     <Compile Include="..\Nikkiward\Services\PhotoDirectoryPolicy.cs" />
@@ -148,10 +142,8 @@
     <Compile Include="JournalSnapshotTests.cs" />
     <Compile Include="WishHistoryDomainTests.cs" />
     <Compile Include="..\Nikkiward\Features\Pages\Settings\*.cs" Exclude="..\Nikkiward\Features\Pages\Settings\*.Native.cs" LinkBase="Features\Pages\Settings" />
-    <Compile Include="..\Nikkiward\Features\Settings\SettingsNavigationContext.cs" LinkBase="Features\Settings" />
     <Compile Include="SettingsPageTests.cs" />
     <Compile Include="UpdateReleaseTests.cs" />
-    <Compile Include="AboutSettingsContractTests.cs" />
     <Compile Include="ContractRefreshTool.cs" />
     <Compile Include="FakeInstall.cs" />
   </ItemGroup>

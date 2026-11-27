@@ -7,16 +7,12 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Media.Animation;
 using Nikkiward.Features.Background;
-using Nikkiward.Features.Diagnostics;
 using Nikkiward.Features.Gallery;
 using Nikkiward.Features.GamepadControl;
 using Nikkiward.Features.Journal;
 using Nikkiward.Features.Launcher;
-using Nikkiward.Features.Profile;
 using Nikkiward.Features.Settings;
-using Nikkiward.Features.Wish;
 using Nikkiward.Models;
-using Nikkiward.Pages;
 using Nikkiward.Services;
 using Nikkiward.ViewModels;
 using Windows.ApplicationModel.DataTransfer;
@@ -80,7 +76,7 @@ public sealed partial class MainPage
                 snapshot.Summary,
                 TimeZoneInfo.Local);
             _wishHistoryCapturedAtUtc = snapshot.CapturedAtUtc;
-            ApplyWishHistoryProjection(_wishHistoryProjection, snapshot.CapturedAtUtc);
+            CurrentWebPage?.Refresh();
         }
         catch (OperationCanceledException)
         {
@@ -97,21 +93,6 @@ public sealed partial class MainPage
     {
         _resonanceSnapshot = snapshot;
         CurrentWebPage?.Refresh();
-        var itemCount = snapshot.Banners.Sum(banner => banner.Items.Count);
-        var obtainedCount = snapshot.Banners.Sum(
-            banner => banner.Items.Count(item => item.ObtainCount > 0));
-        var totalPulls = snapshot.Banners.Sum(
-            banner => ParseDisplayedInteger(banner.TotalPulls));
-        _hostedWishPage?.ApplySnapshot(
-            snapshot,
-            $"{snapshot.Banners.Count} 个活动 · {itemCount} 条服装记录",
-            snapshot.Banners.Count.ToString(CultureInfo.CurrentCulture),
-            itemCount.ToString(CultureInfo.CurrentCulture),
-            obtainedCount.ToString(CultureInfo.CurrentCulture),
-            totalPulls.ToString(CultureInfo.CurrentCulture),
-            snapshot.CapturedAtUtc.ToLocalTime().ToString(
-                "yyyy-MM-dd HH:mm:ss",
-                CultureInfo.CurrentCulture));
     }
 
     private async Task ApplyWishHistoryFromResonanceAsync(
@@ -149,21 +130,7 @@ public sealed partial class MainPage
             imported, BuildWishSummary(snapshot), snapshot.CapturedAtUtc, cancellationToken);
         _wishHistoryProjection = WishHistoryProjector.Project(history.Entries, history.Summary, TimeZoneInfo.Local);
         _wishHistoryCapturedAtUtc = history.CapturedAtUtc;
-        ApplyWishHistoryProjection(_wishHistoryProjection, history.CapturedAtUtc);
-    }
-
-    private void ApplyWishHistoryProjection(
-        WishHistoryProjection projection,
-        DateTimeOffset capturedAtUtc)
-    {
         CurrentWebPage?.Refresh();
-        _hostedWishPage?.ApplyWishProjection(
-            projection,
-            capturedAtUtc == default
-                ? string.Empty
-                : capturedAtUtc.ToLocalTime().ToString(
-                    "yyyy-MM-dd HH:mm:ss",
-                    CultureInfo.CurrentCulture));
     }
 
     private static WishHistorySummary BuildWishSummary(ResonanceHistorySnapshot snapshot)
@@ -243,14 +210,9 @@ public sealed partial class MainPage
         _journalSnapshot = snapshot;
         HomeDataChanged?.Invoke(this, EventArgs.Empty);
         _journalDurationText = NormalizeJournalHours(snapshot.GameHours);
-        _journalDurationSourceText = "来源：官方奇想手账 · 本地快照";
         _journalDurationDetailText =
             $"最近同步于 {snapshot.CapturedAtUtc.ToLocalTime():yyyy-MM-dd HH:mm:ss}；快照只包含页面展示的非敏感统计和公开图片地址。";
         UpdateJournalDurationUi();
-        _hostedJournalPage?.ApplySnapshot(
-            snapshot,
-            _journalDurationText,
-            _journalDurationSourceText);
     }
 
     private async void OnJournalClearCacheRequested(object? sender, EventArgs e)
@@ -268,14 +230,8 @@ public sealed partial class MainPage
             HomeDataChanged?.Invoke(this, EventArgs.Empty);
             _resonanceSnapshot = null;
             _journalDurationText = "奇想手账未同步";
-            _journalDurationSourceText = "来源：官方手账 · 尚未同步";
             _journalDurationDetailText = "打开官方奇想手账并点击同步后，页面统计会重新写入本地快照。";
             UpdateJournalDurationUi();
-            _hostedJournalPage?.ResetState(_journalDurationSourceText);
-            if (_wishHistoryProjection is null)
-            {
-                _hostedWishPage?.ResetState();
-            }
         }
         catch (Exception ex)
         {

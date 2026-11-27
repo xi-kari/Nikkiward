@@ -25,6 +25,24 @@ internal static class DeveloperSettingsState
         };
     }
 
+    internal static object? ChannelTools(MainPageViewModel model) => !model.DeveloperModeEnabled ? null : new {
+        facts = new Dictionary<string, string> {
+            ["当前档案"] = model.ProfileDisplayName, ["版本"] = model.ProfileVersionText,
+            ["渠道"] = model.ChannelText, ["平台"] = model.PlatformText,
+            ["安装根"] = model.GameRootPath, ["官方后端"] = model.XStarterPath,
+            ["身份来源"] = model.ProfileIdentityText, ["安装发现"] = model.ManualSelectionHint,
+            ["存储位置"] = model.ChannelStoreRootPath, ["容量"] = model.ChannelStoreCapacityText,
+            ["启动路径"] = model.SelectedChannelLaunchRoute, ["单本体状态"] = model.ChannelStoreStatusText,
+            ["设置状态"] = model.SettingsStatusText
+        },
+        candidates = model.Profiles.Select(p => new { id = p.ProfileId, name = p.DisplayName, selected = p.IsSelected,
+            channel = p.Channel, capability = p.CapabilitySummary, root = p.GameRootPath }),
+        evidence = model.PlatformEvidence.Select(e => new { e.Title, e.Source, e.State, e.Detail, e.Capability }),
+        discover = model.CanDiscover, plan = model.CanPlanChannelStore, build = model.CanBuildChannelStore,
+        buildLabel = model.ChannelStoreBuildLabel, activate = model.CanActivateSelectedChannel,
+        rollback = model.CanRollbackChannelActivation
+    };
+
     internal static object Diagnostics(MainPageViewModel model) => new {
         components = model.Components.Select(c => new {
             name = c.DisplayName, status = c.StatusText, path = c.FilePath, fileVersion = c.FileVersionText,

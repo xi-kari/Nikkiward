@@ -6,13 +6,12 @@ using Nikkiward.ViewModels;
 
 namespace Nikkiward.Features.Journal;
 
-public sealed partial class JournalPage : PageBase
+public sealed partial class JournalPage : Page
 {
     private const string WebView2FolderName = "JournalWebView2";
     private bool _browserInitialized;
     private bool _browserDialogOpen;
     private bool _browserClosing;
-    private Uri? _lastContentUri;
     private Task? _ensureBrowserTask;
     private ulong _currentNavigationId;
     private Uri? _currentNavigationUri;
@@ -30,17 +29,11 @@ public sealed partial class JournalPage : PageBase
         Nikkiward.Services.ApplicationDataPaths.Root,
         WebView2FolderName);
 
-    public override string PageTitle => "奇想手账";
-
     public bool IsBrowserInitialized => _browserInitialized;
 
     public Uri? CurrentUri => _currentNavigationUri ?? JournalWebView.Source;
 
     public long RouteGeneration => Interlocked.Read(ref _routeGeneration);
-
-    public Uri? LastContentUri => _lastContentUri;
-
-    public event EventHandler? OpenRequested;
 
     public event EventHandler? SyncRequested;
 
@@ -48,44 +41,11 @@ public sealed partial class JournalPage : PageBase
 
     public event EventHandler? ClearCacheRequested;
 
-    public event EventHandler? BrowserClosed;
-
     public event EventHandler<JournalNavigationEventArgs>? NavigationFinished;
 
     public event EventHandler<JournalRouteChangedEventArgs>? RouteChanged;
 
-    internal event EventHandler? PlannerRequested;
-    private void OnPlannerClicked(object sender, RoutedEventArgs e) => PlannerRequested?.Invoke(this, EventArgs.Empty);
-
-    public JournalPage()
-    {
-        InitializeComponent();
-        SummaryPanel.OpenRequested += OnSummaryOpenRequested;
-    }
-
-    internal void ApplyPlayTime(bool enabled, IReadOnlyList<Services.PlaySession> sessions, string? error)
-    {
-        PlayTimeIsland.Visibility = enabled || sessions.Count > 0 || error != null ? Visibility.Visible : Visibility.Collapsed;
-        var now = DateTimeOffset.UtcNow;
-        var cutoff = now.AddDays(-7);
-        var total = TimeSpan.Zero;
-        var week = TimeSpan.Zero;
-        foreach (var session in sessions)
-        {
-            total += session.Duration;
-            var start = session.StartUtc > cutoff ? session.StartUtc : cutoff;
-            var end = session.EndUtc < now ? session.EndUtc : now;
-            if (end > start) week += end - start;
-        }
-        PlayTimeTotals.Text = error ?? $"累计 {FormatPlayTime(total)}    最近 7 天 {FormatPlayTime(week)}";
-        RecentPlayTime.Text = string.Join(Environment.NewLine, sessions.OrderByDescending(s => s.EndUtc).Take(3)
-            .Select(s => $"{s.StartUtc.ToLocalTime():yyyy/MM/dd HH:mm}　{FormatPlayTime(s.Duration)}　{s.Channel}"));
-        RecentPlayTime.Visibility = sessions.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    private static string FormatPlayTime(TimeSpan duration) => duration.TotalMinutes < 1
-        ? $"{duration.Seconds} 秒"
-        : duration.TotalHours < 1 ? $"{duration.Minutes} 分钟" : $"{(long)duration.TotalHours} 小时 {duration.Minutes} 分钟";
+    public JournalPage() => InitializeComponent();
 
     public async Task ShowBrowserAsync(Uri? targetUri = null)
     {
@@ -110,7 +70,6 @@ public sealed partial class JournalPage : PageBase
             {
                 _browserDialogOpen = false;
                 await ReleaseBrowserDocumentAsync();
-                BrowserClosed?.Invoke(this, EventArgs.Empty);
             }
         }
     }
@@ -148,7 +107,6 @@ public sealed partial class JournalPage : PageBase
         JournalWebView.Opacity = isInProgress ? 0 : 1;
         JournalWebView.IsHitTestVisible = !isInProgress;
         BrowserDialogProgress.Visibility = isInProgress ? Visibility.Visible : Visibility.Collapsed;
-        SummaryPanel.SetSyncInProgress(isInProgress);
     }
 
     public void ShowSyncFailure(JournalCaptureFailureProjection failure)
@@ -170,28 +128,6 @@ public sealed partial class JournalPage : PageBase
 
         JournalWebView.Visibility = Visibility.Collapsed;
     }
-
-    public void ApplySnapshot(JournalSnapshot snapshot, string durationText, string durationSourceText)
-    {
-        SummaryPanel.ApplySnapshot(snapshot, durationText, durationSourceText);
-        EmptyStateIsland.Visibility = Visibility.Collapsed;
-        SummaryPanel.Visibility = Visibility.Visible;
-        if (SnapshotPanel.ApplySnapshot(snapshot))
-        {
-            ResetScroll();
-        }
-    }
-
-    public void ResetState(string durationSourceText)
-    {
-        EmptyStateIsland.Visibility = Visibility.Visible;
-        SummaryPanel.Visibility = Visibility.Collapsed;
-        SummaryPanel.ResetState(durationSourceText);
-        SnapshotPanel.ResetState();
-        ResetScroll();
-    }
-
-    public void ResetScroll() => ContentScrollViewer.ChangeView(null, 0, null, true);
 
     private Task EnsureBrowserAsync()
     {
@@ -253,12 +189,6 @@ public sealed partial class JournalPage : PageBase
 
         throw new JournalWebView2RuntimeUnavailableException();
     }
-
-    private void OnSummaryOpenRequested(object? sender, EventArgs e) =>
-        OpenRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnEmptyOpenClicked(object sender, RoutedEventArgs e) =>
-        OpenRequested?.Invoke(this, EventArgs.Empty);
 
     private void OnBackClicked(object sender, RoutedEventArgs e)
     {
@@ -335,10 +265,6 @@ public sealed partial class JournalPage : PageBase
 
         _currentNavigationUri = uri;
         Interlocked.Increment(ref _routeGeneration);
-        if (!uri.AbsoluteUri.Equals("about:blank", StringComparison.OrdinalIgnoreCase))
-        {
-            _lastContentUri = uri;
-        }
 
         RouteChanged?.Invoke(this, new JournalRouteChangedEventArgs(uri));
     }
@@ -353,13 +279,6 @@ public sealed partial class JournalPage : PageBase
             : null;
         BackButton.IsEnabled = JournalWebView.CanGoBack;
         ForwardButton.IsEnabled = JournalWebView.CanGoForward;
-        if (completedUri?.AbsoluteUri.Equals(
-                "about:blank",
-                StringComparison.OrdinalIgnoreCase) == false &&
-            isCurrentNavigation)
-        {
-            _lastContentUri = completedUri;
-        }
 
         var webErrorStatus = args.WebErrorStatus.ToString();
         NavigationFinished?.Invoke(

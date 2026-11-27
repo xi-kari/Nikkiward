@@ -15,10 +15,7 @@ public sealed partial class MainPage
                 switch (op)
                 {
                     case "import": await ImportPhotoPluginAsync(confirmReplacement: true); break;
-                    case "open":
-                        if (!await _pluginCatalog.LaunchAsync(PhotoAlbumPluginId, token))
-                            throw new IOException("未能打开相册插件。");
-                        break;
+                    case "open": await OpenPhotoPluginAsync(token); break;
                     case "uninstall":
                         if (await ConfirmWebSettingsAsync("卸载相册插件？", "将删除启动器中安装的插件和随附文件，保留相册照片。", "卸载"))
                             await _pluginCatalog.UninstallAsync(PhotoAlbumPluginId, token);
@@ -31,4 +28,10 @@ public sealed partial class MainPage
                 await RefreshPhotoPluginStateAsync(token);
             }
         });
+
+    private async Task OpenPhotoPluginAsync(CancellationToken token)
+    {
+        if (!await _pluginCatalog.LaunchAsync(PhotoAlbumPluginId, token))
+            throw new IOException("未能打开相册插件。");
+    }
 }

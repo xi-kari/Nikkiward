@@ -15,10 +15,8 @@
                 <ResourceDictionary Source="Themes/Geometry.xaml" />
                 <ResourceDictionary Source="Themes/Elevation.xaml" />
                 <ResourceDictionary Source="Themes/Motion.xaml" />
-                <ResourceDictionary Source="Themes/Shell.xaml" />
                 <ResourceDictionary Source="Themes/Controls.xaml" />
                 <ResourceDictionary Source="Themes/Islands.xaml" />
-                <ResourceDictionary Source="Styles/GalleryResources.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <!-- Shell rail and primary action theme resources. -->

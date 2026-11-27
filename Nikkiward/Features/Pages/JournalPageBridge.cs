@@ -2,36 +2,30 @@ using System.Text.Json;
 using Microsoft.UI.Xaml.Controls;
 using Nikkiward.ViewModels;
 using Nikkiward.Features.Pages;
-using Nikkiward.Features.Settings;
 
 namespace Nikkiward;
 
 public sealed partial class MainPage
 {
-    private bool _returnToWebJournal;
-
     private PageAdapter JournalPageAdapter() => new("journal", JournalPageData.Actions,
         () => JournalPageData.State(_journalSnapshot, ViewModel.GeneralSettings.RecordLocalPlayTime,
             _playTime?.Sessions, _playTimeError, Planner, DateTimeOffset.Now, TimeZoneInfo.Local),
         HandleJournalPageActionAsync);
 
-    private void RefreshWebJournal(object? sender, EventArgs args) => CurrentWebPage?.Refresh();
+    private void RefreshWebJournal(object? sender, EventArgs args)
+    {
+        if (CurrentWebPage is { CurrentPage: "journal" } view) view.Refresh();
+    }
 
     private async Task HandleJournalPageActionAsync(string action, JsonElement message)
     {
         switch (action)
         {
             case "official":
-                _returnToWebJournal = true;
-                try { await OpenJournalAsync(); }
-                finally
-                {
-                    _returnToWebJournal = false;
-                    if (_hostedJournalPage != null) ShowLibrary();
-                }
+                await OpenJournalAsync();
                 break;
             case "time-settings":
-                ShowSettingsPage(destination: SettingsDestination.Common);
+                ShowSettingsPage("general");
                 break;
             case "preview-image":
                 await ShowJournalImageAsync(message);

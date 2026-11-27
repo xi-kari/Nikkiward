@@ -1,7 +1,0 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <ResourceDictionary.MergedDictionaries>
-        <ResourceDictionary Source="ms-appx:///Features/Launcher/Skins/Cinema/Tokens.xaml" />
-    </ResourceDictionary.MergedDictionaries>
-    <FontFamily x:Key="HomeTitleFont">Noto Serif SC, Source Han Serif SC, SimSun, serif</FontFamily>
-</ResourceDictionary>

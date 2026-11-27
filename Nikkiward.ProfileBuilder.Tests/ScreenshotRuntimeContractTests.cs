@@ -198,12 +198,9 @@ internal static class ScreenshotRuntimeContractTests
     private static Task TestCaptureDisclosesDisplayAndClipboard()
     {
         var root = Path.Combine(FindWorkspaceRoot(), "Nikkiward");
-        foreach (var path in new[] { "Web/pages/settings/sections/Screenshot.js", "Features/Settings/ScreenshotSettingsView.xaml" })
-        {
-            var text = File.ReadAllText(Path.Combine(root, path));
-            Assert(text.Contains("截取当前显示器") && text.Contains("所有可见内容") &&
-                text.Contains("其他窗口") && text.Contains("复制到剪贴板"), "display capture disclosure: " + path);
-        }
+        var text = File.ReadAllText(Path.Combine(root, "Web/pages/settings/sections/Screenshot.js"));
+        Assert(text.Contains("截取当前显示器") && text.Contains("所有可见内容") &&
+            text.Contains("其他窗口") && text.Contains("复制到剪贴板"), "display capture disclosure");
         return Task.CompletedTask;
     }
 

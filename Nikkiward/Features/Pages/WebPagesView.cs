@@ -17,6 +17,7 @@ public sealed partial class WebPagesView : Page
     private MainPage _shell = null!;
     private PageAdapter _adapter = null!;
     private string? _page;
+    internal string? CurrentPage => _page;
     private bool _ready, _closed;
     private string? _failure;
     private int _settingsRefreshQueued;
@@ -30,7 +31,7 @@ public sealed partial class WebPagesView : Page
 
     internal void Show(MainPage shell, string page, PageAdapter adapter)
     {
-        if (_shell == null) shell.Unloaded += Close;
+        if (_shell == null) shell.Unloaded += OnShellUnloaded;
         _shell = shell;
         if (_page != page) ReleaseImages();
         _page = page;
@@ -50,14 +51,17 @@ public sealed partial class WebPagesView : Page
         if (_ready) Post(new { type = "leave" });
         ReleaseImages();
         _page = null;
+        if (_failure != null || args.SourcePageType == typeof(WebPageErrorView)) Close();
         base.OnNavigatedFrom(args);
     }
 
-    private void Close(object sender, RoutedEventArgs args)
+    private void OnShellUnloaded(object sender, RoutedEventArgs args) => Close();
+
+    private void Close()
     {
         _closed = true;
         ReleaseImages();
-        _shell.Unloaded -= Close;
+        _shell.Unloaded -= OnShellUnloaded;
         _shell.ViewModel.PropertyChanged -= AppearanceChanged;
         _shell.HomeBackdrop.PropertyChanged -= AppearanceChanged;
         NavigationCacheMode = NavigationCacheMode.Disabled;
@@ -146,15 +150,15 @@ public sealed partial class WebPagesView : Page
                     _ready = true;
                     Refresh();
                 }
-                catch (COMException ex) { Fail(ex.Message); }
+                catch (Exception ex) { Fail($"{ex.GetType().Name}: {ex.Message}"); }
             };
             core.AddWebResourceRequestedFilter(ImagePrefix + "*", CoreWebView2WebResourceContext.Image);
             core.WebResourceRequested += ImageRequested;
             core.WebMessageReceived += Message;
             core.Navigate(Address);
         }
-        catch (Exception ex) when (_closed || ex is COMException or IOException or UnauthorizedAccessException or NotImplementedException)
-        { Fail(ex.Message); }
+        catch (Exception ex)
+        { Fail($"{ex.GetType().Name}: {ex.Message}"); }
     }
 
     private async void Message(CoreWebView2 core, CoreWebView2WebMessageReceivedEventArgs args)
@@ -173,7 +177,12 @@ public sealed partial class WebPagesView : Page
         }
         if (!_ready || Field("page") != _page) return;
         var page = _page;
-        if (action == "module-error") { Fail("页面模块未加载：" + page); return; }
+        if (action == "module-error")
+        {
+            var detail = Field("reason");
+            Fail(string.IsNullOrWhiteSpace(detail) ? "页面模块未加载：" + page : detail);
+            return;
+        }
         if (!PageRoutes.Allows(page, Field("page"), _adapter, action)) return;
         try { await _adapter.Execute(action, m); }
         catch (Exception ex) when (ex is COMException or IOException or UnauthorizedAccessException or JsonException or InvalidDataException)

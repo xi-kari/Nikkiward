@@ -9,7 +9,6 @@
         <!-- ============================ LIGHT ============================ -->
         <ResourceDictionary x:Key="Light">
 
-            <SolidColorBrush x:Key="GlassPillBrush" Color="#B8F6F1EA" />
             <SolidColorBrush x:Key="GlassIslandBrush" Color="#C7F6F1EA" />
             <SolidColorBrush x:Key="GlassOverlayBrush" Color="#EBF6F1EA" />
             <SolidColorBrush x:Key="PaperGlassBrush" Color="#C7F6F1EA" />
@@ -47,7 +46,6 @@
         <!-- ============================= DARK ============================= -->
         <ResourceDictionary x:Key="Dark">
 
-            <SolidColorBrush x:Key="GlassPillBrush" Color="#B8241E1B" />
             <SolidColorBrush x:Key="GlassIslandBrush" Color="#C7241E1B" />
             <SolidColorBrush x:Key="GlassOverlayBrush" Color="#EB241E1B" />
             <SolidColorBrush x:Key="PaperGlassBrush" Color="#C7241E1B" />
@@ -62,7 +60,6 @@
                 <GradientStop Offset="0.45" Color="#1FFFFFFF" />
                 <GradientStop Offset="1" Color="#40000000" />
             </LinearGradientBrush>
-
 
             <SolidColorBrush x:Key="ScrimOverlayBrush" Color="#4D000000" />
 
@@ -83,7 +80,6 @@
         <!-- ========================= HIGH CONTRAST ========================= -->
         <ResourceDictionary x:Key="HighContrast">
 
-            <SolidColorBrush x:Key="GlassPillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="GlassIslandBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="GlassOverlayBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="PaperGlassBrush" Color="{ThemeResource SystemColorWindowColor}" />
@@ -95,8 +91,6 @@
             <StaticResource x:Key="ArtHeroShadeDeepColor" ResourceKey="SystemColorWindowColor" />
             <StaticResource x:Key="ArtHeroShadeStrongColor" ResourceKey="SystemColorWindowColor" />
             <StaticResource x:Key="ArtHeroShadeSoftColor" ResourceKey="SystemColorWindowColor" />
-            <SolidColorBrush x:Key="DrawerMaskBrush" Color="{ThemeResource SystemColorWindowColor}" Opacity="0.8" />
-            <SolidColorBrush x:Key="LaunchSettingsMaskBrush" Color="{ThemeResource SystemColorWindowColor}" Opacity="0.75" />
 
         </ResourceDictionary>
 
@@ -108,8 +102,5 @@
     <x:Double x:Key="GlassSaturation">1.22</x:Double>
     <x:Double x:Key="GlassBrightness">1.04</x:Double>
     <x:Double x:Key="MotionScrimFloor">0.28</x:Double>
-
-    <SolidColorBrush x:Key="DrawerMaskBrush" Color="#72241E1B" />
-    <SolidColorBrush x:Key="LaunchSettingsMaskBrush" Color="#66241E1B" />
 
 </ResourceDictionary>
